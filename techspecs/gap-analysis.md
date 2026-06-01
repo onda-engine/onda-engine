@@ -113,13 +113,15 @@ P0 = needed for a credible, fast, correct v1. P1 = parity/quality. P2 = later.
 ### D. Animation
 - **P0 Linear-space color interpolation** — `Lerp for Color` blends raw sRGB →
   muddy mid-tones (a real bug). Convert to linear/OkLab, lerp, convert back.
-- **P1 Springs** (mass/stiffness/damping) — the modern "feel"; keep
-  **frame-keyed** (analytic/semi-implicit, not wall-clock) for determinism.
-- **P1 Sequences/Series/Loop/Freeze** — composable time-shifting (Remotion
-  staple); today a flat `Vec<Animation>` with no nesting/offset/loop.
-- **P1 More easings** (CSS cubic-bézier, back/elastic/bounce) and **more
-  animatable properties** (rotation/skew/anchor/color/numeric; path morphing once
-  B exists).
+- **✅ DONE Springs** (mass/stiffness/damping) — `onda_animation::spring` +
+  `@onda/react` `spring()`, frame-keyed/deterministic (semi-implicit Euler),
+  overshoot for underdamped configs.
+- **✅ DONE Sequences/Series/Loop** — `@onda/react` `<Sequence from durationInFrames>`,
+  `<Series>`/`<Series.Sequence>` (back-to-back), `<Loop>` (frame-context shifting,
+  Remotion-style). Still TODO: `<Freeze>`, and a declarative (Rust-side) equivalent.
+- **✅ DONE More easings** — `CubicBezier{x1,y1,x2,y2}` (Rust + TS `cubicBezier()`)
+  + Back in/out/inout. Still TODO: elastic/bounce, and **more animatable
+  properties** (rotation/skew/anchor/color/numeric; path morphing once B exists).
 - **P2 Noise** (Perlin/simplex `wiggle()`), **state machines** (Rive-style;
   `rive-rs` runs on Vello).
 
