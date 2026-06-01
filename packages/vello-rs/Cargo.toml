@@ -9,8 +9,10 @@ repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
 
-# onda-core / onda-scene join here in step 2 (mapping the scene graph onto Vello).
 [dependencies]
+onda-core = { workspace = true }
+onda-scene = { workspace = true }
+onda-typography = { workspace = true }
 pollster = "0.4"
 vello = "0.3.0"
 

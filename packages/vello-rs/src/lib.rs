@@ -1,17 +1,22 @@
-//! Vello vector renderer for ONDA — step 1 (probe).
+//! Vello vector renderer for ONDA — step 2: render the scene graph.
 //!
-//! Vello is a GPU compute-based 2D vector renderer (anti-aliased paths, strokes,
-//! gradients, clips). This probe confirms it builds and renders headlessly here,
-//! drawing things the quad+SDF `onda-gpu` pipeline *cannot* (arbitrary Béziers,
-//! strokes). Mapping the ONDA scene graph onto Vello — and retiring quad+SDF — is
-//! the migration this de-risks.
+//! Maps an ONDA [`Scene`] onto a `vello::Scene` and rasterizes it on the GPU
+//! (compute) to an RGBA framebuffer. Unlike the quad+SDF `onda-gpu` backend this
+//! does true vector rendering: anti-aliased fills *and* strokes, and real
+//! rounded rectangles. Text reuses `onda-typography`'s coverage masks drawn as
+//! images (native per-glyph vector text is step 3).
 //!
-//! Note: vello 0.3 pins wgpu 22, so this uses `vello::wgpu` (a different wgpu than
-//! `onda-gpu`'s 24) until the migration consolidates on Vello.
+//! Note: vello 0.3 pins wgpu 22, so this uses `vello::wgpu` (distinct from
+//! `onda-gpu`'s 24) until the migration retires the quad+SDF path.
 
-use vello::kurbo::{Affine, BezPath, Circle, Rect, Stroke};
-use vello::peniko::{Color, Fill};
-use vello::{wgpu, AaConfig, RenderParams, Renderer, RendererOptions, Scene};
+use std::sync::Arc;
+
+use onda_core::{Color, Transform};
+use onda_scene::{Node, NodeKind, Scene, ShapeGeometry, Text};
+use onda_typography::FontContext;
+use vello::kurbo::{Affine, BezPath, Ellipse, Rect, RoundedRect, Shape, Stroke};
+use vello::peniko::{Blob, Color as PenikoColor, Fill, Format, Image};
+use vello::{wgpu, AaConfig, RenderParams, Renderer, RendererOptions, Scene as VelloScene};
 
 /// A rendered frame: straight-alpha RGBA8, row-major, top-left origin.
 pub struct Frame {
@@ -20,106 +25,212 @@ pub struct Frame {
     pub pixels: Vec<u8>,
 }
 
-/// Render a sample vector scene (backdrop, filled circle, stroked Bézier curve)
-/// via Vello. `None` if no GPU adapter is available.
-pub fn render_sample(width: u32, height: u32) -> Option<Frame> {
-    pollster::block_on(render_async(width, height))
+/// A reusable Vello-backed renderer (device + Vello renderer + fonts).
+pub struct VelloRenderer {
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    renderer: Renderer,
+    fonts: FontContext,
 }
 
-async fn render_async(width: u32, height: u32) -> Option<Frame> {
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            force_fallback_adapter: false,
-            compatible_surface: None,
-        })
-        .await?;
-    let (device, queue) = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                label: Some("onda-vello"),
-                required_features: wgpu::Features::empty(),
-                required_limits: adapter.limits(),
-                memory_hints: wgpu::MemoryHints::default(),
-            },
-            None,
-        )
-        .await
-        .ok()?;
+impl VelloRenderer {
+    /// Acquire a GPU and build the Vello renderer. `None` if no adapter exists.
+    pub fn new() -> Option<Self> {
+        pollster::block_on(Self::new_async())
+    }
 
-    // A dark backdrop, a filled circle, and a stroked cubic Bézier — arbitrary
-    // paths + strokes, the whole point of Vello.
-    let mut scene = Scene::new();
-    let (w, h) = (width as f64, height as f64);
-    scene.fill(
-        Fill::NonZero,
-        Affine::IDENTITY,
-        Color::rgb8(10, 13, 23),
-        None,
-        &Rect::new(0.0, 0.0, w, h),
-    );
-    scene.fill(
-        Fill::NonZero,
-        Affine::IDENTITY,
-        Color::rgb8(41, 115, 242),
-        None,
-        &Circle::new((w * 0.5, h * 0.4), h * 0.22),
-    );
-    let mut path = BezPath::new();
-    path.move_to((w * 0.1, h * 0.8));
-    path.curve_to((w * 0.3, h * 0.2), (w * 0.7, h * 1.1), (w * 0.9, h * 0.5));
-    scene.stroke(
-        &Stroke::new(10.0),
-        Affine::IDENTITY,
-        Color::rgb8(235, 90, 110),
-        None,
-        &path,
-    );
-
-    let mut renderer = Renderer::new(
-        &device,
-        RendererOptions {
-            surface_format: None,
-            use_cpu: false,
-            antialiasing_support: vello::AaSupport::area_only(),
-            num_init_threads: None,
-        },
-    )
-    .ok()?;
-
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("onda-vello target"),
-        size: wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
-        view_formats: &[],
-    });
-    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-    renderer
-        .render_to_texture(
+    async fn new_async() -> Option<Self> {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                force_fallback_adapter: false,
+                compatible_surface: None,
+            })
+            .await?;
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    label: Some("onda-vello"),
+                    required_features: wgpu::Features::empty(),
+                    required_limits: adapter.limits(),
+                    memory_hints: wgpu::MemoryHints::default(),
+                },
+                None,
+            )
+            .await
+            .ok()?;
+        let renderer = Renderer::new(
             &device,
-            &queue,
-            &scene,
-            &view,
-            &RenderParams {
-                base_color: Color::TRANSPARENT,
+            RendererOptions {
+                surface_format: None,
+                use_cpu: false,
+                antialiasing_support: vello::AaSupport::area_only(),
+                num_init_threads: None,
+            },
+        )
+        .ok()?;
+        Some(VelloRenderer {
+            device,
+            queue,
+            renderer,
+            fonts: FontContext::with_default_font(),
+        })
+    }
+
+    /// Render an ONDA scene to a [`Frame`].
+    pub fn render(&mut self, scene: &Scene) -> Frame {
+        let width = scene.composition.width.max(1);
+        let height = scene.composition.height.max(1);
+
+        let mut vscene = VelloScene::new();
+        build(
+            &mut vscene,
+            &mut self.fonts,
+            &scene.root,
+            Affine::IDENTITY,
+            1.0,
+        );
+
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("onda-vello target"),
+            size: wgpu::Extent3d {
                 width,
                 height,
-                antialiasing_method: AaConfig::Area,
+                depth_or_array_layers: 1,
             },
-        )
-        .ok()?;
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-    Some(read_back(&device, &queue, &texture, width, height))
+        self.renderer
+            .render_to_texture(
+                &self.device,
+                &self.queue,
+                &vscene,
+                &view,
+                &RenderParams {
+                    base_color: PenikoColor::TRANSPARENT,
+                    width,
+                    height,
+                    antialiasing_method: AaConfig::Area,
+                },
+            )
+            .expect("vello render");
+
+        read_back(&self.device, &self.queue, &texture, width, height)
+    }
+}
+
+/// Walk the scene graph, appending fills/strokes/text to the Vello scene.
+fn build(
+    vscene: &mut VelloScene,
+    fonts: &mut FontContext,
+    node: &Node,
+    parent: Affine,
+    parent_opacity: f32,
+) {
+    let affine = parent * to_affine(&node.transform);
+    let opacity = (parent_opacity * node.opacity).clamp(0.0, 1.0);
+
+    match &node.kind {
+        NodeKind::Group => {}
+        NodeKind::Shape(shape) => {
+            let path = shape_path(&shape.geometry);
+            if let Some(fill) = shape.fill {
+                vscene.fill(
+                    Fill::NonZero,
+                    affine,
+                    peniko_color(fill, opacity),
+                    None,
+                    &path,
+                );
+            }
+            if let Some(stroke) = shape.stroke {
+                vscene.stroke(
+                    &Stroke::new(stroke.width as f64),
+                    affine,
+                    peniko_color(stroke.color, opacity),
+                    None,
+                    &path,
+                );
+            }
+        }
+        NodeKind::Text(text) => draw_text(vscene, fonts, text, affine, opacity),
+        NodeKind::Image(_) => {}
+    }
+
+    for child in &node.children {
+        build(vscene, fonts, child, affine, opacity);
+    }
+}
+
+fn to_affine(t: &Transform) -> Affine {
+    Affine::translate((t.translate.x as f64, t.translate.y as f64))
+        * Affine::scale_non_uniform(t.scale.x as f64, t.scale.y as f64)
+}
+
+fn peniko_color(color: Color, opacity: f32) -> PenikoColor {
+    let [r, g, b, a] = color.with_alpha(color.a * opacity).to_rgba8();
+    PenikoColor::rgba8(r, g, b, a)
+}
+
+fn shape_path(geometry: &ShapeGeometry) -> BezPath {
+    const TOL: f64 = 0.1;
+    match geometry {
+        ShapeGeometry::Rect {
+            size,
+            corner_radius,
+        } => {
+            let (w, h) = (size.width as f64, size.height as f64);
+            if *corner_radius > 0.0 {
+                RoundedRect::new(0.0, 0.0, w, h, *corner_radius as f64).to_path(TOL)
+            } else {
+                Rect::new(0.0, 0.0, w, h).to_path(TOL)
+            }
+        }
+        ShapeGeometry::Ellipse { size } => {
+            let (rx, ry) = (size.width as f64 / 2.0, size.height as f64 / 2.0);
+            Ellipse::new((rx, ry), (rx, ry), 0.0).to_path(TOL)
+        }
+    }
+}
+
+/// Draw text by rasterizing a coverage mask (cosmic-text) and compositing it as
+/// a tinted image. Native per-glyph vector text via Vello is step 3.
+fn draw_text(
+    vscene: &mut VelloScene,
+    fonts: &mut FontContext,
+    text: &Text,
+    affine: Affine,
+    opacity: f32,
+) {
+    let base_alpha = text.color.a * opacity;
+    if base_alpha <= 0.0 {
+        return;
+    }
+    let Some(raster) = fonts.rasterize(&text.content, text.font_size) else {
+        return;
+    };
+    let [r, g, b, _] = text.color.to_rgba8();
+    let mut data = Vec::with_capacity(raster.coverage.len() * 4);
+    for &coverage in &raster.coverage {
+        let alpha = ((coverage as f32 / 255.0) * base_alpha * 255.0).round() as u8;
+        data.extend_from_slice(&[r, g, b, alpha]);
+    }
+    let image = Image::new(
+        Blob::new(Arc::new(data)),
+        Format::Rgba8,
+        raster.width,
+        raster.height,
+    );
+    let placement = affine * Affine::translate((raster.offset_x as f64, raster.offset_y as f64));
+    vscene.draw_image(&image, placement);
 }
 
 fn read_back(
@@ -181,14 +292,25 @@ fn read_back(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use onda_core::Size;
+    use onda_scene::{Composition, Node, Shape};
+
     #[test]
-    fn renders_a_vector_scene() {
-        let Some(frame) = super::render_sample(80, 80) else {
+    fn renders_an_onda_scene() {
+        let Some(mut renderer) = VelloRenderer::new() else {
             eprintln!("no GPU adapter; skipping");
             return;
         };
-        assert_eq!(frame.pixels.len(), 80 * 80 * 4);
-        // The backdrop is opaque, so the corner pixel is opaque.
-        assert_eq!(frame.pixels[3], 255);
+        let scene = Scene::new(Composition::new(64, 64, 30.0, 1)).with_root(
+            Node::group().with_child(Node::shape(
+                Shape::rect(Size::new(64.0, 64.0)).with_fill(Color::rgb(1.0, 0.0, 0.0)),
+            )),
+        );
+        let frame = renderer.render(&scene);
+        assert_eq!((frame.width, frame.height), (64, 64));
+        // A full-canvas red fill: center pixel is opaque red.
+        let center = ((32 * 64 + 32) * 4) as usize;
+        assert_eq!(&frame.pixels[center..center + 4], &[255, 0, 0, 255]);
     }
 }
