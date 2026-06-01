@@ -66,6 +66,7 @@ export default defineConfig({
           items: [
             { text: 'Authoring with React', link: '/guide/authoring-react' },
             { text: 'Rendering & export', link: '/guide/rendering' },
+            { text: 'Typography & fonts', link: '/guide/typography' },
             { text: 'Backends', link: '/guide/backends' },
             { text: 'SVG import', link: '/guide/svg' },
           ],
