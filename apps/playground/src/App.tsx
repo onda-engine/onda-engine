@@ -23,17 +23,69 @@ import { type ReactElement, useEffect, useMemo, useState } from 'react'
 const W = 1280
 const H = 480
 
-/** A title that springs up and fades in (frame-driven, deterministic). */
-function Title({ label, color = '#f2f2f4' }: { label: string; color?: string }): ReactElement {
+/** The bundled font families, selectable live in the playground. Open Sans
+ *  ships Regular only; IBM Plex Sans ships Regular/Bold/Italic, so weight and
+ *  italic only visibly change with it. Load more via `onda render --font` (CLI)
+ *  or `@onda/react`'s font props. */
+const FAMILIES = ['IBM Plex Sans', 'Open Sans'] as const
+
+/** The font the demo's text renders in — driven by the picker. */
+interface FontSettings {
+  family: string
+  weight: number
+  italic: boolean
+}
+
+/** A title that springs up and fades in (frame-driven, deterministic). Renders
+ *  in the picked font. */
+function Title({
+  label,
+  font,
+  color = '#f2f2f4',
+}: { label: string; font: FontSettings; color?: string }): ReactElement {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const rise = spring({ frame, fps, config: { damping: 13, stiffness: 120 } })
   const opacity = interpolate(frame, [0, 14], [0, 1], { extrapolateRight: 'clamp' })
   const y = interpolate(rise, [0, 1], [210, 168])
   return (
-    <Text x={96} y={y} fontSize={104} color={color} opacity={opacity}>
+    <Text
+      x={96}
+      y={y}
+      fontSize={104}
+      color={color}
+      opacity={opacity}
+      fontFamily={font.family}
+      fontWeight={font.weight}
+      italic={font.italic}
+    >
       {label}
     </Text>
+  )
+}
+
+/** A subtitle that fades in and shows the picked family in three styles at once
+ *  — Regular, Bold and Italic in a single line — via rich `runs`, which the
+ *  engine lays out across the right face per run (multi-font in one Text). */
+function Subtitle({ font }: { font: FontSettings }): ReactElement {
+  const frame = useCurrentFrame()
+  const opacity = interpolate(frame, [12, 30], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  })
+  return (
+    <Text
+      x={96}
+      y={352}
+      fontSize={30}
+      opacity={opacity}
+      runs={[
+        { text: `${font.family}  ·  `, fontFamily: font.family, color: '#7f8590' },
+        { text: 'Regular  ', fontFamily: font.family, fontWeight: 400, color: '#cfd3da' },
+        { text: 'Bold  ', fontFamily: font.family, fontWeight: 700, color: '#f2f2f4' },
+        { text: 'Italic', fontFamily: font.family, italic: true, color: '#e89aac' },
+      ]}
+    />
   )
 }
 
@@ -121,7 +173,7 @@ function Pulse(): ReactElement {
 // that wipes in through a clip mask — Text + Path + gradient + clip +
 // spring/interpolate. The GPU (Vello/WebGPU) engine renders all of it, pixel-
 // identical to `onda export`.
-function buildDemo(): ReactElement {
+function buildDemo(font: FontSettings): ReactElement {
   return (
     <Composition width={W} height={H} fps={30} durationInFrames={150}>
       <Rect width={W} height={H} fill="#0e0e12" />
@@ -129,13 +181,14 @@ function buildDemo(): ReactElement {
       <Pulse />
       <Series>
         <Series.Sequence durationInFrames={75}>
-          <Title label="Motion at GPU speed" />
+          <Title label="Motion at GPU speed" font={font} />
         </Series.Sequence>
         <Series.Sequence durationInFrames={75}>
-          <Title label="No browser." color="#d96b82" />
+          <Title label="No browser." color="#d96b82" font={font} />
         </Series.Sequence>
       </Series>
       <Underline />
+      <Subtitle font={font} />
     </Composition>
   )
 }
@@ -205,7 +258,12 @@ export function App(): ReactElement {
     }
   }, [])
 
-  const composition = useMemo(() => buildDemo(), [])
+  // The font the demo's text renders in — driven by the picker below.
+  const [family, setFamily] = useState<string>(FAMILIES[0])
+  const [weight, setWeight] = useState<number>(700)
+  const [italic, setItalic] = useState<boolean>(false)
+  const font = useMemo<FontSettings>(() => ({ family, weight, italic }), [family, weight, italic])
+  const composition = useMemo(() => buildDemo(font), [font])
 
   return (
     <main style={styles.main}>
@@ -226,6 +284,50 @@ export function App(): ReactElement {
         <code style={styles.code}>interpolate</code> over frames. Rendered live by the GPU engine
         (Vello over WebGPU) — pixel-identical to <code style={styles.code}>onda export</code>, with
         no Chromium. Drag the scrubber or press play.
+      </p>
+
+      <div style={styles.fontBar}>
+        <span style={styles.fontBarLabel}>Font</span>
+        <div style={styles.segGroup}>
+          {FAMILIES.map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFamily(f)}
+              style={family === f ? styles.segActive : styles.seg}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+        <div style={styles.segGroup}>
+          {[
+            { label: 'Regular', w: 400 },
+            { label: 'Bold', w: 700 },
+          ].map(({ label, w }) => (
+            <button
+              key={w}
+              type="button"
+              onClick={() => setWeight(w)}
+              style={weight === w ? styles.segActive : styles.seg}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => setItalic((v) => !v)}
+          style={italic ? styles.segActive : styles.seg}
+          aria-pressed={italic}
+        >
+          <span style={{ fontStyle: 'italic' }}>Italic</span>
+        </button>
+      </div>
+      <p style={styles.fontHint}>
+        Both families ship with the engine — zero setup, deterministic on any machine. Open Sans is
+        Regular-only, so weight &amp; italic show on IBM Plex Sans. Load your own with{' '}
+        <code style={styles.code}>onda render --font Brand.ttf</code>.
       </p>
 
       <section style={styles.card}>
@@ -308,6 +410,55 @@ const styles: Record<string, React.CSSProperties> = {
     margin: '20px 0 8px',
     fontSize: 14,
     cursor: 'pointer',
+  },
+  fontBar: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+    margin: '4px 0 10px',
+  },
+  fontBarLabel: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: 'var(--text-muted)',
+    marginRight: 2,
+  },
+  segGroup: {
+    display: 'inline-flex',
+    border: '1px solid var(--border)',
+    borderRadius: 10,
+    overflow: 'hidden',
+    background: 'var(--surface)',
+  },
+  seg: {
+    appearance: 'none',
+    border: 'none',
+    background: 'transparent',
+    color: 'var(--text-muted)',
+    font: 'inherit',
+    fontSize: 13.5,
+    padding: '7px 14px',
+    cursor: 'pointer',
+  },
+  segActive: {
+    appearance: 'none',
+    border: 'none',
+    background: 'var(--accent)',
+    color: '#1a1014',
+    font: 'inherit',
+    fontSize: 13.5,
+    fontWeight: 600,
+    padding: '7px 14px',
+    cursor: 'pointer',
+  },
+  fontHint: {
+    color: 'var(--text-muted)',
+    fontSize: 13.5,
+    lineHeight: 1.7,
+    margin: '0 0 24px',
   },
   muted: { color: 'var(--text-muted)' },
   note: {

@@ -22,11 +22,14 @@ pkg
 # ONDA render output (examples write here)
 *.png
 !docs/**/*.png
+!apps/docs/**/*.png
 !assets/**/*.png
 *.gif
 *.mp4
 !docs/**/*.gif
 !docs/**/*.mp4
+!apps/docs/**/*.gif
+!apps/docs/**/*.mp4
 
 # Logs
 *.log
