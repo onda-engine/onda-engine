@@ -137,6 +137,14 @@ impl Renderer {
         }
     }
 
+    /// A renderer using the bundled default font — draws text deterministically
+    /// (same scene in, same pixels out, on any machine). Recommended default.
+    pub fn with_default_font() -> Self {
+        Renderer {
+            fonts: Some(FontContext::with_default_font()),
+        }
+    }
+
     /// A renderer using a caller-provided font context.
     pub fn with_fonts(fonts: FontContext) -> Self {
         Renderer { fonts: Some(fonts) }
@@ -471,6 +479,18 @@ mod tests {
             .find(|px| px[3] > 0)
             .expect("text should ink at least one pixel");
         assert_eq!([first[0], first[1], first[2]], [255, 255, 255]);
+    }
+
+    #[test]
+    fn default_font_renders_hello_onda_deterministically() {
+        let scene = Scene::new(comp(256, 64)).with_root(
+            Node::group().with_child(Node::text("Hello ONDA").with_transform(translate(8.0, 12.0))),
+        );
+        // Bundled font => byte-identical output across independent renderers.
+        let a = Renderer::with_default_font().render(&scene);
+        let b = Renderer::with_default_font().render(&scene);
+        assert!(inked_pixels(&a) > 0, "Hello ONDA should be drawn");
+        assert_eq!(a.as_bytes(), b.as_bytes(), "render must be reproducible");
     }
 
     #[test]

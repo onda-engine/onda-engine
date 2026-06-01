@@ -183,6 +183,7 @@ version = "0.0.0"
 dependencies = [
  "cosmic-text",
  "onda-core",
+ "unicode-script",
 ]
 
 [[package]]

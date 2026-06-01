@@ -6,13 +6,43 @@
 //! an internal detail and hands back plain *coverage masks* ([`TextRaster`]). The
 //! caller (the renderer) owns color and compositing; this owns text quality.
 //!
-//! v0 scope: the host's installed fonts, mask (grayscale-coverage) glyphs, and
-//! left-to-right layout with line breaks. Deferred: explicit/bundled fonts for
-//! reproducible headless rendering (cosmic-text's platform fallback makes output
-//! host-dependent today), color/emoji glyphs, rich runs, variable-font axes, and
+//! Two font sources are available: the host's installed fonts
+//! ([`FontContext::with_system_fonts`], convenient but host-dependent) and an
+//! explicit/bundled font ([`FontContext::from_font_bytes`] /
+//! [`FontContext::with_default_font`]) which renders deterministically — same
+//! bytes in, same pixels out, on any machine — by disabling platform fallback.
+//! The bundled default is Open Sans (SIL OFL 1.1; see `assets/`).
+//!
+//! v0 scope: mask (grayscale-coverage) glyphs and left-to-right layout with line
+//! breaks. Deferred: color/emoji glyphs, rich runs, variable-font axes, and
 //! OpenType feature toggles.
 
-use cosmic_text::{Attrs, Buffer, Color as CtColor, FontSystem, Metrics, Shaping, SwashCache};
+use cosmic_text::{
+    fontdb, Attrs, Buffer, Color as CtColor, Fallback, FontSystem, Metrics, Shaping, SwashCache,
+};
+use unicode_script::Script;
+
+/// Open Sans Regular (SIL Open Font License 1.1), bundled so text renders out of
+/// the box, headless, without depending on the host's fonts. See
+/// `assets/OpenSans-LICENSE.txt`.
+const DEFAULT_FONT: &[u8] = include_bytes!("../assets/OpenSans-Regular.ttf");
+
+/// A `Fallback` that never substitutes another font. Pairing it with an explicit
+/// font database is what makes [`FontContext::from_font_bytes`] deterministic:
+/// glyphs the font lacks render as `.notdef` rather than via host fonts.
+struct NoFallback;
+
+impl Fallback for NoFallback {
+    fn common_fallback(&self) -> &[&'static str] {
+        &[]
+    }
+    fn forbidden_fallback(&self) -> &[&'static str] {
+        &[]
+    }
+    fn script_fallback(&self, _script: Script, _locale: &str) -> &[&'static str] {
+        &[]
+    }
+}
 
 /// Owns the font database and the glyph rasterization cache. Rasterizing mutates
 /// the cache, so methods take `&mut self`. Construct once and reuse across frames.
@@ -23,11 +53,52 @@ pub struct FontContext {
 
 impl FontContext {
     /// Use the host's installed fonts (with cosmic-text's platform fallback).
-    /// Convenient and always renders, but output depends on the machine's fonts;
-    /// reproducible rendering from bundled/explicit fonts is a planned follow-up.
+    /// Convenient and always renders, but output depends on the machine's fonts.
+    /// For reproducible rendering, prefer [`FontContext::with_default_font`] or
+    /// [`FontContext::from_font_bytes`].
     pub fn with_system_fonts() -> Self {
         FontContext {
             font_system: FontSystem::new(),
+            swash_cache: SwashCache::new(),
+        }
+    }
+
+    /// Render using only the bundled Open Sans font — deterministic and
+    /// host-independent. The recommended default for headless/server rendering.
+    pub fn with_default_font() -> Self {
+        Self::from_font_bytes(DEFAULT_FONT.to_vec())
+    }
+
+    /// Render using only the given font (`.ttf`/`.otf` bytes), with platform
+    /// fallback disabled. Output depends solely on these bytes, so the same input
+    /// yields identical pixels on any machine. Glyphs the font lacks render as
+    /// `.notdef`. The font's own family becomes the default for all generic
+    /// families, so unstyled text resolves to it.
+    pub fn from_font_bytes(data: Vec<u8>) -> Self {
+        let mut db = fontdb::Database::new();
+        db.load_font_data(data);
+
+        // Point every generic family at the loaded font so default `Attrs`
+        // (sans-serif) resolve to it rather than to nothing. Bind first so the
+        // immutable `faces()` borrow ends before the `set_*` mutations.
+        let family = db
+            .faces()
+            .next()
+            .and_then(|f| f.families.first().map(|(n, _)| n.clone()));
+        if let Some(family) = family {
+            db.set_sans_serif_family(family.clone());
+            db.set_serif_family(family.clone());
+            db.set_monospace_family(family.clone());
+            db.set_cursive_family(family.clone());
+            db.set_fantasy_family(family);
+        }
+
+        FontContext {
+            font_system: FontSystem::new_with_locale_and_db_and_fallback(
+                "en-US".to_string(),
+                db,
+                NoFallback,
+            ),
             swash_cache: SwashCache::new(),
         }
     }
@@ -172,5 +243,34 @@ mod tests {
             large > small,
             "64px ({large}) should ink more than 16px ({small})"
         );
+    }
+
+    #[test]
+    fn default_font_renders_text() {
+        let mut ctx = FontContext::with_default_font();
+        let raster = ctx
+            .rasterize("Hello ONDA", 32.0)
+            .expect("bundled font should render");
+        assert!(raster.inked_pixels() > 0);
+        assert!(raster.width > raster.height);
+    }
+
+    #[test]
+    fn default_font_is_deterministic() {
+        // Two independent contexts from the same font bytes must produce
+        // byte-identical output — the core reproducibility guarantee.
+        let mut a = FontContext::with_default_font();
+        let mut b = FontContext::with_default_font();
+        assert_eq!(
+            a.rasterize("Reproducible!", 28.0),
+            b.rasterize("Reproducible!", 28.0)
+        );
+    }
+
+    #[test]
+    fn from_font_bytes_matches_default() {
+        let mut a = FontContext::with_default_font();
+        let mut b = FontContext::from_font_bytes(DEFAULT_FONT.to_vec());
+        assert_eq!(a.rasterize("Hi", 40.0), b.rasterize("Hi", 40.0));
     }
 }
