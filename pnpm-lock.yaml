@@ -50,6 +50,9 @@ importers:
       '@onda/wasm':
         specifier: workspace:*
         version: link:../../packages/wasm
+      '@onda/wasm-vello':
+        specifier: workspace:*
+        version: link:../../packages/wasm-vello
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -118,6 +121,8 @@ importers:
         version: 2.1.9(@types/node@22.19.19)(terser@5.48.0)
 
   packages/wasm: {}
+
+  packages/wasm-vello: {}
 
 packages:
 

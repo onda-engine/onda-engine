@@ -26,6 +26,14 @@ import {
 import { type FrameDrawer, drawScene } from './canvas-renderer.js'
 import { type RenderEngine, engineDrawer } from './engine-drawer.js'
 
+/** An async, GPU renderer — structurally `@onda/wasm-vello`'s `VelloEngine`.
+ *  This is the pixel-exact, full-feature path (paths/gradients/clips/AA), so the
+ *  Player prefers it. Accepted structurally so `@onda/player` needn't depend on
+ *  `@onda/wasm-vello`. */
+export interface GpuEngine {
+  render(sceneJson: string): Promise<{ width: number; height: number; pixels: Uint8Array }>
+}
+
 export interface PlayerProps {
   /** A `<Composition>` element (from `@onda/react`). */
   composition: ReactElement
@@ -34,22 +42,20 @@ export interface PlayerProps {
   /** Loop back to frame 0 at the end. Default `true`. Also toggleable in the UI. */
   loop?: boolean
   /**
-   * How to paint each frame.
-   *
-   * Resolution order:
-   *   1. an explicit `draw` (highest priority),
-   *   2. else a drawer built from `engine` (the **real**, pixel-exact renderer),
-   *   3. else the Canvas2D {@link drawScene} preview (graceful fallback).
+   * The renderer. The Player auto-selects the best available, in order:
+   *   1. an explicit {@link PlayerProps.draw},
+   *   2. the GPU engine ({@link PlayerProps.gpuEngine}) — Vello/WebGPU,
+   *      pixel-identical to `onda export`,
+   *   3. the CPU engine ({@link PlayerProps.engine}),
+   *   4. the Canvas2D {@link drawScene} fallback.
+   * It also falls back automatically if a renderer errors at runtime.
    */
   draw?: FrameDrawer
-  /**
-   * The real ONDA renderer (`@onda/wasm`'s `OndaEngine`). When provided (and no
-   * explicit `draw` is given), the player previews through it — pixel-identical
-   * to `onda export`. Accepted structurally so `@onda/player` needn't depend on
-   * `@onda/wasm`.
-   */
+  /** The GPU (Vello/WebGPU) renderer — preferred when present (see {@link GpuEngine}). */
+  gpuEngine?: GpuEngine
+  /** The CPU renderer (`@onda/wasm`'s `OndaEngine`) — fallback when there's no GPU. */
   engine?: RenderEngine
-  /** Show the brand "engine vs preview" caption under the controls. Default `true`. */
+  /** Show a small backend indicator (WebGPU/CPU/Canvas2D). Default `true`. */
   showStatus?: boolean
   /** Accessible label for the player region. Default `"ONDA composition player"`. */
   label?: string
@@ -72,6 +78,7 @@ export function Player({
   autoPlay = true,
   loop: initialLoop = true,
   draw,
+  gpuEngine,
   engine,
   showStatus = true,
   label = 'ONDA composition player',
@@ -80,29 +87,34 @@ export function Player({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const uid = useId()
 
-  // If the real engine ever throws (e.g. a scene feature its build predates),
-  // we fall back to Canvas2D for the rest of the session rather than blanking.
-  const [engineFailed, setEngineFailed] = useState<string | null>(null)
+  // If a renderer throws at runtime, drop it and fall back for the rest of the
+  // session rather than blanking.
+  const [gpuFailed, setGpuFailed] = useState(false)
+  const [engineFailed, setEngineFailed] = useState(false)
 
-  // Pick the frame drawer: explicit > real engine > Canvas2D fallback.
-  const paint = useMemo<FrameDrawer>(() => {
-    if (draw) return draw
+  // Auto-select the renderer: explicit draw > GPU (Vello) > CPU engine > Canvas2D.
+  const mode = useMemo<
+    { kind: 'gpu'; engine: GpuEngine } | { kind: 'sync'; draw: FrameDrawer; label: string }
+  >(() => {
+    if (draw) return { kind: 'sync', draw, label: 'Custom' }
+    if (gpuEngine && !gpuFailed) return { kind: 'gpu', engine: gpuEngine }
     if (engine && !engineFailed) {
       const real = engineDrawer(engine)
-      // Wrap so a render error degrades gracefully instead of crashing React.
-      return (ctx, scene) => {
+      const safe: FrameDrawer = (ctx, scene) => {
         try {
           real(ctx, scene)
-        } catch (err) {
-          setEngineFailed(err instanceof Error ? err.message : String(err))
-          drawScene(ctx, scene) // best-effort this frame
+        } catch {
+          setEngineFailed(true)
+          drawScene(ctx, scene)
         }
       }
+      return { kind: 'sync', draw: safe, label: 'CPU' }
     }
-    return drawScene
-  }, [draw, engine, engineFailed])
-  // Are we previewing through the real engine (pixel-exact) or the stopgap?
-  const isRealEngine = draw == null && engine != null && !engineFailed
+    return { kind: 'sync', draw: drawScene, label: 'Canvas2D' }
+  }, [draw, gpuEngine, gpuFailed, engine, engineFailed])
+
+  const backend = mode.kind === 'gpu' ? 'WebGPU' : mode.label
+  const isExact = mode.kind === 'gpu' || backend === 'CPU' || backend === 'Custom'
 
   // Resolution + timing come from rendering frame 0 once.
   const config = useMemo(() => renderFrame(composition, 0).composition, [composition])
@@ -113,11 +125,55 @@ export function Player({
   const [playing, setPlaying] = useState(autoPlay)
   const [loop, setLoop] = useState(initialLoop)
 
-  // Re-draw whenever the frame, composition, or drawer changes.
+  // The frame/composition the canvas should show. Updated synchronously each
+  // render so the async GPU loop can always pull the latest target.
+  const targetRef = useRef({ composition, frame })
+  targetRef.current = { composition, frame }
+  const gpuBusyRef = useRef(false)
+
+  // Single-flight async GPU paint: render the latest target, dropping any
+  // intermediate frames (the readback can't always keep up at 60fps). Never
+  // runs two `render()` calls concurrently (the engine is &mut).
+  const paintGpu = useCallback((gpu: GpuEngine) => {
+    if (gpuBusyRef.current) return
+    gpuBusyRef.current = true
+    ;(async () => {
+      try {
+        let done: { c: ReactElement; f: number } | null = null
+        while (true) {
+          const { composition: c, frame: f } = targetRef.current
+          if (done && done.c === c && done.f === f) break // caught up
+          done = { c, f }
+          const out = await gpu.render(JSON.stringify(renderFrame(c, f)))
+          const canvas = canvasRef.current
+          const ctx = canvas?.getContext('2d')
+          if (canvas && ctx) {
+            if (canvas.width !== out.width) canvas.width = out.width
+            if (canvas.height !== out.height) canvas.height = out.height
+            ctx.putImageData(
+              new ImageData(new Uint8ClampedArray(out.pixels), out.width, out.height),
+              0,
+              0,
+            )
+          }
+        }
+      } catch {
+        setGpuFailed(true) // drop to the next renderer
+      } finally {
+        gpuBusyRef.current = false
+      }
+    })()
+  }, [])
+
+  // Re-draw whenever the frame, composition, or renderer changes.
   useEffect(() => {
-    const ctx = canvasRef.current?.getContext('2d')
-    if (ctx) paint(ctx, renderFrame(composition, frame))
-  }, [composition, frame, paint])
+    if (mode.kind === 'gpu') {
+      paintGpu(mode.engine)
+    } else {
+      const ctx = canvasRef.current?.getContext('2d')
+      if (ctx) mode.draw(ctx, renderFrame(composition, frame))
+    }
+  }, [composition, frame, mode, paintGpu])
 
   // Playback paced to the composition's fps via requestAnimationFrame.
   useEffect(() => {
@@ -206,13 +262,16 @@ export function Player({
   const seconds = frame / config.fps
   const totalSeconds = lastFrame / config.fps
 
-  // Short corner label + a full description (tooltip) for the engine/preview badge.
-  const statusLabel = isRealEngine ? 'Engine' : 'Preview'
-  const statusText = isRealEngine
-    ? 'Rendered by the real ONDA engine in WebAssembly — no DOM, no Chromium.'
-    : engineFailed
-      ? `Canvas2D preview — the WASM engine couldn't render this scene (${engineFailed}).`
-      : 'Canvas2D preview — shapes exact, text approximate. Pass an engine for pixel-exact output.'
+  // Small corner badge: the active backend + a fuller description (tooltip).
+  const statusLabel = backend
+  const statusText =
+    mode.kind === 'gpu'
+      ? 'Rendered by Vello on WebGPU — pixel-identical to `onda export`, no Chromium.'
+      : backend === 'CPU'
+        ? 'Rendered by the ONDA CPU engine in WebAssembly — no DOM, no Chromium.'
+        : backend === 'Canvas2D'
+          ? 'Canvas2D fallback — WebGPU and the CPU engine are unavailable here.'
+          : 'Custom renderer.'
 
   return (
     <div
@@ -244,7 +303,7 @@ export function Player({
         {showStatus && (
           <div className="onda-player__badge" title={statusText}>
             <span
-              className={`onda-player__dot onda-player__dot--${isRealEngine ? 'ok' : 'warn'}`}
+              className={`onda-player__dot onda-player__dot--${isExact ? 'ok' : 'warn'}`}
               aria-hidden="true"
             />
             <span>{statusLabel}</span>
