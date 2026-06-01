@@ -36,55 +36,78 @@ video, without Chromium."*
 
 Use these as CSS variables / semantic tokens — never hardcode hex in components.
 
+Palette aligned to **onda.video** (the sibling brand): neutral near-black,
+neutral grays, and a single muted-rose accent. No blue/cyan, no multi-color
+gradients.
+
 ```css
 :root {
-  /* surfaces */
-  --bg:          #080b13;  /* page background (deep navy-black) */
-  --surface:     #11151f;  /* cards/panels */
-  --surface-2:   #1a1f2e;  /* raised / hover */
-  --border:      #232a3a;
-  /* text */
-  --text:        #e8edf7;  /* on dark; ~13:1 on --bg (AAA) */
-  --text-muted:  #93a0b8;  /* ~5.4:1 on --bg (AA) — use for secondary only */
-  /* brand */
-  --primary:     #3b82f6;  /* ONDA blue (links, primary CTA) */
-  --primary-700: #2563eb;  /* hover/pressed */
-  --cyan:        #22d3ee;
-  --pink:        #f25a8c;
-  --on-primary:  #ffffff;  /* 4.7:1 on --primary (AA) */
-  /* signature gradients */
-  --grad-warm:   linear-gradient(90deg, #3b82f6, #f25a8c);  /* hero accents */
-  --grad-cool:   linear-gradient(90deg, #3b82f6, #22d3ee);  /* the mark */
-  /* feedback */
-  --ok: #28c08a;  --warn: #fac81c;  --err: #f25a5a;
+  /* surfaces — warm-neutral near-black (NOT blue navy) */
+  --bg:          #0e0e12;  /* page background */
+  --bg-deep:     #08080a;  /* deepest panels / video stage */
+  --surface:     #121217;  /* cards/panels */
+  --surface-2:   #18181d;  /* raised / hover */
+  --border:      #26262c;  /* hairline (or rgba(255,255,255,.08)) */
+  /* text — neutral grays */
+  --text:        #f2f2f4;  /* ~17:1 on --bg */
+  --text-muted:  #8e8e98;  /* secondary (~5:1) */
+  --text-dim:    #56565f;  /* labels/eyebrows; decorative only */
+  /* the ONE accent — muted rose. Use sparingly: CTA, links, the mark. */
+  --accent:      #d96b82;
+  --accent-600:  #c8576f;  /* hover/pressed */
+  --accent-soft: rgba(217,107,130,.12);  /* faint rose wash on a hero stage */
+  --on-accent:   #0e0e12;  /* dark text on the rose button (AA) */
+  /* feedback (kept muted, neutral-leaning) */
+  --ok: #6bbf8a;  --warn: #d9b06b;  --err: #d96b6b;
 }
 ```
 
-A light theme is optional; if added, design it independently (don't just invert)
-and re-verify contrast. Dark-first is the default and primary surface.
+Deliberately NO `--grad-warm`/`--grad-cool`/`--cyan`/`--primary` blue tokens —
+the old neon-gradient identity is retired. A light theme is optional; design it
+independently and re-verify contrast. Dark-first is primary.
 
 ## Typography
 
-- **Headings:** `"Space Grotesk", ui-sans-serif, system-ui, sans-serif` (600/700).
-- **Body:** `"Inter", ui-sans-serif, system-ui, sans-serif` (400/500).
-- **Code:** `"JetBrains Mono", ui-monospace, SFMono-Regular, monospace`.
-- Load via Google Fonts (or self-host). Body text **≥16px**. Line length 60–75ch
-  on desktop. Consistent type scale (rem): 0.875 / 1 / 1.125 / 1.25 / 1.5 / 2 /
-  3 / 3.75 (14/16/18/20/24/32/48/60px). Headings tight line-height (1.05–1.15),
+The display face is what makes ONDA read as *designed*, not generated.
+
+- **Headings:** **`"Clash Display", "Space Grotesk", sans-serif`** (600/700) —
+  the editorial display face (Fontshare). Big, tight, characterful.
+- **Body:** `"Space Grotesk", ui-sans-serif, system-ui, sans-serif` (400/500).
+- **Code/labels:** `"JetBrains Mono", ui-monospace, SFMono-Regular, monospace`
+  (also for eyebrows/overlines, uppercased + letter-spaced).
+- Load Clash Display via Fontshare
+  (`https://api.fontshare.com/v2/css?f[]=clash-display@600,700&display=swap`),
+  the rest via Google Fonts (or self-host). Body **≥16px**. Line length 60–75ch.
+  Type scale (rem): 0.875 / 1 / 1.125 / 1.25 / 1.5 / 2 / 3 / 4 / 5.5
+  (display headings go BIG: 64–88px on desktop). Heading line-height 0.95–1.05,
   body 1.6.
 
 ## Spacing, radius, elevation, motion
 
-- **Spacing:** 8px base scale (4 8 12 16 24 32 48 64 96 128). Generous section
-  padding (96–128px vertical on desktop).
-- **Radius:** 8px (controls), 14px (cards), 999px (pills). Be consistent.
-- **Elevation:** subtle — `0 1px 0 rgba(255,255,255,.04) inset, 0 8px 30px rgba(0,0,0,.4)`
-  on raised cards. Avoid heavy drop shadows.
-- **Motion:** micro-interactions 150–300ms, ease-out; hover/press states on all
-  interactive elements; scroll-reveal subtle. **Wrap all non-essential motion in
-  `@media (prefers-reduced-motion: reduce)`** and disable it there.
-- A signature touch: subtle animated wave/gradient in the hero (respecting
-  reduced-motion). Don't overdo it.
+- **Spacing:** 8px base scale. Generous section padding (96–160px vertical).
+- **Radius:** 8px (controls), 12–14px (cards), 999px (pills). Consistent.
+- **Borders:** prefer **hairlines** (`--border` / `rgba(255,255,255,.07)`) over
+  fills; let negative space and type do the work.
+- **Elevation:** minimal. A faint top inset highlight + a soft shadow at most;
+  no heavy glows.
+- **Motion:** micro-interactions 150–300ms ease-out; subtle scroll-reveal. Wrap
+  all non-essential motion in `@media (prefers-reduced-motion: reduce)`.
+
+## Visual direction — avoid the generic "AI" look (important)
+
+The previous identity (dark navy + blue→cyan/blue→pink neon gradients + glow
+blurs + gradient-clipped headline text + Inter) is the default AI-startup
+template — it reads as generated. ONDA's identity is the opposite: **editorial
+restraint**.
+
+- **Monochrome + one accent.** Neutral near-black & grays carry the page; rose
+  appears rarely (CTA, the mark, a single highlighted word, a hairline tint).
+- **No gradient text, no glow/blur orbs, no neon.** At most a *single*, very
+  faint rose radial on the hero stage (like onda.video's corner tint).
+- **Let type lead.** Big Clash Display headings, strong scale jumps, lots of
+  negative space. Mono eyebrows (uppercase, tracked) label sections.
+- **Hairlines, not boxes.** Thin dividers and outlines over filled cards.
+- The wave **mark** is the signal motif; keep it small and rose/neutral.
 
 ## Components
 
