@@ -18,6 +18,16 @@ png = { version = "0.18.1", optional = true }
 [features]
 png = ["dep:png"]
 
+# Examples only: lets the animation demo evaluate a timeline before rendering.
+# A dev-dependency, so the renderer keeps no production dependency on animation
+# (and there is no cycle: onda-animation does not depend on the renderer).
+[dev-dependencies]
+onda-animation = { workspace = true }
+
 [[example]]
 name = "hello_onda"
+required-features = ["png"]
+
+[[example]]
+name = "animated_hello"
 required-features = ["png"]

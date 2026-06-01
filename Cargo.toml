@@ -1,13 +1,14 @@
 [workspace]
 resolver = "2"
 # Crates join this list as they gain real implementations. Planned (empty dirs
-# scaffolded under packages/, added once they compile): animation-rs,
-# vector-rs, audio-rs, codecs-rs, wasm.
+# scaffolded under packages/, added once they compile): vector-rs, audio-rs,
+# codecs-rs, wasm.
 members = [
     "packages/core-rs",
     "packages/scene-rs",
     "packages/renderer-rs",
     "packages/typography-rs",
+    "packages/animation-rs",
     "packages/cli-rs",
 ]
 
@@ -26,6 +27,7 @@ onda-core = { path = "packages/core-rs", version = "0.0.0" }
 onda-scene = { path = "packages/scene-rs", version = "0.0.0" }
 onda-typography = { path = "packages/typography-rs", version = "0.0.0" }
 onda-renderer = { path = "packages/renderer-rs", version = "0.0.0" }
+onda-animation = { path = "packages/animation-rs", version = "0.0.0" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
