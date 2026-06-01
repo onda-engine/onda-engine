@@ -1,0 +1,39 @@
+[workspace]
+resolver = "2"
+# Crates join this list as they gain real implementations. Planned (empty dirs
+# scaffolded under packages/, added once they compile): typography-rs,
+# renderer-rs, animation-rs, vector-rs, audio-rs, codecs-rs, wasm, cli-rs.
+members = [
+    "packages/core-rs",
+    "packages/scene-rs",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.80"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/onda-engine/onda-engine"
+homepage = "https://github.com/onda-engine/onda-engine"
+authors = ["The ONDA Engine contributors"]
+
+# Shared dependency versions. Resolved/pinned at build time; bump in one place.
+[workspace.dependencies]
+onda-core = { path = "packages/core-rs", version = "0.0.0" }
+onda-scene = { path = "packages/scene-rs", version = "0.0.0" }
+onda-typography = { path = "packages/typography-rs", version = "0.0.0" }
+onda-renderer = { path = "packages/renderer-rs", version = "0.0.0" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+thiserror = "2"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+
+# Faster debug builds for the GPU/encoding dependency tree.
+[profile.dev.package."*"]
+opt-level = 2

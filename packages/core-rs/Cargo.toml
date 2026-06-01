@@ -1,0 +1,16 @@
+[package]
+name = "onda-core"
+description = "Core shared types for the ONDA motion graphics engine (color, geometry, transforms)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
