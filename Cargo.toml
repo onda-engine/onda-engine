@@ -13,6 +13,7 @@ members = [
     "packages/wasm",
     "packages/gpu-rs",
     "packages/bench-rs",
+    "packages/vello-rs",
 ]
 
 [workspace.package]
