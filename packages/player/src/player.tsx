@@ -234,19 +234,19 @@ export function Player({
       <div className="onda-player__controls" style={styles.controls}>
         <button
           type="button"
-          className="onda-player__btn onda-player__btn--play"
+          className="onda-player__play"
           onClick={togglePlay}
           aria-label={playing ? 'Pause' : 'Play'}
           aria-pressed={playing}
         >
-          <span aria-hidden="true">{playing ? '❚❚' : '▶'}</span>
-          <span className="onda-player__btn-text">{playing ? 'Pause' : 'Play'}</span>
+          {playing ? <PauseIcon /> : <PlayIcon />}
         </button>
 
         <input
           id={`${uid}-scrubber`}
           type="range"
           className="onda-player__scrubber"
+          style={{ '--progress': `${lastFrame ? (frame / lastFrame) * 100 : 0}%` } as CSSProperties}
           min={0}
           max={lastFrame}
           step={1}
@@ -265,24 +265,22 @@ export function Player({
           style={styles.readout}
           aria-live="off"
         >
-          <span className="onda-player__time">
-            {fmtTime(seconds)} / {fmtTime(totalSeconds)}
+          <span className="onda-player__time">{fmtTime(seconds)}</span>
+          <span className="onda-player__sep" aria-hidden="true">
+            /
           </span>
-          <span className="onda-player__frames">
-            {frame} / {lastFrame}
-          </span>
+          <span className="onda-player__total">{fmtTime(totalSeconds)}</span>
         </output>
 
         <button
           type="button"
-          className={`onda-player__btn onda-player__btn--loop${loop ? ' is-active' : ''}`}
+          className={`onda-player__icon${loop ? ' is-active' : ''}`}
           onClick={() => setLoop((v) => !v)}
           aria-label="Loop playback"
           aria-pressed={loop}
           title="Loop"
         >
-          <span aria-hidden="true">↻</span>
-          <span className="onda-player__btn-text">Loop</span>
+          <LoopIcon />
         </button>
       </div>
 
@@ -291,25 +289,63 @@ export function Player({
           {isRealEngine ? (
             <>
               <span className="onda-player__dot onda-player__dot--ok" aria-hidden="true" />
-              <strong>Engine:</strong> the real Rust renderer (cosmic-text + Open Sans) in
-              WebAssembly — pixel-identical to <code>onda export</code>. No DOM, no Chromium.
+              <span>Rendered by the real ONDA engine in WebAssembly — no DOM, no Chromium.</span>
+              <code className="onda-player__chip">onda export</code>
             </>
           ) : engineFailed ? (
             <>
               <span className="onda-player__dot onda-player__dot--warn" aria-hidden="true" />
-              <strong>Preview (engine fell back):</strong> the WASM engine couldn't render this
-              scene (<code>{engineFailed}</code>), so this is the Canvas2D preview.
+              <span>Canvas2D preview — the WASM engine couldn't render this scene.</span>
+              <code className="onda-player__chip">{engineFailed}</code>
             </>
           ) : (
             <>
               <span className="onda-player__dot onda-player__dot--warn" aria-hidden="true" />
-              <strong>Preview:</strong> Canvas2D with the browser font (shapes exact, text
-              approximate). Pass <code>engine</code> for the pixel-exact renderer.
+              <span>Canvas2D preview — shapes exact, text approximate.</span>
+              <code className="onda-player__chip">pass engine</code>
             </>
           )}
         </p>
       )}
     </div>
+  )
+}
+
+function PlayIcon(): ReactElement {
+  return (
+    <svg width="15" height="16" viewBox="0 0 15 16" fill="currentColor" aria-hidden="true">
+      <path d="M2 1.4v13.2a1 1 0 0 0 1.52.85l11-6.6a1 1 0 0 0 0-1.7l-11-6.6A1 1 0 0 0 2 1.4Z" />
+    </svg>
+  )
+}
+
+function PauseIcon(): ReactElement {
+  return (
+    <svg width="14" height="16" viewBox="0 0 14 16" fill="currentColor" aria-hidden="true">
+      <rect x="2" y="1.5" width="3.5" height="13" rx="1.2" />
+      <rect x="8.5" y="1.5" width="3.5" height="13" rx="1.2" />
+    </svg>
+  )
+}
+
+function LoopIcon(): ReactElement {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M17 1.5 21 5.5 17 9.5" />
+      <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+      <path d="M7 22.5 3 18.5 7 14.5" />
+      <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+    </svg>
   )
 }
 
@@ -338,19 +374,19 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--onda-border, #232a3a)',
   },
   canvas: { width: '100%', height: '100%', display: 'block' },
-  controls: { display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 },
+  controls: { display: 'flex', alignItems: 'center', gap: 14, marginTop: 14 },
   readout: {
     display: 'flex',
-    flexDirection: 'column',
-    lineHeight: 1.2,
+    alignItems: 'baseline',
+    gap: 4,
     fontVariantNumeric: 'tabular-nums',
     fontSize: 13,
     color: 'var(--onda-text-muted, #93a0b8)',
     whiteSpace: 'nowrap',
   },
   status: {
-    marginTop: 10,
-    fontSize: 13,
+    marginTop: 12,
+    fontSize: 12.5,
     color: 'var(--onda-text-muted, #93a0b8)',
     display: 'flex',
     alignItems: 'center',
@@ -389,83 +425,118 @@ const PLAYER_CSS = `
   --onda-cyan: var(--cyan, #22d3ee);
   --onda-ok: var(--ok, #28c08a);
   --onda-warn: var(--warn, #fac81c);
-  --onda-radius: 8px;
 }
-.onda-player__btn {
-  display: inline-flex; align-items: center; gap: 8px;
-  min-height: 40px; padding: 0 16px;
-  border-radius: var(--onda-radius);
+/* The controls sit on a subtle elevated bar so they read as one unit. */
+.onda-player__controls {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--onda-surface);
   border: 1px solid var(--onda-border);
-  background: var(--onda-surface-2);
-  color: var(--onda-text);
-  font: inherit; font-size: 14px; font-weight: 500;
-  cursor: pointer;
-  transition: background 180ms ease-out, border-color 180ms ease-out, color 180ms ease-out;
+  box-shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 6px 20px rgba(0,0,0,.35);
 }
-.onda-player__btn:hover { background: var(--onda-border); }
-.onda-player__btn:active { transform: translateY(0.5px); }
-.onda-player__btn--play {
+/* Circular primary play/pause — the player's focal control. */
+.onda-player__play {
+  flex: 0 0 auto;
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  border: 0; border-radius: 999px;
   background: var(--onda-primary);
-  border-color: var(--onda-primary);
   color: var(--on-primary, #fff);
-  min-width: 104px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--onda-primary) 45%, transparent);
+  transition: background 160ms ease-out, transform 120ms ease-out, box-shadow 160ms ease-out;
 }
-.onda-player__btn--play:hover { background: var(--onda-primary-700); border-color: var(--onda-primary-700); }
-.onda-player__btn--loop.is-active {
+.onda-player__play:hover { background: var(--onda-primary-700); transform: scale(1.05); }
+.onda-player__play:active { transform: scale(0.97); }
+.onda-player__play svg { display: block; }
+/* Ghost icon toggle (loop). */
+.onda-player__icon {
+  flex: 0 0 auto;
+  width: 38px; height: 38px;
+  display: grid; place-items: center;
+  border: 1px solid var(--onda-border); border-radius: 10px;
+  background: transparent; color: var(--onda-text-muted);
+  cursor: pointer;
+  transition: background 160ms ease-out, color 160ms ease-out, border-color 160ms ease-out;
+}
+.onda-player__icon:hover { background: var(--onda-surface-2); color: var(--onda-text); }
+.onda-player__icon.is-active {
   color: var(--onda-cyan);
-  border-color: color-mix(in srgb, var(--onda-cyan) 50%, var(--onda-border));
+  border-color: color-mix(in srgb, var(--onda-cyan) 55%, var(--onda-border));
+  background: color-mix(in srgb, var(--onda-cyan) 12%, transparent);
 }
-.onda-player__btn--loop.is-active span[aria-hidden] { color: var(--onda-cyan); }
+.onda-player__icon svg { display: block; }
 /* Visible focus rings on every interactive control + the player region. */
 .onda-player:focus-visible,
-.onda-player__btn:focus-visible,
+.onda-player__play:focus-visible,
+.onda-player__icon:focus-visible,
 .onda-player__scrubber:focus-visible {
   outline: 2px solid var(--onda-cyan);
   outline-offset: 2px;
 }
+/* Progress-aware scrubber: gradient fill up to the handle, muted track after. */
 .onda-player__scrubber {
-  flex: 1; min-width: 80px;
-  height: 6px; cursor: pointer;
+  flex: 1 1 auto; min-width: 80px;
+  height: 8px; cursor: pointer; margin: 0;
   -webkit-appearance: none; appearance: none;
-  background: var(--onda-surface-2);
-  border-radius: 999px;
-  accent-color: var(--onda-primary);
+  background: transparent;
 }
 .onda-player__scrubber::-webkit-slider-runnable-track {
   height: 6px; border-radius: 999px;
-  background: linear-gradient(90deg, var(--onda-primary), var(--onda-cyan));
+  background:
+    linear-gradient(90deg, var(--onda-primary), var(--onda-cyan)) left / var(--progress, 0%) 100% no-repeat,
+    var(--onda-surface-2);
 }
 .onda-player__scrubber::-moz-range-track {
+  height: 6px; border-radius: 999px; background: var(--onda-surface-2);
+}
+.onda-player__scrubber::-moz-range-progress {
   height: 6px; border-radius: 999px;
   background: linear-gradient(90deg, var(--onda-primary), var(--onda-cyan));
 }
 .onda-player__scrubber::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none;
-  width: 16px; height: 16px; margin-top: -5px;
-  border-radius: 999px; background: var(--onda-text);
-  border: 2px solid var(--onda-primary);
-  box-shadow: 0 1px 4px rgba(0,0,0,.5);
+  width: 15px; height: 15px; margin-top: -4.5px;
+  border-radius: 999px; background: #fff;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--onda-cyan) 30%, transparent), 0 1px 3px rgba(0,0,0,.6);
+  transition: box-shadow 140ms ease-out;
+}
+.onda-player__scrubber:hover::-webkit-slider-thumb {
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--onda-cyan) 35%, transparent), 0 1px 3px rgba(0,0,0,.6);
 }
 .onda-player__scrubber::-moz-range-thumb {
-  width: 16px; height: 16px;
-  border-radius: 999px; background: var(--onda-text);
-  border: 2px solid var(--onda-primary);
+  width: 15px; height: 15px; border: 0;
+  border-radius: 999px; background: #fff;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--onda-cyan) 30%, transparent), 0 1px 3px rgba(0,0,0,.6);
 }
+.onda-player__readout { flex: 0 0 auto; }
 .onda-player__time { font-weight: 600; color: var(--onda-text); }
-.onda-player__dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
-.onda-player__dot--ok { background: var(--onda-ok); }
-.onda-player__dot--warn { background: var(--onda-warn); }
-.onda-player__status code, .onda-player__status strong { color: var(--onda-text); }
-.onda-player__status code {
+.onda-player__sep, .onda-player__total { color: var(--onda-text-muted); }
+.onda-player__dot {
+  flex: 0 0 auto; width: 7px; height: 7px; border-radius: 999px; display: inline-block;
+}
+.onda-player__dot--ok {
+  background: var(--onda-ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--onda-ok) 22%, transparent);
+}
+.onda-player__dot--warn {
+  background: var(--onda-warn);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--onda-warn) 22%, transparent);
+}
+.onda-player__chip {
+  margin-left: auto;
+  padding: 2px 8px; border-radius: 999px;
+  background: var(--onda-surface-2); border: 1px solid var(--onda-border);
+  color: var(--onda-text);
   font-family: var(--onda-font-mono, "JetBrains Mono", ui-monospace, monospace);
-  font-size: 12px;
+  font-size: 11.5px; white-space: nowrap;
 }
 @media (max-width: 480px) {
-  .onda-player__btn-text { display: none; }
-  .onda-player__btn { min-width: 0; padding: 0 12px; }
+  .onda-player__status { flex-wrap: wrap; }
+  .onda-player__chip { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .onda-player__btn { transition: none; }
-  .onda-player__btn:active { transform: none; }
+  .onda-player__play, .onda-player__icon, .onda-player__scrubber::-webkit-slider-thumb { transition: none; }
+  .onda-player__play:hover, .onda-player__play:active { transform: none; }
 }
 `
