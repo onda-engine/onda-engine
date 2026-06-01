@@ -220,6 +220,36 @@ describe('renderToScene', () => {
     }
   })
 
+  it('emits font family / weight / italic on text and runs', () => {
+    const scene = renderToScene(
+      <Composition width={400} height={100} fps={1} durationInFrames={1}>
+        <Text
+          fontFamily="IBM Plex Sans"
+          fontWeight={700}
+          italic
+          runs={[
+            { text: 'a' },
+            { text: 'b', fontFamily: 'IBM Plex Sans', fontWeight: 700, italic: true },
+          ]}
+        />
+      </Composition>,
+    )
+    const kind = scene.root.children?.[0]?.kind
+    if (kind?.type === 'text') {
+      expect(kind.font_family).toBe('IBM Plex Sans')
+      expect(kind.weight).toBe(700)
+      expect(kind.italic).toBe(true)
+      expect(kind.runs?.[1]).toEqual({
+        text: 'b',
+        font_family: 'IBM Plex Sans',
+        weight: 700,
+        italic: true,
+      })
+    } else {
+      throw new Error('expected text node')
+    }
+  })
+
   it('requires a single Composition root', () => {
     expect(() => renderToScene(<Group />)).toThrow(/Composition/)
   })

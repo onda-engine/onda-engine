@@ -197,9 +197,19 @@ pub struct Text {
     pub font_size: f32,
     #[serde(default = "Text::default_color")]
     pub color: Color,
+    /// Font family name (must be loaded by the renderer). `None` = the default
+    /// (Open Sans). Bundled out of the box: "Open Sans", "IBM Plex Sans".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font_family: Option<String>,
+    /// CSS weight 1..=1000 (400 = normal, 700 = bold). `None` = normal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight: Option<u16>,
+    /// Italic/oblique. `None` = upright.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub italic: Option<bool>,
     /// Rich multi-style runs. When non-empty, these replace `content` — each run
-    /// is laid out inline and may override the color/size (and later weight/
-    /// style) of this node. Empty = a single run from `content`.
+    /// is laid out inline and may override color/size/family/weight/style.
+    /// Empty = a single run from `content`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub runs: Vec<TextRun>,
 }
@@ -212,6 +222,12 @@ pub struct TextRun {
     pub color: Option<Color>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub font_size: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font_family: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub italic: Option<bool>,
 }
 
 impl TextRun {
@@ -221,6 +237,9 @@ impl TextRun {
             text: text.into(),
             color: None,
             font_size: None,
+            font_family: None,
+            weight: None,
+            italic: None,
         }
     }
 
@@ -233,6 +252,24 @@ impl TextRun {
     /// Builder: override the run's font size.
     pub fn with_font_size(mut self, font_size: f32) -> Self {
         self.font_size = Some(font_size);
+        self
+    }
+
+    /// Builder: override the run's font family.
+    pub fn with_font_family(mut self, family: impl Into<String>) -> Self {
+        self.font_family = Some(family.into());
+        self
+    }
+
+    /// Builder: override the run's weight (e.g. 700 for bold).
+    pub fn with_weight(mut self, weight: u16) -> Self {
+        self.weight = Some(weight);
+        self
+    }
+
+    /// Builder: make the run italic.
+    pub fn italic(mut self) -> Self {
+        self.italic = Some(true);
         self
     }
 }
@@ -252,6 +289,9 @@ impl Text {
             content: content.into(),
             font_size: Text::default_font_size(),
             color: Text::default_color(),
+            font_family: None,
+            weight: None,
+            italic: None,
             runs: Vec::new(),
         }
     }
@@ -268,6 +308,24 @@ impl Text {
         self
     }
 
+    /// Builder: set the font family (must be loaded by the renderer).
+    pub fn with_font_family(mut self, family: impl Into<String>) -> Self {
+        self.font_family = Some(family.into());
+        self
+    }
+
+    /// Builder: set the weight (e.g. 700 for bold).
+    pub fn with_weight(mut self, weight: u16) -> Self {
+        self.weight = Some(weight);
+        self
+    }
+
+    /// Builder: make the text italic.
+    pub fn italic(mut self) -> Self {
+        self.italic = Some(true);
+        self
+    }
+
     /// Builder: set rich multi-style runs (overriding `content` when rendered).
     pub fn with_runs(mut self, runs: impl IntoIterator<Item = TextRun>) -> Self {
         self.runs = runs.into_iter().collect();
@@ -275,14 +333,19 @@ impl Text {
     }
 
     /// The effective runs: the explicit [`Text::runs`], or a single run derived
-    /// from `content` when none are set. Each run resolves color/size against the
-    /// node defaults.
+    /// from `content` when none are set. Each run resolves color/size/family/
+    /// weight/style against the node defaults.
     pub fn resolved_runs(&self) -> Vec<ResolvedRun> {
+        let weight = self.weight.unwrap_or(400);
+        let italic = self.italic.unwrap_or(false);
         if self.runs.is_empty() {
             return vec![ResolvedRun {
                 text: self.content.clone(),
                 color: self.color,
                 font_size: self.font_size,
+                font_family: self.font_family.clone(),
+                weight,
+                italic,
             }];
         }
         self.runs
@@ -291,6 +354,9 @@ impl Text {
                 text: r.text.clone(),
                 color: r.color.unwrap_or(self.color),
                 font_size: r.font_size.unwrap_or(self.font_size),
+                font_family: r.font_family.clone().or_else(|| self.font_family.clone()),
+                weight: r.weight.unwrap_or(weight),
+                italic: r.italic.unwrap_or(italic),
             })
             .collect()
     }
@@ -303,6 +369,9 @@ pub struct ResolvedRun {
     pub text: String,
     pub color: Color,
     pub font_size: f32,
+    pub font_family: Option<String>,
+    pub weight: u16,
+    pub italic: bool,
 }
 
 /// A bitmap image referenced by `src`. Decoding/loading is the renderer's job.

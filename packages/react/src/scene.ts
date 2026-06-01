@@ -60,11 +60,23 @@ export interface SceneTextRun {
   text: string
   color?: Color
   font_size?: number
+  font_family?: string
+  weight?: number
+  italic?: boolean
 }
 
 export type NodeKind =
   | { type: 'group' }
-  | { type: 'text'; content: string; font_size?: number; color?: Color; runs?: SceneTextRun[] }
+  | {
+      type: 'text'
+      content: string
+      font_size?: number
+      color?: Color
+      font_family?: string
+      weight?: number
+      italic?: boolean
+      runs?: SceneTextRun[]
+    }
   | { type: 'image'; src: string }
   | { type: 'shape'; geometry: ShapeGeometry; fill?: Color; gradient?: Gradient; stroke?: Stroke }
   | { type: 'svg'; src?: string; markup?: string }

@@ -89,19 +89,29 @@ export function Path(props: PathProps) {
   return createElement('onda-path', props)
 }
 
-/** One styled run for rich `<Text>` — overrides the node's color/size. */
+/** One styled run for rich `<Text>` — overrides the node's style. */
 export interface TextRunInput {
   text: string
   color?: ColorInput
   fontSize?: number
+  /** Font family (must be loaded; bundled: "Open Sans", "IBM Plex Sans"). */
+  fontFamily?: string
+  /** CSS weight 1..1000 (700 = bold). */
+  fontWeight?: number
+  italic?: boolean
 }
 
 export interface TextProps extends NodeProps {
   fontSize?: number
   color?: ColorInput
+  /** Font family (must be loaded; bundled: "Open Sans", "IBM Plex Sans"). */
+  fontFamily?: string
+  /** CSS weight 1..1000 (700 = bold). */
+  fontWeight?: number
+  italic?: boolean
   /** Rich multi-style runs. When set, these replace the text children — each run
-   *  may override the color/size. (Per-run color/size render on the GPU/Vello
-   *  backend; the CPU backend draws their concatenated text in one style.) */
+   *  may override color/size/family/weight/style. Renders per-run on the GPU
+   *  (Vello); the CPU backend draws their concatenated text in the node style. */
   runs?: TextRunInput[]
   children?: ReactNode
 }

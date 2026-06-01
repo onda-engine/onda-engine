@@ -156,12 +156,18 @@ function toNode(node: HostNode): SceneNode {
         content: node.text ?? '',
         ...(typeof props.fontSize === 'number' ? { font_size: props.fontSize } : {}),
         ...(props.color !== undefined ? { color: parseColor(props.color as never) } : {}),
+        ...(typeof props.fontFamily === 'string' ? { font_family: props.fontFamily } : {}),
+        ...(typeof props.fontWeight === 'number' ? { weight: props.fontWeight } : {}),
+        ...(props.italic === true ? { italic: true } : {}),
       }
       if (Array.isArray(props.runs)) {
         kind.runs = (props.runs as TextRunInput[]).map((r) => ({
           text: r.text,
           ...(r.color !== undefined ? { color: parseColor(r.color) } : {}),
           ...(typeof r.fontSize === 'number' ? { font_size: r.fontSize } : {}),
+          ...(typeof r.fontFamily === 'string' ? { font_family: r.fontFamily } : {}),
+          ...(typeof r.fontWeight === 'number' ? { weight: r.fontWeight } : {}),
+          ...(r.italic === true ? { italic: true } : {}),
         }))
       }
       return { ...base, kind, ...withChildren }

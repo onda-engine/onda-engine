@@ -9,7 +9,7 @@
 //!
 //! Note: vello 0.3 pins wgpu 22, so this uses `vello::wgpu`.
 
-use std::sync::Arc;
+use std::collections::HashMap;
 
 use onda_core::{Color, Transform};
 use onda_scene::{Gradient, GradientStop, Node, NodeKind, Scene, ShapeGeometry, Text};
@@ -33,10 +33,18 @@ pub struct VelloRenderer {
     queue: wgpu::Queue,
     renderer: Renderer,
     fonts: FontContext,
-    /// The bundled font as Vello sees it (glyph outlines). Glyph ids from
-    /// [`FontContext::layout`] index this font — both are built from the same
-    /// bytes, so they stay in lockstep.
-    font: Font,
+    /// Vello fonts cached by `onda-typography`'s stable per-face key, built on
+    /// demand from the face bytes the layout reports. Keeps Vello's glyph cache
+    /// warm across frames.
+    font_cache: HashMap<u64, Font>,
+}
+
+impl VelloRenderer {
+    /// Load an additional font (`.ttf`/`.otf` bytes) so text can select it by
+    /// family. Returns the family name(s) it provides.
+    pub fn load_font(&mut self, data: Vec<u8>) -> Vec<String> {
+        self.fonts.load_font(data)
+    }
 }
 
 impl VelloRenderer {
@@ -87,16 +95,12 @@ impl VelloRenderer {
             },
         )
         .map_err(|e| format!("Renderer::new failed: {e}"))?;
-        let font = Font::new(
-            Blob::new(Arc::new(FontContext::default_font_bytes().to_vec())),
-            0,
-        );
         Ok(VelloRenderer {
             device,
             queue,
             renderer,
             fonts: FontContext::with_default_font(),
-            font,
+            font_cache: HashMap::new(),
         })
     }
 
@@ -120,11 +124,11 @@ impl VelloRenderer {
         let height = scene.composition.height.max(1);
 
         let mut vscene = VelloScene::new();
-        // Disjoint field borrows: `fonts` mutably (shaping), `font` shared.
+        // Disjoint field borrows: `fonts` (shaping) + `font_cache` (built fonts).
         build(
             &mut vscene,
             &mut self.fonts,
-            &self.font,
+            &mut self.font_cache,
             &scene.root,
             Affine::IDENTITY,
             1.0,
@@ -169,7 +173,7 @@ impl VelloRenderer {
 fn build(
     vscene: &mut VelloScene,
     fonts: &mut FontContext,
-    font: &Font,
+    font_cache: &mut HashMap<u64, Font>,
     node: &Node,
     parent: Affine,
     parent_opacity: f32,
@@ -201,7 +205,7 @@ fn build(
                 );
             }
         }
-        NodeKind::Text(text) => draw_text(vscene, fonts, font, text, affine, opacity),
+        NodeKind::Text(text) => draw_text(vscene, fonts, font_cache, text, affine, opacity),
         NodeKind::Image(_) => {}
         // SVG nodes are expanded to shapes before rendering (see onda-svg); an
         // unexpanded one draws nothing.
@@ -209,7 +213,7 @@ fn build(
     }
 
     for child in &node.children {
-        build(vscene, fonts, font, child, affine, opacity);
+        build(vscene, fonts, font_cache, child, affine, opacity);
     }
 
     if clipped {
@@ -287,12 +291,13 @@ fn shape_path(geometry: &ShapeGeometry) -> BezPath {
 }
 
 /// Draw text as native glyph outlines through Vello's glyph runs. cosmic-text
-/// shapes/positions the glyphs ([`FontContext::layout`]); Vello rasterizes their
-/// outlines on the GPU — crisp at any scale, and ready for per-glyph animation.
+/// shapes the node's rich runs ([`FontContext::layout_rich`]) — picking the right
+/// face per run's family/weight/style — and Vello rasterizes the outlines on the
+/// GPU. Crisp at any scale; pixel-identical to `onda export`.
 fn draw_text(
     vscene: &mut VelloScene,
     fonts: &mut FontContext,
-    font: &Font,
+    font_cache: &mut HashMap<u64, Font>,
     text: &Text,
     affine: Affine,
     opacity: f32,
@@ -309,41 +314,54 @@ fn draw_text(
             text: &r.text,
             font_size: r.font_size,
             color: [r.color.r, r.color.g, r.color.b, r.color.a * opacity],
+            family: r.font_family.as_deref(),
+            weight: r.weight,
+            italic: r.italic,
         })
         .collect();
-    let glyphs = fonts.layout_rich(&styled);
-    if glyphs.is_empty() {
+    let layout = fonts.layout_rich(&styled);
+    if layout.glyphs.is_empty() {
         return;
     }
+    // Build any newly-seen faces (cached by stable key — keeps Vello's glyph
+    // cache warm across frames).
+    for blob in &layout.fonts {
+        font_cache
+            .entry(blob.key)
+            .or_insert_with(|| Font::new(Blob::new(blob.data.clone()), blob.index));
+    }
 
-    // Draw a Vello glyph run per contiguous group sharing size + color. Runs are
-    // contiguous in layout order, so grouping consecutively is deterministic.
+    // Draw a Vello glyph run per contiguous group sharing face + size + color.
+    // Runs are contiguous in layout order, so grouping consecutively is deterministic.
+    let glyphs = &layout.glyphs;
     let mut i = 0;
     while i < glyphs.len() {
         let head = glyphs[i];
         let mut j = i + 1;
         while j < glyphs.len()
+            && glyphs[j].font_key == head.font_key
             && glyphs[j].font_size == head.font_size
             && glyphs[j].color == head.color
         {
             j += 1;
         }
-        let [r, g, b, a] = head.color;
-        let to8 = |c: f32| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
-        let brush = PenikoColor::rgba8(to8(r), to8(g), to8(b), to8(a));
-        vscene
-            .draw_glyphs(font)
-            .font_size(head.font_size)
-            .transform(affine)
-            .brush(brush)
-            .draw(
-                Fill::NonZero,
-                glyphs[i..j].iter().map(|gl| Glyph {
-                    id: gl.id,
-                    x: gl.x,
-                    y: gl.y,
-                }),
-            );
+        if let Some(font) = font_cache.get(&head.font_key) {
+            let [r, g, b, a] = head.color;
+            let to8 = |c: f32| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
+            vscene
+                .draw_glyphs(font)
+                .font_size(head.font_size)
+                .transform(affine)
+                .brush(PenikoColor::rgba8(to8(r), to8(g), to8(b), to8(a)))
+                .draw(
+                    Fill::NonZero,
+                    glyphs[i..j].iter().map(|gl| Glyph {
+                        id: gl.id,
+                        x: gl.x,
+                        y: gl.y,
+                    }),
+                );
+        }
         i = j;
     }
 }
