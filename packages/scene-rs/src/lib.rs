@@ -12,7 +12,7 @@
 //! camera nodes (`Video`, `Audio`, `Svg`, `Camera`) land alongside their
 //! subsystems rather than as speculative stubs.
 
-use onda_core::{Color, Size, Transform};
+use onda_core::{Color, Size, Transform, Vec2};
 use serde::{Deserialize, Serialize};
 
 /// Opaque, frontend-assigned identifier for a node. Optional: many nodes (e.g.
@@ -221,17 +221,55 @@ impl Image {
     }
 }
 
-/// A vector shape with optional fill and stroke.
-// Intentionally not `Copy`: `ShapeGeometry` will gain heap-backed variants
-// (paths) with `onda-vector`, at which point `Copy` would have to be removed
-// anyway — a breaking change we avoid by never offering it.
+/// A vector shape with optional fill, gradient, and stroke.
+// Intentionally not `Copy`: `ShapeGeometry`/`Gradient` carry heap-backed data
+// (path strings, gradient stops), so `Copy` was never on the table.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Shape {
     pub geometry: ShapeGeometry,
+    /// Solid fill color. Ignored when [`Shape::gradient`] is set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fill: Option<Color>,
+    /// Gradient fill. Takes precedence over [`Shape::fill`] when present.
+    /// Rendered by vector backends (Vello); the CPU backend falls back to the
+    /// first stop's color.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gradient: Option<Gradient>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stroke: Option<Stroke>,
+}
+
+/// One color stop of a [`Gradient`]: a color at a normalized position `0..=1`
+/// along the gradient.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct GradientStop {
+    pub offset: f32,
+    pub color: Color,
+}
+
+impl GradientStop {
+    pub fn new(offset: f32, color: Color) -> Self {
+        GradientStop { offset, color }
+    }
+}
+
+/// A gradient paint, defined in the shape's local coordinate space (the same
+/// space as its geometry — e.g. `0..width`, `0..height`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "gradient", rename_all = "snake_case")]
+pub enum Gradient {
+    /// A linear gradient from `start` to `end`.
+    Linear {
+        start: Vec2,
+        end: Vec2,
+        stops: Vec<GradientStop>,
+    },
+    /// A radial gradient centered at `center` with the given `radius`.
+    Radial {
+        center: Vec2,
+        radius: f32,
+        stops: Vec<GradientStop>,
+    },
 }
 
 /// The geometric form of a [`Shape`]. Booleans and morphing arrive later (which
@@ -263,53 +301,82 @@ pub struct Stroke {
 }
 
 impl Shape {
-    /// A rectangle (square corners).
-    pub fn rect(size: Size) -> Self {
+    /// A shape from a geometry, with no paint yet.
+    fn from_geometry(geometry: ShapeGeometry) -> Self {
         Shape {
-            geometry: ShapeGeometry::Rect {
-                size,
-                corner_radius: 0.0,
-            },
+            geometry,
             fill: None,
+            gradient: None,
             stroke: None,
         }
+    }
+
+    /// A rectangle (square corners).
+    pub fn rect(size: Size) -> Self {
+        Shape::from_geometry(ShapeGeometry::Rect {
+            size,
+            corner_radius: 0.0,
+        })
     }
 
     /// A rounded rectangle.
     pub fn rounded_rect(size: Size, corner_radius: f32) -> Self {
-        Shape {
-            geometry: ShapeGeometry::Rect {
-                size,
-                corner_radius,
-            },
-            fill: None,
-            stroke: None,
-        }
+        Shape::from_geometry(ShapeGeometry::Rect {
+            size,
+            corner_radius,
+        })
     }
 
     /// An ellipse inscribed in `size`.
     pub fn ellipse(size: Size) -> Self {
-        Shape {
-            geometry: ShapeGeometry::Ellipse { size },
-            fill: None,
-            stroke: None,
-        }
+        Shape::from_geometry(ShapeGeometry::Ellipse { size })
     }
 
     /// An arbitrary outline from SVG path data (e.g. `"M0 0 L100 0 Z"`), in local
     /// coordinates. Renders on vector backends (Vello).
     pub fn path(data: impl Into<String>) -> Self {
-        Shape {
-            geometry: ShapeGeometry::Path { data: data.into() },
-            fill: None,
-            stroke: None,
-        }
+        Shape::from_geometry(ShapeGeometry::Path { data: data.into() })
     }
 
     /// Builder: set the fill color.
     pub fn with_fill(mut self, color: Color) -> Self {
         self.fill = Some(color);
         self
+    }
+
+    /// Builder: set a gradient fill (takes precedence over a solid fill).
+    pub fn with_gradient(mut self, gradient: Gradient) -> Self {
+        self.gradient = Some(gradient);
+        self
+    }
+
+    /// Builder: set a linear gradient fill between `start` and `end` (local
+    /// coordinates).
+    pub fn with_linear_gradient(
+        self,
+        start: Vec2,
+        end: Vec2,
+        stops: impl IntoIterator<Item = GradientStop>,
+    ) -> Self {
+        self.with_gradient(Gradient::Linear {
+            start,
+            end,
+            stops: stops.into_iter().collect(),
+        })
+    }
+
+    /// Builder: set a radial gradient fill (local coordinates).
+    pub fn with_radial_gradient(
+        self,
+        center: Vec2,
+        radius: f32,
+        stops: impl IntoIterator<Item = GradientStop>,
+    ) -> Self {
+        self.with_gradient(Gradient::Radial {
+            center,
+            radius,
+            stops: stops.into_iter().collect(),
+        })
     }
 
     /// Builder: set the stroke.
@@ -430,6 +497,24 @@ mod tests {
         // Tagged as a "path" with its data preserved verbatim.
         assert!(json.contains(r#""shape":"path""#));
         assert!(json.contains(r#""data":"M0 0 L10 0 L10 10 Z""#));
+        let back: Scene = serde_json::from_str(&json).unwrap();
+        assert_eq!(scene, back);
+    }
+
+    #[test]
+    fn gradient_fill_round_trips_through_json() {
+        let scene = Scene::new(hd()).with_root(Node::group().with_child(Node::shape(
+            Shape::rect(Size::new(100.0, 20.0)).with_linear_gradient(
+                Vec2::new(0.0, 0.0),
+                Vec2::new(100.0, 0.0),
+                [
+                    GradientStop::new(0.0, Color::rgb(1.0, 0.0, 0.0)),
+                    GradientStop::new(1.0, Color::rgb(0.0, 0.0, 1.0)),
+                ],
+            ),
+        )));
+        let json = serde_json::to_string(&scene).unwrap();
+        assert!(json.contains(r#""gradient":"linear""#));
         let back: Scene = serde_json::from_str(&json).unwrap();
         assert_eq!(scene, back);
     }

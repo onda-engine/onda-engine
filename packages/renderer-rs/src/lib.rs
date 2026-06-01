@@ -17,7 +17,7 @@
 //! the node's (composed) transform places it on the canvas.
 
 use onda_core::{Color, Transform, Vec2};
-use onda_scene::{Node, NodeKind, Scene, Shape, ShapeGeometry, Text};
+use onda_scene::{Gradient, Node, NodeKind, Scene, Shape, ShapeGeometry, Text};
 pub use onda_typography::{FontContext, TextRaster};
 
 /// An RGBA8 image: `width * height * 4` bytes, row-major, top-left origin.
@@ -314,8 +314,23 @@ where
         .collect()
 }
 
+/// The first stop's color of a gradient (the CPU backend's gradient fallback).
+fn first_stop_color(gradient: &Gradient) -> Option<Color> {
+    let stops = match gradient {
+        Gradient::Linear { stops, .. } | Gradient::Radial { stops, .. } => stops,
+    };
+    stops.first().map(|s| s.color)
+}
+
 fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, opacity: f32) {
-    let Some(fill) = shape.fill else {
+    // The CPU backend has no gradient rasterizer, so a gradient fill collapses to
+    // its first stop's color (the Vello backend renders the true gradient).
+    let fill = shape
+        .gradient
+        .as_ref()
+        .and_then(first_stop_color)
+        .or(shape.fill);
+    let Some(fill) = fill else {
         return; // stroke-only shapes deferred to v1
     };
     let fill = fill.with_alpha(fill.a * opacity);

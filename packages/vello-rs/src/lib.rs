@@ -12,10 +12,12 @@
 use std::sync::Arc;
 
 use onda_core::{Color, Transform};
-use onda_scene::{Node, NodeKind, Scene, ShapeGeometry, Text};
+use onda_scene::{Gradient, GradientStop, Node, NodeKind, Scene, ShapeGeometry, Text};
 use onda_typography::FontContext;
 use vello::kurbo::{Affine, BezPath, Ellipse, Rect, RoundedRect, Shape, Stroke};
-use vello::peniko::{Blob, Color as PenikoColor, Fill, Font};
+use vello::peniko::{
+    Blob, Brush, Color as PenikoColor, ColorStop, Fill, Font, Gradient as PenikoGradient,
+};
 use vello::{wgpu, AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene as VelloScene};
 
 /// A rendered frame: straight-alpha RGBA8, row-major, top-left origin.
@@ -154,14 +156,8 @@ fn build(
         NodeKind::Group => {}
         NodeKind::Shape(shape) => {
             let path = shape_path(&shape.geometry);
-            if let Some(fill) = shape.fill {
-                vscene.fill(
-                    Fill::NonZero,
-                    affine,
-                    peniko_color(fill, opacity),
-                    None,
-                    &path,
-                );
+            if let Some(brush) = fill_brush(shape.fill, shape.gradient.as_ref(), opacity) {
+                vscene.fill(Fill::NonZero, affine, &brush, None, &path);
             }
             if let Some(stroke) = shape.stroke {
                 vscene.stroke(
@@ -190,6 +186,41 @@ fn to_affine(t: &Transform) -> Affine {
 fn peniko_color(color: Color, opacity: f32) -> PenikoColor {
     let [r, g, b, a] = color.with_alpha(color.a * opacity).to_rgba8();
     PenikoColor::rgba8(r, g, b, a)
+}
+
+/// The fill paint for a shape: a gradient takes precedence over a solid color;
+/// `opacity` is baked into the resulting colors. `None` if the shape has no fill.
+fn fill_brush(fill: Option<Color>, gradient: Option<&Gradient>, opacity: f32) -> Option<Brush> {
+    match gradient {
+        Some(g) => Some(Brush::Gradient(peniko_gradient(g, opacity))),
+        None => fill.map(|c| Brush::Solid(peniko_color(c, opacity))),
+    }
+}
+
+fn peniko_gradient(gradient: &Gradient, opacity: f32) -> PenikoGradient {
+    match gradient {
+        Gradient::Linear { start, end, stops } => PenikoGradient::new_linear(
+            (start.x as f64, start.y as f64),
+            (end.x as f64, end.y as f64),
+        )
+        .with_stops(color_stops(stops, opacity).as_slice()),
+        Gradient::Radial {
+            center,
+            radius,
+            stops,
+        } => PenikoGradient::new_radial((center.x as f64, center.y as f64), *radius)
+            .with_stops(color_stops(stops, opacity).as_slice()),
+    }
+}
+
+fn color_stops(stops: &[GradientStop], opacity: f32) -> Vec<ColorStop> {
+    stops
+        .iter()
+        .map(|s| ColorStop {
+            offset: s.offset,
+            color: peniko_color(s.color, opacity),
+        })
+        .collect()
 }
 
 fn shape_path(geometry: &ShapeGeometry) -> BezPath {
@@ -309,8 +340,8 @@ fn read_back(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use onda_core::Size;
-    use onda_scene::{Composition, Node, Shape};
+    use onda_core::{Size, Vec2};
+    use onda_scene::{Composition, GradientStop, Node, Shape};
 
     #[test]
     fn renders_an_onda_scene() {
@@ -345,5 +376,40 @@ mod tests {
         let frame = renderer.render(&scene);
         let center = ((32 * 64 + 32) * 4) as usize;
         assert_eq!(&frame.pixels[center..center + 4], &[0, 255, 0, 255]);
+    }
+
+    #[test]
+    fn renders_a_linear_gradient() {
+        let Some(mut renderer) = VelloRenderer::new() else {
+            eprintln!("no GPU adapter; skipping");
+            return;
+        };
+        // Horizontal red → blue across the canvas.
+        let scene =
+            Scene::new(Composition::new(64, 64, 30.0, 1)).with_root(Node::group().with_child(
+                Node::shape(Shape::rect(Size::new(64.0, 64.0)).with_linear_gradient(
+                    Vec2::new(0.0, 0.0),
+                    Vec2::new(64.0, 0.0),
+                    [
+                        GradientStop::new(0.0, Color::rgb(1.0, 0.0, 0.0)),
+                        GradientStop::new(1.0, Color::rgb(0.0, 0.0, 1.0)),
+                    ],
+                )),
+            ));
+        let frame = renderer.render(&scene);
+        let px = |x: u32| {
+            let i = ((32 * 64 + x) * 4) as usize;
+            [frame.pixels[i], frame.pixels[i + 1], frame.pixels[i + 2]]
+        };
+        let (left, right) = (px(2), px(61));
+        // Left end is mostly red; right end mostly blue.
+        assert!(
+            left[0] > 180 && left[2] < 80,
+            "left should be red: {left:?}"
+        );
+        assert!(
+            right[2] > 180 && right[0] < 80,
+            "right should be blue: {right:?}"
+        );
     }
 }
