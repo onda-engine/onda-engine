@@ -111,8 +111,9 @@ P0 = needed for a credible, fast, correct v1. P1 = parity/quality. P2 = later.
 - **P2 Text-on-path** (needs B + per-glyph exposure).
 
 ### D. Animation
-- **P0 Linear-space color interpolation** — `Lerp for Color` blends raw sRGB →
-  muddy mid-tones (a real bug). Convert to linear/OkLab, lerp, convert back.
+- **✅ DONE Linear-space color interpolation** — `onda_core::Color::{to_linear,
+  from_linear}` (sRGB transfer fns); `Lerp for Color` now interpolates in linear
+  light (alpha direct). The renderers can adopt the same for correct compositing.
 - **✅ DONE Springs** (mass/stiffness/damping) — `onda_animation::spring` +
   `@onda/react` `spring()`, frame-keyed/deterministic (semi-implicit Euler),
   overshoot for underdamped configs.
