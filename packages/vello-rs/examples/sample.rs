@@ -2,7 +2,7 @@
 //!   cargo run -p onda-vello --example sample -- out.png
 
 use onda_core::{Color, Size, Transform, Vec2};
-use onda_scene::{Composition, GradientStop, Node, NodeKind, Scene, Shape, Text};
+use onda_scene::{Composition, GradientStop, Node, NodeKind, Scene, Shape, ShapeGeometry, Text};
 use onda_vello::VelloRenderer;
 
 fn at(x: f32, y: f32) -> Transform {
@@ -63,6 +63,22 @@ fn main() {
                     .with_color(Color::WHITE),
             ))
             .with_transform(at(96.0, 110.0)),
+            // A clip: oversized text confined to a rounded "window". The glyphs
+            // overflow the box but are cut to it.
+            Node::group()
+                .with_transform(at(648.0, 232.0))
+                .with_clip(ShapeGeometry::Rect {
+                    size: Size::new(150.0, 64.0),
+                    corner_radius: 14.0,
+                })
+                .with_child(
+                    Node::new(NodeKind::Text(
+                        Text::new("CLIP")
+                            .with_font_size(96.0)
+                            .with_color(Color::rgb(0.3, 0.9, 0.6)),
+                    ))
+                    .with_transform(at(8.0, -8.0)),
+                ),
         ]),
     );
 
