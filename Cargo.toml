@@ -22,8 +22,8 @@ version = "0.0.0"
 edition = "2021"
 rust-version = "1.80"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/onda-engine/onda-engine"
-homepage = "https://github.com/onda-engine/onda-engine"
+repository = "https://github.com/degueba/onda-engine"
+homepage = "https://github.com/degueba/onda-engine"
 authors = ["The ONDA Engine contributors"]
 
 # Shared dependency versions. Resolved/pinned at build time; bump in one place.
