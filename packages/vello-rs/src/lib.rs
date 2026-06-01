@@ -1,13 +1,13 @@
-//! Vello vector renderer for ONDA — step 2: render the scene graph.
+//! Vello vector renderer for ONDA — the GPU-native vector backend.
 //!
 //! Maps an ONDA [`Scene`] onto a `vello::Scene` and rasterizes it on the GPU
-//! (compute) to an RGBA framebuffer. Unlike the quad+SDF `onda-gpu` backend this
-//! does true vector rendering: anti-aliased fills *and* strokes, and real
-//! rounded rectangles. Text reuses `onda-typography`'s coverage masks drawn as
-//! images (native per-glyph vector text is step 3).
+//! (compute) to an RGBA framebuffer. Unlike the retired quad+SDF backend this
+//! does true vector rendering: anti-aliased fills *and* strokes, real rounded
+//! rectangles, arbitrary Bézier [`Path`]s, and **native per-glyph vector text**
+//! (glyph outlines drawn through Vello's glyph runs — resolution-independent and
+//! ready for per-character/kinetic animation).
 //!
-//! Note: vello 0.3 pins wgpu 22, so this uses `vello::wgpu` (distinct from
-//! `onda-gpu`'s 24) until the migration retires the quad+SDF path.
+//! Note: vello 0.3 pins wgpu 22, so this uses `vello::wgpu`.
 
 use std::sync::Arc;
 
@@ -15,8 +15,8 @@ use onda_core::{Color, Transform};
 use onda_scene::{Node, NodeKind, Scene, ShapeGeometry, Text};
 use onda_typography::FontContext;
 use vello::kurbo::{Affine, BezPath, Ellipse, Rect, RoundedRect, Shape, Stroke};
-use vello::peniko::{Blob, Color as PenikoColor, Fill, Format, Image};
-use vello::{wgpu, AaConfig, RenderParams, Renderer, RendererOptions, Scene as VelloScene};
+use vello::peniko::{Blob, Color as PenikoColor, Fill, Font};
+use vello::{wgpu, AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene as VelloScene};
 
 /// A rendered frame: straight-alpha RGBA8, row-major, top-left origin.
 pub struct Frame {
@@ -31,6 +31,10 @@ pub struct VelloRenderer {
     queue: wgpu::Queue,
     renderer: Renderer,
     fonts: FontContext,
+    /// The bundled font as Vello sees it (glyph outlines). Glyph ids from
+    /// [`FontContext::layout`] index this font — both are built from the same
+    /// bytes, so they stay in lockstep.
+    font: Font,
 }
 
 impl VelloRenderer {
@@ -70,11 +74,16 @@ impl VelloRenderer {
             },
         )
         .ok()?;
+        let font = Font::new(
+            Blob::new(Arc::new(FontContext::default_font_bytes().to_vec())),
+            0,
+        );
         Some(VelloRenderer {
             device,
             queue,
             renderer,
             fonts: FontContext::with_default_font(),
+            font,
         })
     }
 
@@ -84,9 +93,11 @@ impl VelloRenderer {
         let height = scene.composition.height.max(1);
 
         let mut vscene = VelloScene::new();
+        // Disjoint field borrows: `fonts` mutably (shaping), `font` shared.
         build(
             &mut vscene,
             &mut self.fonts,
+            &self.font,
             &scene.root,
             Affine::IDENTITY,
             1.0,
@@ -131,6 +142,7 @@ impl VelloRenderer {
 fn build(
     vscene: &mut VelloScene,
     fonts: &mut FontContext,
+    font: &Font,
     node: &Node,
     parent: Affine,
     parent_opacity: f32,
@@ -161,12 +173,12 @@ fn build(
                 );
             }
         }
-        NodeKind::Text(text) => draw_text(vscene, fonts, text, affine, opacity),
+        NodeKind::Text(text) => draw_text(vscene, fonts, font, text, affine, opacity),
         NodeKind::Image(_) => {}
     }
 
     for child in &node.children {
-        build(vscene, fonts, child, affine, opacity);
+        build(vscene, fonts, font, child, affine, opacity);
     }
 }
 
@@ -201,36 +213,37 @@ fn shape_path(geometry: &ShapeGeometry) -> BezPath {
     }
 }
 
-/// Draw text by rasterizing a coverage mask (cosmic-text) and compositing it as
-/// a tinted image. Native per-glyph vector text via Vello is step 3.
+/// Draw text as native glyph outlines through Vello's glyph runs. cosmic-text
+/// shapes/positions the glyphs ([`FontContext::layout`]); Vello rasterizes their
+/// outlines on the GPU — crisp at any scale, and ready for per-glyph animation.
 fn draw_text(
     vscene: &mut VelloScene,
     fonts: &mut FontContext,
+    font: &Font,
     text: &Text,
     affine: Affine,
     opacity: f32,
 ) {
-    let base_alpha = text.color.a * opacity;
-    if base_alpha <= 0.0 {
+    if text.color.a * opacity <= 0.0 {
         return;
     }
-    let Some(raster) = fonts.rasterize(&text.content, text.font_size) else {
+    let glyphs = fonts.layout(&text.content, text.font_size);
+    if glyphs.is_empty() {
         return;
-    };
-    let [r, g, b, _] = text.color.to_rgba8();
-    let mut data = Vec::with_capacity(raster.coverage.len() * 4);
-    for &coverage in &raster.coverage {
-        let alpha = ((coverage as f32 / 255.0) * base_alpha * 255.0).round() as u8;
-        data.extend_from_slice(&[r, g, b, alpha]);
     }
-    let image = Image::new(
-        Blob::new(Arc::new(data)),
-        Format::Rgba8,
-        raster.width,
-        raster.height,
-    );
-    let placement = affine * Affine::translate((raster.offset_x as f64, raster.offset_y as f64));
-    vscene.draw_image(&image, placement);
+    vscene
+        .draw_glyphs(font)
+        .font_size(text.font_size)
+        .transform(affine)
+        .brush(peniko_color(text.color, opacity))
+        .draw(
+            Fill::NonZero,
+            glyphs.iter().map(|g| Glyph {
+                id: g.id,
+                x: g.x,
+                y: g.y,
+            }),
+        );
 }
 
 fn read_back(
