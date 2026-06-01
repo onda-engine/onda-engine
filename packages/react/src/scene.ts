@@ -60,6 +60,7 @@ export type NodeKind =
   | { type: 'text'; content: string; font_size?: number; color?: Color }
   | { type: 'image'; src: string }
   | { type: 'shape'; geometry: ShapeGeometry; fill?: Color; gradient?: Gradient; stroke?: Stroke }
+  | { type: 'svg'; src?: string; markup?: string }
 
 export interface SceneNode {
   id?: number

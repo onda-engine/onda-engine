@@ -11,20 +11,25 @@
 //! vast majority of icons and logos. Gradients, patterns, embedded images, and
 //! `<text>` are skipped for now (gradient/pattern paint maps to no fill).
 
-use onda_core::{Color, Size};
-use onda_scene::{Node, Shape};
+use std::path::Path as FsPath;
 
-/// An error importing an SVG document.
+use onda_core::{Color, Size};
+use onda_scene::{Node, NodeKind, Scene, Shape};
+
+/// An error importing or expanding an SVG document.
 #[derive(Debug)]
 pub enum SvgError {
     /// The SVG could not be parsed.
     Parse(usvg::Error),
+    /// An SVG `src` file could not be read.
+    Io(std::io::Error),
 }
 
 impl std::fmt::Display for SvgError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SvgError::Parse(e) => write!(f, "failed to parse SVG: {e}"),
+            SvgError::Io(e) => write!(f, "failed to read SVG file: {e}"),
         }
     }
 }
@@ -34,6 +39,12 @@ impl std::error::Error for SvgError {}
 impl From<usvg::Error> for SvgError {
     fn from(e: usvg::Error) -> Self {
         SvgError::Parse(e)
+    }
+}
+
+impl From<std::io::Error> for SvgError {
+    fn from(e: std::io::Error) -> Self {
+        SvgError::Io(e)
     }
 }
 
@@ -54,6 +65,58 @@ pub fn import_svg(svg: &str) -> Result<ImportedSvg, SvgError> {
     Ok(ImportedSvg {
         root: Node::group().with_children(children),
         size: Size::new(size.width(), size.height()),
+    })
+}
+
+/// Read an SVG file and import it. `src` paths in [`expand_svg`] resolve through
+/// this.
+pub fn import_svg_file(path: impl AsRef<FsPath>) -> Result<ImportedSvg, SvgError> {
+    let markup = std::fs::read_to_string(path)?;
+    import_svg(&markup)
+}
+
+/// Expand every [`NodeKind::Svg`] node in `scene` into vector nodes, returning a
+/// new scene. File `src`s resolve relative to `base_dir`; inline `markup` wins
+/// over `src`. Non-SVG subtrees are walked and returned unchanged. An expanded
+/// SVG node becomes a [`NodeKind::Group`] (keeping its id/transform/opacity/clip)
+/// whose children are the imported paths followed by any original children.
+///
+/// This is the renderer-agnostic bridge: keep the scene graph free of SVG
+/// knowledge (per the charter), run this pass before handing a scene to a
+/// renderer.
+pub fn expand_svg(scene: &Scene, base_dir: &FsPath) -> Result<Scene, SvgError> {
+    Ok(Scene {
+        composition: scene.composition,
+        root: expand_node(&scene.root, base_dir)?,
+    })
+}
+
+fn expand_node(node: &Node, base_dir: &FsPath) -> Result<Node, SvgError> {
+    let mut children = Vec::with_capacity(node.children.len());
+    for child in &node.children {
+        children.push(expand_node(child, base_dir)?);
+    }
+
+    if let NodeKind::Svg(svg) = &node.kind {
+        let imported = match (&svg.markup, &svg.src) {
+            (Some(markup), _) => import_svg(markup)?.root.children,
+            (None, Some(src)) => import_svg_file(base_dir.join(src))?.root.children,
+            (None, None) => Vec::new(),
+        };
+        // The SVG becomes a group of imported paths, then any original children,
+        // preserving this node's placement/opacity/clip/id.
+        let mut group_children = imported;
+        group_children.extend(children);
+        return Ok(Node {
+            kind: NodeKind::Group,
+            children: group_children,
+            ..node.clone()
+        });
+    }
+
+    Ok(Node {
+        children,
+        ..node.clone()
     })
 }
 
@@ -162,5 +225,61 @@ mod tests {
     #[test]
     fn rejects_invalid_svg() {
         assert!(import_svg("not an svg").is_err());
+    }
+
+    #[test]
+    fn expands_an_inline_svg_node_into_a_group() {
+        use onda_scene::{Composition, Svg};
+        // An SVG node (inline markup) nested under a group, with a sibling.
+        let scene = Scene {
+            composition: Composition::new(100, 80, 30.0, 1),
+            root: Node::group().with_children([
+                Node::shape(Shape::rect(Size::new(10.0, 10.0)).with_fill(Color::WHITE)),
+                Node::new(NodeKind::Svg(Svg::from_markup(RECT_SVG)))
+                    .with_id(7)
+                    .with_opacity(0.5),
+            ]),
+        };
+
+        let expanded = expand_svg(&scene, FsPath::new(".")).expect("expand");
+        let svg_node = &expanded.root.children[1];
+        // The SVG node became a group, keeping its id/opacity...
+        assert!(matches!(svg_node.kind, NodeKind::Group));
+        assert_eq!(svg_node.id, Some(onda_scene::NodeId(7)));
+        assert_eq!(svg_node.opacity, 0.5);
+        // ...and gained the imported path(s) as children.
+        assert_eq!(svg_node.children.len(), 1);
+        assert!(matches!(
+            svg_node.children[0].kind,
+            NodeKind::Shape(ref s) if matches!(s.geometry, ShapeGeometry::Path { .. })
+        ));
+        // The sibling rect is untouched.
+        assert!(matches!(expanded.root.children[0].kind, NodeKind::Shape(_)));
+    }
+
+    #[test]
+    fn expands_an_svg_src_from_disk() {
+        use onda_scene::Composition;
+        let dir = std::env::temp_dir();
+        let path = dir.join("onda_svg_expand_src_test.svg");
+        std::fs::write(&path, RECT_SVG).unwrap();
+
+        let scene = Scene::new(Composition::new(100, 80, 30.0, 1))
+            .with_root(Node::group().with_child(Node::svg("onda_svg_expand_src_test.svg")));
+        let expanded = expand_svg(&scene, &dir).expect("expand from disk");
+
+        let group = &expanded.root.children[0];
+        assert!(matches!(group.kind, NodeKind::Group));
+        assert_eq!(group.children.len(), 1); // the imported rect path
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn expanding_an_svg_free_scene_is_a_noop() {
+        use onda_scene::Composition;
+        let scene = Scene::new(Composition::new(8, 8, 30.0, 1))
+            .with_root(Node::group().with_child(Node::text("hi")));
+        let expanded = expand_svg(&scene, FsPath::new(".")).unwrap();
+        assert_eq!(scene, expanded);
     }
 }

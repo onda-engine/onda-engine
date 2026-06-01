@@ -43,3 +43,6 @@ pkg
 *.rvf
 *.rvf.lock
 ruvector.db
+
+# Generated example scene JSON
+packages/react/examples/assets/svg.json

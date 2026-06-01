@@ -5,6 +5,7 @@ import {
   Group,
   Path,
   Rect,
+  Svg,
   Text,
   clipRect,
   linearGradient,
@@ -174,6 +175,29 @@ describe('renderToScene', () => {
       size: { width: 30, height: 20 },
       corner_radius: 4,
     })
+  })
+
+  it('emits an Svg node from src or markup', () => {
+    const scene = renderToScene(
+      <Composition width={50} height={50} fps={1} durationInFrames={1}>
+        <Svg x={5} y={5} src="logo.svg" />
+        <Svg markup="<svg/>" />
+      </Composition>,
+    )
+    const [bySrc, byMarkup] = scene.root.children ?? []
+    expect(bySrc?.transform).toEqual({ translate: { x: 5, y: 5 } })
+    expect(bySrc?.kind).toEqual({ type: 'svg', src: 'logo.svg' })
+    expect(byMarkup?.kind).toEqual({ type: 'svg', markup: '<svg/>' })
+  })
+
+  it('rejects an Svg with neither src nor markup', () => {
+    expect(() =>
+      renderToScene(
+        <Composition width={1} height={1} fps={1} durationInFrames={1}>
+          <Svg />
+        </Composition>,
+      ),
+    ).toThrow(/src.*markup|markup.*src/)
   })
 
   it('requires a single Composition root', () => {
