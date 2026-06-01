@@ -1,67 +1,78 @@
 /**
- * ONDA brand theme — overrides VitePress's default tokens with the design
- * system from assets/brand/BRAND.md. Dark-first; brand blue/cyan/pink accents,
- * the signature blue→cyan gradient on the mark.
+ * ONDA brand theme — aligned to onda.video (assets/brand/BRAND.md).
+ * Editorial restraint: warm-neutral near-black, neutral grays, and a single
+ * muted-rose accent. No blue/cyan, no multi-color gradients, no neon/glow.
+ * Clash Display headings, Space Grotesk body, JetBrains Mono code.
  */
 
 :root {
-  /* Brand fonts (loaded via Google Fonts in config head). */
-  --vp-font-family-base: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  /* Brand fonts (loaded via Fontshare + Google Fonts in config head). */
+  --vp-font-family-base: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   --vp-font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
-  /* Brand color tokens (BRAND.md). */
-  --onda-bg: #080b13;
-  --onda-surface: #11151f;
-  --onda-surface-2: #1a1f2e;
-  --onda-border: #232a3a;
-  --onda-text: #e8edf7;
-  --onda-text-muted: #93a0b8;
-  --onda-primary: #3b82f6;
-  --onda-primary-700: #2563eb;
-  --onda-cyan: #22d3ee;
-  --onda-pink: #f25a8c;
-  --onda-ok: #28c08a;
-  --onda-warn: #fac81c;
-  --onda-err: #f25a5a;
+  /* Brand color tokens (BRAND.md, onda.video palette). */
+  --onda-bg: #0e0e12;
+  --onda-bg-deep: #08080a;
+  --onda-surface: #121217;
+  --onda-surface-2: #18181d;
+  --onda-border: #26262c;
+  --onda-text: #f2f2f4;
+  --onda-text-muted: #8e8e98;
+  --onda-text-dim: #56565f;
+  --onda-accent: #d96b82;
+  --onda-accent-600: #c8576f;
+  --onda-accent-soft: rgba(217, 107, 130, 0.12);
+  --onda-on-accent: #0e0e12;
+  --onda-ok: #6bbf8a;
+  --onda-warn: #d9b06b;
+  --onda-err: #d96b6b;
 
-  /* Map ONDA blue onto VitePress's brand ramp (links, active nav, accents). */
-  --vp-c-brand-1: #5b9bff;        /* light enough for AA text on dark surfaces */
-  --vp-c-brand-2: var(--onda-primary);
-  --vp-c-brand-3: var(--onda-primary);
-  --vp-c-brand-soft: rgba(59, 130, 246, 0.16);
+  /* The single rose accent mapped onto VitePress's brand ramp (links, active
+     nav, accents). One accent only — no blue/cyan anywhere. */
+  --vp-c-brand-1: #d96b82;
+  --vp-c-brand-2: #e89aac;
+  --vp-c-brand-3: #c8576f;
+  --vp-c-brand-soft: var(--onda-accent-soft);
+  --vp-c-brand-softer: rgba(217, 107, 130, 0.08);
 
-  /* The signature blue→cyan gradient (the mark) for the hero name + features. */
-  --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: linear-gradient(90deg, var(--onda-primary), var(--onda-cyan));
-  --vp-home-hero-image-background-image: linear-gradient(120deg, var(--onda-primary) 30%, var(--onda-cyan));
-  --vp-home-hero-image-filter: blur(56px);
+  /* Hero name: solid rose ink, no gradient text. */
+  --vp-home-hero-name-color: var(--onda-accent);
+  --vp-home-hero-name-background: transparent;
+  /* A single, very faint rose stage tint behind the mark — no neon orb. */
+  --vp-home-hero-image-background-image: radial-gradient(closest-side, var(--onda-accent-soft), transparent);
+  --vp-home-hero-image-filter: blur(40px);
 
-  /* Buttons: filled primary uses ONDA blue → hover primary-700. */
-  --vp-button-brand-bg: var(--onda-primary);
-  --vp-button-brand-hover-bg: var(--onda-primary-700);
-  --vp-button-brand-active-bg: var(--onda-primary-700);
+  /* Buttons: filled rose → hover accent-600, dark ink on rose (AA). */
+  --vp-button-brand-bg: var(--onda-accent);
+  --vp-button-brand-hover-bg: var(--onda-accent-600);
+  --vp-button-brand-active-bg: var(--onda-accent-600);
   --vp-button-brand-border: transparent;
-  --vp-button-brand-text: #ffffff;
+  --vp-button-brand-hover-border: transparent;
+  --vp-button-brand-active-border: transparent;
+  --vp-button-brand-text: var(--onda-on-accent);
+  --vp-button-brand-hover-text: var(--onda-on-accent);
+  --vp-button-brand-active-text: var(--onda-on-accent);
 }
 
-/* Dark theme surfaces from the brand tokens. */
+/* Dark theme surfaces from the brand tokens (dark-first is primary). */
 .dark {
   --vp-c-bg: var(--onda-bg);
-  --vp-c-bg-alt: var(--onda-surface);
-  --vp-c-bg-elv: var(--onda-surface-2);
+  --vp-c-bg-alt: var(--onda-bg-deep);
+  --vp-c-bg-elv: var(--onda-surface);
   --vp-c-bg-soft: var(--onda-surface);
 
   --vp-c-text-1: var(--onda-text);
   --vp-c-text-2: var(--onda-text-muted);
+  --vp-c-text-3: var(--onda-text-dim);
 
   --vp-c-divider: var(--onda-border);
   --vp-c-border: var(--onda-border);
   --vp-c-gutter: var(--onda-border);
 
-  --vp-code-block-bg: #0c1018;
+  --vp-code-block-bg: var(--onda-bg-deep);
 }
 
-/* Headings in Space Grotesk, tight tracking (BRAND.md typography). */
+/* Headings in Clash Display — the editorial display face. Tight line-height. */
 .vp-doc h1,
 .vp-doc h2,
 .vp-doc h3,
@@ -69,28 +80,39 @@
 .VPHero .name,
 .VPHero .text,
 .VPFeature .title {
-  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Clash Display', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Big, characterful hero display heading. */
+.VPHero .name,
+.VPHero .text {
+  line-height: 1.02;
+}
+
+/* Wordmark next to the mark: ONDA in the display face, lightly tracked. */
+.VPNavBarTitle .title {
+  font-family: 'Clash Display', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
   letter-spacing: 0.01em;
 }
 
-/* Wordmark next to the mark: ONDA in the heading font, per BRAND.md. */
-.VPNavBarTitle .title {
-  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-/* Feature-card icon tiles get the cool gradient wash. */
+/* Feature-card icon tiles: a restrained rose tint, no gradient wash. */
 .VPFeature .icon {
-  background-image: linear-gradient(120deg, var(--onda-primary), var(--onda-cyan)) !important;
-  color: #fff !important;
+  background-color: var(--onda-accent-soft) !important;
+  background-image: none !important;
+  color: var(--onda-accent) !important;
 }
 
-/* Respect reduced motion: disable the blurred hero glow animation. */
+/* Hairlines over filled cards: thin outline, transparent surface. */
+.VPFeature {
+  background-color: transparent;
+  border: 1px solid var(--onda-border);
+}
+
+/* Respect reduced motion: disable the faint hero tint animation. */
 @media (prefers-reduced-motion: reduce) {
-  :root {
-    --vp-home-hero-image-filter: blur(40px);
-  }
   * {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
