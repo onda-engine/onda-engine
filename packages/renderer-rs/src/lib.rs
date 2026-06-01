@@ -285,7 +285,13 @@ impl Renderer {
                 .map(|r| r.text.as_str())
                 .collect::<String>()
         };
-        let Some(raster) = fonts.rasterize(&content, text.font_size) else {
+        let Some(raster) = fonts.rasterize_with(
+            &content,
+            text.font_size,
+            text.font_family.as_deref(),
+            text.weight.unwrap_or(400),
+            text.italic.unwrap_or(false),
+        ) else {
             return;
         };
 

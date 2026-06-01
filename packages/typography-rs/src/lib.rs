@@ -17,15 +17,26 @@
 //! breaks. Deferred: color/emoji glyphs, rich runs, variable-font axes, and
 //! OpenType feature toggles.
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use cosmic_text::{
-    fontdb, Attrs, Buffer, Color as CtColor, Fallback, FontSystem, Metrics, Shaping, SwashCache,
+    fontdb, Attrs, Buffer, Color as CtColor, Fallback, Family, FontSystem, Metrics, Shaping, Style,
+    SwashCache, Weight,
 };
 use unicode_script::Script;
 
-/// Open Sans Regular (SIL Open Font License 1.1), bundled so text renders out of
-/// the box, headless, without depending on the host's fonts. See
+/// Open Sans Regular (SIL Open Font License 1.1), the default family — bundled so
+/// text renders out of the box, headless, without the host's fonts. See
 /// `assets/OpenSans-LICENSE.txt`.
 const DEFAULT_FONT: &[u8] = include_bytes!("../assets/OpenSans-Regular.ttf");
+
+/// IBM Plex Sans (SIL OFL 1.1; `assets/IBMPlexSans-LICENSE.txt`) — a second
+/// bundled family with real Bold + Italic faces, so weight/style selection works
+/// out of the box (the default Open Sans ships Regular only).
+const PLEX_REGULAR: &[u8] = include_bytes!("../assets/IBMPlexSans-Regular.ttf");
+const PLEX_BOLD: &[u8] = include_bytes!("../assets/IBMPlexSans-Bold.ttf");
+const PLEX_ITALIC: &[u8] = include_bytes!("../assets/IBMPlexSans-Italic.ttf");
 
 /// A `Fallback` that never substitutes another font. Pairing it with an explicit
 /// font database is what makes [`FontContext::from_font_bytes`] deterministic:
@@ -49,6 +60,11 @@ impl Fallback for NoFallback {
 pub struct FontContext {
     font_system: FontSystem,
     swash_cache: SwashCache,
+    /// Per-face cache: cosmic font id → (stable key, font bytes, collection index).
+    /// The `Arc` is stable across frames so outline renderers (Vello) can cache a
+    /// built font by `key` and keep their glyph cache warm.
+    faces: HashMap<fontdb::ID, (u64, Arc<Vec<u8>>, u32)>,
+    next_font_key: u64,
 }
 
 impl FontContext {
@@ -57,29 +73,32 @@ impl FontContext {
     /// For reproducible rendering, prefer [`FontContext::with_default_font`] or
     /// [`FontContext::from_font_bytes`].
     pub fn with_system_fonts() -> Self {
-        FontContext {
-            font_system: FontSystem::new(),
-            swash_cache: SwashCache::new(),
-        }
+        Self::wrap(FontSystem::new())
     }
 
-    /// Render using only the bundled Open Sans font — deterministic and
-    /// host-independent. The recommended default for headless/server rendering.
+    /// Render with the bundled families — **Open Sans** (the default) and **IBM
+    /// Plex Sans** (Regular/Bold/Italic, so weight + style work) — deterministic
+    /// and host-independent. The recommended default for headless/server render.
     pub fn with_default_font() -> Self {
-        Self::from_font_bytes(DEFAULT_FONT.to_vec())
+        Self::from_fonts(&[DEFAULT_FONT, PLEX_REGULAR, PLEX_BOLD, PLEX_ITALIC])
     }
 
     /// Render using only the given font (`.ttf`/`.otf` bytes), with platform
     /// fallback disabled. Output depends solely on these bytes, so the same input
-    /// yields identical pixels on any machine. Glyphs the font lacks render as
-    /// `.notdef`. The font's own family becomes the default for all generic
-    /// families, so unstyled text resolves to it.
+    /// yields identical pixels on any machine.
     pub fn from_font_bytes(data: Vec<u8>) -> Self {
-        let mut db = fontdb::Database::new();
-        db.load_font_data(data);
+        Self::from_fonts(&[&data])
+    }
 
-        // Point every generic family at the loaded font so default `Attrs`
-        // (sans-serif) resolve to it rather than to nothing. Bind first so the
+    /// Build a deterministic (no-fallback) context from one or more fonts. The
+    /// **first** font's family becomes the default for the generic families, so
+    /// unstyled text resolves to it; the rest are selectable by family/weight/style.
+    pub fn from_fonts(fonts: &[&[u8]]) -> Self {
+        let mut db = fontdb::Database::new();
+        for font in fonts {
+            db.load_font_data(font.to_vec());
+        }
+        // Point every generic family at the first font. Bind first so the
         // immutable `faces()` borrow ends before the `set_*` mutations.
         let family = db
             .faces()
@@ -92,15 +111,58 @@ impl FontContext {
             db.set_cursive_family(family.clone());
             db.set_fantasy_family(family);
         }
+        Self::wrap(FontSystem::new_with_locale_and_db_and_fallback(
+            "en-US".to_string(),
+            db,
+            NoFallback,
+        ))
+    }
 
+    fn wrap(font_system: FontSystem) -> Self {
         FontContext {
-            font_system: FontSystem::new_with_locale_and_db_and_fallback(
-                "en-US".to_string(),
-                db,
-                NoFallback,
-            ),
+            font_system,
             swash_cache: SwashCache::new(),
+            faces: HashMap::new(),
+            next_font_key: 0,
         }
+    }
+
+    /// Load an additional font (`.ttf`/`.otf` bytes) into the context, returning
+    /// the family name(s) it provides — reference them by family on a [`Text`]
+    /// run. Like Remotion's `loadFont`: load once, then select by family.
+    pub fn load_font(&mut self, data: Vec<u8>) -> Vec<String> {
+        let db = self.font_system.db_mut();
+        let before = db.len();
+        db.load_font_data(data);
+        let mut families = Vec::new();
+        for face in db.faces().skip(before) {
+            for (name, _) in &face.families {
+                if !families.contains(name) {
+                    families.push(name.clone());
+                }
+            }
+        }
+        families
+    }
+
+    /// Resolve a face's stable key + bytes (cached). For outline renderers.
+    fn face_blob(&mut self, id: fontdb::ID) -> Option<FontBlob> {
+        if let Some((key, data, index)) = self.faces.get(&id) {
+            return Some(FontBlob {
+                key: *key,
+                data: Arc::clone(data),
+                index: *index,
+            });
+        }
+        let (bytes, index) = self
+            .font_system
+            .db()
+            .with_face_data(id, |data, index| (data.to_vec(), index))?;
+        let key = self.next_font_key;
+        self.next_font_key += 1;
+        let data = Arc::new(bytes);
+        self.faces.insert(id, (key, Arc::clone(&data), index));
+        Some(FontBlob { key, data, index })
     }
 
     /// The bundled default font's raw bytes — for renderers that draw glyph
@@ -149,13 +211,13 @@ impl FontContext {
     /// (multi-style) text. Outline renderers (Vello) group glyphs by size+color
     /// and draw a run per group. Single font family for now; weight/family land
     /// with font loading.
-    pub fn layout_rich(&mut self, runs: &[StyledRun]) -> Vec<RichGlyph> {
+    pub fn layout_rich(&mut self, runs: &[StyledRun]) -> RichLayout {
         let runs: Vec<&StyledRun> = runs
             .iter()
             .filter(|r| !r.text.is_empty() && r.font_size > 0.0)
             .collect();
         if runs.is_empty() {
-            return Vec::new();
+            return RichLayout::default();
         }
         // Buffer base metrics: the largest run so the line fits the tallest text.
         let base = runs.iter().map(|r| r.font_size).fold(0.0_f32, f32::max);
@@ -168,9 +230,18 @@ impl FontContext {
             .map(|r| {
                 let [cr, cg, cb, ca] = r.color;
                 let to8 = |c: f32| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
-                let attrs = Attrs::new()
+                let mut attrs = Attrs::new()
                     .metrics(Metrics::new(r.font_size, r.font_size * 1.2))
-                    .color(CtColor::rgba(to8(cr), to8(cg), to8(cb), to8(ca)));
+                    .color(CtColor::rgba(to8(cr), to8(cg), to8(cb), to8(ca)))
+                    .weight(Weight(r.weight))
+                    .style(if r.italic {
+                        Style::Italic
+                    } else {
+                        Style::Normal
+                    });
+                if let Some(family) = r.family {
+                    attrs = attrs.family(Family::Name(family));
+                }
                 (r.text, attrs)
             })
             .collect();
@@ -183,7 +254,10 @@ impl FontContext {
         );
         buffer.shape_until_scroll(&mut self.font_system, false);
 
-        let mut glyphs = Vec::new();
+        // Collect glyphs + their face ids while the buffer (which borrows
+        // `font_system`) is alive, then drop it before resolving faces (which
+        // also needs `&mut self`).
+        let mut raw: Vec<(u32, f32, f32, f32, [f32; 4], fontdb::ID)> = Vec::new();
         for run in buffer.layout_runs() {
             for glyph in run.glyphs {
                 let color = glyph.color_opt.map_or([1.0, 1.0, 1.0, 1.0], |c| {
@@ -194,22 +268,59 @@ impl FontContext {
                         c.a() as f32 / 255.0,
                     ]
                 });
-                glyphs.push(RichGlyph {
-                    id: glyph.glyph_id as u32,
-                    x: glyph.x,
-                    y: run.line_y,
-                    font_size: glyph.font_size,
+                raw.push((
+                    glyph.glyph_id as u32,
+                    glyph.x,
+                    run.line_y,
+                    glyph.font_size,
                     color,
-                });
+                    glyph.font_id,
+                ));
             }
         }
-        glyphs
+        drop(buffer);
+
+        let mut fonts: Vec<FontBlob> = Vec::new();
+        let mut glyphs = Vec::with_capacity(raw.len());
+        for (id, x, y, font_size, color, font_id) in raw {
+            let font_key = match self.face_blob(font_id) {
+                Some(blob) => {
+                    if !fonts.iter().any(|f| f.key == blob.key) {
+                        fonts.push(blob.clone());
+                    }
+                    blob.key
+                }
+                None => 0,
+            };
+            glyphs.push(RichGlyph {
+                id,
+                x,
+                y,
+                font_size,
+                color,
+                font_key,
+            });
+        }
+        RichLayout { glyphs, fonts }
     }
 
-    /// Shape and rasterize `content` at `font_size` (in pixels) into a coverage
-    /// mask. Returns `None` when nothing is drawn — empty/whitespace text, or no
-    /// usable font for the requested glyphs.
+    /// Shape and rasterize `content` at `font_size` into a coverage mask using
+    /// the default family. See [`FontContext::rasterize_with`] for font selection.
     pub fn rasterize(&mut self, content: &str, font_size: f32) -> Option<TextRaster> {
+        self.rasterize_with(content, font_size, None, 400, false)
+    }
+
+    /// Shape and rasterize `content` with explicit font selection (family/weight/
+    /// italic) into a coverage mask. Returns `None` when nothing is drawn — empty/
+    /// whitespace text, or no usable font for the requested glyphs.
+    pub fn rasterize_with(
+        &mut self,
+        content: &str,
+        font_size: f32,
+        family: Option<&str>,
+        weight: u16,
+        italic: bool,
+    ) -> Option<TextRaster> {
         if content.is_empty() || font_size <= 0.0 {
             return None;
         }
@@ -220,10 +331,18 @@ impl FontContext {
         let mut buffer = Buffer::new(&mut self.font_system, metrics);
         // No width bound: lay out on a single line (explicit `\n` still breaks).
         buffer.set_size(&mut self.font_system, None, None);
+        let mut attrs = Attrs::new().weight(Weight(weight)).style(if italic {
+            Style::Italic
+        } else {
+            Style::Normal
+        });
+        if let Some(family) = family {
+            attrs = attrs.family(Family::Name(family));
+        }
         buffer.set_text(
             &mut self.font_system,
             content,
-            &Attrs::new(),
+            &attrs,
             Shaping::Advanced,
             None,
         );
@@ -295,16 +414,22 @@ pub struct GlyphPosition {
 }
 
 /// One styled input span for [`FontContext::layout_rich`]: text plus its pixel
-/// size and straight-alpha RGBA color (0..=1).
+/// size, color, and font selection (family/weight/style).
 #[derive(Debug, Clone, PartialEq)]
 pub struct StyledRun<'a> {
     pub text: &'a str,
     pub font_size: f32,
+    /// Straight-alpha RGBA, components 0..=1.
     pub color: [f32; 4],
+    /// Font family name; `None` resolves to the default (Open Sans).
+    pub family: Option<&'a str>,
+    /// CSS weight 1..=1000 (400 = normal, 700 = bold).
+    pub weight: u16,
+    pub italic: bool,
 }
 
-/// A laid-out glyph from [`FontContext::layout_rich`], carrying its run's size
-/// and color so an outline renderer can group + tint per run.
+/// A laid-out glyph from [`FontContext::layout_rich`], carrying its run's size,
+/// color, and the key of the face it uses (see [`RichLayout::fonts`]).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RichGlyph {
     pub id: u32,
@@ -313,6 +438,26 @@ pub struct RichGlyph {
     pub font_size: f32,
     /// Straight-alpha RGBA, components 0..=1.
     pub color: [f32; 4],
+    /// Stable key of the face this glyph uses; index into [`RichLayout::fonts`].
+    pub font_key: u64,
+}
+
+/// A font face used by a [`RichLayout`]: a stable `key`, the raw font bytes, and
+/// the face index within a collection. The `Arc` is stable across layouts so an
+/// outline renderer can cache a built font by `key`.
+#[derive(Debug, Clone)]
+pub struct FontBlob {
+    pub key: u64,
+    pub data: Arc<Vec<u8>>,
+    pub index: u32,
+}
+
+/// The result of [`FontContext::layout_rich`]: positioned glyphs plus the unique
+/// faces they use.
+#[derive(Debug, Clone, Default)]
+pub struct RichLayout {
+    pub glyphs: Vec<RichGlyph>,
+    pub fonts: Vec<FontBlob>,
 }
 
 /// A rasterized text block as an alpha-coverage mask, positioned relative to the
@@ -397,6 +542,55 @@ mod tests {
         // Pen advances along +x; the baseline is positive (below the top).
         assert!(glyphs[1].x > glyphs[0].x);
         assert!(glyphs.iter().all(|g| g.y > 0.0));
+    }
+
+    fn run<'a>(text: &'a str, family: Option<&'a str>, weight: u16, italic: bool) -> StyledRun<'a> {
+        StyledRun {
+            text,
+            font_size: 32.0,
+            color: [1.0, 1.0, 1.0, 1.0],
+            family,
+            weight,
+            italic,
+        }
+    }
+
+    #[test]
+    fn layout_rich_selects_distinct_faces_per_run() {
+        // The bundled default ships Open Sans + IBM Plex Sans (Regular/Bold/
+        // Italic), so a run in the default family and a run in IBM Plex Bold must
+        // resolve to *different* faces.
+        let mut ctx = FontContext::with_default_font();
+        let layout = ctx.layout_rich(&[
+            run("plain ", None, 400, false),
+            run("bold", Some("IBM Plex Sans"), 700, false),
+        ]);
+        assert!(!layout.glyphs.is_empty());
+        let keys: std::collections::HashSet<u64> =
+            layout.glyphs.iter().map(|g| g.font_key).collect();
+        assert!(
+            keys.len() >= 2,
+            "default vs IBM Plex Bold should differ: {keys:?}"
+        );
+        assert!(layout.fonts.len() >= 2, "two faces reported");
+        // Italic resolves to the Plex italic face too.
+        let italic = ctx.layout_rich(&[run("x", Some("IBM Plex Sans"), 400, true)]);
+        assert!(!italic.glyphs.is_empty());
+    }
+
+    #[test]
+    fn load_font_then_select_by_family() {
+        // Loading a font and selecting it by family resolves (IBM Plex bytes,
+        // loaded under a fresh context).
+        let mut ctx = FontContext::with_default_font();
+        let families = ctx.load_font(PLEX_BOLD.to_vec());
+        assert!(
+            families.iter().any(|f| f.contains("Plex")),
+            "got {families:?}"
+        );
+        assert!(ctx
+            .rasterize_with("Hi", 32.0, families.first().map(String::as_str), 700, false)
+            .is_some());
     }
 
     #[test]
