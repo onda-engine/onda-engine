@@ -13,7 +13,33 @@ export const Easing = {
   easeOutCubic: (t: number) => 1 - (1 - t) ** 3,
   easeInOutCubic: (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2),
   smoothStep: (t: number) => t * t * (3 - 2 * t),
+  easeInBack: (t: number) => 2.70158 * t ** 3 - 1.70158 * t ** 2,
+  easeOutBack: (t: number) => 1 + 2.70158 * (t - 1) ** 3 + 1.70158 * (t - 1) ** 2,
 } satisfies Record<string, EasingFn>
+
+/** A CSS-style cubic-bézier ease with control points `(x1,y1)`, `(x2,y2)` and
+ *  fixed endpoints `(0,0)`–`(1,1)`. Matches `onda-animation`'s `CubicBezier`. */
+export function cubicBezier(x1: number, y1: number, x2: number, y2: number): EasingFn {
+  const comp = (c1: number, c2: number, s: number) => {
+    const u = 1 - s
+    return 3 * u * u * s * c1 + 3 * u * s * s * c2 + s * s * s
+  }
+  const deriv = (c1: number, c2: number, s: number) => {
+    const u = 1 - s
+    return 3 * u * u * c1 + 6 * u * s * (c2 - c1) + 3 * s * s * (1 - c2)
+  }
+  return (x: number) => {
+    let s = x
+    for (let i = 0; i < 8; i++) {
+      const dx = comp(x1, x2, s) - x
+      if (Math.abs(dx) < 1e-5) break
+      const d = deriv(x1, x2, s)
+      if (Math.abs(d) < 1e-6) break
+      s -= dx / d
+    }
+    return comp(y1, y2, Math.min(1, Math.max(0, s)))
+  }
+}
 
 export interface InterpolateOptions {
   easing?: EasingFn

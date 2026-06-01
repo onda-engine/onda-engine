@@ -5,6 +5,7 @@ import { chromium } from 'playwright'
 
 const url = process.argv[2] ?? 'http://localhost:4173/'
 const out = process.argv[3] ?? 'player.png'
+const waitMs = Number(process.argv[4] ?? 1200)
 
 const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1000, height: 620 }, deviceScaleFactor: 2 })
@@ -15,7 +16,7 @@ page.on('pageerror', (e) => errors.push(String(e)))
 
 await page.goto(url, { waitUntil: 'networkidle' })
 await page.waitForSelector('canvas')
-await page.waitForTimeout(1200) // let the intro animation settle into its held state
+await page.waitForTimeout(waitMs) // advance playback to the frame we want to capture
 await page.screenshot({ path: out })
 await browser.close()
 
