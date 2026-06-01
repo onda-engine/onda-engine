@@ -103,6 +103,47 @@ impl FontContext {
         }
     }
 
+    /// The bundled default font's raw bytes — for renderers that draw glyph
+    /// *outlines* (e.g. Vello) rather than coverage masks. Glyph ids from
+    /// [`FontContext::layout`] index this font when the context was built with
+    /// [`FontContext::with_default_font`].
+    pub fn default_font_bytes() -> &'static [u8] {
+        DEFAULT_FONT
+    }
+
+    /// Shape and lay out `content` into positioned glyphs (no rasterization).
+    /// Each [`GlyphPosition`] carries the font glyph index and pen position in
+    /// pixels (`y` is the baseline). For outline renderers; pair with a font
+    /// built from the same bytes so glyph ids line up.
+    pub fn layout(&mut self, content: &str, font_size: f32) -> Vec<GlyphPosition> {
+        if content.is_empty() || font_size <= 0.0 {
+            return Vec::new();
+        }
+        let metrics = Metrics::new(font_size, font_size * 1.2);
+        let mut buffer = Buffer::new(&mut self.font_system, metrics);
+        buffer.set_size(&mut self.font_system, None, None);
+        buffer.set_text(
+            &mut self.font_system,
+            content,
+            &Attrs::new(),
+            Shaping::Advanced,
+            None,
+        );
+        buffer.shape_until_scroll(&mut self.font_system, false);
+
+        let mut glyphs = Vec::new();
+        for run in buffer.layout_runs() {
+            for glyph in run.glyphs {
+                glyphs.push(GlyphPosition {
+                    id: glyph.glyph_id as u32,
+                    x: glyph.x,
+                    y: run.line_y,
+                });
+            }
+        }
+        glyphs
+    }
+
     /// Shape and rasterize `content` at `font_size` (in pixels) into a coverage
     /// mask. Returns `None` when nothing is drawn — empty/whitespace text, or no
     /// usable font for the requested glyphs.
@@ -181,6 +222,16 @@ impl FontContext {
     }
 }
 
+/// A laid-out glyph: the font glyph index and its pen position in pixels,
+/// relative to the layout origin (top-left of the first line). `y` is the
+/// baseline. Produced by [`FontContext::layout`] for outline renderers.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GlyphPosition {
+    pub id: u32,
+    pub x: f32,
+    pub y: f32,
+}
+
 /// A rasterized text block as an alpha-coverage mask, positioned relative to the
 /// text's layout origin (top-left of the first line, +x right, +y down).
 ///
@@ -253,6 +304,23 @@ mod tests {
             .expect("bundled font should render");
         assert!(raster.inked_pixels() > 0);
         assert!(raster.width > raster.height);
+    }
+
+    #[test]
+    fn layout_positions_glyphs_left_to_right() {
+        let mut ctx = FontContext::with_default_font();
+        let glyphs = ctx.layout("Hi", 32.0);
+        assert!(glyphs.len() >= 2, "two letters → at least two glyphs");
+        // Pen advances along +x; the baseline is positive (below the top).
+        assert!(glyphs[1].x > glyphs[0].x);
+        assert!(glyphs.iter().all(|g| g.y > 0.0));
+    }
+
+    #[test]
+    fn layout_of_empty_is_empty() {
+        let mut ctx = FontContext::with_default_font();
+        assert!(ctx.layout("", 32.0).is_empty());
+        assert!(ctx.layout("x", 0.0).is_empty());
     }
 
     #[test]
