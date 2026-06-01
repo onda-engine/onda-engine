@@ -46,3 +46,6 @@ ruvector.db
 
 # Generated example scene JSON
 packages/react/examples/assets/svg.json
+
+# VitePress build cache
+**/.vitepress/cache/
