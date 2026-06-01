@@ -144,6 +144,68 @@ impl FontContext {
         glyphs
     }
 
+    /// Shape + lay out styled runs ([`StyledRun`]) into positioned glyphs, each
+    /// carrying its run's pixel size and straight-alpha RGBA color — for rich
+    /// (multi-style) text. Outline renderers (Vello) group glyphs by size+color
+    /// and draw a run per group. Single font family for now; weight/family land
+    /// with font loading.
+    pub fn layout_rich(&mut self, runs: &[StyledRun]) -> Vec<RichGlyph> {
+        let runs: Vec<&StyledRun> = runs
+            .iter()
+            .filter(|r| !r.text.is_empty() && r.font_size > 0.0)
+            .collect();
+        if runs.is_empty() {
+            return Vec::new();
+        }
+        // Buffer base metrics: the largest run so the line fits the tallest text.
+        let base = runs.iter().map(|r| r.font_size).fold(0.0_f32, f32::max);
+        let metrics = Metrics::new(base, base * 1.2);
+        let mut buffer = Buffer::new(&mut self.font_system, metrics);
+        buffer.set_size(&mut self.font_system, None, None);
+
+        let spans: Vec<(&str, Attrs)> = runs
+            .iter()
+            .map(|r| {
+                let [cr, cg, cb, ca] = r.color;
+                let to8 = |c: f32| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
+                let attrs = Attrs::new()
+                    .metrics(Metrics::new(r.font_size, r.font_size * 1.2))
+                    .color(CtColor::rgba(to8(cr), to8(cg), to8(cb), to8(ca)));
+                (r.text, attrs)
+            })
+            .collect();
+        buffer.set_rich_text(
+            &mut self.font_system,
+            spans.iter().map(|(t, a)| (*t, a.clone())),
+            &Attrs::new(),
+            Shaping::Advanced,
+            None,
+        );
+        buffer.shape_until_scroll(&mut self.font_system, false);
+
+        let mut glyphs = Vec::new();
+        for run in buffer.layout_runs() {
+            for glyph in run.glyphs {
+                let color = glyph.color_opt.map_or([1.0, 1.0, 1.0, 1.0], |c| {
+                    [
+                        c.r() as f32 / 255.0,
+                        c.g() as f32 / 255.0,
+                        c.b() as f32 / 255.0,
+                        c.a() as f32 / 255.0,
+                    ]
+                });
+                glyphs.push(RichGlyph {
+                    id: glyph.glyph_id as u32,
+                    x: glyph.x,
+                    y: run.line_y,
+                    font_size: glyph.font_size,
+                    color,
+                });
+            }
+        }
+        glyphs
+    }
+
     /// Shape and rasterize `content` at `font_size` (in pixels) into a coverage
     /// mask. Returns `None` when nothing is drawn — empty/whitespace text, or no
     /// usable font for the requested glyphs.
@@ -230,6 +292,27 @@ pub struct GlyphPosition {
     pub id: u32,
     pub x: f32,
     pub y: f32,
+}
+
+/// One styled input span for [`FontContext::layout_rich`]: text plus its pixel
+/// size and straight-alpha RGBA color (0..=1).
+#[derive(Debug, Clone, PartialEq)]
+pub struct StyledRun<'a> {
+    pub text: &'a str,
+    pub font_size: f32,
+    pub color: [f32; 4],
+}
+
+/// A laid-out glyph from [`FontContext::layout_rich`], carrying its run's size
+/// and color so an outline renderer can group + tint per run.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RichGlyph {
+    pub id: u32,
+    pub x: f32,
+    pub y: f32,
+    pub font_size: f32,
+    /// Straight-alpha RGBA, components 0..=1.
+    pub color: [f32; 4],
 }
 
 /// A rasterized text block as an alpha-coverage mask, positioned relative to the

@@ -34,6 +34,7 @@ export {
   type SvgProps,
   Text,
   type TextProps,
+  type TextRunInput,
   type NodeProps,
 } from './components.js'
 export {
@@ -68,6 +69,7 @@ export type {
   NodeKind,
   Scene,
   SceneNode,
+  SceneTextRun,
   ShapeGeometry,
   Size,
   Stroke,

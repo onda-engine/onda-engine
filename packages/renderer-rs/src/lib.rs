@@ -275,7 +275,17 @@ impl Renderer {
         let Some(fonts) = self.fonts.as_mut() else {
             return; // no fonts loaded -> text is skipped
         };
-        let Some(raster) = fonts.rasterize(&text.content, text.font_size) else {
+        // Rich runs render per-run color/size on the GPU (Vello) backend; the CPU
+        // reference draws their concatenated text in the node's color/size.
+        let content = if text.runs.is_empty() {
+            text.content.clone()
+        } else {
+            text.runs
+                .iter()
+                .map(|r| r.text.as_str())
+                .collect::<String>()
+        };
+        let Some(raster) = fonts.rasterize(&content, text.font_size) else {
             return;
         };
 

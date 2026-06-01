@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use onda_core::{Color, Transform};
 use onda_scene::{Gradient, GradientStop, Node, NodeKind, Scene, ShapeGeometry, Text};
-use onda_typography::FontContext;
+use onda_typography::{FontContext, StyledRun};
 use vello::kurbo::{Affine, BezPath, Ellipse, Rect, RoundedRect, Shape, Stroke};
 use vello::peniko::{
     Blob, Brush, Color as PenikoColor, ColorStop, Fill, Font, Gradient as PenikoGradient, Mix,
@@ -297,26 +297,55 @@ fn draw_text(
     affine: Affine,
     opacity: f32,
 ) {
-    if text.color.a * opacity <= 0.0 {
+    if opacity <= 0.0 {
         return;
     }
-    let glyphs = fonts.layout(&text.content, text.font_size);
+    // Resolve the node's rich runs (a single run for plain text), bake node
+    // opacity into each run's alpha, and lay them out together.
+    let resolved = text.resolved_runs();
+    let styled: Vec<StyledRun> = resolved
+        .iter()
+        .map(|r| StyledRun {
+            text: &r.text,
+            font_size: r.font_size,
+            color: [r.color.r, r.color.g, r.color.b, r.color.a * opacity],
+        })
+        .collect();
+    let glyphs = fonts.layout_rich(&styled);
     if glyphs.is_empty() {
         return;
     }
-    vscene
-        .draw_glyphs(font)
-        .font_size(text.font_size)
-        .transform(affine)
-        .brush(peniko_color(text.color, opacity))
-        .draw(
-            Fill::NonZero,
-            glyphs.iter().map(|g| Glyph {
-                id: g.id,
-                x: g.x,
-                y: g.y,
-            }),
-        );
+
+    // Draw a Vello glyph run per contiguous group sharing size + color. Runs are
+    // contiguous in layout order, so grouping consecutively is deterministic.
+    let mut i = 0;
+    while i < glyphs.len() {
+        let head = glyphs[i];
+        let mut j = i + 1;
+        while j < glyphs.len()
+            && glyphs[j].font_size == head.font_size
+            && glyphs[j].color == head.color
+        {
+            j += 1;
+        }
+        let [r, g, b, a] = head.color;
+        let to8 = |c: f32| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
+        let brush = PenikoColor::rgba8(to8(r), to8(g), to8(b), to8(a));
+        vscene
+            .draw_glyphs(font)
+            .font_size(head.font_size)
+            .transform(affine)
+            .brush(brush)
+            .draw(
+                Fill::NonZero,
+                glyphs[i..j].iter().map(|gl| Glyph {
+                    id: gl.id,
+                    x: gl.x,
+                    y: gl.y,
+                }),
+            );
+        i = j;
+    }
 }
 
 /// Copy the rendered texture into a mappable buffer. Returns the buffer and the

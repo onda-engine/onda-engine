@@ -55,9 +55,16 @@ export type Gradient =
   | { gradient: 'linear'; start: Vec2; end: Vec2; stops: GradientStop[] }
   | { gradient: 'radial'; center: Vec2; radius: number; stops: GradientStop[] }
 
+/** One styled run of rich text (mirrors onda-scene's `TextRun`). */
+export interface SceneTextRun {
+  text: string
+  color?: Color
+  font_size?: number
+}
+
 export type NodeKind =
   | { type: 'group' }
-  | { type: 'text'; content: string; font_size?: number; color?: Color }
+  | { type: 'text'; content: string; font_size?: number; color?: Color; runs?: SceneTextRun[] }
   | { type: 'image'; src: string }
   | { type: 'shape'; geometry: ShapeGeometry; fill?: Color; gradient?: Gradient; stroke?: Stroke }
   | { type: 'svg'; src?: string; markup?: string }

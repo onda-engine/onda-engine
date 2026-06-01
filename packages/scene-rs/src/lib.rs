@@ -197,6 +197,44 @@ pub struct Text {
     pub font_size: f32,
     #[serde(default = "Text::default_color")]
     pub color: Color,
+    /// Rich multi-style runs. When non-empty, these replace `content` — each run
+    /// is laid out inline and may override the color/size (and later weight/
+    /// style) of this node. Empty = a single run from `content`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub runs: Vec<TextRun>,
+}
+
+/// One styled span of a [`Text`]. Unset fields inherit the [`Text`]'s defaults.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TextRun {
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<Color>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font_size: Option<f32>,
+}
+
+impl TextRun {
+    /// A run of `text` inheriting the node's style.
+    pub fn new(text: impl Into<String>) -> Self {
+        TextRun {
+            text: text.into(),
+            color: None,
+            font_size: None,
+        }
+    }
+
+    /// Builder: override the run's color.
+    pub fn with_color(mut self, color: Color) -> Self {
+        self.color = Some(color);
+        self
+    }
+
+    /// Builder: override the run's font size.
+    pub fn with_font_size(mut self, font_size: f32) -> Self {
+        self.font_size = Some(font_size);
+        self
+    }
 }
 
 impl Text {
@@ -214,6 +252,7 @@ impl Text {
             content: content.into(),
             font_size: Text::default_font_size(),
             color: Text::default_color(),
+            runs: Vec::new(),
         }
     }
 
@@ -228,6 +267,42 @@ impl Text {
         self.color = color;
         self
     }
+
+    /// Builder: set rich multi-style runs (overriding `content` when rendered).
+    pub fn with_runs(mut self, runs: impl IntoIterator<Item = TextRun>) -> Self {
+        self.runs = runs.into_iter().collect();
+        self
+    }
+
+    /// The effective runs: the explicit [`Text::runs`], or a single run derived
+    /// from `content` when none are set. Each run resolves color/size against the
+    /// node defaults.
+    pub fn resolved_runs(&self) -> Vec<ResolvedRun> {
+        if self.runs.is_empty() {
+            return vec![ResolvedRun {
+                text: self.content.clone(),
+                color: self.color,
+                font_size: self.font_size,
+            }];
+        }
+        self.runs
+            .iter()
+            .map(|r| ResolvedRun {
+                text: r.text.clone(),
+                color: r.color.unwrap_or(self.color),
+                font_size: r.font_size.unwrap_or(self.font_size),
+            })
+            .collect()
+    }
+}
+
+/// A [`TextRun`] with its style resolved against the [`Text`] node's defaults —
+/// what a renderer actually draws.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResolvedRun {
+    pub text: String,
+    pub color: Color,
+    pub font_size: f32,
 }
 
 /// A bitmap image referenced by `src`. Decoding/loading is the renderer's job.
@@ -601,6 +676,47 @@ mod tests {
         assert!(json.contains(r#""clip""#));
         let back: Scene = serde_json::from_str(&json).unwrap();
         assert_eq!(scene, back);
+    }
+
+    #[test]
+    fn text_runs_round_trip_and_resolve() {
+        let scene = Scene::new(hd()).with_root(
+            Node::group().with_child(Node::new(NodeKind::Text(
+                Text::new("plain")
+                    .with_font_size(40.0)
+                    .with_color(Color::WHITE)
+                    .with_runs([
+                        TextRun::new("a "),
+                        TextRun::new("b")
+                            .with_color(Color::rgb(1.0, 0.0, 0.0))
+                            .with_font_size(80.0),
+                    ]),
+            ))),
+        );
+        let json = serde_json::to_string(&scene).unwrap();
+        assert!(json.contains(r#""runs""#));
+        let back: Scene = serde_json::from_str(&json).unwrap();
+        assert_eq!(scene, back);
+
+        let NodeKind::Text(t) = &scene.root.children[0].kind else {
+            panic!("expected text");
+        };
+        let resolved = t.resolved_runs();
+        assert_eq!(resolved.len(), 2);
+        assert_eq!(
+            (resolved[0].color, resolved[0].font_size),
+            (Color::WHITE, 40.0)
+        ); // inherits
+        assert_eq!(resolved[1].color, Color::rgb(1.0, 0.0, 0.0)); // overrides
+        assert_eq!(resolved[1].font_size, 80.0);
+    }
+
+    #[test]
+    fn plain_text_resolves_to_a_single_run() {
+        let resolved = Text::new("hi").with_font_size(30.0).resolved_runs();
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].text, "hi");
+        assert_eq!(resolved[0].font_size, 30.0);
     }
 
     #[test]
