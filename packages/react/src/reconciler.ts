@@ -4,11 +4,19 @@ import { type ReactElement, createElement } from 'react'
 import Reconciler from 'react-reconciler'
 import { type ClipInput, parseClip } from './clip.js'
 import { parseColor } from './color.js'
-import { Composition } from './components.js'
+import { Composition, type TextRunInput } from './components.js'
 import { FrameContext, type VideoConfig } from './frame.js'
 import { type GradientInput, parseGradient } from './gradient.js'
 import { type HostNode, type RootContainer, hostConfig } from './host-config.js'
-import type { Gradient, Scene, SceneNode, ShapeGeometry, Stroke, Transform } from './scene.js'
+import type {
+  Gradient,
+  NodeKind,
+  Scene,
+  SceneNode,
+  ShapeGeometry,
+  Stroke,
+  Transform,
+} from './scene.js'
 
 const reconciler = Reconciler(hostConfig)
 
@@ -142,17 +150,22 @@ function toNode(node: HostNode): SceneNode {
       return { ...base, kind: { type: 'shape', geometry, ...fillStroke(props) }, ...withChildren }
     }
 
-    case 'onda-text':
-      return {
-        ...base,
-        kind: {
-          type: 'text',
-          content: node.text ?? '',
-          ...(typeof props.fontSize === 'number' ? { font_size: props.fontSize } : {}),
-          ...(props.color !== undefined ? { color: parseColor(props.color as never) } : {}),
-        },
-        ...withChildren,
+    case 'onda-text': {
+      const kind: Extract<NodeKind, { type: 'text' }> = {
+        type: 'text',
+        content: node.text ?? '',
+        ...(typeof props.fontSize === 'number' ? { font_size: props.fontSize } : {}),
+        ...(props.color !== undefined ? { color: parseColor(props.color as never) } : {}),
       }
+      if (Array.isArray(props.runs)) {
+        kind.runs = (props.runs as TextRunInput[]).map((r) => ({
+          text: r.text,
+          ...(r.color !== undefined ? { color: parseColor(r.color) } : {}),
+          ...(typeof r.fontSize === 'number' ? { font_size: r.fontSize } : {}),
+        }))
+      }
+      return { ...base, kind, ...withChildren }
+    }
 
     case 'onda-image':
       return {

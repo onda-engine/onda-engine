@@ -200,6 +200,26 @@ describe('renderToScene', () => {
     ).toThrow(/src.*markup|markup.*src/)
   })
 
+  it('emits rich text runs with per-run color and size', () => {
+    const scene = renderToScene(
+      <Composition width={400} height={100} fps={1} durationInFrames={1}>
+        <Text
+          fontSize={40}
+          color="#ffffff"
+          runs={[{ text: 'a ' }, { text: 'b', color: '#ff0000', fontSize: 80 }]}
+        />
+      </Composition>,
+    )
+    const kind = scene.root.children?.[0]?.kind
+    expect(kind?.type).toBe('text')
+    if (kind?.type === 'text') {
+      expect(kind.runs).toEqual([
+        { text: 'a ' },
+        { text: 'b', color: { r: 1, g: 0, b: 0 }, font_size: 80 },
+      ])
+    }
+  })
+
   it('requires a single Composition root', () => {
     expect(() => renderToScene(<Group />)).toThrow(/Composition/)
   })

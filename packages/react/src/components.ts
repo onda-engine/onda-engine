@@ -89,9 +89,20 @@ export function Path(props: PathProps) {
   return createElement('onda-path', props)
 }
 
+/** One styled run for rich `<Text>` — overrides the node's color/size. */
+export interface TextRunInput {
+  text: string
+  color?: ColorInput
+  fontSize?: number
+}
+
 export interface TextProps extends NodeProps {
   fontSize?: number
   color?: ColorInput
+  /** Rich multi-style runs. When set, these replace the text children — each run
+   *  may override the color/size. (Per-run color/size render on the GPU/Vello
+   *  backend; the CPU backend draws their concatenated text in one style.) */
+  runs?: TextRunInput[]
   children?: ReactNode
 }
 
