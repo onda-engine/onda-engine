@@ -500,20 +500,22 @@ const PLAYER_CSS = `
   background: transparent;
 }
 .onda-player__scrubber::-webkit-slider-runnable-track {
-  height: 5px; border-radius: 999px;
-  background:
-    var(--onda-accent) left / var(--progress, 0%) 100% no-repeat,
-    rgba(255,255,255,.25);
+  height: 6px; border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--onda-accent) 0 var(--progress, 0%),
+    rgba(255,255,255,.32) var(--progress, 0%) 100%
+  );
 }
 .onda-player__scrubber::-moz-range-track {
-  height: 5px; border-radius: 999px; background: rgba(255,255,255,.25);
+  height: 6px; border-radius: 999px; background: rgba(255,255,255,.32);
 }
 .onda-player__scrubber::-moz-range-progress {
-  height: 5px; border-radius: 999px; background: var(--onda-accent);
+  height: 6px; border-radius: 999px; background: var(--onda-accent);
 }
 .onda-player__scrubber::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none;
-  width: 14px; height: 14px; margin-top: -4.5px;
+  width: 14px; height: 14px; margin-top: -4px;
   border-radius: 999px; background: #fff;
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--onda-accent) 45%, transparent), 0 1px 3px rgba(0,0,0,.6);
   transition: box-shadow 140ms ease-out;
