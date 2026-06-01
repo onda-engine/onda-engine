@@ -2,7 +2,7 @@
 //!   cargo run -p onda-vello --example sample -- out.png
 
 use onda_core::{Color, Size, Transform, Vec2};
-use onda_scene::{Composition, Node, NodeKind, Scene, Shape, Text};
+use onda_scene::{Composition, GradientStop, Node, NodeKind, Scene, Shape, Text};
 use onda_vello::VelloRenderer;
 
 fn at(x: f32, y: f32) -> Transform {
@@ -23,15 +23,28 @@ fn main() {
             Node::shape(
                 Shape::rect(Size::new(1200.0, 360.0)).with_fill(Color::rgb(0.04, 0.05, 0.09)),
             ),
-            // A genuinely rounded underline (onda-gpu drew this square).
+            // A rounded underline with a linear gradient (blue → pink).
             Node::shape(
-                Shape::rounded_rect(Size::new(520.0, 10.0), 5.0)
-                    .with_fill(Color::rgb(0.16, 0.45, 0.95)),
+                Shape::rounded_rect(Size::new(520.0, 10.0), 5.0).with_linear_gradient(
+                    Vec2::new(0.0, 0.0),
+                    Vec2::new(520.0, 0.0),
+                    [
+                        GradientStop::new(0.0, Color::rgb(0.16, 0.45, 0.95)),
+                        GradientStop::new(1.0, Color::rgb(0.95, 0.35, 0.55)),
+                    ],
+                ),
             )
             .with_transform(at(96.0, 250.0)),
-            // A stroked ellipse outline — strokes are new with Vello.
+            // A radial-gradient disc (bright core → transparent edge).
             Node::shape(
-                Shape::ellipse(Size::new(120.0, 120.0)).with_stroke(Color::rgb(0.9, 0.3, 0.4), 6.0),
+                Shape::ellipse(Size::new(120.0, 120.0)).with_radial_gradient(
+                    Vec2::new(60.0, 60.0),
+                    60.0,
+                    [
+                        GradientStop::new(0.0, Color::rgb(0.4, 0.8, 1.0)),
+                        GradientStop::new(1.0, Color::new(0.4, 0.8, 1.0, 0.0)),
+                    ],
+                ),
             )
             .with_transform(at(980.0, 60.0)),
             // An arbitrary Bézier path (5-pointed star) — impossible without the
