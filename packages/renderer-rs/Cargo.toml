@@ -15,10 +15,14 @@ onda-scene = { workspace = true }
 onda-typography = { workspace = true }
 png = { version = "0.18.1", optional = true }
 gif = { version = "0.14", optional = true }
+# Optional so the renderer still builds for wasm32 (no threads there); native
+# callers (CLI, benchmark) opt in for multi-core offline rendering.
+rayon = { version = "1", optional = true }
 
 [features]
 png = ["dep:png"]
 gif = ["dep:gif"]
+parallel = ["dep:rayon"]
 
 # Examples only: lets the animation demo evaluate a timeline before rendering.
 # A dev-dependency, so the renderer keeps no production dependency on animation

@@ -13,26 +13,30 @@ cost is dominated by the browser: style/layout/paint, a screenshot over the
 DevTools protocol, IPC, and per-page memory (hundreds of MB/worker). ONDA is
 `React → scene graph → native renderer → frame`, with no browser anywhere.
 
-### Measured today (Apple M4 Pro, 1920×1080, 120 frames, single worker)
+### Measured today (Apple M4 Pro, 1920×1080, 120 frames)
 
-| Backend                         |    fps | ms/frame | vs Remotion |
-| ------------------------------- | -----: | -------: | ----------: |
-| Remotion (Chromium, conc.=1)    |   25.9 |    38.55 |        1.0× |
-| ONDA — CPU rasterizer           |  114.1 |     8.76 |    **4.4×** |
-| ONDA — GPU (offscreen+readback) |  344.7 |     2.90 |   **13.3×** |
+| Backend                            |    fps | ms/frame |
+| ---------------------------------- | -----: | -------: |
+| Remotion (Chromium, 1 worker)      |   26.8 |    37.34 |
+| Remotion (Chromium, default pool)  |   76.1 |    13.14 |
+| ONDA — CPU (1 thread)              |  119.5 |     8.37 |
+| ONDA — CPU (all cores, rayon)      |  709.7 |     1.41 |
+| ONDA — GPU (offscreen + readback)  |  377.1 |     2.65 |
 
 This is a *trivial* scene (a title + a few shapes) — Remotion's best case. The
 honest read:
 
-- **4–13× per-thread already, on the easy case.** Remotion's ~38 ms/frame is
-  mostly fixed browser overhead independent of content; ONDA's scales with what's
-  actually drawn.
+- **~4.5× per-thread** (ONDA CPU 1-thread vs Remotion 1-worker) and **~9.3×
+  machine-throughput** (all cores each, default settings) — already, on the easy
+  case. Remotion's ~37 ms/frame/worker is mostly fixed browser overhead
+  independent of content; ONDA's scales with what's actually drawn. ONDA's rayon
+  scaling (~6×) also beats Remotion's (~3×): its per-worker browser tax makes
+  concurrency sublinear.
 - **The gap widens toward 100× with**: (1) scene complexity — a complex DOM
   balloons Remotion's layout/paint/screenshot while ONDA grows gently; (2) the
-  **GPU path** (already 13×); (3) **parallel rendering** (offline rendering is
-  embarrassingly parallel — Remotion already pools workers, ONDA does not *yet*);
-  (4) **cold start** — ONDA pays ~ms (font load) vs Chromium launch + bundle +
-  "warmup frames" (seconds), which dominates short/serverless renders; (5)
+  **GPU path** (real-time present, not the readback-bound number above); (3)
+  **cold start** — ONDA pays ~ms (font load) vs Chromium launch + bundle +
+  "warmup frames" (seconds), which dominates short/serverless renders; (4)
   **memory** — one process + shared GPU buffers vs a full browser per worker,
   so far higher concurrency per machine → fewer machines → lower $/video.
 - **Structural wins Remotion can't patch**: GPU-first rendering (headless Chrome
@@ -61,9 +65,10 @@ react` (reconciler, useCurrentFrame/interpolate, renderFrames) · `@onda/player`
 P0 = needed for a credible, fast, correct v1. P1 = parity/quality. P2 = later.
 
 ### A. Performance & scaling (the headline metric)
-- **P0 Parallel offline rendering** — `rayon` over frame ranges (timeline eval is
-  a pure fn of frame). Single biggest offline-throughput win; closes the gap with
-  Remotion's worker pool and then exceeds it (no per-worker browser).
+- **✅ DONE Parallel offline rendering** — `onda_renderer::render_frames_parallel`
+  (`rayon`, one renderer/worker; behind the `parallel` feature so wasm still
+  builds). Wired into the CLI `export`/`export-frames`. Measured ~6× scaling →
+  709 fps (above), already exceeding Remotion's sublinear pool.
 - **P0 Readback/present pipeline** — today: per-frame target-texture alloc +
   blocking `poll(Wait)` readback. Fix: reuse targets, a **ring of async-mapped
   readback buffers** (render N+1 while N maps), and a **swapchain present path**
@@ -149,7 +154,8 @@ TypeScript types, npm-trivial install. Nice-to-have: Lottie, three/skia, caption
 
 ## 4. Recommended P0 sequence
 
-1. **`rayon` parallel frame rendering** — the headline offline-throughput win.
+1. ✅ **`rayon` parallel frame rendering** — DONE (~6× → 709 fps; ~9.3× Remotion
+   at the machine level).
 2. **Readback ring + reuse targets + swapchain present** — ends the blocking
    stall; unlocks real-time preview (and the WebGPU player).
 3. **Glyph atlas (glyphon)** — text perf + draw batching.

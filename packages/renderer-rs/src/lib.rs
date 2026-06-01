@@ -297,6 +297,23 @@ pub fn render(scene: &Scene) -> Framebuffer {
     Renderer::new().render(scene)
 }
 
+/// Render many scenes in parallel across CPU cores, returning frames in input
+/// order. Offline rendering is a pure function of the scene, so it parallelizes
+/// cleanly; `make_renderer` is called once per worker thread (each gets its own
+/// font context, since cosmic-text isn't shareable). Available with the
+/// `parallel` feature.
+#[cfg(feature = "parallel")]
+pub fn render_frames_parallel<F>(scenes: &[Scene], make_renderer: F) -> Vec<Framebuffer>
+where
+    F: Fn() -> Renderer + Sync + Send,
+{
+    use rayon::prelude::*;
+    scenes
+        .par_iter()
+        .map_init(make_renderer, |renderer, scene| renderer.render(scene))
+        .collect()
+}
+
 fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, opacity: f32) {
     let Some(fill) = shape.fill else {
         return; // stroke-only shapes deferred to v1
@@ -603,5 +620,26 @@ mod tests {
             .flat_map(|y| (120..fb.width()).map(move |x| (x, y)))
             .any(|(x, y)| fb.pixel(x, y)[3] > 0);
         assert!(right_ink, "glyph should appear in the translated region");
+    }
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn parallel_render_preserves_order() {
+        let solid = |c: Color| {
+            Scene::new(comp(4, 4)).with_root(
+                Node::group()
+                    .with_child(Node::shape(Shape::rect(Size::new(4.0, 4.0)).with_fill(c))),
+            )
+        };
+        let scenes = vec![
+            solid(Color::rgb(1.0, 0.0, 0.0)),
+            solid(Color::rgb(0.0, 1.0, 0.0)),
+            solid(Color::rgb(0.0, 0.0, 1.0)),
+        ];
+        let frames = render_frames_parallel(&scenes, Renderer::new);
+        assert_eq!(frames.len(), 3);
+        assert_eq!(frames[0].pixel(0, 0), [255, 0, 0, 255]);
+        assert_eq!(frames[1].pixel(0, 0), [0, 255, 0, 255]);
+        assert_eq!(frames[2].pixel(0, 0), [0, 0, 255, 255]);
     }
 }

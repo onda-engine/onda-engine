@@ -149,18 +149,18 @@ fn encode_movie(
     Ok(())
 }
 
-/// Render every frame of an animated document. Returns the frames and fps.
+/// Render every frame of an animated document (in parallel). Returns the frames
+/// and fps. Timeline evaluation is a pure function of the frame, so the frames
+/// render across all cores.
 fn render_movie_json(json: &str, font: FontMode) -> Result<(Vec<Framebuffer>, f32)> {
     let doc: AnimatedScene =
         serde_json::from_str(json).context("movie JSON is not a valid animated scene")?;
-    let mut renderer = renderer_for(font);
-    let frames = (0..doc.frame_count())
-        .map(|n| renderer.render(&doc.frame(n)))
-        .collect();
+    let scenes: Vec<Scene> = (0..doc.frame_count()).map(|n| doc.frame(n)).collect();
+    let frames = onda_renderer::render_frames_parallel(&scenes, move || renderer_for(font));
     Ok((frames, doc.fps()))
 }
 
-/// Render a pre-evaluated sequence of scene graphs (one per frame).
+/// Render a pre-evaluated sequence of scene graphs (one per frame, in parallel).
 fn render_frames_json(json: &str, font: FontMode) -> Result<(Vec<Framebuffer>, f32)> {
     let scenes: Vec<Scene> =
         serde_json::from_str(json).context("frames JSON is not an array of scene graphs")?;
@@ -168,8 +168,7 @@ fn render_frames_json(json: &str, font: FontMode) -> Result<(Vec<Framebuffer>, f
         bail!("frames JSON contains no scenes");
     };
     let fps = first.composition.fps;
-    let mut renderer = renderer_for(font);
-    let frames = scenes.iter().map(|scene| renderer.render(scene)).collect();
+    let frames = onda_renderer::render_frames_parallel(&scenes, move || renderer_for(font));
     Ok((frames, fps))
 }
 
