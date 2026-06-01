@@ -706,6 +706,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "onda-bench"
+version = "0.0.0"
+dependencies = [
+ "onda-core",
+ "onda-gpu",
+ "onda-renderer",
+ "onda-scene",
+]
+
+[[package]]
 name = "onda-cli"
 version = "0.0.0"
 dependencies = [
