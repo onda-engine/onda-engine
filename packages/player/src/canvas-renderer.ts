@@ -1,16 +1,28 @@
-//! Canvas2D **preview** renderer.
+//! Canvas2D **preview** renderer (the stopgap path).
 //!
-//! Draws an ONDA scene graph to a `CanvasRenderingContext2D` for fast,
-//! interactive in-browser preview. It interprets the same scene graph the engine
-//! renders, but it is *not* the engine: shapes match, yet text uses the browser's
-//! font rasterizer rather than the engine's (cosmic-text/Open Sans). The
-//! pixel-exact output remains `onda render`/`onda export`; a WASM build of the
-//! Rust renderer is the planned path to make preview == export.
+//! Draws an ONDA scene graph to a `CanvasRenderingContext2D` for a fast,
+//! dependency-free in-browser preview. It interprets the *same* scene graph the
+//! engine renders, and now covers shapes (rect/ellipse/path), gradients, clips,
+//! transforms, and opacity — but it is **not** the engine and is **not
+//! pixel-accurate**:
+//!
+//!   - Text uses the browser's font rasterizer (and a heuristic baseline), not
+//!     the engine's cosmic-text + bundled Open Sans, so glyph shapes/metrics
+//!     differ.
+//!   - Anti-aliasing, gradient color-space, and path/stroke geometry follow the
+//!     browser's Canvas2D, not Vello.
+//!
+//! The pixel-exact output is `onda render` / `onda export`, and in the browser
+//! the {@link @onda/wasm} `OndaEngine` (the real Rust renderer compiled to wasm).
+//! Prefer that drawer in `<Player>` when it is available; this Canvas2D renderer
+//! is the graceful fallback. A WebGPU *present* path (see `WEBGPU.md`) is the
+//! planned way to make in-browser preview == export at real-time speed.
 
-import type { Color, Scene, SceneNode } from '@onda/react'
+import type { Color, Gradient, Scene, SceneNode, ShapeGeometry } from '@onda/react'
 
 /** Paints a scene onto a 2D context. The default is {@link drawScene}; the
- *  playground swaps in a WASM-engine drawer (real renderer → `putImageData`). */
+ *  playground and `<Player>` swap in a WASM-engine drawer (real renderer →
+ *  `putImageData`) when `@onda/wasm` is present. */
 export type FrameDrawer = (ctx: CanvasRenderingContext2D, scene: Scene) => void
 
 /** Draw `scene` onto `ctx`, clearing first. The context should be sized to the
@@ -32,6 +44,12 @@ function drawNode(ctx: CanvasRenderingContext2D, node: SceneNode): void {
   if (transform?.scale) ctx.scale(transform.scale.x, transform.scale.y)
   if (typeof node.opacity === 'number') ctx.globalAlpha *= node.opacity
 
+  // Clip this node's subtree to its (local-space) geometry, if any.
+  if (node.clip) {
+    geometryPath(ctx, node.clip)
+    ctx.clip()
+  }
+
   const kind = node.kind
   switch (kind.type) {
     case 'group':
@@ -42,8 +60,11 @@ function drawNode(ctx: CanvasRenderingContext2D, node: SceneNode): void {
     case 'text':
       drawText(ctx, kind)
       break
+    // Images and inline SVG are not previewed in Canvas2D (the WASM engine
+    // renders them faithfully); they're skipped rather than drawn wrong.
     case 'image':
-      break // images are not previewed yet
+    case 'svg':
+      break
   }
 
   for (const child of node.children ?? []) drawNode(ctx, child)
@@ -51,30 +72,94 @@ function drawNode(ctx: CanvasRenderingContext2D, node: SceneNode): void {
   ctx.restore()
 }
 
+/** Trace a {@link ShapeGeometry} as the current path (no fill/stroke). Used by
+ *  both shape drawing and clipping so the two stay consistent. */
+function geometryPath(ctx: CanvasRenderingContext2D, geometry: ShapeGeometry): void {
+  ctx.beginPath()
+  switch (geometry.shape) {
+    case 'rect': {
+      const { width, height } = geometry.size
+      if (geometry.corner_radius) ctx.roundRect(0, 0, width, height, geometry.corner_radius)
+      else ctx.rect(0, 0, width, height)
+      break
+    }
+    case 'ellipse': {
+      const rx = geometry.size.width / 2
+      const ry = geometry.size.height / 2
+      ctx.ellipse(rx, ry, rx, ry, 0, 0, Math.PI * 2)
+      break
+    }
+    case 'path':
+      // SVG path data maps directly onto a Path2D the browser can trace.
+      ctx.beginPath()
+      tracePath(ctx, geometry.data)
+      break
+  }
+}
+
+/** Trace SVG path data into `ctx`. Uses `Path2D` where available (browsers);
+ *  no-ops on platforms without it (e.g. headless test stubs). */
+function tracePath(ctx: CanvasRenderingContext2D, data: string): void {
+  if (typeof Path2D === 'undefined') return
+  // Stash the Path2D so fill/stroke can target it (Canvas2D can fill a Path2D).
+  pendingPath = new Path2D(data)
+}
+
+let pendingPath: Path2D | null = null
+
 function drawShape(
   ctx: CanvasRenderingContext2D,
   shape: Extract<SceneNode['kind'], { type: 'shape' }>,
 ): void {
-  const { geometry } = shape
-  ctx.beginPath()
-  if (geometry.shape === 'rect') {
-    const { width, height } = geometry.size
-    if (geometry.corner_radius) ctx.roundRect(0, 0, width, height, geometry.corner_radius)
-    else ctx.rect(0, 0, width, height)
-  } else {
-    const rx = geometry.size.width / 2
-    const ry = geometry.size.height / 2
-    ctx.ellipse(rx, ry, rx, ry, 0, 0, Math.PI * 2)
-  }
-  if (shape.fill) {
-    ctx.fillStyle = cssColor(shape.fill)
-    ctx.fill()
+  pendingPath = null
+  geometryPath(ctx, shape.geometry)
+
+  // A gradient paint takes precedence over a solid fill (mirrors @onda/react).
+  const paint = shape.gradient
+    ? gradientStyle(ctx, shape.geometry, shape.gradient)
+    : shape.fill
+      ? cssColor(shape.fill)
+      : null
+
+  if (paint) {
+    ctx.fillStyle = paint
+    if (pendingPath) ctx.fill(pendingPath)
+    else ctx.fill()
   }
   if (shape.stroke) {
     ctx.strokeStyle = cssColor(shape.stroke.color)
     ctx.lineWidth = shape.stroke.width
-    ctx.stroke()
+    if (pendingPath) ctx.stroke(pendingPath)
+    else ctx.stroke()
   }
+  pendingPath = null
+}
+
+/** Build a Canvas2D gradient from the engine's {@link Gradient} (local space).
+ *  Note: Canvas2D interpolates in sRGB, so colors won't match Vello exactly. */
+function gradientStyle(
+  ctx: CanvasRenderingContext2D,
+  geometry: ShapeGeometry,
+  gradient: Gradient,
+): CanvasGradient {
+  const g =
+    gradient.gradient === 'linear'
+      ? ctx.createLinearGradient(gradient.start.x, gradient.start.y, gradient.end.x, gradient.end.y)
+      : ctx.createRadialGradient(
+          gradient.center.x,
+          gradient.center.y,
+          0,
+          gradient.center.x,
+          gradient.center.y,
+          gradient.radius,
+        )
+  for (const stop of gradient.stops) {
+    g.addColorStop(Math.min(1, Math.max(0, stop.offset)), cssColor(stop.color))
+  }
+  // `geometry` is accepted for parity with the engine's local-space gradients;
+  // the points above are already in that space.
+  void geometry
+  return g
 }
 
 function drawText(
@@ -82,12 +167,15 @@ function drawText(
   text: Extract<SceneNode['kind'], { type: 'text' }>,
 ): void {
   ctx.fillStyle = cssColor(text.color ?? { r: 1, g: 1, b: 1 })
-  ctx.textBaseline = 'top'
-  ctx.font = `${text.font_size ?? 48}px sans-serif`
-  ctx.fillText(text.content, 0, 0)
+  ctx.textBaseline = 'alphabetic'
+  const size = text.font_size ?? 48
+  ctx.font = `${size}px sans-serif`
+  // The engine places text by its top-left; nudge down by ~the ascent so the
+  // preview roughly lines up with the real render (still only approximate).
+  ctx.fillText(text.content, 0, size * 0.8)
 }
 
-/** Convert the engine's 0..1 sRGB color to a CSS `rgba()` string. */
+/** Convert the engine's 0..1 straight-alpha sRGB color to a CSS `rgba()`. */
 export function cssColor(color: Color): string {
   const to255 = (c: number) => Math.round(Math.min(1, Math.max(0, c)) * 255)
   return `rgba(${to255(color.r)}, ${to255(color.g)}, ${to255(color.b)}, ${color.a ?? 1})`
