@@ -13,21 +13,28 @@ cargo run --release -p onda-bench            # optional: -- <frames>, default 12
 pnpm --filter benchmark bench                # downloads Chrome Headless Shell on first run
 ```
 
-## Result (Apple M4 Pro, 1920×1080, 120 frames, single worker)
+## Result (Apple M4 Pro, 1920×1080, 120 frames)
 
-| Backend                         |    fps | ms/frame | vs Remotion |
-| ------------------------------- | -----: | -------: | ----------: |
-| Remotion (Chromium, conc.=1)    |   25.9 |    38.55 |        1.0× |
-| ONDA — CPU rasterizer           |  114.1 |     8.76 |        4.4× |
-| ONDA — GPU (offscreen+readback) |  344.7 |     2.90 |       13.3× |
+| Backend                            |    fps | ms/frame |
+| ---------------------------------- | -----: | -------: |
+| Remotion (Chromium, 1 worker)      |   26.8 |    37.34 |
+| Remotion (Chromium, default pool)  |   76.1 |    13.14 |
+| ONDA — CPU (1 thread)              |  119.5 |     8.37 |
+| ONDA — CPU (all cores, rayon)      |  709.7 |     1.41 |
+| ONDA — GPU (offscreen + readback)  |  377.1 |     2.65 |
 
-This is a *trivial* scene — the best case for Remotion (simple DOM, no effects).
-Remotion's ~38 ms/frame is mostly fixed browser cost (layout + paint + screenshot
-+ IPC); ONDA's cost scales with actual content, so the gap widens for complex
-scenes, and again with the GPU path, parallel rendering, and cold-start. See
-`techspecs/gap-analysis.md` for the full picture and the path to 100×.
+Two honest comparisons:
+- **Per-thread (architecture):** ONDA CPU 1-thread vs Remotion 1-worker ≈ **4.5×**.
+- **Machine throughput (all cores, default settings):** ONDA CPU all-cores vs
+  Remotion default pool ≈ **9.3×**. (ONDA's rayon scaling ~6× beats Remotion's
+  ~3× — its per-worker browser overhead makes concurrency sublinear.)
 
-Notes: Remotion runs at `concurrency: 1` to compare per-thread (ONDA is currently
-single-threaded — parallel rendering is a tracked P0). ONDA numbers are
-steady-state (one warm-up frame). The GPU number is offscreen render + full CPU
-readback per frame, so it's readback-bound; a real-time present path is faster.
+This is a *trivial* scene — Remotion's best case. Its ~37 ms/frame/worker is
+mostly fixed browser cost (layout + paint + screenshot + IPC); ONDA's scales with
+content, so the gap widens for complex scenes, the GPU path, and cold-start
+(ONDA ~ms vs Chromium launch + bundle + warmup). See `techspecs/gap-analysis.md`
+for the full picture and the path to 100×.
+
+Notes: ONDA numbers are steady-state (one warm-up). The GPU number is offscreen
+render + full CPU readback per frame (readback-bound); a real-time present path is
+faster. Numbers vary a little run-to-run.

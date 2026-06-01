@@ -13,21 +13,27 @@ const serveUrl = await bundle({ entryPoint: new URL('src/index.ts', import.meta.
 console.log(`  bundle (cold-start): ${((Date.now() - bundleStart) / 1000).toFixed(2)}s`)
 
 const composition = await selectComposition({ serveUrl, id: 'Bench', inputProps: {} })
-
-// concurrency: 1 for a per-worker comparison with single-threaded onda-bench.
-const start = Date.now()
-await renderMedia({
-  serveUrl,
-  composition,
-  codec: 'h264',
-  outputLocation: '/tmp/remotion-bench.mp4',
-  concurrency: 1,
-  inputProps: {},
-})
-const secs = (Date.now() - start) / 1000
 const frames = composition.durationInFrames
-console.log(
-  `  Remotion (Chromium, concurrency=1)   ${(frames / secs).toFixed(1).padStart(8)} fps   ` +
-    `${((secs * 1000) / frames).toFixed(2).padStart(7)} ms/frame   (${secs.toFixed(2)}s for ${frames} frames)`,
-)
+
+async function bench(label, concurrency) {
+  const start = Date.now()
+  await renderMedia({
+    serveUrl,
+    composition,
+    codec: 'h264',
+    outputLocation: '/tmp/remotion-bench.mp4',
+    concurrency,
+    inputProps: {},
+  })
+  const secs = (Date.now() - start) / 1000
+  console.log(
+    `  ${label.padEnd(34)} ${(frames / secs).toFixed(1).padStart(8)} fps   ` +
+      `${((secs * 1000) / frames).toFixed(2).padStart(7)} ms/frame   (${secs.toFixed(2)}s for ${frames} frames)`,
+  )
+}
+
+// concurrency=1 for a per-worker (architecture) comparison; null = Remotion's
+// default multi-worker pool for a machine-throughput comparison.
+await bench('Remotion (Chromium, 1 worker)', 1)
+await bench('Remotion (Chromium, default pool)', null)
 process.exit(0)

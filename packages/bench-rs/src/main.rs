@@ -74,14 +74,27 @@ fn main() {
     let scene = scene();
     println!("ONDA render benchmark — 1920x1080, {frames} frames\n");
 
-    // CPU backend.
+    // CPU backend, single-threaded.
     let mut cpu = Renderer::with_default_font();
     std::hint::black_box(cpu.render(&scene)); // warm (font load + glyph cache)
     let start = Instant::now();
     for _ in 0..frames {
         std::hint::black_box(cpu.render(&scene));
     }
-    report("CPU rasterizer", frames, start.elapsed());
+    report("CPU (1 thread)", frames, start.elapsed());
+
+    // CPU backend, all cores (rayon) — the offline-render path.
+    let scenes: Vec<Scene> = (0..frames).map(|_| scene.clone()).collect();
+    std::hint::black_box(onda_renderer::render_frames_parallel(
+        &scenes,
+        Renderer::with_default_font,
+    ));
+    let start = Instant::now();
+    std::hint::black_box(onda_renderer::render_frames_parallel(
+        &scenes,
+        Renderer::with_default_font,
+    ));
+    report("CPU (all cores, rayon)", frames, start.elapsed());
 
     // GPU backend (offscreen + readback).
     match GpuRenderer::new() {
