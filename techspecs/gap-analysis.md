@@ -50,15 +50,19 @@ start), not as a trivial-scene headline.
 
 ## 2. Current state (built)
 
-`core` (Vec2/Size/Color/Transform — translate+scale only) · `scene` (Group/Text/
-Image[not drawn]/Shape[rect,ellipse]) · CPU `renderer` (rects+ellipses, text via
-cosmic-text coverage, src-over; no AA on rects, no strokes, no image decode) ·
-`gpu` (wgpu: instanced quads + SDF-AA ellipses + text-coverage textures;
-offscreen+readback) · `typography` (cosmic-text+swash, bundled Open Sans, only
-content/size/color exposed) · `animation` (keyframes + 8 easings on opacity/
-translate/scale) · `cli` (render/export/export-frames → png/gif/mp4) · `@onda/
-react` (reconciler, useCurrentFrame/interpolate, renderFrames) · `@onda/player`
-(Canvas2D preview + WASM engine) · `wasm` (CPU engine in browser).
+`core` (Vec2/Size/Color/Transform — translate+scale only; linear-space color) ·
+`scene` (Group/Text/Image[not drawn]/Shape[rect,ellipse,**path**], **gradient**
+fills, **clip** regions) · CPU `renderer` (rects+ellipses, text via cosmic-text
+coverage, src-over; no AA, no strokes/paths/gradients/clips — the reference
+oracle) · **`vello`** (GPU-native vector backend: AA fills+strokes, rounded rects,
+arbitrary paths, linear/radial gradients, clip masks, **native per-glyph vector
+text**; offscreen+readback; single wgpu — the quad+SDF `gpu` crate is retired) ·
+`typography` (cosmic-text+swash, bundled Open Sans; coverage masks **and**
+per-glyph `layout`) · **`svg`** (`usvg` → flattened `Path` nodes) · `animation`
+(keyframes + easings + springs on opacity/translate/scale) · `cli` (render/export/
+export-frames → png/gif/mp4) · `@onda/react` (reconciler, useCurrentFrame/
+interpolate/spring, `<Sequence>`/`<Series>`/`<Loop>`, renderFrames) · `wasm` (CPU
+engine in browser).
 
 ## 3. Gaps, prioritized
 
@@ -84,14 +88,19 @@ P0 = needed for a credible, fast, correct v1. P1 = parity/quality. P2 = later.
   `downlevel_defaults` blocks the Vello compute path (see B).
 
 ### B. Vector / GPU rendering quality
-- **🔬 IN PROGRESS — Vello vector engine.** Steps 1–2 done: `onda-vello`
-  (`VelloRenderer::render(&Scene)`) maps the ONDA scene graph → `vello::Scene` and
-  renders headlessly on Metal — already gaining **AA strokes** and **real rounded
-  rects** over quad+SDF. Still TODO: native per-glyph vector text (step 3 →
-  kinetic text/text-on-path), gradients/clips/masks, SVG (via `usvg`), a
-  `<Path>`/`<Svg>` scene node, then retire the quad+SDF `onda-gpu` path. Note:
-  vello 0.3 pins wgpu 22 (a second wgpu in the tree until migration completes);
-  Vello Hybrid / tiny-skia are fallback options for portability.
+- **✅ DONE — Vello vector engine (migration complete).** `onda-vello`
+  (`VelloRenderer::render(&Scene)`) is now ONDA's GPU-native vector backend,
+  rendering the scene graph headlessly on Metal with: AA fills + **strokes**,
+  **real rounded rects**, arbitrary **Bézier paths** (`ShapeGeometry::Path`),
+  **native per-glyph vector text** (Vello glyph runs via `FontContext::layout` —
+  resolution-independent, per-glyph-animatable), **linear & radial gradients**
+  (`Shape::gradient`), and **clip regions** (`Node.clip`, any geometry as a mask).
+  The hand-rolled quad+SDF `onda-gpu` crate is **retired/deleted**, so the GPU
+  stack is consolidated on a single wgpu (22.1.0, via Vello). SVG import lands via
+  the new **`onda-svg`** crate (`usvg` → flattened `Path` nodes). Remaining polish
+  (not blockers): map SVG gradients/patterns (currently solid-only), glyph atlas
+  for text batching (A), and the readback→present pipeline (A). Vello Hybrid /
+  tiny-skia stay as portability fallbacks.
 - **P1 Blur/filters/blend modes** — separable Gaussian compute + Porter-Duff;
   frontier even for Vello.
 - **P1 Group opacity as a real layer** — composite masked/translucent groups to
@@ -100,9 +109,11 @@ P0 = needed for a credible, fast, correct v1. P1 = parity/quality. P2 = later.
   fills only; `corner_radius` ignored).
 
 ### C. Typography (cosmic-text already supports most — we just don't expose it)
-- **P0 Per-glyph layout exposure** — surface cosmic-text `LayoutGlyph` so each
-  glyph is an animatable node → **kinetic typography** (the motion-graphics killer
-  feature; impossible today since text is one opaque mask).
+- **✅ DONE Per-glyph layout exposure** — `FontContext::layout` returns positioned
+  glyphs (`GlyphPosition { id, x, y }`), and the Vello backend draws them as
+  native outlines via glyph runs. This is the foundation for **kinetic typography**
+  (per-glyph animation) and **text-on-path**; the remaining work is the *authoring*
+  surface (one node per glyph, or a per-glyph animation driver).
 - **P1 Variable-font axes** (`wght`/`wdth`/`opsz`, animatable), **OpenType
   features** (ligatures/kerning/stylistic sets/`tnum`), **rich multi-run styled
   text** (cosmic-text `AttrsList`).
@@ -164,11 +175,12 @@ TypeScript types, npm-trivial install. Nice-to-have: Lottie, three/skia, caption
 2. **Readback ring + reuse targets + swapchain present** — ends the blocking
    stall; unlocks real-time preview (and the WebGPU player).
 3. **Glyph atlas (glyphon)** — text perf + draw batching.
-4. **Adopt Vello as the vector backend** (retire quad+SDF) — paths, strokes, AA,
-   gradients, clips, SVG, and per-glyph vector text in one move (needs a
-   compute-capable device).
-5. **Linear-space color lerp + per-glyph text exposure** — small, high-leverage
-   correctness + the kinetic-typography unlock.
+4. ✅ **Adopt Vello as the vector backend** — DONE. Paths, strokes, AA, gradients,
+   clips, SVG import (`onda-svg`), and native per-glyph vector text all landed;
+   quad+SDF `onda-gpu` retired and wgpu consolidated to one version.
+5. ✅ **Linear-space color lerp + per-glyph text exposure** — DONE
+   (`Color::{to,from}_linear`; `FontContext::layout`). The kinetic-typography
+   *authoring* surface (per-glyph nodes/driver) is the remaining follow-up.
 
 Strategic insight from the research: **#4 and per-glyph typography are coupled** —
 moving to Vello fixes the vector gap *and* enables per-character animation and
