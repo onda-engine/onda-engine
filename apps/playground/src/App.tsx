@@ -14,8 +14,11 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from '@onda/react'
-import { OndaEngine } from '@onda/wasm'
-import { type ReactElement, useMemo, useState } from 'react'
+import initCpu, { OndaEngine } from '@onda/wasm'
+import initVello, { VelloEngine } from '@onda/wasm-vello'
+import velloWasmUrl from '@onda/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
+import cpuWasmUrl from '@onda/wasm/pkg/onda_wasm_bg.wasm?url'
+import { type ReactElement, useEffect, useMemo, useState } from 'react'
 
 const W = 1280
 const H = 480
@@ -113,21 +116,16 @@ function Pulse(): ReactElement {
   )
 }
 
-// The demo composition: a dark backdrop, an accent pulse, two spring titles
-// played back-to-back with <Series>, and a gradient underline that wipes in
-// through a clip mask. Uses Text + gradient + clip + spring/interpolate over
-// frames — the latest @onda/react surface.
-//
-// `withPaths` adds a vector <Path> wave. The in-browser WASM engine is the CPU
-// reference oracle and predates arbitrary paths, so we include the wave only in
-// the Canvas2D-preview view (where it — and the true gradient/clip — render).
-// The GPU/Vello backend renders all of it; that's what `onda export --backend
-// vello` produces.
-function buildDemo(withPaths: boolean): ReactElement {
+// The demo composition: a dark backdrop, an accent pulse, a vector <Path> wave,
+// two spring titles played back-to-back with <Series>, and a gradient underline
+// that wipes in through a clip mask — Text + Path + gradient + clip +
+// spring/interpolate. The GPU (Vello/WebGPU) engine renders all of it, pixel-
+// identical to `onda export`.
+function buildDemo(): ReactElement {
   return (
     <Composition width={W} height={H} fps={30} durationInFrames={150}>
       <Rect width={W} height={H} fill="#0e0e12" />
-      {withPaths && <Wave />}
+      <Wave />
       <Pulse />
       <Series>
         <Series.Sequence durationInFrames={75}>
@@ -182,13 +180,32 @@ const grow = spring({ frame, fps })
 </Group>`
 
 export function App(): ReactElement {
-  // Construct the real engine once. main.tsx initializes wasm before mount.
-  const engine = useMemo(() => new OndaEngine(), [])
-  const [useEngine, setUseEngine] = useState(true)
+  // Select the renderer on mount: the GPU engine (Vello over WebGPU) when
+  // available, else the CPU engine. The Player prefers whichever it's given and
+  // falls back to Canvas2D if neither is ready yet.
+  const [gpu, setGpu] = useState<VelloEngine | null>(null)
+  const [cpu, setCpu] = useState<OndaEngine | null>(null)
 
-  // The engine view renders an engine-safe scene (no arbitrary paths); the
-  // Canvas2D preview adds the vector <Path> wave on top.
-  const composition = useMemo(() => buildDemo(!useEngine), [useEngine])
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        await initVello(velloWasmUrl)
+        const engine = await VelloEngine.create()
+        if (!cancelled) setGpu(engine)
+      } catch {
+        // No WebGPU here — fall back to the CPU engine.
+        await initCpu(cpuWasmUrl)
+        const engine = new OndaEngine()
+        if (!cancelled) setCpu(engine)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const composition = useMemo(() => buildDemo(), [])
 
   return (
     <main style={styles.main}>
@@ -206,38 +223,19 @@ export function App(): ReactElement {
         <code style={styles.code}>@onda/react</code> — Text, a vector{' '}
         <code style={styles.code}>&lt;Path&gt;</code>, a gradient underline that wipes in through a
         clip mask, all animated with <code style={styles.code}>spring</code> and{' '}
-        <code style={styles.code}>interpolate</code> over frames. Drag the scrubber or press play.
+        <code style={styles.code}>interpolate</code> over frames. Rendered live by the GPU engine
+        (Vello over WebGPU) — pixel-identical to <code style={styles.code}>onda export</code>, with
+        no Chromium. Drag the scrubber or press play.
       </p>
 
       <section style={styles.card}>
-        <Player composition={composition} engine={useEngine ? engine : undefined} loop />
-      </section>
-
-      <label style={styles.toggle}>
-        <input
-          type="checkbox"
-          checked={useEngine}
-          onChange={(e) => setUseEngine(e.target.checked)}
+        <Player
+          composition={composition}
+          gpuEngine={gpu ?? undefined}
+          engine={cpu ?? undefined}
+          loop
         />
-        <span>
-          Render with the WASM engine{' '}
-          <span style={styles.muted}>
-            (off = Canvas2D preview, adds the vector &lt;Path&gt; wave)
-          </span>
-        </span>
-      </label>
-
-      <p style={styles.note}>
-        The in-browser <strong>WASM engine</strong> is the real Rust renderer (the CPU reference
-        oracle): pixel-identical to <code style={styles.code}>onda render</code> for rects, ellipses
-        and text. It is the deterministic correctness oracle, so it intentionally renders flat fills
-        — arbitrary <code style={styles.code}>&lt;Path&gt;</code>, true gradients, rounded corners
-        and clip masks are the GPU/<strong>Vello</strong> backend's job (
-        <code style={styles.code}>onda export --backend vello</code>) and show up in the Canvas2D
-        preview here. A WebGPU present path (see{' '}
-        <code style={styles.code}>packages/player/WEBGPU.md</code>) would make the in-browser
-        preview == the Vello export at real-time speed.
-      </p>
+      </section>
 
       <section style={styles.codeCard}>
         <div style={styles.codeHeader}>composition.tsx</div>

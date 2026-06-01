@@ -4,9 +4,9 @@
   "description": "The ONDA Vello (GPU) renderer compiled to WebAssembly — Vello in the browser over WebGPU (no DOM, no Chromium).",
   "license": "MIT OR Apache-2.0",
   "type": "module",
-  "main": "./pkg/onda_wasm_vello.js",
-  "types": "./pkg/onda_wasm_vello.d.ts",
-  "files": ["pkg"],
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "files": ["index.js", "index.d.ts", "pkg"],
   "scripts": {
     "build": "cargo build -p onda-wasm-vello --target wasm32-unknown-unknown --release && wasm-bindgen ../../target/wasm32-unknown-unknown/release/onda_wasm_vello.wasm --out-dir pkg --target web"
   }
