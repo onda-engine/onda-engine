@@ -1,6 +1,7 @@
-import { Player } from '@onda/player'
+import { type FrameDrawer, Player } from '@onda/player'
 import { Composition, Easing, Rect, Text, interpolate, useCurrentFrame } from '@onda/react'
-import type { ReactElement } from 'react'
+import { OndaEngine } from '@onda/wasm'
+import { type ReactElement, useMemo, useState } from 'react'
 
 /** A title that fades and slides into place over the first half-second. */
 function Title(): ReactElement {
@@ -23,6 +24,20 @@ const hello = (
 )
 
 export function App(): ReactElement {
+  // The real engine (Rust renderer) compiled to WASM. Reused across frames.
+  const engine = useMemo(() => new OndaEngine(), [])
+  const [useEngine, setUseEngine] = useState(true)
+
+  // Draw each frame through the WASM engine: render the scene to RGBA and blit.
+  const engineDraw = useMemo<FrameDrawer>(
+    () => (ctx, scene) => {
+      const frame = engine.render(JSON.stringify(scene))
+      const image = new ImageData(new Uint8ClampedArray(frame.pixels), frame.width, frame.height)
+      ctx.putImageData(image, 0, 0)
+    },
+    [engine],
+  )
+
   return (
     <main
       style={{
@@ -36,10 +51,25 @@ export function App(): ReactElement {
       <p style={{ marginTop: 0, color: '#666' }}>
         A React composition, previewed live — drag the scrubber or press play.
       </p>
-      <Player composition={hello} />
+
+      <label
+        style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '12px 0', fontSize: 14 }}
+      >
+        <input
+          type="checkbox"
+          checked={useEngine}
+          onChange={(e) => setUseEngine(e.target.checked)}
+        />
+        Render with the WASM engine{' '}
+        <span style={{ color: '#888' }}>(off = Canvas2D preview with the browser font)</span>
+      </label>
+
+      <Player composition={hello} draw={useEngine ? engineDraw : undefined} />
+
       <p style={{ color: '#888', fontSize: 13 }}>
-        Canvas2D preview: shapes are exact; text uses the browser font. The pixel-exact render is{' '}
-        <code>onda export</code> (the bundled engine font).
+        {useEngine
+          ? 'Engine: the real Rust renderer (cosmic-text + Open Sans) running in WebAssembly — pixel-identical to onda export. No DOM, no Chromium.'
+          : 'Preview: Canvas2D with the browser font (shapes exact, text approximate).'}
       </p>
     </main>
   )

@@ -10,8 +10,17 @@ homepage.workspace = true
 authors.workspace = true
 
 [dependencies]
-cosmic-text = "0.17.0"
 onda-core = { workspace = true }
 # Only for the `Script` type in our no-op Fallback impl. Pinned to match
 # cosmic-text's transitive version so the trait's signature type unifies.
 unicode-script = "0.5"
+# cosmic-text features are split per target: native uses std + fontconfig; wasm
+# uses no_std (avoids fontdb's memmap/fontconfig, which don't build for wasm32)
+# plus wasm-web for browser locale detection. Both keep swash rasterization.
+cosmic-text = { version = "0.17.0", default-features = false, features = ["std", "swash"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+cosmic-text = { version = "0.17.0", default-features = false, features = ["fontconfig"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+cosmic-text = { version = "0.17.0", default-features = false, features = ["wasm-web"] }
