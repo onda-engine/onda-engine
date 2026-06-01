@@ -13,6 +13,7 @@ members = [
     "packages/wasm",
     "packages/bench-rs",
     "packages/vello-rs",
+    "packages/svg-rs",
 ]
 
 [workspace.package]
@@ -32,6 +33,7 @@ onda-typography = { path = "packages/typography-rs", version = "0.0.0" }
 onda-renderer = { path = "packages/renderer-rs", version = "0.0.0" }
 onda-animation = { path = "packages/animation-rs", version = "0.0.0" }
 onda-vello = { path = "packages/vello-rs", version = "0.0.0" }
+onda-svg = { path = "packages/svg-rs", version = "0.0.0" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
