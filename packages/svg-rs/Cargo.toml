@@ -1,0 +1,19 @@
+[package]
+name = "onda-svg"
+description = "Import SVG documents into the ONDA scene graph (paths, fills, strokes)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[dependencies]
+onda-core = { workspace = true }
+onda-scene = { workspace = true }
+usvg = "0.44"
+
+[dev-dependencies]
+onda-vello = { workspace = true }
+png = "0.18"
