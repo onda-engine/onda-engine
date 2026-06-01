@@ -15,19 +15,25 @@ export default defineConfig({
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
-    ['meta', { name: 'theme-color', content: '#3b82f6' }],
+    ['meta', { name: 'theme-color', content: '#0e0e12' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:title', content: 'ONDA — programmatic motion graphics, without Chromium' }],
     ['meta', {
       property: 'og:description',
       content: 'GPU-native vector rendering in Rust. Author in React/JSX, compile to a scene graph, render with no browser anywhere.',
     }],
-    // Google Fonts: Space Grotesk (headings), Inter (body), JetBrains Mono (code).
+    // Fonts: Clash Display (headings, Fontshare), Space Grotesk (body, Google),
+    // JetBrains Mono (code/labels, Google).
     ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
+    ['link', { rel: 'preconnect', href: 'https://api.fontshare.com', crossorigin: '' }],
     ['link', {
       rel: 'stylesheet',
-      href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap',
+      href: 'https://api.fontshare.com/v2/css?f[]=clash-display@600,700&display=swap',
+    }],
+    ['link', {
+      rel: 'stylesheet',
+      href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap',
     }],
   ],
 
