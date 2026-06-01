@@ -1002,6 +1002,9 @@ dependencies = [
 name = "onda-vello"
 version = "0.0.0"
 dependencies = [
+ "onda-core",
+ "onda-scene",
+ "onda-typography",
  "png 0.18.1",
  "pollster",
  "vello",
