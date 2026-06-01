@@ -84,13 +84,14 @@ P0 = needed for a credible, fast, correct v1. P1 = parity/quality. P2 = later.
   `downlevel_defaults` blocks the Vello compute path (see B).
 
 ### B. Vector / GPU rendering quality
-- **🔬 IN PROGRESS — Vello vector engine.** Step 1 done: `onda-vello` renders
-  arbitrary AA Béziers/strokes/fills headlessly on Metal (probe verified). Still
-  TODO (step 2+): map the ONDA scene graph → `vello::Scene` (rects/ellipses/text/
-  paths), per-glyph vector text + text-on-path, gradients/clips/masks, SVG (via
-  `usvg`), then retire the quad+SDF `onda-gpu` path. Note: vello 0.3 pins wgpu 22
-  (a second wgpu in the tree until migration completes); Vello Hybrid / tiny-skia
-  are fallback options for portability.
+- **🔬 IN PROGRESS — Vello vector engine.** Steps 1–2 done: `onda-vello`
+  (`VelloRenderer::render(&Scene)`) maps the ONDA scene graph → `vello::Scene` and
+  renders headlessly on Metal — already gaining **AA strokes** and **real rounded
+  rects** over quad+SDF. Still TODO: native per-glyph vector text (step 3 →
+  kinetic text/text-on-path), gradients/clips/masks, SVG (via `usvg`), a
+  `<Path>`/`<Svg>` scene node, then retire the quad+SDF `onda-gpu` path. Note:
+  vello 0.3 pins wgpu 22 (a second wgpu in the tree until migration completes);
+  Vello Hybrid / tiny-skia are fallback options for portability.
 - **P1 Blur/filters/blend modes** — separable Gaussian compute + Porter-Duff;
   frontier even for Vello.
 - **P1 Group opacity as a real layer** — composite masked/translucent groups to
