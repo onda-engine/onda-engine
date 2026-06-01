@@ -11,6 +11,7 @@ members = [
     "packages/animation-rs",
     "packages/cli-rs",
     "packages/wasm",
+    "packages/gpu-rs",
 ]
 
 [workspace.package]
