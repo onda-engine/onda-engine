@@ -1,0 +1,24 @@
+[package]
+name = "onda-wasm-vello"
+description = "WebAssembly bindings for the ONDA Vello (GPU) renderer — Vello running in the browser over WebGPU."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# wasm-only: the Vello + wgpu (WebGPU) deps are pulled in only when targeting
+# wasm32, so the native workspace build stays untouched (the crate is empty on
+# native — see `#![cfg(target_arch = "wasm32")]` in src/lib.rs).
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+onda-vello = { workspace = true }
+onda-scene = { workspace = true }
+serde_json = { workspace = true }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+console_error_panic_hook = "0.1"

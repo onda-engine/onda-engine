@@ -15,6 +15,8 @@ onda-scene = { workspace = true }
 onda-typography = { workspace = true }
 pollster = "0.4"
 vello = "0.3.0"
+# Async buffer-map readback (works on the web, where poll(Wait) can't block).
+futures-intrusive = "0.5"
 
 [dev-dependencies]
 png = "0.18"

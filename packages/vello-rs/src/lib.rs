@@ -41,11 +41,14 @@ pub struct VelloRenderer {
 
 impl VelloRenderer {
     /// Acquire a GPU and build the Vello renderer. `None` if no adapter exists.
+    /// Blocks; native only. On the web use [`VelloRenderer::new_async`].
     pub fn new() -> Option<Self> {
         pollster::block_on(Self::new_async())
     }
 
-    async fn new_async() -> Option<Self> {
+    /// Async constructor — required on the web (wasm), where adapter/device
+    /// acquisition genuinely can't block the main thread.
+    pub async fn new_async() -> Option<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -89,8 +92,22 @@ impl VelloRenderer {
         })
     }
 
-    /// Render an ONDA scene to a [`Frame`].
+    /// Render an ONDA scene to a [`Frame`] (blocking readback; native only).
     pub fn render(&mut self, scene: &Scene) -> Frame {
+        let (texture, width, height) = self.render_to_target(scene);
+        read_back(&self.device, &self.queue, &texture, width, height)
+    }
+
+    /// Render an ONDA scene to a [`Frame`], awaiting the readback instead of
+    /// blocking — required on the web (wasm), where buffer mapping is async.
+    pub async fn render_async(&mut self, scene: &Scene) -> Frame {
+        let (texture, width, height) = self.render_to_target(scene);
+        read_back_async(&self.device, &self.queue, &texture, width, height).await
+    }
+
+    /// Build the scene and rasterize it to an offscreen RGBA texture (shared by
+    /// the sync and async render paths). Returns the texture and its size.
+    fn render_to_target(&mut self, scene: &Scene) -> (wgpu::Texture, u32, u32) {
         let width = scene.composition.width.max(1);
         let height = scene.composition.height.max(1);
 
@@ -136,7 +153,7 @@ impl VelloRenderer {
             )
             .expect("vello render");
 
-        read_back(&self.device, &self.queue, &texture, width, height)
+        (texture, width, height)
     }
 }
 
@@ -294,13 +311,15 @@ fn draw_text(
         );
 }
 
-fn read_back(
+/// Copy the rendered texture into a mappable buffer. Returns the buffer and the
+/// 256-byte-aligned row stride.
+fn copy_to_readback_buffer(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     texture: &wgpu::Texture,
     width: u32,
     height: u32,
-) -> Frame {
+) -> (wgpu::Buffer, u32) {
     let unpadded = width * 4;
     let padded = unpadded.div_ceil(256) * 256;
     let buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -332,17 +351,59 @@ fn read_back(
         },
     );
     queue.submit(Some(encoder.finish()));
+    (buffer, padded)
+}
 
+/// Strip the 256-byte row padding from a mapped readback buffer into tight RGBA.
+fn unpad_rows(mapped: &[u8], width: u32, height: u32, padded: u32) -> Vec<u8> {
+    let unpadded = (width * 4) as usize;
+    let mut pixels = Vec::with_capacity(unpadded * height as usize);
+    for row in 0..height {
+        let start = (row * padded) as usize;
+        pixels.extend_from_slice(&mapped[start..start + unpadded]);
+    }
+    pixels
+}
+
+fn read_back(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    width: u32,
+    height: u32,
+) -> Frame {
+    let (buffer, padded) = copy_to_readback_buffer(device, queue, texture, width, height);
     let slice = buffer.slice(..);
     slice.map_async(wgpu::MapMode::Read, |_| {});
     device.poll(wgpu::Maintain::Wait);
-    let mapped = slice.get_mapped_range();
-    let mut pixels = Vec::with_capacity((unpadded * height) as usize);
-    for row in 0..height {
-        let start = (row * padded) as usize;
-        pixels.extend_from_slice(&mapped[start..start + unpadded as usize]);
+    let pixels = unpad_rows(&slice.get_mapped_range(), width, height, padded);
+    buffer.unmap();
+    Frame {
+        width,
+        height,
+        pixels,
     }
-    drop(mapped);
+}
+
+/// Async readback: awaits the buffer map instead of blocking on `poll(Wait)`.
+/// On native, `poll(Wait)` drives the map to completion immediately; on the web
+/// it's a no-op and the browser fulfils the map while we await the callback.
+async fn read_back_async(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    width: u32,
+    height: u32,
+) -> Frame {
+    let (buffer, padded) = copy_to_readback_buffer(device, queue, texture, width, height);
+    let slice = buffer.slice(..);
+    let (tx, rx) = futures_intrusive::channel::shared::oneshot_channel();
+    slice.map_async(wgpu::MapMode::Read, move |res| {
+        let _ = tx.send(res);
+    });
+    device.poll(wgpu::Maintain::Wait);
+    let _ = rx.receive().await;
+    let pixels = unpad_rows(&slice.get_mapped_range(), width, height, padded);
     buffer.unmap();
     Frame {
         width,

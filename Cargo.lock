@@ -984,6 +984,7 @@ dependencies = [
 name = "onda-vello"
 version = "0.0.0"
 dependencies = [
+ "futures-intrusive",
  "onda-core",
  "onda-scene",
  "onda-typography",
@@ -1001,6 +1002,18 @@ dependencies = [
  "onda-scene",
  "serde_json",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "onda-wasm-vello"
+version = "0.0.0"
+dependencies = [
+ "console_error_panic_hook",
+ "onda-scene",
+ "onda-vello",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]

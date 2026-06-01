@@ -3,4 +3,5 @@ packages:
   - "packages/player"
   - "packages/render"
   - "packages/wasm"
+  - "packages/wasm-vello"
   - "apps/*"
