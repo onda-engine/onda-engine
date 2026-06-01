@@ -31,12 +31,13 @@ pkg
 # Logs
 *.log
 
-# Claude plugin workspace (not source)
-/.claude
+# Claude plugin workspace (not source). Unanchored so nested copies (e.g. inside
+# packages/*) are ignored too.
+.claude/
 
 # Ruflo / claude-flow runtime workspace (not source)
-/.claude-flow
-/.swarm
+.claude-flow/
+.swarm/
 
 # Ruflo runtime databases (machine-local, regenerable — not source)
 *.rvf
