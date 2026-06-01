@@ -1,6 +1,6 @@
 [package]
 name = "onda-vello"
-description = "Vello-based vector renderer for ONDA (paths, strokes, gradients, AA). Step 1 — probe."
+description = "ONDA's GPU-native vector renderer (Vello): paths, strokes, AA, rounded rects, native glyph text."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

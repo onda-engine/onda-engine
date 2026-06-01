@@ -17,4 +17,4 @@ path = "src/main.rs"
 onda-core = { workspace = true }
 onda-scene = { workspace = true }
 onda-renderer = { workspace = true, features = ["parallel"] }
-onda-gpu = { workspace = true }
+onda-vello = { workspace = true }

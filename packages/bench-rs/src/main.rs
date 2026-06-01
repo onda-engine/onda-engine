@@ -1,19 +1,20 @@
 //! Render-throughput benchmark for the ONDA engine.
 //!
 //! Renders a representative 1080p motion-graphics frame repeatedly and reports
-//! frames/sec for the CPU and GPU backends. The CPU number is the meaningful
-//! ONDA-vs-Remotion baseline (Remotion produces frames via Chromium screenshots);
-//! the GPU number here is offscreen render + full CPU readback per frame, so it
-//! is readback-bound — a real-time swapchain present would be far faster.
+//! frames/sec for the CPU and GPU (Vello) backends. The CPU number is the
+//! meaningful ONDA-vs-Remotion baseline (Remotion produces frames via Chromium
+//! screenshots); the GPU number here is offscreen render + full CPU readback per
+//! frame, so it is readback-bound — a real-time swapchain present would be far
+//! faster.
 //!
 //!   cargo run --release -p onda-bench [-- frames]
 
 use std::time::{Duration, Instant};
 
 use onda_core::{Color, Size, Transform, Vec2};
-use onda_gpu::GpuRenderer;
 use onda_renderer::Renderer;
 use onda_scene::{Composition, Node, NodeKind, Scene, Shape, Text};
+use onda_vello::VelloRenderer;
 
 fn at(x: f32, y: f32) -> Transform {
     Transform {
@@ -96,15 +97,15 @@ fn main() {
     ));
     report("CPU (all cores, rayon)", frames, start.elapsed());
 
-    // GPU backend (offscreen + readback).
-    match GpuRenderer::new() {
+    // GPU backend: Vello (offscreen + readback).
+    match VelloRenderer::new() {
         Some(mut gpu) => {
             std::hint::black_box(gpu.render(&scene));
             let start = Instant::now();
             for _ in 0..frames {
                 std::hint::black_box(gpu.render(&scene));
             }
-            report("GPU (offscreen + readback)", frames, start.elapsed());
+            report("GPU — Vello (offscreen + readback)", frames, start.elapsed());
         }
         None => println!("  GPU: no adapter available"),
     }
