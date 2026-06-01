@@ -7,18 +7,26 @@
 //!
 //! Usage:
 //!   onda render <scene.json> <out.png> [--system-fonts]
+//!   onda export <movie.json> <out.gif|out.mp4> [--system-fonts]
 
 use std::path::Path;
 
 use anyhow::{bail, Context, Result};
-use onda_renderer::Renderer;
+use onda_animation::AnimatedScene;
+use onda_renderer::{encode_gif, Framebuffer, Renderer};
 use onda_scene::Scene;
 
 const USAGE: &str = "\
-onda — render a scene-graph JSON document to a PNG
+onda — render a scene-graph document to an image or video
 
 USAGE:
-    onda render <scene.json> <out.png> [--system-fonts]
+    onda render <scene.json> <out.png>          Render one still
+    onda export <movie.json> <out.gif|.mp4>     Render an animated document
+
+    <scene.json>  a scene graph              (onda-scene JSON)
+    <movie.json>  a scene graph + timeline   ({ \"scene\": ..., \"timeline\": ... })
+
+    .gif output is pure-Rust and always available; .mp4 needs ffmpeg on PATH.
 
 OPTIONS:
     --system-fonts    Use the host's installed fonts instead of the bundled
@@ -59,14 +67,15 @@ fn run(args: Vec<String>) -> Result<()> {
             Ok(())
         }
         "render" => render_command(&args[1..]),
+        "export" => export_command(&args[1..]),
         other => bail!("unknown command '{other}'\n\n{USAGE}"),
     }
 }
 
-fn render_command(args: &[String]) -> Result<()> {
+/// Parse the shared `[--system-fonts]` + two positionals shape.
+fn parse_io(args: &[String], verb: &str) -> Result<(String, String, FontMode)> {
     let mut positionals: Vec<&str> = Vec::new();
     let mut font = FontMode::Bundled;
-
     for arg in args {
         match arg.as_str() {
             "--system-fonts" => font = FontMode::System,
@@ -74,14 +83,114 @@ fn render_command(args: &[String]) -> Result<()> {
             value => positionals.push(value),
         }
     }
-
     let [input, output] = positionals.as_slice() else {
-        bail!("render needs exactly an input and an output path\n\n{USAGE}");
+        bail!("{verb} needs exactly an input and an output path\n\n{USAGE}");
     };
+    Ok((input.to_string(), output.to_string(), font))
+}
 
-    let (width, height) = render_scene_file(Path::new(input), Path::new(output), font)?;
+fn render_command(args: &[String]) -> Result<()> {
+    let (input, output, font) = parse_io(args, "render")?;
+    let (width, height) = render_scene_file(Path::new(&input), Path::new(&output), font)?;
     println!("rendered {input} -> {output} ({width}x{height})");
     Ok(())
+}
+
+fn export_command(args: &[String]) -> Result<()> {
+    let (input, output, font) = parse_io(args, "export")?;
+    let out = Path::new(&output);
+
+    let json =
+        std::fs::read_to_string(&input).with_context(|| format!("reading movie file '{input}'"))?;
+    let (frames, fps) =
+        render_movie_json(&json, font).with_context(|| format!("rendering movie '{input}'"))?;
+
+    match out
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("gif") => write_gif(&frames, fps, out)?,
+        Some("mp4") => write_mp4(&frames, fps, out)?,
+        _ => bail!("unsupported output '{output}' — use a .gif or .mp4 extension"),
+    }
+
+    let (w, h) = (frames[0].width(), frames[0].height());
+    println!(
+        "exported {input} -> {output} ({} frames, {w}x{h} @ {fps} fps)",
+        frames.len()
+    );
+    Ok(())
+}
+
+/// Render every frame of an animated document. Returns the frames and fps.
+fn render_movie_json(json: &str, font: FontMode) -> Result<(Vec<Framebuffer>, f32)> {
+    let doc: AnimatedScene =
+        serde_json::from_str(json).context("movie JSON is not a valid animated scene")?;
+    let mut renderer = match font {
+        FontMode::Bundled => Renderer::with_default_font(),
+        FontMode::System => Renderer::with_system_fonts(),
+    };
+    let frames = (0..doc.frame_count())
+        .map(|n| renderer.render(&doc.frame(n)))
+        .collect();
+    Ok((frames, doc.fps()))
+}
+
+/// Encode frames as an animated GIF (pure Rust).
+fn write_gif(frames: &[Framebuffer], fps: f32, out: &Path) -> Result<()> {
+    let file = std::io::BufWriter::new(
+        std::fs::File::create(out).with_context(|| format!("creating '{}'", out.display()))?,
+    );
+    encode_gif(frames, fps, file).with_context(|| format!("encoding GIF '{}'", out.display()))
+}
+
+/// Encode frames as an MP4 by shelling out to ffmpeg (writes PNG frames to a
+/// temp dir, then invokes the encoder).
+fn write_mp4(frames: &[Framebuffer], fps: f32, out: &Path) -> Result<()> {
+    let dir = std::env::temp_dir().join(format!("onda-export-{}", std::process::id()));
+    std::fs::create_dir_all(&dir)
+        .with_context(|| format!("creating temp dir '{}'", dir.display()))?;
+
+    let result = (|| -> Result<()> {
+        for (i, frame) in frames.iter().enumerate() {
+            frame
+                .write_png(dir.join(format!("frame_{i:05}.png")))
+                .with_context(|| format!("writing frame {i}"))?;
+        }
+        let status = std::process::Command::new("ffmpeg")
+            .args([
+                "-y",
+                "-loglevel",
+                "error",
+                "-framerate",
+                &fps.to_string(),
+                "-i",
+            ])
+            .arg(dir.join("frame_%05d.png"))
+            // Even dimensions are required by yuv420p/libx264.
+            .args([
+                "-vf",
+                "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+            ])
+            .arg(out)
+            .status()
+            .context(
+                "failed to launch ffmpeg — is it installed and on PATH? (.gif needs no tools)",
+            )?;
+        if !status.success() {
+            bail!("ffmpeg exited unsuccessfully ({status})");
+        }
+        Ok(())
+    })();
+
+    let _ = std::fs::remove_dir_all(&dir);
+    result
 }
 
 /// Read a scene-graph JSON document, render it, and write the result as a PNG.
@@ -166,5 +275,55 @@ mod tests {
 
         let _ = std::fs::remove_file(&input);
         let _ = std::fs::remove_file(&output);
+    }
+
+    const MOVIE: &str = r#"{
+        "scene": {
+            "composition": { "width": 32, "height": 16, "fps": 10.0, "duration_in_frames": 3 },
+            "root": {
+                "kind": { "type": "group" },
+                "children": [
+                    { "id": 1, "kind": { "type": "text", "content": "Hi", "font_size": 12.0 } }
+                ]
+            }
+        },
+        "timeline": {
+            "animations": [
+                {
+                    "target": 1,
+                    "property": {
+                        "kind": "opacity",
+                        "track": { "keyframes": [
+                            { "time": 0.0, "value": 0.0 },
+                            { "time": 0.2, "value": 1.0 }
+                        ] }
+                    }
+                }
+            ]
+        }
+    }"#;
+
+    #[test]
+    fn renders_all_movie_frames() {
+        let (frames, fps) = render_movie_json(MOVIE, FontMode::Bundled).unwrap();
+        assert_eq!(frames.len(), 3); // duration_in_frames
+        assert_eq!(fps, 10.0);
+        assert_eq!((frames[0].width(), frames[0].height()), (32, 16));
+    }
+
+    #[test]
+    fn exports_a_real_gif() {
+        let (frames, fps) = render_movie_json(MOVIE, FontMode::Bundled).unwrap();
+        let out = std::env::temp_dir().join("onda_cli_test.gif");
+        write_gif(&frames, fps, &out).unwrap();
+
+        let bytes = std::fs::read(&out).unwrap();
+        assert!(bytes.len() > 6);
+        assert!(
+            &bytes[..3] == b"GIF",
+            "not a GIF: {:?}",
+            &bytes[..6.min(bytes.len())]
+        );
+        let _ = std::fs::remove_file(&out);
     }
 }

@@ -251,6 +251,48 @@ fn apply(node: &mut Node, property: &AnimatedProperty, time: f32) {
     }
 }
 
+/// A complete animated document: a base [`Scene`] plus the [`Timeline`] that
+/// drives it. This is the serde-serializable unit a frontend (CLI, AI, React)
+/// hands the engine to render a clip — `scene` carries the resolution/fps/length
+/// (via its [`onda_scene::Composition`]), `timeline` carries the motion.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AnimatedScene {
+    pub scene: Scene,
+    #[serde(default)]
+    pub timeline: Timeline,
+}
+
+impl AnimatedScene {
+    /// A still document (empty timeline).
+    pub fn new(scene: Scene) -> Self {
+        AnimatedScene {
+            scene,
+            timeline: Timeline::new(),
+        }
+    }
+
+    /// Builder: attach a timeline.
+    pub fn with_timeline(mut self, timeline: Timeline) -> Self {
+        self.timeline = timeline;
+        self
+    }
+
+    /// Frames per second (from the composition).
+    pub fn fps(&self) -> f32 {
+        self.scene.composition.fps
+    }
+
+    /// Number of frames to render (at least one).
+    pub fn frame_count(&self) -> u32 {
+        self.scene.composition.duration_in_frames.max(1)
+    }
+
+    /// The static scene at frame `n` (timeline evaluated).
+    pub fn frame(&self, n: u32) -> Scene {
+        self.timeline.evaluate_frame(&self.scene, n as f32)
+    }
+}
+
 /// Depth-first search for the first node with the given id.
 fn find_node_mut(node: &mut Node, id: NodeId) -> Option<&mut Node> {
     if node.id == Some(id) {
@@ -420,5 +462,34 @@ mod tests {
         // Guards against accidental scene API drift used by examples.
         let n = Node::new(NodeKind::Group).with_id(2);
         assert_eq!(n.id, Some(NodeId(2)));
+    }
+
+    #[test]
+    fn animated_scene_frames_and_count() {
+        let doc = AnimatedScene::new(scene_with_text()).with_timeline(Timeline::new().with(
+            Animation::new(
+                NodeId(1),
+                AnimatedProperty::Opacity {
+                    track: Track::new(vec![Keyframe::new(0.0, 0.0), Keyframe::new(2.0, 1.0)]),
+                },
+            ),
+        ));
+        assert_eq!(doc.frame_count(), 60); // composition duration_in_frames
+        assert_eq!(doc.fps(), 30.0);
+        assert_eq!(doc.frame(0).root.children[0].opacity, 0.0);
+        assert_eq!(doc.frame(30).root.children[0].opacity, 0.5); // 1s of a 2s ramp
+    }
+
+    #[test]
+    fn animated_scene_defaults_timeline_when_absent_in_json() {
+        let json = r#"{
+            "scene": {
+                "composition": { "width": 16, "height": 16, "fps": 24.0, "duration_in_frames": 5 },
+                "root": { "kind": { "type": "group" } }
+            }
+        }"#;
+        let doc: AnimatedScene = serde_json::from_str(json).unwrap();
+        assert!(doc.timeline.animations.is_empty());
+        assert_eq!(doc.frame_count(), 5);
     }
 }

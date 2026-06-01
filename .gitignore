@@ -23,6 +23,10 @@ pkg
 *.png
 !docs/**/*.png
 !assets/**/*.png
+*.gif
+*.mp4
+!docs/**/*.gif
+!docs/**/*.mp4
 
 # Logs
 *.log
