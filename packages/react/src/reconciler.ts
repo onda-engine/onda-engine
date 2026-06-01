@@ -2,11 +2,13 @@
 
 import { type ReactElement, createElement } from 'react'
 import Reconciler from 'react-reconciler'
+import { type ClipInput, parseClip } from './clip.js'
 import { parseColor } from './color.js'
 import { Composition } from './components.js'
 import { FrameContext, type VideoConfig } from './frame.js'
+import { type GradientInput, parseGradient } from './gradient.js'
 import { type HostNode, type RootContainer, hostConfig } from './host-config.js'
-import type { Scene, SceneNode, ShapeGeometry, Stroke, Transform } from './scene.js'
+import type { Gradient, Scene, SceneNode, ShapeGeometry, Stroke, Transform } from './scene.js'
 
 const reconciler = Reconciler(hostConfig)
 
@@ -104,6 +106,7 @@ function toNode(node: HostNode): SceneNode {
   const transform = transformOf(props)
   if (transform) base.transform = transform
   if (typeof props.opacity === 'number') base.opacity = props.opacity
+  if (props.clip !== undefined) base.clip = parseClip(props.clip as ClipInput)
   const children = node.children.map(toNode)
   const withChildren = children.length ? { children } : {}
 
@@ -131,6 +134,11 @@ function toNode(node: HostNode): SceneNode {
           height: numberProp(props, 'height', 'Ellipse'),
         },
       }
+      return { ...base, kind: { type: 'shape', geometry, ...fillStroke(props) }, ...withChildren }
+    }
+
+    case 'onda-path': {
+      const geometry: ShapeGeometry = { shape: 'path', data: stringProp(props, 'd', 'Path') }
       return { ...base, kind: { type: 'shape', geometry, ...fillStroke(props) }, ...withChildren }
     }
 
@@ -171,10 +179,12 @@ function transformOf(props: Record<string, unknown>): Transform | undefined {
 
 function fillStroke(props: Record<string, unknown>): {
   fill?: ReturnType<typeof parseColor>
+  gradient?: Gradient
   stroke?: Stroke
 } {
-  const out: { fill?: ReturnType<typeof parseColor>; stroke?: Stroke } = {}
+  const out: { fill?: ReturnType<typeof parseColor>; gradient?: Gradient; stroke?: Stroke } = {}
   if (props.fill !== undefined) out.fill = parseColor(props.fill as never)
+  if (props.gradient !== undefined) out.gradient = parseGradient(props.gradient as GradientInput)
   if (props.stroke !== undefined) {
     out.stroke = {
       color: parseColor(props.stroke as never),

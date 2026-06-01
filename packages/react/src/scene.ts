@@ -42,17 +42,31 @@ export interface Composition {
 export type ShapeGeometry =
   | { shape: 'rect'; size: Size; corner_radius?: number }
   | { shape: 'ellipse'; size: Size }
+  | { shape: 'path'; data: string }
+
+/** A color stop of a {@link Gradient}: a color at offset 0..1. */
+export interface GradientStop {
+  offset: number
+  color: Color
+}
+
+/** A gradient paint, in the shape's local coordinate space. */
+export type Gradient =
+  | { gradient: 'linear'; start: Vec2; end: Vec2; stops: GradientStop[] }
+  | { gradient: 'radial'; center: Vec2; radius: number; stops: GradientStop[] }
 
 export type NodeKind =
   | { type: 'group' }
   | { type: 'text'; content: string; font_size?: number; color?: Color }
   | { type: 'image'; src: string }
-  | { type: 'shape'; geometry: ShapeGeometry; fill?: Color; stroke?: Stroke }
+  | { type: 'shape'; geometry: ShapeGeometry; fill?: Color; gradient?: Gradient; stroke?: Stroke }
 
 export interface SceneNode {
   id?: number
   transform?: Transform
   opacity?: number
+  /** Clip this node and its subtree to a geometry (local space). */
+  clip?: ShapeGeometry
   kind: NodeKind
   children?: SceneNode[]
 }

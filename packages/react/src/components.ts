@@ -9,9 +9,11 @@
 //! ```
 
 import { type ReactNode, createElement } from 'react'
+import type { ClipInput } from './clip.js'
 import type { ColorInput } from './color.js'
+import type { GradientInput } from './gradient.js'
 
-/** Properties shared by every scene node: identity, placement, opacity. */
+/** Properties shared by every scene node: identity, placement, opacity, clip. */
 export interface NodeProps {
   /** Stable id, required to target the node from an animation timeline. */
   id?: number
@@ -23,7 +25,18 @@ export interface NodeProps {
   scaleY?: number
   /** Opacity, 0..1. */
   opacity?: number
+  /** Clip this node and its subtree to a region (local space). */
+  clip?: ClipInput
   children?: ReactNode
+}
+
+/** Paint props shared by shapes: a solid fill, a gradient (which takes
+ *  precedence), and a stroke. */
+export interface PaintProps {
+  fill?: ColorInput
+  gradient?: GradientInput
+  stroke?: ColorInput
+  strokeWidth?: number
 }
 
 export interface CompositionProps {
@@ -46,29 +59,34 @@ export function Group(props: GroupProps) {
   return createElement('onda-group', props)
 }
 
-export interface RectProps extends NodeProps {
+export interface RectProps extends NodeProps, PaintProps {
   width: number
   height: number
   cornerRadius?: number
-  fill?: ColorInput
-  stroke?: ColorInput
-  strokeWidth?: number
 }
 
 export function Rect(props: RectProps) {
   return createElement('onda-rect', props)
 }
 
-export interface EllipseProps extends NodeProps {
+export interface EllipseProps extends NodeProps, PaintProps {
   width: number
   height: number
-  fill?: ColorInput
-  stroke?: ColorInput
-  strokeWidth?: number
 }
 
 export function Ellipse(props: EllipseProps) {
   return createElement('onda-ellipse', props)
+}
+
+export interface PathProps extends NodeProps, PaintProps {
+  /** SVG path data (e.g. `"M0 0 L100 0 Z"`), in the node's local space. */
+  d: string
+}
+
+/** An arbitrary vector outline from SVG path data. Renders on the GPU (Vello)
+ *  backend; the CPU reference rasterizer skips paths. */
+export function Path(props: PathProps) {
+  return createElement('onda-path', props)
 }
 
 export interface TextProps extends NodeProps {
