@@ -12,7 +12,7 @@
 use std::path::Path;
 
 use anyhow::{bail, Context, Result};
-use onda_animation::AnimatedScene;
+use onda_animation::{AnimatedScene, AudioTrack};
 use onda_renderer::{encode_gif, Framebuffer, Renderer};
 use onda_scene::Scene;
 use onda_vello::VelloRenderer;
@@ -142,11 +142,16 @@ fn export_command(args: &[String]) -> Result<()> {
 
     let json =
         std::fs::read_to_string(&input).with_context(|| format!("reading movie file '{input}'"))?;
-    let (scenes, fps) = movie_scenes(&json, base_dir_of(&input))
+    let movie = movie_scenes(&json, base_dir_of(&input))
         .with_context(|| format!("reading movie '{input}'"))?;
-    let (frames, used) = render_scenes(&scenes, backend, font)
+    let (frames, used) = render_scenes(&movie.scenes, backend, font)
         .with_context(|| format!("rendering movie '{input}'"))?;
-    encode_movie(&frames, fps, out, &output, &input, used)
+    let audio = AudioMux {
+        tracks: &movie.audio,
+        base_dir: base_dir_of(&input),
+        duration_secs: movie.duration_secs,
+    };
+    encode_movie(&frames, movie.fps, out, &output, &input, used, audio)
 }
 
 /// Encode pre-rendered, per-frame scenes (e.g. emitted by @onda/react's
@@ -161,10 +166,31 @@ fn export_frames_command(args: &[String]) -> Result<()> {
         .with_context(|| format!("reading frames '{input}'"))?;
     let (frames, used) = render_scenes(&scenes, backend, font)
         .with_context(|| format!("rendering frames '{input}'"))?;
-    encode_movie(&frames, fps, out, &output, &input, used)
+    // A pre-evaluated frame sequence carries no soundtrack.
+    encode_movie(&frames, fps, out, &output, &input, used, AudioMux::none())
 }
 
-/// Encode rendered frames to the format implied by `out`'s extension.
+/// The soundtrack to mux into a video: the clips, where their `src`s resolve,
+/// and the target duration. Empty `tracks` means a silent render.
+struct AudioMux<'a> {
+    tracks: &'a [AudioTrack],
+    base_dir: &'a Path,
+    duration_secs: f32,
+}
+
+impl AudioMux<'_> {
+    /// No soundtrack (silent).
+    fn none() -> Self {
+        AudioMux {
+            tracks: &[],
+            base_dir: Path::new(""),
+            duration_secs: 0.0,
+        }
+    }
+}
+
+/// Encode rendered frames to the format implied by `out`'s extension, muxing the
+/// `audio` soundtrack into MP4 output.
 fn encode_movie(
     frames: &[Framebuffer],
     fps: f32,
@@ -172,26 +198,80 @@ fn encode_movie(
     output: &str,
     input: &str,
     backend: &str,
+    audio: AudioMux,
 ) -> Result<()> {
     if frames.is_empty() {
         bail!("nothing to encode — no frames rendered");
     }
-    match out
+    let ext = out
         .extension()
         .and_then(|e| e.to_str())
-        .map(str::to_ascii_lowercase)
-        .as_deref()
-    {
-        Some("gif") => write_gif(frames, fps, out)?,
-        Some("mp4") => write_mp4(frames, fps, out)?,
+        .map(str::to_ascii_lowercase);
+    let mut muxed_audio = false;
+    match ext.as_deref() {
+        Some("gif") => {
+            if !audio.tracks.is_empty() {
+                eprintln!(
+                    "note: GIF has no audio stream; ignoring {} audio clip(s)",
+                    audio.tracks.len()
+                );
+            }
+            write_gif(frames, fps, out)?;
+        }
+        Some("mp4") => {
+            if audio.tracks.is_empty() {
+                write_mp4(frames, fps, out, None)?;
+            } else {
+                let wav = build_audio_wav(&audio, fps).context("building the audio track")?;
+                let result = write_mp4(frames, fps, out, Some(&wav));
+                if let Some(dir) = wav.parent() {
+                    let _ = std::fs::remove_dir_all(dir);
+                }
+                result?;
+                muxed_audio = true;
+            }
+        }
         _ => bail!("unsupported output '{output}' — use a .gif or .mp4 extension"),
     }
     let (w, h) = (frames[0].width(), frames[0].height());
+    let sound = if muxed_audio {
+        format!(", {} audio clip(s)", audio.tracks.len())
+    } else {
+        String::new()
+    };
     println!(
-        "exported {input} -> {output} ({} frames, {w}x{h} @ {fps} fps, {backend} backend)",
+        "exported {input} -> {output} ({} frames, {w}x{h} @ {fps} fps, {backend} backend{sound})",
         frames.len()
     );
     Ok(())
+}
+
+/// Decode and mix `audio`'s clips into a temp 48 kHz stereo WAV (for muxing).
+/// Returns the WAV path; its parent temp dir is the caller's to clean up.
+fn build_audio_wav(audio: &AudioMux, fps: f32) -> Result<std::path::PathBuf> {
+    const RATE: u32 = 48_000;
+    let fps = fps.max(1.0);
+    let decoded = audio
+        .tracks
+        .iter()
+        .map(|t| {
+            onda_audio::decode(audio.base_dir.join(&t.src))
+                .with_context(|| format!("decoding audio '{}'", t.src))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mix_tracks: Vec<onda_audio::MixTrack> = decoded
+        .iter()
+        .zip(audio.tracks)
+        .map(|(buf, t)| onda_audio::MixTrack::new(buf, t.start_frame as f32 / fps, t.volume))
+        .collect();
+    let mixed = onda_audio::mix(&mix_tracks, audio.duration_secs, RATE);
+
+    let dir = std::env::temp_dir().join(format!("onda-audio-{}", std::process::id()));
+    std::fs::create_dir_all(&dir)
+        .with_context(|| format!("creating temp dir '{}'", dir.display()))?;
+    let wav = dir.join("soundtrack.wav");
+    onda_audio::write_wav(&mixed, &wav).context("writing the mixed audio WAV")?;
+    Ok(wav)
 }
 
 /// Render a sequence of scenes through the chosen backend, returning the frames
@@ -235,15 +315,28 @@ fn render_scenes_vello(scenes: &[Scene], renderer: &mut VelloRenderer) -> Vec<Fr
         .collect()
 }
 
-/// Build the per-frame scenes of an animated document (timeline evaluated).
-/// Any `<svg>` nodes are expanded once on the template (before timeline eval),
-/// resolving file `src`s relative to `base_dir`.
-fn movie_scenes(json: &str, base_dir: &Path) -> Result<(Vec<Scene>, f32)> {
+/// The per-frame scenes of an animated document plus its soundtrack.
+struct Movie {
+    scenes: Vec<Scene>,
+    fps: f32,
+    audio: Vec<AudioTrack>,
+    duration_secs: f32,
+}
+
+/// Build a [`Movie`] from an animated document. Any `<svg>` nodes are expanded
+/// once on the template (before timeline eval), resolving file `src`s relative
+/// to `base_dir`.
+fn movie_scenes(json: &str, base_dir: &Path) -> Result<Movie> {
     let mut doc: AnimatedScene =
         serde_json::from_str(json).context("movie JSON is not a valid animated scene")?;
     doc.scene = onda_svg::expand_svg(&doc.scene, base_dir).context("expanding <svg> nodes")?;
     let scenes: Vec<Scene> = (0..doc.frame_count()).map(|n| doc.frame(n)).collect();
-    Ok((scenes, doc.fps()))
+    Ok(Movie {
+        scenes,
+        fps: doc.fps(),
+        duration_secs: doc.duration_secs(),
+        audio: doc.audio,
+    })
 }
 
 /// Parse a pre-evaluated sequence of scene graphs (one per frame), expanding any
@@ -272,8 +365,8 @@ fn base_dir_of(input: &str) -> &Path {
 /// (and the render-test oracle); the command layer routes through `render_scenes`.
 #[cfg(test)]
 fn render_movie_json(json: &str, font: FontMode) -> Result<(Vec<Framebuffer>, f32)> {
-    let (scenes, fps) = movie_scenes(json, Path::new(""))?;
-    Ok((render_scenes_cpu(&scenes, font), fps))
+    let movie = movie_scenes(json, Path::new(""))?;
+    Ok((render_scenes_cpu(&movie.scenes, font), movie.fps))
 }
 
 /// CPU-rendered frames of a pre-evaluated scene sequence (the test oracle).
@@ -299,8 +392,9 @@ fn write_gif(frames: &[Framebuffer], fps: f32, out: &Path) -> Result<()> {
 }
 
 /// Encode frames as an MP4 by shelling out to ffmpeg (writes PNG frames to a
-/// temp dir, then invokes the encoder).
-fn write_mp4(frames: &[Framebuffer], fps: f32, out: &Path) -> Result<()> {
+/// temp dir, then invokes the encoder). If `audio_wav` is given, it's muxed in
+/// as an AAC stream and the output is trimmed to the shorter of the two.
+fn write_mp4(frames: &[Framebuffer], fps: f32, out: &Path, audio_wav: Option<&Path>) -> Result<()> {
     let dir = std::env::temp_dir().join(format!("onda-export-{}", std::process::id()));
     std::fs::create_dir_all(&dir)
         .with_context(|| format!("creating temp dir '{}'", dir.display()))?;
@@ -311,30 +405,35 @@ fn write_mp4(frames: &[Framebuffer], fps: f32, out: &Path) -> Result<()> {
                 .write_png(dir.join(format!("frame_{i:05}.png")))
                 .with_context(|| format!("writing frame {i}"))?;
         }
-        let status = std::process::Command::new("ffmpeg")
-            .args([
-                "-y",
-                "-loglevel",
-                "error",
-                "-framerate",
-                &fps.to_string(),
-                "-i",
-            ])
-            .arg(dir.join("frame_%05d.png"))
-            // Even dimensions are required by yuv420p/libx264.
-            .args([
-                "-vf",
-                "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-                "-c:v",
-                "libx264",
-                "-pix_fmt",
-                "yuv420p",
-            ])
-            .arg(out)
-            .status()
-            .context(
-                "failed to launch ffmpeg — is it installed and on PATH? (.gif needs no tools)",
-            )?;
+        let mut cmd = std::process::Command::new("ffmpeg");
+        cmd.args([
+            "-y",
+            "-loglevel",
+            "error",
+            "-framerate",
+            &fps.to_string(),
+            "-i",
+        ])
+        .arg(dir.join("frame_%05d.png"));
+        if let Some(wav) = audio_wav {
+            cmd.arg("-i").arg(wav);
+        }
+        // Even dimensions are required by yuv420p/libx264.
+        cmd.args([
+            "-vf",
+            "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+        ]);
+        if audio_wav.is_some() {
+            // Encode the audio and stop at the shorter stream (video length).
+            cmd.args(["-c:a", "aac", "-b:a", "192k", "-shortest"]);
+        }
+        let status = cmd.arg(out).status().context(
+            "failed to launch ffmpeg — is it installed and on PATH? (.gif needs no tools)",
+        )?;
         if !status.success() {
             bail!("ffmpeg exited unsuccessfully ({status})");
         }
@@ -552,5 +651,38 @@ mod tests {
         assert_eq!(frames.len(), 1);
         // Vello rasterizes the path → opaque green covers the canvas.
         assert_eq!(frames[0].pixel(8, 8), [0, 255, 0, 255]);
+    }
+
+    #[test]
+    fn build_audio_wav_decodes_mixes_and_resamples() {
+        // Synthesize a 0.5s mono tone WAV, then build the muxable soundtrack
+        // from a track referencing it (exercises decode → mix → write, no ffmpeg).
+        let dir = std::env::temp_dir().join("onda_cli_audio_test");
+        let _ = std::fs::create_dir_all(&dir);
+        let samples = (0..24_000)
+            .map(|i| (i as f32 / 48_000.0 * 440.0 * std::f32::consts::TAU).sin() * 0.5)
+            .collect();
+        let tone = onda_audio::AudioBuffer {
+            sample_rate: 48_000,
+            channels: 1,
+            samples,
+        };
+        onda_audio::write_wav(&tone, dir.join("tone.wav")).unwrap();
+
+        let tracks = [AudioTrack::new("tone.wav")];
+        let mux = AudioMux {
+            tracks: &tracks,
+            base_dir: &dir,
+            duration_secs: 1.0,
+        };
+        let wav = build_audio_wav(&mux, 30.0).expect("build audio wav");
+        let mixed = onda_audio::decode(&wav).expect("decode mixed wav");
+        assert_eq!(mixed.channels, 2); // mixed to stereo
+        assert!((mixed.duration_secs() - 1.0).abs() < 0.05); // padded to target duration
+
+        if let Some(parent) = wav.parent() {
+            let _ = std::fs::remove_dir_all(parent);
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

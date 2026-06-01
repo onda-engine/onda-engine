@@ -349,29 +349,81 @@ fn apply(node: &mut Node, property: &AnimatedProperty, time: f32) {
     }
 }
 
-/// A complete animated document: a base [`Scene`] plus the [`Timeline`] that
-/// drives it. This is the serde-serializable unit a frontend (CLI, AI, React)
-/// hands the engine to render a clip — `scene` carries the resolution/fps/length
-/// (via its [`onda_scene::Composition`]), `timeline` carries the motion.
+/// An audio clip placed on a movie's soundtrack: a source file, when it starts
+/// (in frames, at the composition's fps), and a gain multiplier. Plain data —
+/// decoding/mixing lives in `onda-audio`, muxing in the CLI.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AudioTrack {
+    /// Path/URL to the audio file (resolved by the renderer/CLI).
+    pub src: String,
+    /// Frame at which this clip begins playing (default 0).
+    #[serde(default)]
+    pub start_frame: u32,
+    /// Gain multiplier, 1.0 = unchanged (default 1.0).
+    #[serde(default = "AudioTrack::default_volume")]
+    pub volume: f32,
+}
+
+impl AudioTrack {
+    fn default_volume() -> f32 {
+        1.0
+    }
+
+    /// A clip from `src`, starting at frame 0, full volume.
+    pub fn new(src: impl Into<String>) -> Self {
+        AudioTrack {
+            src: src.into(),
+            start_frame: 0,
+            volume: 1.0,
+        }
+    }
+
+    /// Builder: start at `frame`.
+    pub fn with_start_frame(mut self, frame: u32) -> Self {
+        self.start_frame = frame;
+        self
+    }
+
+    /// Builder: set the gain.
+    pub fn with_volume(mut self, volume: f32) -> Self {
+        self.volume = volume;
+        self
+    }
+}
+
+/// A complete animated document: a base [`Scene`], the [`Timeline`] that drives
+/// it, and an optional [`AudioTrack`] soundtrack. This is the serde-serializable
+/// unit a frontend (CLI, AI, React) hands the engine to render a clip — `scene`
+/// carries the resolution/fps/length (via its [`onda_scene::Composition`]),
+/// `timeline` carries the motion, `audio` carries the sound.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnimatedScene {
     pub scene: Scene,
     #[serde(default)]
     pub timeline: Timeline,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub audio: Vec<AudioTrack>,
 }
 
 impl AnimatedScene {
-    /// A still document (empty timeline).
+    /// A still document (empty timeline, no audio).
     pub fn new(scene: Scene) -> Self {
         AnimatedScene {
             scene,
             timeline: Timeline::new(),
+            audio: Vec::new(),
         }
     }
 
     /// Builder: attach a timeline.
     pub fn with_timeline(mut self, timeline: Timeline) -> Self {
         self.timeline = timeline;
+        self
+    }
+
+    /// Builder: attach an audio soundtrack.
+    pub fn with_audio(mut self, audio: impl IntoIterator<Item = AudioTrack>) -> Self {
+        self.audio = audio.into_iter().collect();
         self
     }
 
@@ -383,6 +435,16 @@ impl AnimatedScene {
     /// Number of frames to render (at least one).
     pub fn frame_count(&self) -> u32 {
         self.scene.composition.duration_in_frames.max(1)
+    }
+
+    /// Clip duration in seconds (`frame_count / fps`).
+    pub fn duration_secs(&self) -> f32 {
+        let fps = self.fps();
+        if fps <= 0.0 {
+            0.0
+        } else {
+            self.frame_count() as f32 / fps
+        }
     }
 
     /// The static scene at frame `n` (timeline evaluated).
@@ -655,5 +717,31 @@ mod tests {
         let doc: AnimatedScene = serde_json::from_str(json).unwrap();
         assert!(doc.timeline.animations.is_empty());
         assert_eq!(doc.frame_count(), 5);
+        assert!(doc.audio.is_empty()); // defaults to no soundtrack
+    }
+
+    #[test]
+    fn audio_tracks_round_trip_and_default() {
+        let doc = AnimatedScene::new(scene_with_text()).with_audio([
+            AudioTrack::new("music.mp3"),
+            AudioTrack::new("vo.wav")
+                .with_start_frame(30)
+                .with_volume(0.5),
+        ]);
+        let json = serde_json::to_string(&doc).unwrap();
+        let back: AnimatedScene = serde_json::from_str(&json).unwrap();
+        assert_eq!(doc, back);
+        // start_frame defaults to 0 and volume to 1.0 when omitted.
+        assert_eq!(back.audio[0].start_frame, 0);
+        assert_eq!(back.audio[0].volume, 1.0);
+        assert_eq!(back.audio[1].start_frame, 30);
+        assert_eq!(back.audio[1].volume, 0.5);
+    }
+
+    #[test]
+    fn audio_track_json_defaults() {
+        let track: AudioTrack = serde_json::from_str(r#"{ "src": "a.mp3" }"#).unwrap();
+        assert_eq!(track.start_frame, 0);
+        assert_eq!(track.volume, 1.0);
     }
 }
