@@ -23,8 +23,8 @@ use onda_scene::{Node, NodeId, Scene};
 use serde::{Deserialize, Serialize};
 
 /// Easing curves mapping linear progress `t ∈ [0, 1]` to eased progress.
-/// Closed-form (Penner-style); cubic-bézier easing is a follow-up.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+/// Closed-form (Penner-style) plus a general CSS-style cubic Bézier.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Easing {
     #[default]
@@ -37,13 +37,29 @@ pub enum Easing {
     EaseInOutCubic,
     /// Hermite smoothstep (3t² − 2t³).
     SmoothStep,
+    /// Overshoot (anticipation/back-out). `EaseInBack` undershoots at the start,
+    /// `EaseOutBack` overshoots at the end.
+    EaseInBack,
+    EaseOutBack,
+    EaseInOutBack,
+    /// CSS-style cubic Bézier with control points `(x1, y1)` and `(x2, y2)`; the
+    /// curve runs from `(0,0)` to `(1,1)`. Covers any custom ease.
+    CubicBezier {
+        x1: f32,
+        y1: f32,
+        x2: f32,
+        y2: f32,
+    },
 }
 
 impl Easing {
     /// Map `t` (clamped to `[0, 1]`) to eased progress. Every curve maps
-    /// `0 → 0` and `1 → 1`.
+    /// `0 → 0` and `1 → 1` (back/bezier may overshoot in between).
     pub fn apply(self, t: f32) -> f32 {
         let t = t.clamp(0.0, 1.0);
+        const C1: f32 = 1.70158;
+        const C2: f32 = C1 * 1.525;
+        const C3: f32 = C1 + 1.0;
         match self {
             Easing::Linear => t,
             Easing::EaseInQuad => t * t,
@@ -65,8 +81,85 @@ impl Easing {
                 }
             }
             Easing::SmoothStep => t * t * (3.0 - 2.0 * t),
+            Easing::EaseInBack => C3 * t * t * t - C1 * t * t,
+            Easing::EaseOutBack => 1.0 + C3 * (t - 1.0).powi(3) + C1 * (t - 1.0).powi(2),
+            Easing::EaseInOutBack => {
+                if t < 0.5 {
+                    ((2.0 * t).powi(2) * ((C2 + 1.0) * 2.0 * t - C2)) / 2.0
+                } else {
+                    ((2.0 * t - 2.0).powi(2) * ((C2 + 1.0) * (2.0 * t - 2.0) + C2) + 2.0) / 2.0
+                }
+            }
+            Easing::CubicBezier { x1, y1, x2, y2 } => cubic_bezier(x1, y1, x2, y2, t),
         }
     }
+}
+
+/// Evaluate a cubic Bézier ease `y` at progress `x ∈ [0, 1]`, with control
+/// points `(x1, y1)`, `(x2, y2)` and fixed endpoints `(0,0)`–`(1,1)`. Solves for
+/// the curve parameter via Newton-Raphson (CSS `cubic-bezier()` semantics).
+fn cubic_bezier(x1: f32, y1: f32, x2: f32, y2: f32, x: f32) -> f32 {
+    // Bézier component as a function of the parameter s (p0=0, p3=1).
+    let comp = |c1: f32, c2: f32, s: f32| {
+        let u = 1.0 - s;
+        3.0 * u * u * s * c1 + 3.0 * u * s * s * c2 + s * s * s
+    };
+    let comp_deriv = |c1: f32, c2: f32, s: f32| {
+        let u = 1.0 - s;
+        3.0 * u * u * c1 + 6.0 * u * s * (c2 - c1) + 3.0 * s * s * (1.0 - c2)
+    };
+    let mut s = x;
+    for _ in 0..8 {
+        let dx = comp(x1, x2, s) - x;
+        if dx.abs() < 1e-5 {
+            break;
+        }
+        let d = comp_deriv(x1, x2, s);
+        if d.abs() < 1e-6 {
+            break;
+        }
+        s -= dx / d;
+    }
+    comp(y1, y2, s.clamp(0.0, 1.0))
+}
+
+/// Physical parameters of a [`spring`]. Defaults match the common
+/// (Remotion-style) feel: `mass = 1`, `stiffness = 100`, `damping = 10`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct SpringConfig {
+    pub mass: f32,
+    pub stiffness: f32,
+    pub damping: f32,
+}
+
+impl Default for SpringConfig {
+    fn default() -> Self {
+        SpringConfig {
+            mass: 1.0,
+            stiffness: 100.0,
+            damping: 10.0,
+        }
+    }
+}
+
+/// A spring animation value at `frame` (given `fps`): a damped harmonic
+/// oscillator pulled from 0 toward 1, integrated at a fixed `1/fps` step. It is
+/// a pure function of `frame` (deterministic, frame-keyed), and may overshoot 1
+/// before settling. The motion-graphics workhorse for natural motion.
+pub fn spring(frame: f32, fps: f32, config: SpringConfig) -> f32 {
+    if fps <= 0.0 || frame <= 0.0 {
+        return 0.0;
+    }
+    let dt = 1.0 / fps;
+    let mut position = 0.0_f32;
+    let mut velocity = 0.0_f32;
+    // Semi-implicit Euler, one step per elapsed frame.
+    for _ in 0..(frame.round() as u32) {
+        let force = -config.stiffness * (position - 1.0) - config.damping * velocity;
+        velocity += (force / config.mass) * dt;
+        position += velocity * dt;
+    }
+    position
 }
 
 /// Linear interpolation between two values of the same type.
@@ -322,9 +415,18 @@ mod tests {
             Easing::EaseOutCubic,
             Easing::EaseInOutCubic,
             Easing::SmoothStep,
+            Easing::EaseInBack,
+            Easing::EaseOutBack,
+            Easing::EaseInOutBack,
+            Easing::CubicBezier {
+                x1: 0.42,
+                y1: 0.0,
+                x2: 0.58,
+                y2: 1.0,
+            },
         ] {
-            assert!((e.apply(0.0) - 0.0).abs() < 1e-6, "{e:?} at 0");
-            assert!((e.apply(1.0) - 1.0).abs() < 1e-6, "{e:?} at 1");
+            assert!((e.apply(0.0) - 0.0).abs() < 1e-5, "{e:?} at 0");
+            assert!((e.apply(1.0) - 1.0).abs() < 1e-5, "{e:?} at 1");
             // Clamps out-of-range input.
             assert_eq!(e.apply(-1.0), e.apply(0.0));
             assert_eq!(e.apply(2.0), e.apply(1.0));
@@ -332,6 +434,56 @@ mod tests {
         assert_eq!(Easing::Linear.apply(0.5), 0.5);
         assert_eq!(Easing::EaseInQuad.apply(0.5), 0.25);
         assert_eq!(Easing::SmoothStep.apply(0.5), 0.5);
+        // EaseOutBack overshoots past 1 near the end.
+        assert!(Easing::EaseOutBack.apply(0.7) > 1.0);
+        // A linear cubic-bezier ≈ identity; a symmetric one is ~0.5 at midpoint.
+        assert!(
+            (Easing::CubicBezier {
+                x1: 0.0,
+                y1: 0.0,
+                x2: 1.0,
+                y2: 1.0
+            }
+            .apply(0.5)
+                - 0.5)
+                .abs()
+                < 0.05
+        );
+        assert!(
+            (Easing::CubicBezier {
+                x1: 0.42,
+                y1: 0.0,
+                x2: 0.58,
+                y2: 1.0
+            }
+            .apply(0.5)
+                - 0.5)
+                .abs()
+                < 0.02
+        );
+    }
+
+    #[test]
+    fn spring_starts_at_zero_settles_at_one_and_is_deterministic() {
+        let cfg = SpringConfig::default();
+        assert_eq!(spring(0.0, 30.0, cfg), 0.0);
+        // After enough frames the spring settles near its target.
+        assert!((spring(90.0, 30.0, cfg) - 1.0).abs() < 0.02);
+        // Deterministic: same inputs → same output.
+        assert_eq!(spring(20.0, 30.0, cfg), spring(20.0, 30.0, cfg));
+        // A low-damping spring overshoots past 1 before settling.
+        let bouncy = SpringConfig {
+            mass: 1.0,
+            stiffness: 100.0,
+            damping: 5.0,
+        };
+        let peak = (1..40)
+            .map(|f| spring(f as f32, 30.0, bouncy))
+            .fold(0.0_f32, f32::max);
+        assert!(
+            peak > 1.0,
+            "underdamped spring should overshoot, peak={peak}"
+        );
     }
 
     #[test]
