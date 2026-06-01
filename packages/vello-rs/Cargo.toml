@@ -18,5 +18,11 @@ vello = "0.3.0"
 # Async buffer-map readback (works on the web, where poll(Wait) can't block).
 futures-intrusive = "0.5"
 
+# On the web, enable wgpu's WebGPU backend. Its wasm default is WebGL2, which
+# lacks the compute shaders Vello requires; this feature-unifies with vello's
+# wgpu 22 so the browser gets a real (compute-capable) WebGPU adapter.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wgpu = { version = "22", features = ["webgpu"] }
+
 [dev-dependencies]
 png = "0.18"

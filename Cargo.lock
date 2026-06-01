@@ -991,6 +991,7 @@ dependencies = [
  "png 0.18.1",
  "pollster",
  "vello",
+ "wgpu",
 ]
 
 [[package]]

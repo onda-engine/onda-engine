@@ -47,8 +47,14 @@ impl VelloRenderer {
     }
 
     /// Async constructor — required on the web (wasm), where adapter/device
-    /// acquisition genuinely can't block the main thread.
+    /// acquisition genuinely can't block the main thread. `None` if no GPU.
     pub async fn new_async() -> Option<Self> {
+        Self::try_new_async().await.ok()
+    }
+
+    /// Like [`new_async`], but reports *why* setup failed — useful on the web,
+    /// where WebGPU may be missing or lack the limits Vello's compute path needs.
+    pub async fn try_new_async() -> Result<Self, String> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -56,7 +62,8 @@ impl VelloRenderer {
                 force_fallback_adapter: false,
                 compatible_surface: None,
             })
-            .await?;
+            .await
+            .ok_or_else(|| "request_adapter returned no adapter".to_string())?;
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
@@ -68,22 +75,23 @@ impl VelloRenderer {
                 None,
             )
             .await
-            .ok()?;
+            .map_err(|e| format!("request_device failed: {e}"))?;
         let renderer = Renderer::new(
             &device,
             RendererOptions {
                 surface_format: None,
                 use_cpu: false,
                 antialiasing_support: vello::AaSupport::area_only(),
-                num_init_threads: None,
+                // Single-threaded init: wasm threads need COOP/COEP + SharedArrayBuffer.
+                num_init_threads: std::num::NonZeroUsize::new(1),
             },
         )
-        .ok()?;
+        .map_err(|e| format!("Renderer::new failed: {e}"))?;
         let font = Font::new(
             Blob::new(Arc::new(FontContext::default_font_bytes().to_vec())),
             0,
         );
-        Some(VelloRenderer {
+        Ok(VelloRenderer {
             device,
             queue,
             renderer,

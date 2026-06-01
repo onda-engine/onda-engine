@@ -63,11 +63,9 @@ impl VelloEngine {
     /// back to the CPU engine or Canvas2D.
     pub async fn create() -> Result<VelloEngine, JsError> {
         console_error_panic_hook::set_once();
-        match VelloRenderer::new_async().await {
-            Some(renderer) => Ok(VelloEngine { renderer }),
-            None => Err(JsError::new(
-                "WebGPU is not available in this browser/context",
-            )),
+        match VelloRenderer::try_new_async().await {
+            Ok(renderer) => Ok(VelloEngine { renderer }),
+            Err(reason) => Err(JsError::new(&format!("WebGPU init failed: {reason}"))),
         }
     }
 
