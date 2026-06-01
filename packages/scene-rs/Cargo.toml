@@ -1,0 +1,17 @@
+[package]
+name = "onda-scene"
+description = "The ONDA scene graph — the universal intermediate representation that React, JSON, and AI frontends all compile into."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[dependencies]
+onda-core = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
