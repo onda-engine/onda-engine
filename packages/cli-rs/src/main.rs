@@ -20,11 +20,13 @@ const USAGE: &str = "\
 onda — render a scene-graph document to an image or video
 
 USAGE:
-    onda render <scene.json> <out.png>          Render one still
-    onda export <movie.json> <out.gif|.mp4>     Render an animated document
+    onda render <scene.json> <out.png>             Render one still
+    onda export <movie.json> <out.gif|.mp4>        Render a scene + timeline
+    onda export-frames <frames.json> <out.gif|.mp4>  Render pre-evaluated frames
 
-    <scene.json>  a scene graph              (onda-scene JSON)
-    <movie.json>  a scene graph + timeline   ({ \"scene\": ..., \"timeline\": ... })
+    <scene.json>   a scene graph              (onda-scene JSON)
+    <movie.json>   a scene graph + timeline   ({ \"scene\": ..., \"timeline\": ... })
+    <frames.json>  an array of scene graphs   (e.g. @onda/react's renderFrames)
 
     .gif output is pure-Rust and always available; .mp4 needs ffmpeg on PATH.
 
@@ -68,6 +70,7 @@ fn run(args: Vec<String>) -> Result<()> {
         }
         "render" => render_command(&args[1..]),
         "export" => export_command(&args[1..]),
+        "export-frames" => export_frames_command(&args[1..]),
         other => bail!("unknown command '{other}'\n\n{USAGE}"),
     }
 }
@@ -104,18 +107,40 @@ fn export_command(args: &[String]) -> Result<()> {
         std::fs::read_to_string(&input).with_context(|| format!("reading movie file '{input}'"))?;
     let (frames, fps) =
         render_movie_json(&json, font).with_context(|| format!("rendering movie '{input}'"))?;
+    encode_movie(&frames, fps, out, &output, &input)
+}
 
+/// Encode pre-rendered, per-frame scenes (e.g. emitted by @onda/react's
+/// `renderFrames`) to a video. Input is a JSON array of scene graphs.
+fn export_frames_command(args: &[String]) -> Result<()> {
+    let (input, output, font) = parse_io(args, "export-frames")?;
+    let out = Path::new(&output);
+
+    let json = std::fs::read_to_string(&input)
+        .with_context(|| format!("reading frames file '{input}'"))?;
+    let (frames, fps) =
+        render_frames_json(&json, font).with_context(|| format!("rendering frames '{input}'"))?;
+    encode_movie(&frames, fps, out, &output, &input)
+}
+
+/// Encode rendered frames to the format implied by `out`'s extension.
+fn encode_movie(
+    frames: &[Framebuffer],
+    fps: f32,
+    out: &Path,
+    output: &str,
+    input: &str,
+) -> Result<()> {
     match out
         .extension()
         .and_then(|e| e.to_str())
         .map(str::to_ascii_lowercase)
         .as_deref()
     {
-        Some("gif") => write_gif(&frames, fps, out)?,
-        Some("mp4") => write_mp4(&frames, fps, out)?,
+        Some("gif") => write_gif(frames, fps, out)?,
+        Some("mp4") => write_mp4(frames, fps, out)?,
         _ => bail!("unsupported output '{output}' — use a .gif or .mp4 extension"),
     }
-
     let (w, h) = (frames[0].width(), frames[0].height());
     println!(
         "exported {input} -> {output} ({} frames, {w}x{h} @ {fps} fps)",
@@ -128,14 +153,31 @@ fn export_command(args: &[String]) -> Result<()> {
 fn render_movie_json(json: &str, font: FontMode) -> Result<(Vec<Framebuffer>, f32)> {
     let doc: AnimatedScene =
         serde_json::from_str(json).context("movie JSON is not a valid animated scene")?;
-    let mut renderer = match font {
-        FontMode::Bundled => Renderer::with_default_font(),
-        FontMode::System => Renderer::with_system_fonts(),
-    };
+    let mut renderer = renderer_for(font);
     let frames = (0..doc.frame_count())
         .map(|n| renderer.render(&doc.frame(n)))
         .collect();
     Ok((frames, doc.fps()))
+}
+
+/// Render a pre-evaluated sequence of scene graphs (one per frame).
+fn render_frames_json(json: &str, font: FontMode) -> Result<(Vec<Framebuffer>, f32)> {
+    let scenes: Vec<Scene> =
+        serde_json::from_str(json).context("frames JSON is not an array of scene graphs")?;
+    let Some(first) = scenes.first() else {
+        bail!("frames JSON contains no scenes");
+    };
+    let fps = first.composition.fps;
+    let mut renderer = renderer_for(font);
+    let frames = scenes.iter().map(|scene| renderer.render(scene)).collect();
+    Ok((frames, fps))
+}
+
+fn renderer_for(font: FontMode) -> Renderer {
+    match font {
+        FontMode::Bundled => Renderer::with_default_font(),
+        FontMode::System => Renderer::with_system_fonts(),
+    }
 }
 
 /// Encode frames as an animated GIF (pure Rust).
@@ -309,6 +351,33 @@ mod tests {
         assert_eq!(frames.len(), 3); // duration_in_frames
         assert_eq!(fps, 10.0);
         assert_eq!((frames[0].width(), frames[0].height()), (32, 16));
+    }
+
+    #[test]
+    fn renders_a_pre_evaluated_frame_sequence() {
+        // Two distinct scenes (a "flipbook"), as @onda/react's renderFrames emits.
+        let frames_json = r#"[
+            {
+                "composition": { "width": 8, "height": 8, "fps": 12.0, "duration_in_frames": 2 },
+                "root": { "kind": { "type": "shape", "geometry": { "shape": "rect",
+                    "size": { "width": 8.0, "height": 8.0 } }, "fill": { "r": 1.0, "g": 0.0, "b": 0.0 } } }
+            },
+            {
+                "composition": { "width": 8, "height": 8, "fps": 12.0, "duration_in_frames": 2 },
+                "root": { "kind": { "type": "shape", "geometry": { "shape": "rect",
+                    "size": { "width": 8.0, "height": 8.0 } }, "fill": { "r": 0.0, "g": 0.0, "b": 1.0 } } }
+            }
+        ]"#;
+        let (frames, fps) = render_frames_json(frames_json, FontMode::Bundled).unwrap();
+        assert_eq!(frames.len(), 2);
+        assert_eq!(fps, 12.0);
+        assert_eq!(frames[0].pixel(0, 0), [255, 0, 0, 255]); // red frame
+        assert_eq!(frames[1].pixel(0, 0), [0, 0, 255, 255]); // blue frame
+    }
+
+    #[test]
+    fn empty_frame_sequence_errors() {
+        assert!(render_frames_json("[]", FontMode::Bundled).is_err());
     }
 
     #[test]
