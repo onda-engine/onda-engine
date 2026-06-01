@@ -1,0 +1,98 @@
+/**
+ * ONDA brand theme — overrides VitePress's default tokens with the design
+ * system from assets/brand/BRAND.md. Dark-first; brand blue/cyan/pink accents,
+ * the signature blue→cyan gradient on the mark.
+ */
+
+:root {
+  /* Brand fonts (loaded via Google Fonts in config head). */
+  --vp-font-family-base: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --vp-font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Brand color tokens (BRAND.md). */
+  --onda-bg: #080b13;
+  --onda-surface: #11151f;
+  --onda-surface-2: #1a1f2e;
+  --onda-border: #232a3a;
+  --onda-text: #e8edf7;
+  --onda-text-muted: #93a0b8;
+  --onda-primary: #3b82f6;
+  --onda-primary-700: #2563eb;
+  --onda-cyan: #22d3ee;
+  --onda-pink: #f25a8c;
+  --onda-ok: #28c08a;
+  --onda-warn: #fac81c;
+  --onda-err: #f25a5a;
+
+  /* Map ONDA blue onto VitePress's brand ramp (links, active nav, accents). */
+  --vp-c-brand-1: #5b9bff;        /* light enough for AA text on dark surfaces */
+  --vp-c-brand-2: var(--onda-primary);
+  --vp-c-brand-3: var(--onda-primary);
+  --vp-c-brand-soft: rgba(59, 130, 246, 0.16);
+
+  /* The signature blue→cyan gradient (the mark) for the hero name + features. */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(90deg, var(--onda-primary), var(--onda-cyan));
+  --vp-home-hero-image-background-image: linear-gradient(120deg, var(--onda-primary) 30%, var(--onda-cyan));
+  --vp-home-hero-image-filter: blur(56px);
+
+  /* Buttons: filled primary uses ONDA blue → hover primary-700. */
+  --vp-button-brand-bg: var(--onda-primary);
+  --vp-button-brand-hover-bg: var(--onda-primary-700);
+  --vp-button-brand-active-bg: var(--onda-primary-700);
+  --vp-button-brand-border: transparent;
+  --vp-button-brand-text: #ffffff;
+}
+
+/* Dark theme surfaces from the brand tokens. */
+.dark {
+  --vp-c-bg: var(--onda-bg);
+  --vp-c-bg-alt: var(--onda-surface);
+  --vp-c-bg-elv: var(--onda-surface-2);
+  --vp-c-bg-soft: var(--onda-surface);
+
+  --vp-c-text-1: var(--onda-text);
+  --vp-c-text-2: var(--onda-text-muted);
+
+  --vp-c-divider: var(--onda-border);
+  --vp-c-border: var(--onda-border);
+  --vp-c-gutter: var(--onda-border);
+
+  --vp-code-block-bg: #0c1018;
+}
+
+/* Headings in Space Grotesk, tight tracking (BRAND.md typography). */
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3,
+.vp-doc h4,
+.VPHero .name,
+.VPHero .text,
+.VPFeature .title {
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.01em;
+}
+
+/* Wordmark next to the mark: ONDA in the heading font, per BRAND.md. */
+.VPNavBarTitle .title {
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Feature-card icon tiles get the cool gradient wash. */
+.VPFeature .icon {
+  background-image: linear-gradient(120deg, var(--onda-primary), var(--onda-cyan)) !important;
+  color: #fff !important;
+}
+
+/* Respect reduced motion: disable the blurred hero glow animation. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --vp-home-hero-image-filter: blur(40px);
+  }
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
