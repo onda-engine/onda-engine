@@ -2,12 +2,13 @@
 resolver = "2"
 # Crates join this list as they gain real implementations. Planned (empty dirs
 # scaffolded under packages/, added once they compile): animation-rs,
-# vector-rs, audio-rs, codecs-rs, wasm, cli-rs.
+# vector-rs, audio-rs, codecs-rs, wasm.
 members = [
     "packages/core-rs",
     "packages/scene-rs",
     "packages/renderer-rs",
     "packages/typography-rs",
+    "packages/cli-rs",
 ]
 
 [workspace.package]

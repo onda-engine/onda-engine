@@ -1,0 +1,20 @@
+[package]
+name = "onda-cli"
+description = "The ONDA command-line tool: render a scene-graph JSON document to an image. The universal adapter — anything that emits the scene-graph JSON (React, AI, hand-authored) renders through here."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "onda"
+path = "src/main.rs"
+
+[dependencies]
+onda-scene = { workspace = true }
+onda-renderer = { workspace = true, features = ["png"] }
+serde_json = { workspace = true }
+anyhow = { workspace = true }

@@ -1,0 +1,35 @@
+{
+  "composition": { "width": 1200, "height": 360, "fps": 30.0, "duration_in_frames": 1 },
+  "root": {
+    "kind": { "type": "group" },
+    "children": [
+      {
+        "kind": {
+          "type": "shape",
+          "geometry": { "shape": "rect", "size": { "width": 1200.0, "height": 360.0 } },
+          "fill": { "r": 0.04, "g": 0.05, "b": 0.09 }
+        }
+      },
+      {
+        "transform": { "translate": { "x": 120.0, "y": -40.0 } },
+        "kind": {
+          "type": "shape",
+          "geometry": { "shape": "ellipse", "size": { "width": 420.0, "height": 420.0 } },
+          "fill": { "r": 0.16, "g": 0.45, "b": 0.95, "a": 0.22 }
+        }
+      },
+      {
+        "transform": { "translate": { "x": 96.0, "y": 250.0 } },
+        "kind": {
+          "type": "shape",
+          "geometry": { "shape": "rect", "size": { "width": 520.0, "height": 10.0 }, "corner_radius": 5.0 },
+          "fill": { "r": 0.16, "g": 0.45, "b": 0.95 }
+        }
+      },
+      {
+        "transform": { "translate": { "x": 96.0, "y": 110.0 } },
+        "kind": { "type": "text", "content": "Hello ONDA", "font_size": 96.0, "color": { "r": 1.0, "g": 1.0, "b": 1.0 } }
+      }
+    ]
+  }
+}
