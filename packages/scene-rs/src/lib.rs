@@ -222,7 +222,10 @@ impl Image {
 }
 
 /// A vector shape with optional fill and stroke.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+// Intentionally not `Copy`: `ShapeGeometry` will gain heap-backed variants
+// (paths) with `onda-vector`, at which point `Copy` would have to be removed
+// anyway — a breaking change we avoid by never offering it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Shape {
     pub geometry: ShapeGeometry,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -232,8 +235,8 @@ pub struct Shape {
 }
 
 /// The geometric form of a [`Shape`]. Paths, booleans, and morphing arrive with
-/// `onda-vector`.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+/// `onda-vector` (which is why this is not `Copy` — see [`Shape`]).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "shape", rename_all = "snake_case")]
 pub enum ShapeGeometry {
     Rect {

@@ -7,16 +7,18 @@
 //! deterministically without a GPU. The forthcoming wgpu backend must match this
 //! reference output, which doubles as a correctness oracle for it.
 //!
-//! v0 scope: filled rectangles and ellipses with hard (non-antialiased) edges.
-//! Deferred to their subsystems: text (needs `onda-typography`), images (needs
-//! decoding), strokes, rounded-corner rasterization, and antialiasing.
+//! v0 scope: filled rectangles and ellipses, plus text (when the [`Renderer`]
+//! has a [`FontContext`]) composited from `onda-typography` coverage masks. Hard
+//! (non-antialiased) shape edges. Deferred to their subsystems: images (decoding),
+//! strokes, rounded-corner rasterization, scaled/rotated text, and shape AA.
 //!
 //! Coordinate convention: pixel space, origin top-left, +x right, +y down. A
 //! shape's geometry is authored in its own local space with origin at top-left;
 //! the node's (composed) transform places it on the canvas.
 
 use onda_core::{Color, Transform, Vec2};
-use onda_scene::{Node, NodeKind, Scene, Shape, ShapeGeometry};
+use onda_scene::{Node, NodeKind, Scene, Shape, ShapeGeometry, Text};
+pub use onda_typography::{FontContext, TextRaster};
 
 /// An RGBA8 image: `width * height * 4` bytes, row-major, top-left origin.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,27 +117,116 @@ fn over(src: Color, dst: Color) -> Color {
     )
 }
 
-/// Render a scene to a fresh, transparent framebuffer sized to its composition.
-pub fn render(scene: &Scene) -> Framebuffer {
-    let mut fb = Framebuffer::new(scene.composition.width, scene.composition.height);
-    render_node(&mut fb, &scene.root, Transform::IDENTITY, 1.0);
-    fb
+/// Walks a [`Scene`] into a [`Framebuffer`]. Holds an optional [`FontContext`];
+/// without one, text nodes are skipped (everything else still renders). Construct
+/// once and reuse across frames — building a system [`FontContext`] is not cheap.
+pub struct Renderer {
+    fonts: Option<FontContext>,
 }
 
-fn render_node(fb: &mut Framebuffer, node: &Node, parent: Transform, parent_opacity: f32) {
-    let transform = parent.then(&node.transform);
-    let opacity = parent_opacity * node.opacity;
-
-    match &node.kind {
-        NodeKind::Group => {}
-        NodeKind::Shape(shape) => rasterize_shape(fb, shape, transform, opacity),
-        // Text needs shaping/atlas from onda-typography; images need decoding.
-        NodeKind::Text(_) | NodeKind::Image(_) => {}
+impl Renderer {
+    /// A renderer that cannot draw text (no fonts). Shapes still render.
+    pub fn new() -> Self {
+        Renderer { fonts: None }
     }
 
-    for child in &node.children {
-        render_node(fb, child, transform, opacity);
+    /// A renderer using the host's installed fonts, able to draw text.
+    pub fn with_system_fonts() -> Self {
+        Renderer {
+            fonts: Some(FontContext::with_system_fonts()),
+        }
     }
+
+    /// A renderer using a caller-provided font context.
+    pub fn with_fonts(fonts: FontContext) -> Self {
+        Renderer { fonts: Some(fonts) }
+    }
+
+    /// Render `scene` to a fresh, transparent framebuffer sized to its composition.
+    pub fn render(&mut self, scene: &Scene) -> Framebuffer {
+        let mut fb = Framebuffer::new(scene.composition.width, scene.composition.height);
+        self.render_node(&mut fb, &scene.root, Transform::IDENTITY, 1.0);
+        fb
+    }
+
+    fn render_node(
+        &mut self,
+        fb: &mut Framebuffer,
+        node: &Node,
+        parent: Transform,
+        parent_opacity: f32,
+    ) {
+        let transform = parent.then(&node.transform);
+        let opacity = parent_opacity * node.opacity;
+
+        match &node.kind {
+            NodeKind::Group => {}
+            NodeKind::Shape(shape) => rasterize_shape(fb, shape, transform, opacity),
+            NodeKind::Text(text) => self.rasterize_text(fb, text, transform, opacity),
+            // Images need decoding; lands with the asset loader.
+            NodeKind::Image(_) => {}
+        }
+
+        for child in &node.children {
+            self.render_node(fb, child, transform, opacity);
+        }
+    }
+
+    fn rasterize_text(
+        &mut self,
+        fb: &mut Framebuffer,
+        text: &Text,
+        transform: Transform,
+        opacity: f32,
+    ) {
+        let base_alpha = text.color.a * opacity;
+        if base_alpha <= 0.0 {
+            return;
+        }
+        let Some(fonts) = self.fonts.as_mut() else {
+            return; // no fonts loaded -> text is skipped
+        };
+        let Some(raster) = fonts.rasterize(&text.content, text.font_size) else {
+            return;
+        };
+
+        // v0 honors translation; non-unit scale/rotation of text is deferred.
+        let origin_x = transform.translate.x.round() as i32;
+        let origin_y = transform.translate.y.round() as i32;
+
+        for ty in 0..raster.height {
+            for tx in 0..raster.width {
+                let coverage = raster.coverage_at(tx, ty);
+                if coverage == 0 {
+                    continue;
+                }
+                let src = Color::new(
+                    text.color.r,
+                    text.color.g,
+                    text.color.b,
+                    (coverage as f32 / 255.0) * base_alpha,
+                );
+                let px = origin_x + raster.offset_x + tx as i32;
+                let py = origin_y + raster.offset_y + ty as i32;
+                if px >= 0 && py >= 0 {
+                    fb.blend(px as u32, py as u32, src);
+                }
+            }
+        }
+    }
+}
+
+impl Default for Renderer {
+    fn default() -> Self {
+        Renderer::new()
+    }
+}
+
+/// Render a scene with no fonts (shapes only; text is skipped). Convenience for
+/// shape-only or fully headless rendering; use [`Renderer::with_system_fonts`] to
+/// draw text.
+pub fn render(scene: &Scene) -> Framebuffer {
+    Renderer::new().render(scene)
 }
 
 fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, opacity: f32) {
@@ -147,9 +238,11 @@ fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, op
         return;
     }
 
-    let size = match shape.geometry {
-        ShapeGeometry::Rect { size, .. } => size,
-        ShapeGeometry::Ellipse { size } => size,
+    // `corner_radius` on rects is ignored in v0 (square corners); rounded-corner
+    // rasterization lands with the vector engine.
+    let size = match &shape.geometry {
+        ShapeGeometry::Rect { size, .. } => *size,
+        ShapeGeometry::Ellipse { size } => *size,
     };
 
     // The shape's local AABB is [0,0]..[w,h]; transform maps it to an
@@ -171,7 +264,7 @@ fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, op
     for py in py_min..py_max {
         for px in px_min..px_max {
             let sample = Vec2::new(px as f32 + 0.5, py as f32 + 0.5);
-            let inside = match shape.geometry {
+            let inside = match &shape.geometry {
                 ShapeGeometry::Rect { .. } => {
                     sample.x >= x0 && sample.x < x1 && sample.y >= y0 && sample.y < y1
                 }
@@ -317,5 +410,82 @@ mod tests {
         let fb = render(&Scene::new(comp(8, 2)).with_root(root));
         assert_eq!(fb.pixel(5, 0), [255, 255, 255, 255]);
         assert_eq!(fb.pixel(4, 0), [0, 0, 0, 0]);
+    }
+
+    fn translate(x: f32, y: f32) -> Transform {
+        Transform {
+            translate: Vec2::new(x, y),
+            scale: Vec2::splat(1.0),
+        }
+    }
+
+    fn inked_pixels(fb: &Framebuffer) -> usize {
+        (0..fb.height())
+            .flat_map(|y| (0..fb.width()).map(move |x| (x, y)))
+            .filter(|&(x, y)| fb.pixel(x, y)[3] > 0)
+            .count()
+    }
+
+    // Text tests use the host's fonts (the only v0 path). They assert structural
+    // properties that hold for any reasonable Latin font, not exact pixels.
+
+    #[test]
+    fn renders_text_with_system_fonts() {
+        let mut renderer = Renderer::with_system_fonts();
+        let scene = Scene::new(comp(200, 64)).with_root(
+            Node::group().with_child(Node::text("Hello ONDA").with_transform(translate(8.0, 8.0))),
+        );
+        let fb = renderer.render(&scene);
+        assert!(inked_pixels(&fb) > 0, "text should produce visible pixels");
+    }
+
+    #[test]
+    fn empty_text_produces_no_ink() {
+        let mut renderer = Renderer::with_system_fonts();
+        let scene = Scene::new(comp(64, 32)).with_root(Node::group().with_child(Node::text("")));
+        let fb = renderer.render(&scene);
+        assert!(fb.as_bytes().iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn renderer_without_fonts_skips_text() {
+        let mut renderer = Renderer::new();
+        let scene =
+            Scene::new(comp(64, 32)).with_root(Node::group().with_child(Node::text("Hello")));
+        let fb = renderer.render(&scene);
+        assert!(fb.as_bytes().iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn text_default_color_is_white() {
+        let mut renderer = Renderer::with_system_fonts();
+        let scene = Scene::new(comp(64, 48)).with_root(
+            Node::group().with_child(Node::text("I").with_transform(translate(8.0, 8.0))),
+        );
+        let fb = renderer.render(&scene);
+        // The first inked pixel must be opaque-white-tinted (text fill defaults to
+        // white; src-over onto transparent preserves the source rgb).
+        let first = (0..fb.height())
+            .flat_map(|y| (0..fb.width()).map(move |x| (x, y)))
+            .map(|(x, y)| fb.pixel(x, y))
+            .find(|px| px[3] > 0)
+            .expect("text should ink at least one pixel");
+        assert_eq!([first[0], first[1], first[2]], [255, 255, 255]);
+    }
+
+    #[test]
+    fn text_is_placed_at_its_transform() {
+        let mut renderer = Renderer::with_system_fonts();
+        // Push the glyph well to the right; the left edge must stay clear.
+        let scene = Scene::new(comp(200, 64)).with_root(
+            Node::group().with_child(Node::text("X").with_transform(translate(140.0, 20.0))),
+        );
+        let fb = renderer.render(&scene);
+        let left_clear = (0..fb.height()).all(|y| fb.pixel(0, y)[3] == 0);
+        assert!(left_clear, "nothing should be drawn at the far-left column");
+        let right_ink = (0..fb.height())
+            .flat_map(|y| (120..fb.width()).map(move |x| (x, y)))
+            .any(|(x, y)| fb.pixel(x, y)[3] > 0);
+        assert!(right_ink, "glyph should appear in the translated region");
     }
 }
