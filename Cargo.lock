@@ -23,6 +23,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "onda-renderer"
+version = "0.0.0"
+dependencies = [
+ "onda-core",
+ "onda-scene",
+]
+
+[[package]]
 name = "onda-scene"
 version = "0.0.0"
 dependencies = [
