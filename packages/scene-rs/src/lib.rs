@@ -69,6 +69,11 @@ pub struct Node {
     /// Opacity in `0.0..=1.0`.
     #[serde(default = "Node::default_opacity")]
     pub opacity: f32,
+    /// Optional clip region: when set, this node and its subtree are clipped to
+    /// this geometry (in the node's local space). Rendered by vector backends
+    /// (Vello); the CPU backend ignores it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clip: Option<ShapeGeometry>,
     pub kind: NodeKind,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<Node>,
@@ -97,6 +102,7 @@ impl Node {
             id: None,
             transform: Transform::IDENTITY,
             opacity: 1.0,
+            clip: None,
             kind,
             children: Vec::new(),
         }
@@ -137,6 +143,12 @@ impl Node {
     /// Builder: set opacity, clamped to `0.0..=1.0`.
     pub fn with_opacity(mut self, opacity: f32) -> Self {
         self.opacity = opacity.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Builder: clip this node and its subtree to `geometry` (local space).
+    pub fn with_clip(mut self, geometry: ShapeGeometry) -> Self {
+        self.clip = Some(geometry);
         self
     }
 
@@ -515,6 +527,22 @@ mod tests {
         )));
         let json = serde_json::to_string(&scene).unwrap();
         assert!(json.contains(r#""gradient":"linear""#));
+        let back: Scene = serde_json::from_str(&json).unwrap();
+        assert_eq!(scene, back);
+    }
+
+    #[test]
+    fn clip_round_trips_through_json() {
+        let scene = Scene::new(hd()).with_root(
+            Node::group()
+                .with_clip(ShapeGeometry::Rect {
+                    size: Size::new(100.0, 50.0),
+                    corner_radius: 8.0,
+                })
+                .with_child(Node::text("clipped")),
+        );
+        let json = serde_json::to_string(&scene).unwrap();
+        assert!(json.contains(r#""clip""#));
         let back: Scene = serde_json::from_str(&json).unwrap();
         assert_eq!(scene, back);
     }

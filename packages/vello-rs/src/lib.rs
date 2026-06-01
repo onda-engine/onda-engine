@@ -16,7 +16,7 @@ use onda_scene::{Gradient, GradientStop, Node, NodeKind, Scene, ShapeGeometry, T
 use onda_typography::FontContext;
 use vello::kurbo::{Affine, BezPath, Ellipse, Rect, RoundedRect, Shape, Stroke};
 use vello::peniko::{
-    Blob, Brush, Color as PenikoColor, ColorStop, Fill, Font, Gradient as PenikoGradient,
+    Blob, Brush, Color as PenikoColor, ColorStop, Fill, Font, Gradient as PenikoGradient, Mix,
 };
 use vello::{wgpu, AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene as VelloScene};
 
@@ -152,6 +152,13 @@ fn build(
     let affine = parent * to_affine(&node.transform);
     let opacity = (parent_opacity * node.opacity).clamp(0.0, 1.0);
 
+    // A clip on this node bounds its own drawing *and* its subtree to the clip
+    // geometry (in local space). Push a clip layer, draw, then pop.
+    let clipped = node.clip.is_some();
+    if let Some(clip) = &node.clip {
+        vscene.push_layer(Mix::Clip, 1.0, affine, &shape_path(clip));
+    }
+
     match &node.kind {
         NodeKind::Group => {}
         NodeKind::Shape(shape) => {
@@ -175,6 +182,10 @@ fn build(
 
     for child in &node.children {
         build(vscene, fonts, font, child, affine, opacity);
+    }
+
+    if clipped {
+        vscene.pop_layer();
     }
 }
 
@@ -341,7 +352,7 @@ fn read_back(
 mod tests {
     use super::*;
     use onda_core::{Size, Vec2};
-    use onda_scene::{Composition, GradientStop, Node, Shape};
+    use onda_scene::{Composition, GradientStop, Node, Shape, ShapeGeometry};
 
     #[test]
     fn renders_an_onda_scene() {
@@ -411,5 +422,28 @@ mod tests {
             right[2] > 180 && right[0] < 80,
             "right should be blue: {right:?}"
         );
+    }
+
+    #[test]
+    fn clip_confines_a_subtree() {
+        let Some(mut renderer) = VelloRenderer::new() else {
+            eprintln!("no GPU adapter; skipping");
+            return;
+        };
+        // A full-canvas red fill, clipped to the top-left 20x20 corner.
+        let scene = Scene::new(Composition::new(64, 64, 30.0, 1)).with_root(
+            Node::group()
+                .with_clip(ShapeGeometry::Rect {
+                    size: Size::new(20.0, 20.0),
+                    corner_radius: 0.0,
+                })
+                .with_child(Node::shape(
+                    Shape::rect(Size::new(64.0, 64.0)).with_fill(Color::rgb(1.0, 0.0, 0.0)),
+                )),
+        );
+        let frame = renderer.render(&scene);
+        let alpha = |x: u32, y: u32| frame.pixels[((y * 64 + x) * 4 + 3) as usize];
+        assert_eq!(alpha(10, 10), 255, "inside the clip should be filled");
+        assert_eq!(alpha(40, 40), 0, "outside the clip should be empty");
     }
 }
