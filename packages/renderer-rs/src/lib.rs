@@ -119,6 +119,49 @@ impl Framebuffer {
     }
 }
 
+/// Encode a sequence of equally-sized frames as an animated GIF (looping).
+///
+/// Available with the `gif` feature. Pure Rust — no external tools — so it is
+/// the portable, deterministic video-export path. `fps` sets the playback rate;
+/// GIF delays have centisecond resolution, so very high fps is approximated.
+#[cfg(feature = "gif")]
+pub fn encode_gif<W: std::io::Write>(
+    frames: &[Framebuffer],
+    fps: f32,
+    out: W,
+) -> std::io::Result<()> {
+    let Some(first) = frames.first() else {
+        return Err(std::io::Error::other("no frames to encode"));
+    };
+    let width = u16::try_from(first.width).map_err(std::io::Error::other)?;
+    let height = u16::try_from(first.height).map_err(std::io::Error::other)?;
+    let delay = if fps > 0.0 {
+        (100.0 / fps).round().max(1.0) as u16
+    } else {
+        10
+    };
+
+    let mut encoder = gif::Encoder::new(out, width, height, &[]).map_err(std::io::Error::other)?;
+    encoder
+        .set_repeat(gif::Repeat::Infinite)
+        .map_err(std::io::Error::other)?;
+    for frame in frames {
+        if frame.width != first.width || frame.height != first.height {
+            return Err(std::io::Error::other(
+                "all frames must share the same dimensions",
+            ));
+        }
+        let mut rgba = frame.pixels.clone();
+        // speed 10 balances quantization quality against encode time (1=best, 30=fastest).
+        let mut gif_frame = gif::Frame::from_rgba_speed(width, height, &mut rgba, 10);
+        gif_frame.delay = delay;
+        encoder
+            .write_frame(&gif_frame)
+            .map_err(std::io::Error::other)?;
+    }
+    Ok(())
+}
+
 /// Straight-alpha "source over destination" Porter-Duff compositing.
 fn over(src: Color, dst: Color) -> Color {
     let out_a = src.a + dst.a * (1.0 - src.a);
@@ -508,6 +551,23 @@ mod tests {
         let b = Renderer::with_default_font().render(&scene);
         assert!(inked_pixels(&a) > 0, "Hello ONDA should be drawn");
         assert_eq!(a.as_bytes(), b.as_bytes(), "render must be reproducible");
+    }
+
+    #[cfg(feature = "gif")]
+    #[test]
+    fn encode_gif_produces_a_looping_gif() {
+        let frames = vec![
+            Framebuffer::filled(8, 4, Color::rgb(1.0, 0.0, 0.0)),
+            Framebuffer::filled(8, 4, Color::rgb(0.0, 0.0, 1.0)),
+        ];
+        let mut buf = Vec::new();
+        encode_gif(&frames, 12.0, &mut buf).expect("gif encode");
+        assert!(buf.len() > 6);
+        assert_eq!(&buf[..3], b"GIF"); // header magic
+                                       // mismatched frame sizes are rejected
+        let bad = vec![Framebuffer::new(8, 4), Framebuffer::new(4, 4)];
+        assert!(encode_gif(&bad, 12.0, &mut Vec::new()).is_err());
+        assert!(encode_gif(&[], 12.0, &mut Vec::new()).is_err());
     }
 
     #[cfg(feature = "png")]

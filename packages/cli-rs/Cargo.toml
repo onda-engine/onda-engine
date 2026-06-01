@@ -15,6 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 onda-scene = { workspace = true }
-onda-renderer = { workspace = true, features = ["png"] }
+onda-animation = { workspace = true }
+onda-renderer = { workspace = true, features = ["png", "gif"] }
 serde_json = { workspace = true }
 anyhow = { workspace = true }

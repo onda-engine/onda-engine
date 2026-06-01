@@ -14,9 +14,11 @@ onda-core = { workspace = true }
 onda-scene = { workspace = true }
 onda-typography = { workspace = true }
 png = { version = "0.18.1", optional = true }
+gif = { version = "0.14", optional = true }
 
 [features]
 png = ["dep:png"]
+gif = ["dep:gif"]
 
 # Examples only: lets the animation demo evaluate a timeline before rendering.
 # A dev-dependency, so the renderer keeps no production dependency on animation
