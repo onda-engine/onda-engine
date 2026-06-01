@@ -323,11 +323,14 @@ fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, op
         return;
     }
 
-    // `corner_radius` on rects is ignored in v0 (square corners); rounded-corner
-    // rasterization lands with the vector engine.
+    // `corner_radius` on rects is ignored here (square corners); rounded-corner
+    // and arbitrary-path rasterization are vector-backend (Vello) features.
     let size = match &shape.geometry {
         ShapeGeometry::Rect { size, .. } => *size,
         ShapeGeometry::Ellipse { size } => *size,
+        // The CPU scanline path only knows AABB rects/ellipses; arbitrary
+        // Bézier paths render on the Vello backend.
+        ShapeGeometry::Path { .. } => return,
     };
 
     // The shape's local AABB is [0,0]..[w,h]; transform maps it to an
@@ -362,6 +365,8 @@ fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, op
                         nx * nx + ny * ny <= 1.0
                     }
                 }
+                // Unreachable: paths return early above.
+                ShapeGeometry::Path { .. } => false,
             };
             if inside {
                 fb.blend(px, py, fill);

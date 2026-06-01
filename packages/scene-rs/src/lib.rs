@@ -234,8 +234,8 @@ pub struct Shape {
     pub stroke: Option<Stroke>,
 }
 
-/// The geometric form of a [`Shape`]. Paths, booleans, and morphing arrive with
-/// `onda-vector` (which is why this is not `Copy` — see [`Shape`]).
+/// The geometric form of a [`Shape`]. Booleans and morphing arrive later (which
+/// is part of why this is not `Copy` — see [`Shape`]).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "shape", rename_all = "snake_case")]
 pub enum ShapeGeometry {
@@ -246,6 +246,12 @@ pub enum ShapeGeometry {
     },
     Ellipse {
         size: Size,
+    },
+    /// An arbitrary vector outline as SVG path data (e.g. `"M0 0 L100 0 ..."`),
+    /// in the node's local coordinate space. Rendered by vector backends
+    /// (Vello); raster backends that can't tessellate paths skip it.
+    Path {
+        data: String,
     },
 }
 
@@ -285,6 +291,16 @@ impl Shape {
     pub fn ellipse(size: Size) -> Self {
         Shape {
             geometry: ShapeGeometry::Ellipse { size },
+            fill: None,
+            stroke: None,
+        }
+    }
+
+    /// An arbitrary outline from SVG path data (e.g. `"M0 0 L100 0 Z"`), in local
+    /// coordinates. Renders on vector backends (Vello).
+    pub fn path(data: impl Into<String>) -> Self {
+        Shape {
+            geometry: ShapeGeometry::Path { data: data.into() },
             fill: None,
             stroke: None,
         }
@@ -401,6 +417,19 @@ mod tests {
             ]),
         );
         let json = serde_json::to_string(&scene).unwrap();
+        let back: Scene = serde_json::from_str(&json).unwrap();
+        assert_eq!(scene, back);
+    }
+
+    #[test]
+    fn path_shape_round_trips_through_json() {
+        let scene = Scene::new(hd()).with_root(Node::group().with_child(Node::shape(
+            Shape::path("M0 0 L10 0 L10 10 Z").with_fill(Color::rgb(1.0, 0.8, 0.2)),
+        )));
+        let json = serde_json::to_string(&scene).unwrap();
+        // Tagged as a "path" with its data preserved verbatim.
+        assert!(json.contains(r#""shape":"path""#));
+        assert!(json.contains(r#""data":"M0 0 L10 0 L10 10 Z""#));
         let back: Scene = serde_json::from_str(&json).unwrap();
         assert_eq!(scene, back);
     }

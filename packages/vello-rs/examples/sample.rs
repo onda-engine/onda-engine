@@ -34,6 +34,16 @@ fn main() {
                 Shape::ellipse(Size::new(120.0, 120.0)).with_stroke(Color::rgb(0.9, 0.3, 0.4), 6.0),
             )
             .with_transform(at(980.0, 60.0)),
+            // An arbitrary Bézier path (5-pointed star) — impossible without the
+            // vector backend. Filled gold with a thin outline.
+            Node::shape(
+                Shape::path(
+                    "M50 0 L61 35 L98 35 L68 57 L79 91 L50 70 L21 91 L32 57 L2 35 L39 35 Z",
+                )
+                .with_fill(Color::rgb(0.98, 0.78, 0.22))
+                .with_stroke(Color::rgb(0.5, 0.35, 0.0), 2.0),
+            )
+            .with_transform(at(820.0, 70.0)),
             Node::new(NodeKind::Text(
                 Text::new("Hello ONDA")
                     .with_font_size(96.0)

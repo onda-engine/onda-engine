@@ -210,6 +210,9 @@ fn shape_path(geometry: &ShapeGeometry) -> BezPath {
             let (rx, ry) = (size.width as f64 / 2.0, size.height as f64 / 2.0);
             Ellipse::new((rx, ry), (rx, ry), 0.0).to_path(TOL)
         }
+        // Arbitrary SVG path data → Bézier outline. Malformed data yields an
+        // empty path (draws nothing) rather than panicking.
+        ShapeGeometry::Path { data } => BezPath::from_svg(data).unwrap_or_default(),
     }
 }
 
@@ -325,5 +328,22 @@ mod tests {
         // A full-canvas red fill: center pixel is opaque red.
         let center = ((32 * 64 + 32) * 4) as usize;
         assert_eq!(&frame.pixels[center..center + 4], &[255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn renders_an_arbitrary_path() {
+        let Some(mut renderer) = VelloRenderer::new() else {
+            eprintln!("no GPU adapter; skipping");
+            return;
+        };
+        // A path filling the whole 64x64 canvas (only expressible as a path).
+        let scene = Scene::new(Composition::new(64, 64, 30.0, 1)).with_root(
+            Node::group().with_child(Node::shape(
+                Shape::path("M0 0 L64 0 L64 64 L0 64 Z").with_fill(Color::rgb(0.0, 1.0, 0.0)),
+            )),
+        );
+        let frame = renderer.render(&scene);
+        let center = ((32 * 64 + 32) * 4) as usize;
+        assert_eq!(&frame.pixels[center..center + 4], &[0, 255, 0, 255]);
     }
 }
