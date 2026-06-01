@@ -2,6 +2,21 @@
 
 export { parseColor, type ColorInput } from './color.js'
 export {
+  type ClipInput,
+  clipEllipse,
+  clipPath,
+  clipRect,
+  parseClip,
+} from './clip.js'
+export {
+  type GradientInput,
+  type GradientStopInput,
+  type Point,
+  linearGradient,
+  parseGradient,
+  radialGradient,
+} from './gradient.js'
+export {
   Composition,
   type CompositionProps,
   Ellipse,
@@ -10,6 +25,9 @@ export {
   type GroupProps,
   Image,
   type ImageProps,
+  Path,
+  type PathProps,
+  type PaintProps,
   Rect,
   type RectProps,
   Text,
@@ -43,6 +61,8 @@ export {
 export type {
   Color,
   Composition as CompositionData,
+  Gradient,
+  GradientStop,
   NodeKind,
   Scene,
   SceneNode,
