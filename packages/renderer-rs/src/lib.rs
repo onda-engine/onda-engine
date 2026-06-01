@@ -251,6 +251,9 @@ impl Renderer {
             NodeKind::Text(text) => self.rasterize_text(fb, text, transform, opacity),
             // Images need decoding; lands with the asset loader.
             NodeKind::Image(_) => {}
+            // SVG nodes are expanded to shapes (onda-svg) before rendering; the
+            // CPU backend can't draw paths anyway, so an unexpanded one is a no-op.
+            NodeKind::Svg(_) => {}
         }
 
         for child in &node.children {

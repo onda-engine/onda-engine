@@ -142,7 +142,8 @@ fn export_command(args: &[String]) -> Result<()> {
 
     let json =
         std::fs::read_to_string(&input).with_context(|| format!("reading movie file '{input}'"))?;
-    let (scenes, fps) = movie_scenes(&json).with_context(|| format!("reading movie '{input}'"))?;
+    let (scenes, fps) = movie_scenes(&json, base_dir_of(&input))
+        .with_context(|| format!("reading movie '{input}'"))?;
     let (frames, used) = render_scenes(&scenes, backend, font)
         .with_context(|| format!("rendering movie '{input}'"))?;
     encode_movie(&frames, fps, out, &output, &input, used)
@@ -156,8 +157,8 @@ fn export_frames_command(args: &[String]) -> Result<()> {
 
     let json = std::fs::read_to_string(&input)
         .with_context(|| format!("reading frames file '{input}'"))?;
-    let (scenes, fps) =
-        frames_scenes(&json).with_context(|| format!("reading frames '{input}'"))?;
+    let (scenes, fps) = frames_scenes(&json, base_dir_of(&input))
+        .with_context(|| format!("reading frames '{input}'"))?;
     let (frames, used) = render_scenes(&scenes, backend, font)
         .with_context(|| format!("rendering frames '{input}'"))?;
     encode_movie(&frames, fps, out, &output, &input, used)
@@ -235,36 +236,50 @@ fn render_scenes_vello(scenes: &[Scene], renderer: &mut VelloRenderer) -> Vec<Fr
 }
 
 /// Build the per-frame scenes of an animated document (timeline evaluated).
-fn movie_scenes(json: &str) -> Result<(Vec<Scene>, f32)> {
-    let doc: AnimatedScene =
+/// Any `<svg>` nodes are expanded once on the template (before timeline eval),
+/// resolving file `src`s relative to `base_dir`.
+fn movie_scenes(json: &str, base_dir: &Path) -> Result<(Vec<Scene>, f32)> {
+    let mut doc: AnimatedScene =
         serde_json::from_str(json).context("movie JSON is not a valid animated scene")?;
+    doc.scene = onda_svg::expand_svg(&doc.scene, base_dir).context("expanding <svg> nodes")?;
     let scenes: Vec<Scene> = (0..doc.frame_count()).map(|n| doc.frame(n)).collect();
     Ok((scenes, doc.fps()))
 }
 
-/// Parse a pre-evaluated sequence of scene graphs (one per frame).
-fn frames_scenes(json: &str) -> Result<(Vec<Scene>, f32)> {
-    let scenes: Vec<Scene> =
+/// Parse a pre-evaluated sequence of scene graphs (one per frame), expanding any
+/// `<svg>` nodes (file `src`s relative to `base_dir`).
+fn frames_scenes(json: &str, base_dir: &Path) -> Result<(Vec<Scene>, f32)> {
+    let raw: Vec<Scene> =
         serde_json::from_str(json).context("frames JSON is not an array of scene graphs")?;
-    let Some(first) = scenes.first() else {
+    let Some(first) = raw.first() else {
         bail!("frames JSON contains no scenes");
     };
     let fps = first.composition.fps;
+    let mut scenes = Vec::with_capacity(raw.len());
+    for scene in &raw {
+        scenes.push(onda_svg::expand_svg(scene, base_dir).context("expanding <svg> nodes")?);
+    }
     Ok((scenes, fps))
+}
+
+/// The directory an input path lives in (where relative SVG `src`s resolve);
+/// the empty path (= CWD) when there's no parent.
+fn base_dir_of(input: &str) -> &Path {
+    Path::new(input).parent().unwrap_or(Path::new(""))
 }
 
 /// CPU-rendered frames of an animated document. The deterministic reference path
 /// (and the render-test oracle); the command layer routes through `render_scenes`.
 #[cfg(test)]
 fn render_movie_json(json: &str, font: FontMode) -> Result<(Vec<Framebuffer>, f32)> {
-    let (scenes, fps) = movie_scenes(json)?;
+    let (scenes, fps) = movie_scenes(json, Path::new(""))?;
     Ok((render_scenes_cpu(&scenes, font), fps))
 }
 
 /// CPU-rendered frames of a pre-evaluated scene sequence (the test oracle).
 #[cfg(test)]
 fn render_frames_json(json: &str, font: FontMode) -> Result<(Vec<Framebuffer>, f32)> {
-    let (scenes, fps) = frames_scenes(json)?;
+    let (scenes, fps) = frames_scenes(json, Path::new(""))?;
     Ok((render_scenes_cpu(&scenes, font), fps))
 }
 
@@ -340,8 +355,10 @@ fn render_scene_file(
 ) -> Result<(u32, u32, &'static str)> {
     let json = std::fs::read_to_string(input)
         .with_context(|| format!("reading scene file '{}'", input.display()))?;
-    let scene: Scene =
+    let parsed: Scene =
         serde_json::from_str(&json).context("scene JSON is not a valid scene graph")?;
+    let base_dir = input.parent().unwrap_or(Path::new(""));
+    let scene = onda_svg::expand_svg(&parsed, base_dir).context("expanding <svg> nodes")?;
     let (mut frames, used) = render_scenes(std::slice::from_ref(&scene), backend, font)
         .with_context(|| format!("rendering scene '{}'", input.display()))?;
     let framebuffer = frames.remove(0);
@@ -513,7 +530,7 @@ mod tests {
 
     #[test]
     fn cpu_backend_reports_itself_and_renders() {
-        let (scenes, _) = frames_scenes(PATH_SCENE).unwrap();
+        let (scenes, _) = frames_scenes(PATH_SCENE, Path::new("")).unwrap();
         let (frames, used) = render_scenes(&scenes, BackendChoice::Cpu, FontMode::Bundled).unwrap();
         assert_eq!(used, "cpu");
         assert_eq!(frames.len(), 1);
@@ -528,7 +545,7 @@ mod tests {
             eprintln!("no GPU adapter; skipping Vello export test");
             return;
         }
-        let (scenes, _) = frames_scenes(PATH_SCENE).unwrap();
+        let (scenes, _) = frames_scenes(PATH_SCENE, Path::new("")).unwrap();
         let (frames, used) =
             render_scenes(&scenes, BackendChoice::Vello, FontMode::Bundled).unwrap();
         assert_eq!(used, "vello");

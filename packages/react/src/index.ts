@@ -30,6 +30,8 @@ export {
   type PaintProps,
   Rect,
   type RectProps,
+  Svg,
+  type SvgProps,
   Text,
   type TextProps,
   type NodeProps,

@@ -161,6 +161,21 @@ function toNode(node: HostNode): SceneNode {
         ...withChildren,
       }
 
+    case 'onda-svg': {
+      if (typeof props.src !== 'string' && typeof props.markup !== 'string') {
+        throw new Error("<Svg> requires a 'src' or 'markup' prop")
+      }
+      return {
+        ...base,
+        kind: {
+          type: 'svg',
+          ...(typeof props.src === 'string' ? { src: props.src } : {}),
+          ...(typeof props.markup === 'string' ? { markup: props.markup } : {}),
+        },
+        ...withChildren,
+      }
+    }
+
     default:
       throw new Error(`renderToScene: unsupported element <${node.type}>`)
   }

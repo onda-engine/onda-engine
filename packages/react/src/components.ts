@@ -106,3 +106,17 @@ export interface ImageProps extends NodeProps {
 export function Image(props: ImageProps) {
   return createElement('onda-image', props)
 }
+
+export interface SvgProps extends NodeProps {
+  /** A file path/URL to the SVG (resolved at render time by `onda render`). */
+  src?: string
+  /** Inline SVG markup (self-contained; preferred when present). */
+  markup?: string
+}
+
+/** An SVG document, expanded into vector nodes by the engine (`onda-svg`).
+ *  Use `x`/`y`/`scaleX`/`scaleY` to place and size it. Renders on the GPU
+ *  (Vello) backend. */
+export function Svg(props: SvgProps) {
+  return createElement('onda-svg', props)
+}

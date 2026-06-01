@@ -88,6 +88,10 @@ pub enum NodeKind {
     Text(Text),
     Image(Image),
     Shape(Shape),
+    /// A reference to an SVG document, expanded into vector nodes by a
+    /// vector-capable layer (see the `onda-svg` crate). Renderers that haven't
+    /// expanded it draw nothing.
+    Svg(Svg),
 }
 
 impl Node {
@@ -126,6 +130,12 @@ impl Node {
     /// A shape node.
     pub fn shape(shape: Shape) -> Self {
         Node::new(NodeKind::Shape(shape))
+    }
+
+    /// An SVG node referencing `src` (a file path/URL), expanded to vector nodes
+    /// by `onda-svg`. See [`Svg`] for inline markup.
+    pub fn svg(src: impl Into<String>) -> Self {
+        Node::new(NodeKind::Svg(Svg::from_src(src)))
     }
 
     /// Builder: assign a stable id.
@@ -230,6 +240,38 @@ impl Image {
     /// Construct from a path or URL.
     pub fn new(src: impl Into<String>) -> Self {
         Image { src: src.into() }
+    }
+}
+
+/// A reference to an SVG document, to be expanded into vector [`Node`]s by a
+/// vector-capable layer (the `onda-svg` crate). Carries inline `markup` and/or a
+/// file `src` (markup wins when both are set). Decoupled from the renderer per
+/// the charter: this is plain data; `onda-svg` does the expansion.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Svg {
+    /// A file path or URL to the SVG document.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub src: Option<String>,
+    /// Inline SVG markup (self-contained; preferred when present).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub markup: Option<String>,
+}
+
+impl Svg {
+    /// Reference an SVG by file path or URL.
+    pub fn from_src(src: impl Into<String>) -> Self {
+        Svg {
+            src: Some(src.into()),
+            markup: None,
+        }
+    }
+
+    /// Embed inline SVG markup (self-contained — no external file needed).
+    pub fn from_markup(markup: impl Into<String>) -> Self {
+        Svg {
+            src: None,
+            markup: Some(markup.into()),
+        }
     }
 }
 
@@ -527,6 +569,20 @@ mod tests {
         )));
         let json = serde_json::to_string(&scene).unwrap();
         assert!(json.contains(r#""gradient":"linear""#));
+        let back: Scene = serde_json::from_str(&json).unwrap();
+        assert_eq!(scene, back);
+    }
+
+    #[test]
+    fn svg_node_round_trips_through_json() {
+        let scene = Scene::new(hd()).with_root(Node::group().with_children([
+            Node::svg("logo.svg"),
+            Node::new(NodeKind::Svg(Svg::from_markup("<svg/>"))),
+        ]));
+        let json = serde_json::to_string(&scene).unwrap();
+        assert!(json.contains(r#""type":"svg""#));
+        assert!(json.contains(r#""src":"logo.svg""#));
+        assert!(json.contains(r#""markup":"<svg/>""#));
         let back: Scene = serde_json::from_str(&json).unwrap();
         assert_eq!(scene, back);
     }

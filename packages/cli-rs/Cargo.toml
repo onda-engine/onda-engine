@@ -18,5 +18,6 @@ onda-scene = { workspace = true }
 onda-animation = { workspace = true }
 onda-renderer = { workspace = true, features = ["png", "gif", "parallel"] }
 onda-vello = { workspace = true }
+onda-svg = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }

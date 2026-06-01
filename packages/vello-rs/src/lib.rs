@@ -178,6 +178,9 @@ fn build(
         }
         NodeKind::Text(text) => draw_text(vscene, fonts, font, text, affine, opacity),
         NodeKind::Image(_) => {}
+        // SVG nodes are expanded to shapes before rendering (see onda-svg); an
+        // unexpanded one draws nothing.
+        NodeKind::Svg(_) => {}
     }
 
     for child in &node.children {
