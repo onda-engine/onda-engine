@@ -1,0 +1,40 @@
+# Rust
+/target
+**/target
+Cargo.lock.bak
+
+# Node
+node_modules
+dist
+.turbo
+*.tsbuildinfo
+
+# WASM build output
+pkg
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+# ONDA render output (examples write here)
+*.png
+!docs/**/*.png
+!assets/**/*.png
+
+# Logs
+*.log
+
+# Claude plugin workspace (not source)
+/.claude
+
+# Ruflo / claude-flow runtime workspace (not source)
+/.claude-flow
+/.swarm
+
+# Ruflo runtime databases (machine-local, regenerable — not source)
+*.rvf
+*.rvf.lock
+ruvector.db

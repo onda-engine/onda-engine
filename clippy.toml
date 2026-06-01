@@ -1,0 +1,4 @@
+# ONDA lint configuration.
+# Renderer/typography code juggles many small numeric args (positions, colors,
+# glyph metrics); keep the threshold pragmatic rather than fighting it.
+too-many-arguments-threshold = 10
