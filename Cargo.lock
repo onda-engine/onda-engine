@@ -731,6 +731,7 @@ dependencies = [
  "bytemuck",
  "onda-core",
  "onda-scene",
+ "onda-typography",
  "png",
  "pollster",
  "wgpu",

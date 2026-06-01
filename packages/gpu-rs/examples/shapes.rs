@@ -13,7 +13,7 @@ fn at(x: f32, y: f32) -> Transform {
 }
 
 fn main() {
-    let Some(renderer) = GpuRenderer::new() else {
+    let Some(mut renderer) = GpuRenderer::new() else {
         eprintln!("no GPU adapter available");
         return;
     };

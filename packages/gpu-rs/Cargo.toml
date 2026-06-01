@@ -12,6 +12,7 @@ authors.workspace = true
 [dependencies]
 onda-core = { workspace = true }
 onda-scene = { workspace = true }
+onda-typography = { workspace = true }
 bytemuck = { version = "1", features = ["derive"] }
 pollster = "0.4"
 wgpu = "24.0.5"
