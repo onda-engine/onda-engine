@@ -80,6 +80,47 @@ impl Color {
     pub fn with_alpha(self, a: f32) -> Self {
         Color { a, ..self }
     }
+
+    /// Gamma-decode the RGB channels from sRGB to linear light (alpha
+    /// unchanged). Color math — interpolation, blending, blurs — is physically
+    /// correct in linear space; doing it in sRGB darkens/muddies mid-tones.
+    pub fn to_linear(self) -> Color {
+        Color::new(
+            srgb_to_linear(self.r),
+            srgb_to_linear(self.g),
+            srgb_to_linear(self.b),
+            self.a,
+        )
+    }
+
+    /// Gamma-encode the RGB channels from linear light back to sRGB (alpha
+    /// unchanged). Inverse of [`Color::to_linear`].
+    pub fn from_linear(self) -> Color {
+        Color::new(
+            linear_to_srgb(self.r),
+            linear_to_srgb(self.g),
+            linear_to_srgb(self.b),
+            self.a,
+        )
+    }
+}
+
+/// sRGB transfer function (gamma decode), one channel.
+fn srgb_to_linear(c: f32) -> f32 {
+    if c <= 0.04045 {
+        c / 12.92
+    } else {
+        ((c + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+/// Inverse sRGB transfer function (gamma encode), one channel.
+fn linear_to_srgb(c: f32) -> f32 {
+    if c <= 0.003_130_8 {
+        c * 12.92
+    } else {
+        1.055 * c.powf(1.0 / 2.4) - 0.055
+    }
 }
 
 impl Default for Color {
@@ -104,6 +145,22 @@ mod tests {
     #[test]
     fn default_is_transparent() {
         assert_eq!(Color::default(), Color::TRANSPARENT);
+    }
+
+    #[test]
+    fn linear_conversion_endpoints_and_roundtrip() {
+        // 0 and 1 are fixed points; alpha is never gamma-converted.
+        assert_eq!(Color::BLACK.to_linear(), Color::BLACK);
+        assert_eq!(Color::WHITE.to_linear(), Color::WHITE);
+        assert_eq!(Color::new(0.5, 0.5, 0.5, 0.3).to_linear().a, 0.3);
+        // sRGB 0.5 decodes to ~0.214 linear (decidedly darker — the whole point).
+        assert!((srgb_to_linear(0.5) - 0.214).abs() < 0.005);
+        // Round-trips back to itself.
+        let c = Color::new(0.2, 0.6, 0.9, 0.5);
+        let back = c.to_linear().from_linear();
+        for (x, y) in [(c.r, back.r), (c.g, back.g), (c.b, back.b), (c.a, back.a)] {
+            assert!((x - y).abs() < 1e-5, "{x} != {y}");
+        }
     }
 
     #[test]

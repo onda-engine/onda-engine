@@ -181,13 +181,18 @@ impl Lerp for Vec2 {
 }
 
 impl Lerp for Color {
+    /// Interpolate in linear light (gamma-correct), not raw sRGB — sRGB-space
+    /// blending darkens/muddies mid-tones. Alpha is interpolated directly.
     fn lerp(self, other: Self, t: f32) -> Self {
+        let a = self.to_linear();
+        let b = other.to_linear();
         Color::new(
-            self.r.lerp(other.r, t),
-            self.g.lerp(other.g, t),
-            self.b.lerp(other.b, t),
+            a.r.lerp(b.r, t),
+            a.g.lerp(b.g, t),
+            a.b.lerp(b.b, t),
             self.a.lerp(other.a, t),
         )
+        .from_linear()
     }
 }
 
@@ -493,10 +498,17 @@ mod tests {
             Vec2::new(0.0, 0.0).lerp(Vec2::new(10.0, 20.0), 0.5),
             Vec2::new(5.0, 10.0)
         );
-        assert_eq!(
-            Color::new(0.0, 0.0, 0.0, 0.0).lerp(Color::new(1.0, 1.0, 1.0, 1.0), 0.5),
-            Color::new(0.5, 0.5, 0.5, 0.5)
+        // Color lerps in LINEAR light: black→white midpoint is ~0.735 in sRGB
+        // (brighter than the naive 0.5), while alpha interpolates directly to 0.5.
+        let mid = Color::new(0.0, 0.0, 0.0, 0.0).lerp(Color::new(1.0, 1.0, 1.0, 1.0), 0.5);
+        assert!(
+            (mid.r - 0.735).abs() < 0.01,
+            "linear-space midpoint, got {}",
+            mid.r
         );
+        assert_eq!(mid.r, mid.g);
+        assert_eq!(mid.r, mid.b);
+        assert!((mid.a - 0.5).abs() < 1e-6);
     }
 
     #[test]
