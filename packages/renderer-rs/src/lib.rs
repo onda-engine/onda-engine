@@ -38,6 +38,24 @@ impl Framebuffer {
         }
     }
 
+    /// Wrap raw straight-alpha RGBA8 bytes (row-major, top-left origin) as a
+    /// framebuffer — e.g. a frame read back from a GPU backend. Panics if
+    /// `pixels.len()` isn't exactly `width * height * 4`.
+    pub fn from_rgba(width: u32, height: u32, pixels: Vec<u8>) -> Self {
+        let expected = (width as usize) * (height as usize) * 4;
+        assert_eq!(
+            pixels.len(),
+            expected,
+            "expected {expected} RGBA bytes for {width}x{height}, got {}",
+            pixels.len()
+        );
+        Framebuffer {
+            width,
+            height,
+            pixels,
+        }
+    }
+
     /// A framebuffer flood-filled with `color`.
     pub fn filled(width: u32, height: u32, color: Color) -> Self {
         let [r, g, b, a] = color.to_rgba8();
