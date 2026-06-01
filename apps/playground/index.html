@@ -11,32 +11,32 @@
     <link rel="icon" type="image/svg+xml" href="/onda-mark.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&display=swap" rel="stylesheet" />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
     <style>
       /* ONDA brand tokens (dark-first) — see assets/brand/BRAND.md. */
       :root {
-        --bg: #080b13;
-        --surface: #11151f;
-        --surface-2: #1a1f2e;
-        --border: #232a3a;
-        --text: #e8edf7;
-        --text-muted: #93a0b8;
-        --primary: #3b82f6;
-        --primary-700: #2563eb;
-        --cyan: #22d3ee;
-        --pink: #f25a8c;
-        --on-primary: #ffffff;
-        --ok: #28c08a;
-        --warn: #fac81c;
-        --grad-warm: linear-gradient(90deg, #3b82f6, #f25a8c);
-        --grad-cool: linear-gradient(90deg, #3b82f6, #22d3ee);
-        --font-head: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-        --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+        /* onda.video palette — neutral near-black + one rose accent. */
+        --bg: #0e0e12;
+        --bg-deep: #08080a;
+        --surface: #121217;
+        --surface-2: #18181d;
+        --border: #26262c;
+        --text: #f2f2f4;
+        --text-muted: #8e8e98;
+        --text-dim: #56565f;
+        --accent: #d96b82;
+        --accent-600: #c8576f;
+        --on-accent: #0e0e12;
+        --ok: #6bbf8a;
+        --warn: #d9b06b;
+        --font-head: "Clash Display", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+        --font-body: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
         --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-        /* expose body/mono fonts to the <Player> component */
+        /* expose tokens/fonts to the <Player> component */
         --onda-font-body: var(--font-body);
         --onda-font-mono: var(--font-mono);
         color-scheme: dark;
