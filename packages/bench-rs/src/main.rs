@@ -105,7 +105,11 @@ fn main() {
             for _ in 0..frames {
                 std::hint::black_box(gpu.render(&scene));
             }
-            report("GPU — Vello (offscreen + readback)", frames, start.elapsed());
+            report(
+                "GPU — Vello (offscreen + readback)",
+                frames,
+                start.elapsed(),
+            );
         }
         None => println!("  GPU: no adapter available"),
     }
