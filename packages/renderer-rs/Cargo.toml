@@ -13,3 +13,11 @@ authors.workspace = true
 onda-core = { workspace = true }
 onda-scene = { workspace = true }
 onda-typography = { workspace = true }
+png = { version = "0.18.1", optional = true }
+
+[features]
+png = ["dep:png"]
+
+[[example]]
+name = "hello_onda"
+required-features = ["png"]

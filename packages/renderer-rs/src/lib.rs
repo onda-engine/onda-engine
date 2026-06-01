@@ -102,6 +102,23 @@ impl Framebuffer {
     }
 }
 
+#[cfg(feature = "png")]
+impl Framebuffer {
+    /// Encode and write the framebuffer as a straight-alpha RGBA8 PNG.
+    ///
+    /// Available with the `png` feature. Encoding lives behind a feature so the
+    /// renderer's default build stays free of image-codec dependencies.
+    pub fn write_png(&self, path: impl AsRef<std::path::Path>) -> Result<(), png::EncodingError> {
+        let file = std::io::BufWriter::new(std::fs::File::create(path)?);
+        let mut encoder = png::Encoder::new(file, self.width, self.height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header()?;
+        writer.write_image_data(&self.pixels)?;
+        Ok(())
+    }
+}
+
 /// Straight-alpha "source over destination" Porter-Duff compositing.
 fn over(src: Color, dst: Color) -> Color {
     let out_a = src.a + dst.a * (1.0 - src.a);
@@ -491,6 +508,25 @@ mod tests {
         let b = Renderer::with_default_font().render(&scene);
         assert!(inked_pixels(&a) > 0, "Hello ONDA should be drawn");
         assert_eq!(a.as_bytes(), b.as_bytes(), "render must be reproducible");
+    }
+
+    #[cfg(feature = "png")]
+    #[test]
+    fn write_png_round_trips_dimensions() {
+        let scene = Scene::new(comp(12, 7)).with_root(Node::group().with_child(Node::shape(
+            Shape::rect(Size::new(12.0, 7.0)).with_fill(Color::rgb(0.2, 0.4, 0.8)),
+        )));
+        let fb = render(&scene);
+        let path = std::env::temp_dir().join("onda_write_png_round_trip.png");
+        fb.write_png(&path).expect("png write");
+
+        let decoder =
+            png::Decoder::new(std::io::BufReader::new(std::fs::File::open(&path).unwrap()));
+        let reader = decoder.read_info().unwrap();
+        let info = reader.info();
+        assert_eq!((info.width, info.height), (12, 7));
+        assert_eq!(info.color_type, png::ColorType::Rgba);
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
