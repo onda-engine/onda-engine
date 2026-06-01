@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ONDA — Motion graphics at GPU speed. No browser.</title>
+  <meta name="description" content="ONDA is an open-source, GPU-native, browser-free motion-graphics engine in Rust. Author in React, render through a native GPU pipeline — no Chromium anywhere." />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#080b13" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="ONDA — Motion graphics at GPU speed. No browser." />
+  <meta property="og:description" content="Open-source, GPU-native, browser-free motion-graphics engine in Rust. Author in React; render through a native GPU pipeline." />
+
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+
+  <!-- Fonts: preconnect + Google Fonts CDN -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+    rel="stylesheet" />
+
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <!-- ============ STICKY NAV ============ -->
+  <header class="nav" id="site-nav">
+    <div class="container nav__inner">
+      <a class="brand" href="#top" aria-label="ONDA — home">
+        <span class="brand__mark" aria-hidden="true">
+          <svg width="32" height="32" viewBox="0 0 48 48" fill="none" focusable="false">
+            <defs>
+              <linearGradient id="nav-grad" x1="5" y1="14" x2="44" y2="34" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#3b82f6" />
+                <stop offset="1" stop-color="#22d3ee" />
+              </linearGradient>
+            </defs>
+            <g stroke="url(#nav-grad)" stroke-width="3.6" stroke-linecap="round" fill="none">
+              <path d="M5 17 q6.5 -9 13 0 t13 0 t13 0" />
+              <path d="M5 24 q6.5 -9 13 0 t13 0 t13 0" opacity="0.85" />
+              <path d="M5 31 q6.5 -9 13 0 t13 0 t13 0" opacity="0.7" />
+            </g>
+          </svg>
+        </span>
+        <span class="brand__word">ONDA</span>
+      </a>
+
+      <nav class="nav__links" aria-label="Primary">
+        <a href="#features">Features</a>
+        <a href="#docs">Docs</a>
+        <a href="https://github.com/degueba/onda-engine" rel="noopener">GitHub</a>
+      </nav>
+
+      <a class="btn btn--primary nav__cta" href="#start">Get started</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <span id="top"></span>
+
+    <!-- ============ HERO ============ -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero__bg" aria-hidden="true">
+        <div class="hero__glow hero__glow--a"></div>
+        <div class="hero__glow hero__glow--b"></div>
+        <svg class="hero__wave" viewBox="0 0 1440 320" preserveAspectRatio="none" focusable="false">
+          <defs>
+            <linearGradient id="wave-grad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#3b82f6" />
+              <stop offset="1" stop-color="#22d3ee" />
+            </linearGradient>
+          </defs>
+          <path class="hero__wave-path" d="M0,160 C240,80 480,240 720,160 C960,80 1200,240 1440,160"
+            fill="none" stroke="url(#wave-grad)" stroke-width="2" />
+          <path class="hero__wave-path hero__wave-path--2" d="M0,200 C240,120 480,280 720,200 C960,120 1200,280 1440,200"
+            fill="none" stroke="url(#wave-grad)" stroke-width="2" opacity="0.5" />
+        </svg>
+      </div>
+
+      <div class="container hero__grid">
+        <div class="hero__copy">
+          <p class="eyebrow">Open source · Rust · GPU-native</p>
+          <h1 id="hero-title" class="hero__title">
+            Motion graphics at <span class="grad-text">GPU speed</span>.<br />No browser.
+          </h1>
+          <p class="hero__sub">
+            ONDA is a programmatic motion-graphics engine written in Rust. Author
+            compositions in React, render them through a native GPU pipeline — with
+            <strong>zero Chromium</strong> anywhere in the loop.
+          </p>
+          <div class="hero__actions">
+            <a class="btn btn--primary" id="start" href="https://github.com/degueba/onda-engine#getting-started" rel="noopener">Get started</a>
+            <a class="btn btn--ghost" href="https://github.com/degueba/onda-engine" rel="noopener">
+              <svg class="btn__icon" width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">
+                <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+              </svg>
+              View on GitHub
+            </a>
+          </div>
+          <ul class="hero__chips" aria-label="At a glance">
+            <li>No DOM · No Chromium</li>
+            <li>Vello GPU renderer</li>
+            <li>MIT / Apache-2.0</li>
+          </ul>
+        </div>
+
+        <!-- Code sample card -->
+        <figure class="code-card hero__code" aria-label="ONDA composition written in React">
+          <figcaption class="code-card__bar">
+            <span class="code-card__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="code-card__file">Hello.tsx</span>
+            <button class="code-card__copy" type="button" data-copy="hero-code" aria-label="Copy code to clipboard">Copy</button>
+          </figcaption>
+          <pre class="code-card__pre"><code id="hero-code"><span class="tok-kw">import</span> { Composition, Rect, Text, Path, linearGradient } <span class="tok-kw">from</span> <span class="tok-str">'@onda/react'</span>
+
+<span class="tok-kw">export const</span> <span class="tok-fn">Hello</span> = () =&gt; (
+  &lt;<span class="tok-tag">Composition</span> <span class="tok-attr">width</span>={<span class="tok-num">1920</span>} <span class="tok-attr">height</span>={<span class="tok-num">1080</span>} <span class="tok-attr">fps</span>={<span class="tok-num">30</span>} <span class="tok-attr">durationInFrames</span>={<span class="tok-num">90</span>}&gt;
+    &lt;<span class="tok-tag">Rect</span> <span class="tok-attr">width</span>={<span class="tok-num">1920</span>} <span class="tok-attr">height</span>={<span class="tok-num">1080</span>} <span class="tok-attr">fill</span>=<span class="tok-str">"#0a0d17"</span> /&gt;
+    &lt;<span class="tok-tag">Rect</span> <span class="tok-attr">x</span>={<span class="tok-num">160</span>} <span class="tok-attr">y</span>={<span class="tok-num">840</span>} <span class="tok-attr">width</span>={<span class="tok-num">900</span>} <span class="tok-attr">height</span>={<span class="tok-num">12</span>} <span class="tok-attr">cornerRadius</span>={<span class="tok-num">6</span>}
+      <span class="tok-attr">gradient</span>={<span class="tok-fn">linearGradient</span>([<span class="tok-num">0</span>, <span class="tok-num">0</span>], [<span class="tok-num">900</span>, <span class="tok-num">0</span>],
+        [{ offset: <span class="tok-num">0</span>, color: <span class="tok-str">'#3b82f6'</span> }, { offset: <span class="tok-num">1</span>, color: <span class="tok-str">'#f25a8c'</span> }])} /&gt;
+    &lt;<span class="tok-tag">Text</span> <span class="tok-attr">x</span>={<span class="tok-num">160</span>} <span class="tok-attr">y</span>={<span class="tok-num">420</span>} <span class="tok-attr">fontSize</span>={<span class="tok-num">140</span>} <span class="tok-attr">color</span>=<span class="tok-str">"#fff"</span>&gt;GPU-native&lt;/<span class="tok-tag">Text</span>&gt;
+  &lt;/<span class="tok-tag">Composition</span>&gt;
+)</code></pre>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ============ ARCHITECTURE CONTRAST ============ -->
+    <section class="section section--alt" id="architecture" aria-labelledby="arch-title">
+      <div class="container">
+        <header class="section__head">
+          <p class="eyebrow">Architecture</p>
+          <h2 id="arch-title" class="section__title">One less universe to render through</h2>
+          <p class="section__lede">
+            Remotion drives every frame through a headless browser. ONDA compiles your
+            scene to a graph and hands it straight to the GPU. Fewer hops, no DOM,
+            no screenshot pipeline.
+          </p>
+        </header>
+
+        <div class="arch">
+          <article class="arch__col arch__col--remotion" aria-labelledby="arch-remotion">
+            <h3 id="arch-remotion" class="arch__name">Remotion <span class="arch__tag arch__tag--muted">browser-based</span></h3>
+            <ol class="flow" aria-label="Remotion render pipeline">
+              <li class="flow__node">React</li>
+              <li class="flow__node flow__node--warn">DOM</li>
+              <li class="flow__node flow__node--warn">Headless Chromium</li>
+              <li class="flow__node flow__node--warn">Screenshot per frame</li>
+              <li class="flow__node">Encode</li>
+              <li class="flow__node flow__node--end">Video</li>
+            </ol>
+            <p class="arch__note">Browser, DOM, CSS layout and IPC overhead on every single frame.</p>
+          </article>
+
+          <div class="arch__vs" aria-hidden="true"><span>vs</span></div>
+
+          <article class="arch__col arch__col--onda" aria-labelledby="arch-onda">
+            <h3 id="arch-onda" class="arch__name">ONDA <span class="arch__tag arch__tag--brand">GPU-native</span></h3>
+            <ol class="flow" aria-label="ONDA render pipeline">
+              <li class="flow__node">React</li>
+              <li class="flow__node flow__node--ok">Scene graph</li>
+              <li class="flow__node flow__node--ok">Native GPU renderer</li>
+              <li class="flow__node flow__node--end">Frame &rarr; Video</li>
+            </ol>
+            <p class="arch__note">No browser anywhere. Deterministic, low-memory, high-concurrency per machine.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ WHY 100x ============ -->
+    <section class="section" id="why" aria-labelledby="why-title">
+      <div class="container">
+        <header class="section__head">
+          <p class="eyebrow">Why it's faster</p>
+          <h2 id="why-title" class="section__title">100× is the trajectory. Here are the measured numbers.</h2>
+          <p class="section__lede">
+            The advantage is <strong>architectural</strong>, not a single magic benchmark.
+            On a <em>trivial</em> scene — Remotion's best case — ONDA already pulls ahead.
+            The gap widens with scene complexity, GPU work, cold starts and memory pressure.
+          </p>
+        </header>
+
+        <div class="stats" role="list">
+          <div class="stat" role="listitem">
+            <p class="stat__num"><span class="grad-text">4.5×</span></p>
+            <p class="stat__label">faster per thread</p>
+            <p class="stat__sub">vs Remotion, single-thread render</p>
+          </div>
+          <div class="stat" role="listitem">
+            <p class="stat__num"><span class="grad-text">9.3×</span></p>
+            <p class="stat__label">machine throughput</p>
+            <p class="stat__sub">full-machine concurrency, same scene</p>
+          </div>
+          <div class="stat" role="listitem">
+            <p class="stat__num"><span class="grad-text">→ 100×</span></p>
+            <p class="stat__label">as complexity grows</p>
+            <p class="stat__sub">GPU · cold-start · memory headroom</p>
+          </div>
+        </div>
+        <p class="stats__foot">
+          Measured on Apple M4 Pro at 1080p against Remotion's fastest configuration.
+          No browser process to spawn, warm up, or feed frames to.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ FEATURES ============ -->
+    <section class="section section--alt" id="features" aria-labelledby="features-title">
+      <div class="container">
+        <header class="section__head">
+          <p class="eyebrow">What's inside</p>
+          <h2 id="features-title" class="section__title">A renderer-first engine, end to end</h2>
+          <p class="section__lede">
+            The renderer is the product; React, JSON and AI are all adapters onto one
+            universal scene graph.
+          </p>
+        </header>
+
+        <ul class="features" role="list">
+          <li class="card feature">
+            <span class="feature__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12c3-5 6-5 9 0s6 5 9 0"/><path d="M3 17c3-5 6-5 9 0s6 5 9 0"/></svg>
+            </span>
+            <h3 class="feature__title">GPU-native Vello renderer</h3>
+            <p class="feature__body">Anti-aliased fills and strokes, real rounded rects, arbitrary Bézier paths, linear/radial gradients, clip masks, and native per-glyph vector text.</p>
+          </li>
+          <li class="card feature">
+            <span class="feature__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 6-6 6 6 6"/><path d="m16 6 6 6-6 6"/></svg>
+            </span>
+            <h3 class="feature__title">Author in React / JSX</h3>
+            <p class="feature__body"><code>&lt;Composition&gt;</code>, <code>&lt;Rect&gt;</code>, <code>&lt;Path&gt;</code>, <code>&lt;Sequence&gt;</code>, <code>useCurrentFrame</code>, <code>interpolate</code>, <code>spring</code>. The Remotion DX you know, compiled to a scene graph.</p>
+          </li>
+          <li class="card feature">
+            <span class="feature__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="12" cy="20" r="2"/><path d="M7 6.5 10 10m4 0 3-3.5M12 15v3"/></svg>
+            </span>
+            <h3 class="feature__title">Universal scene graph</h3>
+            <p class="feature__body">React, JSON or an AI agent all emit the same graph. One runtime renders it — the renderer is the platform, not any single front end.</p>
+          </li>
+          <li class="card feature">
+            <span class="feature__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h10l6 6v10H4z"/><path d="M9 13c2-3 4-3 6 0"/></svg>
+            </span>
+            <h3 class="feature__title">SVG import</h3>
+            <p class="feature__body"><code>&lt;Svg src=… | markup=…&gt;</code> expands logos and icons into native vector nodes — animate them like any other primitive.</p>
+          </li>
+          <li class="card feature">
+            <span class="feature__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><circle cx="7" cy="6.5" r=".6" fill="currentColor"/></svg>
+            </span>
+            <h3 class="feature__title">CPU + GPU backends</h3>
+            <p class="feature__body"><code>--backend auto|vello|cpu</code>. A CPU reference rasterizer produces bit-identical, deterministic output for CI and golden-image tests.</p>
+          </li>
+          <li class="card feature">
+            <span class="feature__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m23 7-7 5 7 5z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+            </span>
+            <h3 class="feature__title">Export PNG / GIF / MP4</h3>
+            <p class="feature__body">Drive everything from the <code>onda</code> CLI: <code>render</code>, <code>export</code>, <code>export-frames</code>. Scale across cores and GPU workers.</p>
+          </li>
+        </ul>
+
+        <div class="features__note" id="docs">
+          <p>Built on a Rust workspace, fully open source under <strong>MIT OR Apache-2.0</strong>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FROM JSX TO VIDEO ============ -->
+    <section class="section" id="story" aria-labelledby="story-title">
+      <div class="container">
+        <header class="section__head">
+          <p class="eyebrow">The flow</p>
+          <h2 id="story-title" class="section__title">From JSX to video</h2>
+          <p class="section__lede">Write a composition, point the CLI at it, get a frame or a movie. No browser to install or babysit.</p>
+        </header>
+
+        <div class="story">
+          <figure class="code-card" aria-label="Render commands using the onda CLI">
+            <figcaption class="code-card__bar">
+              <span class="code-card__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="code-card__file">terminal</span>
+              <button class="code-card__copy" type="button" data-copy="cli-code" aria-label="Copy commands to clipboard">Copy</button>
+            </figcaption>
+            <pre class="code-card__pre"><code id="cli-code"><span class="tok-comment"># render through the GPU (Vello) backend — no browser involved</span>
+<span class="tok-fn">onda</span> render scene.json out.png
+<span class="tok-fn">onda</span> export movie.json out.mp4 <span class="tok-attr">--backend</span> vello</code></pre>
+          </figure>
+
+          <div class="story__arrow" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+          </div>
+
+          <!-- Result preview: reserved aspect-ratio box, no layout shift -->
+          <figure class="story__result" aria-label="Rendered frame preview">
+            <div class="preview" role="img" aria-label="A rendered 1920×1080 frame: the words ‘GPU-native’ in white over a deep navy background with a blue-to-pink gradient bar.">
+              <span class="preview__badge">1920 × 1080 · MP4</span>
+              <span class="preview__text grad-text">GPU-native</span>
+              <span class="preview__bar"></span>
+            </div>
+            <figcaption class="story__caption">Same scene, deterministic output — rendered straight from the scene graph.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CTA STRIP ============ -->
+    <section class="cta" aria-labelledby="cta-title">
+      <div class="container cta__inner">
+        <h2 id="cta-title" class="cta__title">Render your first frame without a browser</h2>
+        <p class="cta__sub">Clone the repo, write a composition, ship a video. It's all open source.</p>
+        <a class="btn btn--primary btn--lg" href="https://github.com/degueba/onda-engine#getting-started" rel="noopener">Get started</a>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="footer" aria-labelledby="footer-title">
+    <div class="container footer__inner">
+      <div class="footer__brand">
+        <a class="brand" href="#top" aria-label="ONDA — home">
+          <span class="brand__mark" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 48 48" fill="none" focusable="false">
+              <defs>
+                <linearGradient id="foot-grad" x1="5" y1="14" x2="44" y2="34" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#3b82f6" />
+                  <stop offset="1" stop-color="#22d3ee" />
+                </linearGradient>
+              </defs>
+              <g stroke="url(#foot-grad)" stroke-width="3.6" stroke-linecap="round" fill="none">
+                <path d="M5 17 q6.5 -9 13 0 t13 0 t13 0" />
+                <path d="M5 24 q6.5 -9 13 0 t13 0 t13 0" opacity="0.85" />
+                <path d="M5 31 q6.5 -9 13 0 t13 0 t13 0" opacity="0.7" />
+              </g>
+            </svg>
+          </span>
+          <span class="brand__word">ONDA</span>
+        </a>
+        <p id="footer-title" class="footer__tag">The rendering foundation for the next decade of motion graphics.</p>
+      </div>
+
+      <nav class="footer__nav" aria-label="Footer">
+        <h3 class="footer__col-title">Project</h3>
+        <a href="#features">Features</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#docs">Docs</a>
+      </nav>
+      <nav class="footer__nav" aria-label="Resources">
+        <h3 class="footer__col-title">Resources</h3>
+        <a href="https://github.com/degueba/onda-engine" rel="noopener">GitHub repository</a>
+        <a href="https://github.com/degueba/onda-engine#getting-started" rel="noopener">Getting started</a>
+        <a href="https://github.com/degueba/onda-engine/blob/main/LICENSE" rel="noopener">License</a>
+      </nav>
+    </div>
+    <div class="container footer__bottom">
+      <p>© <span id="year">2026</span> ONDA. Open source under <strong>MIT OR Apache-2.0</strong>.</p>
+      <a href="https://github.com/degueba/onda-engine" rel="noopener">github.com/degueba/onda-engine</a>
+    </div>
+  </footer>
+
+  <script src="./main.js" defer></script>
+</body>
+</html>
