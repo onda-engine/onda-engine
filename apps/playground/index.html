@@ -3,9 +3,62 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ONDA Player</title>
+    <meta
+      name="description"
+      content="ONDA Player — a real-time, browser-free preview of GPU-native motion graphics, rendered by the actual Rust engine in WebAssembly."
+    />
+    <title>ONDA Player — GPU-native motion graphics, no browser</title>
+    <link rel="icon" type="image/svg+xml" href="/onda-mark.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ONDA brand tokens (dark-first) — see assets/brand/BRAND.md. */
+      :root {
+        --bg: #080b13;
+        --surface: #11151f;
+        --surface-2: #1a1f2e;
+        --border: #232a3a;
+        --text: #e8edf7;
+        --text-muted: #93a0b8;
+        --primary: #3b82f6;
+        --primary-700: #2563eb;
+        --cyan: #22d3ee;
+        --pink: #f25a8c;
+        --on-primary: #ffffff;
+        --ok: #28c08a;
+        --warn: #fac81c;
+        --grad-warm: linear-gradient(90deg, #3b82f6, #f25a8c);
+        --grad-cool: linear-gradient(90deg, #3b82f6, #22d3ee);
+        --font-head: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+        --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+        --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+        /* expose body/mono fonts to the <Player> component */
+        --onda-font-body: var(--font-body);
+        --onda-font-mono: var(--font-mono);
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font-body);
+        font-size: 16px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+    </style>
   </head>
-  <body style="margin: 0">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
