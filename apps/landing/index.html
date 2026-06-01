@@ -6,7 +6,7 @@
   <title>ONDA — Motion graphics at GPU speed. No browser.</title>
   <meta name="description" content="ONDA is an open-source, GPU-native, browser-free motion-graphics engine in Rust. Author in React, render through a native GPU pipeline — no Chromium anywhere." />
   <meta name="color-scheme" content="dark" />
-  <meta name="theme-color" content="#080b13" />
+  <meta name="theme-color" content="#0e0e12" />
 
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
@@ -15,11 +15,13 @@
 
   <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
 
-  <!-- Fonts: preconnect + Google Fonts CDN -->
+  <!-- Fonts: Clash Display (Fontshare) for headings; Space Grotesk + JetBrains Mono (Google) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&display=swap" rel="stylesheet" />
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
     rel="stylesheet" />
 
   <link rel="stylesheet" href="./styles.css" />
@@ -35,8 +37,8 @@
           <svg width="32" height="32" viewBox="0 0 48 48" fill="none" focusable="false">
             <defs>
               <linearGradient id="nav-grad" x1="5" y1="14" x2="44" y2="34" gradientUnits="userSpaceOnUse">
-                <stop stop-color="#3b82f6" />
-                <stop offset="1" stop-color="#22d3ee" />
+                <stop stop-color="#e89aac" />
+                <stop offset="1" stop-color="#d96b82" />
               </linearGradient>
             </defs>
             <g stroke="url(#nav-grad)" stroke-width="3.6" stroke-linecap="round" fill="none">
@@ -65,19 +67,12 @@
     <!-- ============ HERO ============ -->
     <section class="hero" aria-labelledby="hero-title">
       <div class="hero__bg" aria-hidden="true">
-        <div class="hero__glow hero__glow--a"></div>
-        <div class="hero__glow hero__glow--b"></div>
+        <div class="hero__wash"></div>
         <svg class="hero__wave" viewBox="0 0 1440 320" preserveAspectRatio="none" focusable="false">
-          <defs>
-            <linearGradient id="wave-grad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stop-color="#3b82f6" />
-              <stop offset="1" stop-color="#22d3ee" />
-            </linearGradient>
-          </defs>
           <path class="hero__wave-path" d="M0,160 C240,80 480,240 720,160 C960,80 1200,240 1440,160"
-            fill="none" stroke="url(#wave-grad)" stroke-width="2" />
+            fill="none" stroke="var(--accent)" stroke-width="2" />
           <path class="hero__wave-path hero__wave-path--2" d="M0,200 C240,120 480,280 720,200 C960,120 1200,280 1440,200"
-            fill="none" stroke="url(#wave-grad)" stroke-width="2" opacity="0.5" />
+            fill="none" stroke="var(--accent)" stroke-width="2" opacity="0.4" />
         </svg>
       </div>
 
@@ -85,7 +80,7 @@
         <div class="hero__copy">
           <p class="eyebrow">Open source · Rust · GPU-native</p>
           <h1 id="hero-title" class="hero__title">
-            Motion graphics at <span class="grad-text">GPU speed</span>.<br />No browser.
+            Motion graphics at <span class="accent-text">GPU speed</span>.<br />No browser.
           </h1>
           <p class="hero__sub">
             ONDA is a programmatic motion-graphics engine written in Rust. Author
@@ -188,17 +183,17 @@
 
         <div class="stats" role="list">
           <div class="stat" role="listitem">
-            <p class="stat__num"><span class="grad-text">4.5×</span></p>
+            <p class="stat__num"><span class="accent-text">4.5×</span></p>
             <p class="stat__label">faster per thread</p>
             <p class="stat__sub">vs Remotion, single-thread render</p>
           </div>
           <div class="stat" role="listitem">
-            <p class="stat__num"><span class="grad-text">9.3×</span></p>
+            <p class="stat__num"><span class="accent-text">9.3×</span></p>
             <p class="stat__label">machine throughput</p>
             <p class="stat__sub">full-machine concurrency, same scene</p>
           </div>
           <div class="stat" role="listitem">
-            <p class="stat__num"><span class="grad-text">→ 100×</span></p>
+            <p class="stat__num"><span class="accent-text">→ 100×</span></p>
             <p class="stat__label">as complexity grows</p>
             <p class="stat__sub">GPU · cold-start · memory headroom</p>
           </div>
@@ -300,9 +295,9 @@
 
           <!-- Result preview: reserved aspect-ratio box, no layout shift -->
           <figure class="story__result" aria-label="Rendered frame preview">
-            <div class="preview" role="img" aria-label="A rendered 1920×1080 frame: the words ‘GPU-native’ in white over a deep navy background with a blue-to-pink gradient bar.">
+            <div class="preview" role="img" aria-label="A rendered 1920×1080 frame: the words ‘GPU-native’ over a near-black background with a rose underline bar.">
               <span class="preview__badge">1920 × 1080 · MP4</span>
-              <span class="preview__text grad-text">GPU-native</span>
+              <span class="preview__text">GPU-native</span>
               <span class="preview__bar"></span>
             </div>
             <figcaption class="story__caption">Same scene, deterministic output — rendered straight from the scene graph.</figcaption>
@@ -330,8 +325,8 @@
             <svg width="28" height="28" viewBox="0 0 48 48" fill="none" focusable="false">
               <defs>
                 <linearGradient id="foot-grad" x1="5" y1="14" x2="44" y2="34" gradientUnits="userSpaceOnUse">
-                  <stop stop-color="#3b82f6" />
-                  <stop offset="1" stop-color="#22d3ee" />
+                  <stop stop-color="#e89aac" />
+                  <stop offset="1" stop-color="#d96b82" />
                 </linearGradient>
               </defs>
               <g stroke="url(#foot-grad)" stroke-width="3.6" stroke-linecap="round" fill="none">
