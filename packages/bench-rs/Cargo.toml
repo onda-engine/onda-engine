@@ -1,0 +1,20 @@
+[package]
+name = "onda-bench"
+description = "Render-throughput benchmark for the ONDA engine (CPU + GPU backends)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "onda-bench"
+path = "src/main.rs"
+
+[dependencies]
+onda-core = { workspace = true }
+onda-scene = { workspace = true }
+onda-renderer = { workspace = true }
+onda-gpu = { workspace = true }
