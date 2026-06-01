@@ -21,7 +21,7 @@ const W = 1280
 const H = 480
 
 /** A title that springs up and fades in (frame-driven, deterministic). */
-function Title({ label, color = '#e8edf7' }: { label: string; color?: string }): ReactElement {
+function Title({ label, color = '#f2f2f4' }: { label: string; color?: string }): ReactElement {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const rise = spring({ frame, fps, config: { damping: 13, stiffness: 120 } })
@@ -47,11 +47,14 @@ function Underline(): ReactElement {
         width={720}
         height={14}
         cornerRadius={7}
-        gradient={linearGradient([0, 0], [720, 0], [
-          { offset: 0, color: '#3b82f6' },
-          { offset: 0.5, color: '#22d3ee' },
-          { offset: 1, color: '#f25a8c' },
-        ])}
+        gradient={linearGradient(
+          [0, 0],
+          [720, 0],
+          [
+            { offset: 0, color: '#e89aac' },
+            { offset: 1, color: '#d96b82' },
+          ],
+        )}
       />
     </Group>
   )
@@ -73,22 +76,18 @@ function Wave(): ReactElement {
   )
   return (
     <Group x={x} y={120} opacity={opacity}>
-      <Path
-        d="M0 80 q40 -64 80 0 t80 0 t80 0 t80 0"
-        stroke="#3b82f6"
-        strokeWidth={7}
-      />
+      <Path d="M0 80 q40 -64 80 0 t80 0 t80 0 t80 0" stroke="#e89aac" strokeWidth={7} />
       <Path
         d="M0 130 q40 -64 80 0 t80 0 t80 0 t80 0"
-        stroke="#22d3ee"
+        stroke="#d96b82"
         strokeWidth={7}
-        opacity={0.8}
+        opacity={0.85}
       />
       <Path
         d="M0 180 q40 -64 80 0 t80 0 t80 0 t80 0"
-        stroke="#f25a8c"
+        stroke="#c8576f"
         strokeWidth={7}
-        opacity={0.6}
+        opacity={0.7}
       />
     </Group>
   )
@@ -103,7 +102,13 @@ function Pulse(): ReactElement {
   const s = interpolate(pop, [0, 1], [0, 1])
   return (
     <Group x={96} y={96}>
-      <Ellipse x={-(28 * s) / 2 + 14} y={-(28 * s) / 2 + 14} width={28 * s} height={28 * s} fill="#22d3ee" />
+      <Ellipse
+        x={-(28 * s) / 2 + 14}
+        y={-(28 * s) / 2 + 14}
+        width={28 * s}
+        height={28 * s}
+        fill="#d96b82"
+      />
     </Group>
   )
 }
@@ -121,7 +126,7 @@ function Pulse(): ReactElement {
 function buildDemo(withPaths: boolean): ReactElement {
   return (
     <Composition width={W} height={H} fps={30} durationInFrames={150}>
-      <Rect width={W} height={H} fill="#0a0d17" />
+      <Rect width={W} height={H} fill="#0e0e12" />
       {withPaths && <Wave />}
       <Pulse />
       <Series>
@@ -129,7 +134,7 @@ function buildDemo(withPaths: boolean): ReactElement {
           <Title label="Motion at GPU speed" />
         </Series.Sequence>
         <Series.Sequence durationInFrames={75}>
-          <Title label="No browser." color="#22d3ee" />
+          <Title label="No browser." color="#d96b82" />
         </Series.Sequence>
       </Series>
       <Underline />
@@ -137,14 +142,21 @@ function buildDemo(withPaths: boolean): ReactElement {
   )
 }
 
-/** The ONDA mark (three blue→cyan waves) — inline SVG, per assets/brand. */
+/** The ONDA mark (three rose waves) — inline SVG, per assets/brand. */
 function OndaMark(): ReactElement {
   return (
     <svg width="40" height="40" viewBox="0 0 48 48" fill="none" role="img" aria-label="ONDA">
       <defs>
-        <linearGradient id="onda-grad" x1="5" y1="14" x2="44" y2="34" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#3b82f6" />
-          <stop offset="1" stopColor="#22d3ee" />
+        <linearGradient
+          id="onda-grad"
+          x1="5"
+          y1="14"
+          x2="44"
+          y2="34"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#e89aac" />
+          <stop offset="1" stopColor="#d96b82" />
         </linearGradient>
       </defs>
       <g stroke="url(#onda-grad)" strokeWidth="3.6" strokeLinecap="round" fill="none">
@@ -165,8 +177,8 @@ const grow = spring({ frame, fps })
 <Group clip={clipRect(grow * 720, 14)}>
   <Rect width={720} height={14} cornerRadius={7}
     gradient={linearGradient([0,0],[720,0], [
-      { offset: 0, color: '#3b82f6' },
-      { offset: 1, color: '#f25a8c' }])} />
+      { offset: 0, color: '#e89aac' },
+      { offset: 1, color: '#d96b82' }])} />
 </Group>`
 
 export function App(): ReactElement {
@@ -190,9 +202,10 @@ export function App(): ReactElement {
         Motion graphics at GPU speed. <span style={styles.gradientText}>No browser.</span>
       </h1>
       <p style={styles.lede}>
-        A real-time preview of a composition authored in <code style={styles.code}>@onda/react</code>{' '}
-        — Text, a vector <code style={styles.code}>&lt;Path&gt;</code>, a gradient underline that
-        wipes in through a clip mask, all animated with <code style={styles.code}>spring</code> and{' '}
+        A real-time preview of a composition authored in{' '}
+        <code style={styles.code}>@onda/react</code> — Text, a vector{' '}
+        <code style={styles.code}>&lt;Path&gt;</code>, a gradient underline that wipes in through a
+        clip mask, all animated with <code style={styles.code}>spring</code> and{' '}
         <code style={styles.code}>interpolate</code> over frames. Drag the scrubber or press play.
       </p>
 
@@ -208,7 +221,9 @@ export function App(): ReactElement {
         />
         <span>
           Render with the WASM engine{' '}
-          <span style={styles.muted}>(off = Canvas2D preview, adds the vector &lt;Path&gt; wave)</span>
+          <span style={styles.muted}>
+            (off = Canvas2D preview, adds the vector &lt;Path&gt; wave)
+          </span>
         </span>
       </label>
 
@@ -220,8 +235,8 @@ export function App(): ReactElement {
         and clip masks are the GPU/<strong>Vello</strong> backend's job (
         <code style={styles.code}>onda export --backend vello</code>) and show up in the Canvas2D
         preview here. A WebGPU present path (see{' '}
-        <code style={styles.code}>packages/player/WEBGPU.md</code>) would make the in-browser preview
-        == the Vello export at real-time speed.
+        <code style={styles.code}>packages/player/WEBGPU.md</code>) would make the in-browser
+        preview == the Vello export at real-time speed.
       </p>
 
       <section style={styles.codeCard}>
@@ -258,7 +273,7 @@ const styles: Record<string, React.CSSProperties> = {
   pill: {
     fontFamily: 'var(--font-mono)',
     fontSize: 12,
-    color: 'var(--cyan)',
+    color: 'var(--accent)',
     border: '1px solid var(--border)',
     borderRadius: 999,
     padding: '2px 10px',
@@ -273,10 +288,7 @@ const styles: Record<string, React.CSSProperties> = {
     margin: '0 0 16px',
   },
   gradientText: {
-    background: 'var(--grad-cool)',
-    WebkitBackgroundClip: 'text',
-    backgroundClip: 'text',
-    color: 'transparent',
+    color: 'var(--accent)',
   },
   lede: {
     color: 'var(--text-muted)',
@@ -344,5 +356,5 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--text-muted)',
     fontSize: 13,
   },
-  link: { color: 'var(--primary)', textDecoration: 'none' },
+  link: { color: 'var(--accent)', textDecoration: 'none' },
 }
