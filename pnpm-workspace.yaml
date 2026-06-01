@@ -2,4 +2,5 @@ packages:
   - "packages/react"
   - "packages/player"
   - "packages/render"
+  - "packages/wasm"
   - "apps/*"

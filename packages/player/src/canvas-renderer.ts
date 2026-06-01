@@ -9,6 +9,10 @@
 
 import type { Color, Scene, SceneNode } from '@onda/react'
 
+/** Paints a scene onto a 2D context. The default is {@link drawScene}; the
+ *  playground swaps in a WASM-engine drawer (real renderer → `putImageData`). */
+export type FrameDrawer = (ctx: CanvasRenderingContext2D, scene: Scene) => void
+
 /** Draw `scene` onto `ctx`, clearing first. The context should be sized to the
  *  composition's resolution. */
 export function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {

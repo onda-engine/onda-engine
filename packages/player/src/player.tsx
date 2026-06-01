@@ -2,19 +2,27 @@
 
 import { renderFrame } from '@onda/react'
 import { type CSSProperties, type ReactElement, useEffect, useMemo, useRef, useState } from 'react'
-import { drawScene } from './canvas-renderer.js'
+import { type FrameDrawer, drawScene } from './canvas-renderer.js'
 
 export interface PlayerProps {
   /** A `<Composition>` element (from `@onda/react`). */
   composition: ReactElement
   autoPlay?: boolean
   loop?: boolean
+  /** How to paint each frame. Defaults to the Canvas2D preview; pass a
+   *  WASM-engine drawer for pixel-exact, real-renderer output. */
+  draw?: FrameDrawer
 }
 
 /** Render a composition to a canvas with play/pause and a frame scrubber. Each
  *  visible frame is produced by `@onda/react`'s `renderFrame`, so what you scrub
  *  is the real per-frame scene graph. */
-export function Player({ composition, autoPlay = true, loop = true }: PlayerProps): ReactElement {
+export function Player({
+  composition,
+  autoPlay = true,
+  loop = true,
+  draw = drawScene,
+}: PlayerProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   // Resolution + timing come from rendering frame 0 once.
@@ -24,11 +32,11 @@ export function Player({ composition, autoPlay = true, loop = true }: PlayerProp
   const [frame, setFrame] = useState(0)
   const [playing, setPlaying] = useState(autoPlay)
 
-  // Re-draw whenever the frame (or composition) changes.
+  // Re-draw whenever the frame, composition, or drawer changes.
   useEffect(() => {
     const ctx = canvasRef.current?.getContext('2d')
-    if (ctx) drawScene(ctx, renderFrame(composition, frame))
-  }, [composition, frame])
+    if (ctx) draw(ctx, renderFrame(composition, frame))
+  }, [composition, frame, draw])
 
   // Playback paced to the composition's fps via requestAnimationFrame.
   useEffect(() => {
