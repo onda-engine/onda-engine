@@ -15,14 +15,23 @@
           "transform": { "translate": { "x": 96.0, "y": 250.0 } },
           "kind": {
             "type": "shape",
-            "geometry": { "shape": "rect", "size": { "width": 520.0, "height": 10.0 }, "corner_radius": 5.0 },
+            "geometry": {
+              "shape": "rect",
+              "size": { "width": 520.0, "height": 10.0 },
+              "corner_radius": 5.0
+            },
             "fill": { "r": 0.16, "g": 0.45, "b": 0.95 }
           }
         },
         {
           "id": 1,
           "transform": { "translate": { "x": 96.0, "y": 110.0 } },
-          "kind": { "type": "text", "content": "Hello ONDA", "font_size": 96.0, "color": { "r": 1.0, "g": 1.0, "b": 1.0 } }
+          "kind": {
+            "type": "text",
+            "content": "Hello ONDA",
+            "font_size": 96.0,
+            "color": { "r": 1.0, "g": 1.0, "b": 1.0 }
+          }
         }
       ]
     }
@@ -33,20 +42,24 @@
         "target": 1,
         "property": {
           "kind": "opacity",
-          "track": { "keyframes": [
-            { "time": 0.0, "value": 0.0 },
-            { "time": 0.5, "value": 1.0, "easing": "ease_out_cubic" }
-          ] }
+          "track": {
+            "keyframes": [
+              { "time": 0.0, "value": 0.0 },
+              { "time": 0.5, "value": 1.0, "easing": "ease_out_cubic" }
+            ]
+          }
         }
       },
       {
         "target": 1,
         "property": {
           "kind": "translate",
-          "track": { "keyframes": [
-            { "time": 0.0, "value": { "x": 96.0, "y": 150.0 } },
-            { "time": 0.5, "value": { "x": 96.0, "y": 110.0 }, "easing": "ease_out_cubic" }
-          ] }
+          "track": {
+            "keyframes": [
+              { "time": 0.0, "value": { "x": 96.0, "y": 150.0 } },
+              { "time": 0.5, "value": { "x": 96.0, "y": 110.0 }, "easing": "ease_out_cubic" }
+            ]
+          }
         }
       }
     ]
