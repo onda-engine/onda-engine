@@ -1,6 +1,6 @@
 [package]
-name = "onda-renderer"
-description = "ONDA's renderer. v0 is a CPU reference rasterizer (Scene -> RGBA framebuffer); the wgpu/GPU backend builds on the same contract."
+name = "onda-typography"
+description = "ONDA typography: text shaping, layout, and glyph rasterization (cosmic-text + swash) into renderer-agnostic coverage masks."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,6 +10,5 @@ homepage.workspace = true
 authors.workspace = true
 
 [dependencies]
+cosmic-text = "0.17.0"
 onda-core = { workspace = true }
-onda-scene = { workspace = true }
-onda-typography = { workspace = true }
