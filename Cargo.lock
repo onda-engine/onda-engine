@@ -208,6 +208,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "onda-animation"
+version = "0.0.0"
+dependencies = [
+ "onda-core",
+ "onda-scene",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "onda-cli"
 version = "0.0.0"
 dependencies = [
@@ -229,6 +239,7 @@ dependencies = [
 name = "onda-renderer"
 version = "0.0.0"
 dependencies = [
+ "onda-animation",
  "onda-core",
  "onda-scene",
  "onda-typography",
