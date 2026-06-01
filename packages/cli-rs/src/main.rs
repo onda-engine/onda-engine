@@ -9,7 +9,7 @@
 //!   onda render <scene.json> <out.png> [--backend auto|vello|cpu] [--system-fonts]
 //!   onda export <movie.json> <out.gif|out.mp4> [--backend ...] [--system-fonts]
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use onda_animation::{AnimatedScene, AudioTrack};
@@ -42,6 +42,9 @@ OPTIONS:
     --system-fonts    Use the host's installed fonts instead of the bundled
                       default font (CPU backend only; output then depends on
                       the machine).
+    --font <path>     Load a .ttf/.otf font, then select it by family name on a
+                      <Text> run (like Remotion's loadFont). Repeat for several.
+                      Works with both backends and alongside the bundled fonts.
     -h, --help        Print this help
     -V, --version     Print version
 ";
@@ -96,15 +99,34 @@ fn run(args: Vec<String>) -> Result<()> {
     }
 }
 
-/// Parse the shared `[--backend ...] [--system-fonts]` + two positionals shape.
-fn parse_io(args: &[String], verb: &str) -> Result<(String, String, FontMode, BackendChoice)> {
+/// The parsed CLI options shared by every command: the two positional paths, the
+/// font mode + any `--font` files to load, and the backend choice.
+struct Options {
+    input: String,
+    output: String,
+    font: FontMode,
+    backend: BackendChoice,
+    /// Paths from `--font`, loaded and selectable by family on a `Text` run.
+    fonts: Vec<PathBuf>,
+}
+
+/// Parse the shared `[--backend ...] [--system-fonts] [--font <path>]...` +
+/// two positionals shape.
+fn parse_io(args: &[String], verb: &str) -> Result<Options> {
     let mut positionals: Vec<&str> = Vec::new();
     let mut font = FontMode::Bundled;
     let mut backend = BackendChoice::Auto;
+    let mut fonts: Vec<PathBuf> = Vec::new();
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
             "--system-fonts" => font = FontMode::System,
+            "--font" => {
+                let value = iter
+                    .next()
+                    .with_context(|| format!("--font needs a file path\n\n{USAGE}"))?;
+                fonts.push(PathBuf::from(value));
+            }
             "--backend" => {
                 let value = iter
                     .next()
@@ -125,26 +147,54 @@ fn parse_io(args: &[String], verb: &str) -> Result<(String, String, FontMode, Ba
     let [input, output] = positionals.as_slice() else {
         bail!("{verb} needs exactly an input and an output path\n\n{USAGE}");
     };
-    Ok((input.to_string(), output.to_string(), font, backend))
+    Ok(Options {
+        input: input.to_string(),
+        output: output.to_string(),
+        font,
+        backend,
+        fonts,
+    })
+}
+
+/// Read the `--font` files into raw bytes (so the renderer can load them).
+fn load_font_bytes(paths: &[PathBuf]) -> Result<Vec<Vec<u8>>> {
+    paths
+        .iter()
+        .map(|p| std::fs::read(p).with_context(|| format!("reading font '{}'", p.display())))
+        .collect()
 }
 
 fn render_command(args: &[String]) -> Result<()> {
-    let (input, output, font, backend) = parse_io(args, "render")?;
+    let Options {
+        input,
+        output,
+        font,
+        backend,
+        fonts,
+    } = parse_io(args, "render")?;
+    let fonts = load_font_bytes(&fonts)?;
     let (width, height, used) =
-        render_scene_file(Path::new(&input), Path::new(&output), font, backend)?;
+        render_scene_file(Path::new(&input), Path::new(&output), font, backend, &fonts)?;
     println!("rendered {input} -> {output} ({width}x{height}, {used} backend)");
     Ok(())
 }
 
 fn export_command(args: &[String]) -> Result<()> {
-    let (input, output, font, backend) = parse_io(args, "export")?;
+    let Options {
+        input,
+        output,
+        font,
+        backend,
+        fonts,
+    } = parse_io(args, "export")?;
+    let fonts = load_font_bytes(&fonts)?;
     let out = Path::new(&output);
 
     let json =
         std::fs::read_to_string(&input).with_context(|| format!("reading movie file '{input}'"))?;
     let movie = movie_scenes(&json, base_dir_of(&input))
         .with_context(|| format!("reading movie '{input}'"))?;
-    let (frames, used) = render_scenes(&movie.scenes, backend, font)
+    let (frames, used) = render_scenes(&movie.scenes, backend, font, &fonts)
         .with_context(|| format!("rendering movie '{input}'"))?;
     let audio = AudioMux {
         tracks: &movie.audio,
@@ -157,14 +207,21 @@ fn export_command(args: &[String]) -> Result<()> {
 /// Encode pre-rendered, per-frame scenes (e.g. emitted by @onda/react's
 /// `renderFrames`) to a video. Input is a JSON array of scene graphs.
 fn export_frames_command(args: &[String]) -> Result<()> {
-    let (input, output, font, backend) = parse_io(args, "export-frames")?;
+    let Options {
+        input,
+        output,
+        font,
+        backend,
+        fonts,
+    } = parse_io(args, "export-frames")?;
+    let fonts = load_font_bytes(&fonts)?;
     let out = Path::new(&output);
 
     let json = std::fs::read_to_string(&input)
         .with_context(|| format!("reading frames file '{input}'"))?;
     let (scenes, fps) = frames_scenes(&json, base_dir_of(&input))
         .with_context(|| format!("reading frames '{input}'"))?;
-    let (frames, used) = render_scenes(&scenes, backend, font)
+    let (frames, used) = render_scenes(&scenes, backend, font, &fonts)
         .with_context(|| format!("rendering frames '{input}'"))?;
     // A pre-evaluated frame sequence carries no soundtrack.
     encode_movie(&frames, fps, out, &output, &input, used, AudioMux::none())
@@ -280,27 +337,51 @@ fn render_scenes(
     scenes: &[Scene],
     backend: BackendChoice,
     font: FontMode,
+    extra_fonts: &[Vec<u8>],
 ) -> Result<(Vec<Framebuffer>, &'static str)> {
     match backend {
-        BackendChoice::Cpu => Ok((render_scenes_cpu(scenes, font), "cpu")),
+        BackendChoice::Cpu => Ok((render_scenes_cpu(scenes, font, extra_fonts), "cpu")),
         BackendChoice::Vello => {
             let mut renderer = VelloRenderer::new()
                 .context("no GPU adapter available for the Vello backend (try --backend cpu)")?;
+            load_into_vello(&mut renderer, extra_fonts);
             Ok((render_scenes_vello(scenes, &mut renderer), "vello"))
         }
         BackendChoice::Auto => match VelloRenderer::new() {
-            Some(mut renderer) => Ok((render_scenes_vello(scenes, &mut renderer), "vello")),
+            Some(mut renderer) => {
+                load_into_vello(&mut renderer, extra_fonts);
+                Ok((render_scenes_vello(scenes, &mut renderer), "vello"))
+            }
             None => {
                 eprintln!("note: no GPU adapter found; falling back to the CPU backend");
-                Ok((render_scenes_cpu(scenes, font), "cpu"))
+                Ok((render_scenes_cpu(scenes, font, extra_fonts), "cpu"))
             }
         },
     }
 }
 
-/// CPU backend: render across all cores (timeline eval is pure per frame).
-fn render_scenes_cpu(scenes: &[Scene], font: FontMode) -> Vec<Framebuffer> {
-    onda_renderer::render_frames_parallel(scenes, move || renderer_for(font))
+/// CPU backend: render across all cores (timeline eval is pure per frame). Each
+/// worker gets its own renderer with the `--font` files loaded (cosmic-text font
+/// state isn't shareable across threads).
+fn render_scenes_cpu(
+    scenes: &[Scene],
+    font: FontMode,
+    extra_fonts: &[Vec<u8>],
+) -> Vec<Framebuffer> {
+    onda_renderer::render_frames_parallel(scenes, move || {
+        let mut renderer = renderer_for(font);
+        for data in extra_fonts {
+            renderer.load_font(data.clone());
+        }
+        renderer
+    })
+}
+
+/// Load the `--font` files into a Vello renderer (so its faces are selectable).
+fn load_into_vello(renderer: &mut VelloRenderer, extra_fonts: &[Vec<u8>]) {
+    for data in extra_fonts {
+        renderer.load_font(data.clone());
+    }
 }
 
 /// Vello backend: render each scene on the GPU (offscreen + readback) and bridge
@@ -366,14 +447,14 @@ fn base_dir_of(input: &str) -> &Path {
 #[cfg(test)]
 fn render_movie_json(json: &str, font: FontMode) -> Result<(Vec<Framebuffer>, f32)> {
     let movie = movie_scenes(json, Path::new(""))?;
-    Ok((render_scenes_cpu(&movie.scenes, font), movie.fps))
+    Ok((render_scenes_cpu(&movie.scenes, font, &[]), movie.fps))
 }
 
 /// CPU-rendered frames of a pre-evaluated scene sequence (the test oracle).
 #[cfg(test)]
 fn render_frames_json(json: &str, font: FontMode) -> Result<(Vec<Framebuffer>, f32)> {
     let (scenes, fps) = frames_scenes(json, Path::new(""))?;
-    Ok((render_scenes_cpu(&scenes, font), fps))
+    Ok((render_scenes_cpu(&scenes, font, &[]), fps))
 }
 
 fn renderer_for(font: FontMode) -> Renderer {
@@ -451,6 +532,7 @@ fn render_scene_file(
     output: &Path,
     font: FontMode,
     backend: BackendChoice,
+    extra_fonts: &[Vec<u8>],
 ) -> Result<(u32, u32, &'static str)> {
     let json = std::fs::read_to_string(input)
         .with_context(|| format!("reading scene file '{}'", input.display()))?;
@@ -458,8 +540,9 @@ fn render_scene_file(
         serde_json::from_str(&json).context("scene JSON is not a valid scene graph")?;
     let base_dir = input.parent().unwrap_or(Path::new(""));
     let scene = onda_svg::expand_svg(&parsed, base_dir).context("expanding <svg> nodes")?;
-    let (mut frames, used) = render_scenes(std::slice::from_ref(&scene), backend, font)
-        .with_context(|| format!("rendering scene '{}'", input.display()))?;
+    let (mut frames, used) =
+        render_scenes(std::slice::from_ref(&scene), backend, font, extra_fonts)
+            .with_context(|| format!("rendering scene '{}'", input.display()))?;
     let framebuffer = frames.remove(0);
     framebuffer
         .write_png(output)
@@ -532,7 +615,7 @@ mod tests {
         std::fs::write(&input, SCENE).unwrap();
 
         let (w, h, backend) =
-            render_scene_file(&input, &output, FontMode::Bundled, BackendChoice::Cpu).unwrap();
+            render_scene_file(&input, &output, FontMode::Bundled, BackendChoice::Cpu, &[]).unwrap();
         assert_eq!((w, h), (40, 24));
         assert_eq!(backend, "cpu");
         assert!(output.exists());
@@ -630,7 +713,8 @@ mod tests {
     #[test]
     fn cpu_backend_reports_itself_and_renders() {
         let (scenes, _) = frames_scenes(PATH_SCENE, Path::new("")).unwrap();
-        let (frames, used) = render_scenes(&scenes, BackendChoice::Cpu, FontMode::Bundled).unwrap();
+        let (frames, used) =
+            render_scenes(&scenes, BackendChoice::Cpu, FontMode::Bundled, &[]).unwrap();
         assert_eq!(used, "cpu");
         assert_eq!(frames.len(), 1);
         // The CPU backend skips paths, so the canvas stays transparent.
@@ -646,11 +730,29 @@ mod tests {
         }
         let (scenes, _) = frames_scenes(PATH_SCENE, Path::new("")).unwrap();
         let (frames, used) =
-            render_scenes(&scenes, BackendChoice::Vello, FontMode::Bundled).unwrap();
+            render_scenes(&scenes, BackendChoice::Vello, FontMode::Bundled, &[]).unwrap();
         assert_eq!(used, "vello");
         assert_eq!(frames.len(), 1);
         // Vello rasterizes the path → opaque green covers the canvas.
         assert_eq!(frames[0].pixel(8, 8), [0, 255, 0, 255]);
+    }
+
+    #[test]
+    fn load_font_bytes_reads_files_and_errors_clearly() {
+        let dir = std::env::temp_dir();
+        let good = dir.join("onda_cli_font_good.ttf");
+        // Any real font bytes will do; reuse the bundled default.
+        std::fs::write(&good, onda_renderer::FontContext::default_font_bytes()).unwrap();
+
+        let loaded = load_font_bytes(std::slice::from_ref(&good)).expect("reads the font file");
+        assert_eq!(loaded.len(), 1);
+        assert!(!loaded[0].is_empty());
+
+        let missing = dir.join("onda_cli_font_does_not_exist.ttf");
+        let err = load_font_bytes(&[missing]).unwrap_err();
+        assert!(format!("{err:#}").contains("reading font"));
+
+        let _ = std::fs::remove_file(&good);
     }
 
     #[test]

@@ -228,6 +228,16 @@ impl Renderer {
         Renderer { fonts: Some(fonts) }
     }
 
+    /// Load an additional font (`.ttf`/`.otf` bytes), returning the family
+    /// name(s) it provides — select them by family on a `Text`/run. A renderer
+    /// with no font context gains the bundled default first, so loaded fonts
+    /// always have a default to fall back to.
+    pub fn load_font(&mut self, data: Vec<u8>) -> Vec<String> {
+        self.fonts
+            .get_or_insert_with(FontContext::with_default_font)
+            .load_font(data)
+    }
+
     /// Render `scene` to a fresh, transparent framebuffer sized to its composition.
     pub fn render(&mut self, scene: &Scene) -> Framebuffer {
         let mut fb = Framebuffer::new(scene.composition.width, scene.composition.height);
