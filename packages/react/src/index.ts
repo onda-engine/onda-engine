@@ -16,7 +16,15 @@ export {
   type TextProps,
   type NodeProps,
 } from './components.js'
-export { renderToScene, renderToSceneJSON } from './reconciler.js'
+export { Easing, type EasingFn, type InterpolateOptions, interpolate } from './interpolate.js'
+export { type VideoConfig, useCurrentFrame, useVideoConfig } from './frame.js'
+export {
+  renderFrame,
+  renderFrames,
+  renderFramesJSON,
+  renderToScene,
+  renderToSceneJSON,
+} from './reconciler.js'
 export type {
   Color,
   Composition as CompositionData,

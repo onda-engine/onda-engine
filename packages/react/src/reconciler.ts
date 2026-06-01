@@ -1,15 +1,19 @@
 //! Render a React element tree into an ONDA scene graph.
 
-import type { ReactElement } from 'react'
+import { type ReactElement, createElement } from 'react'
 import Reconciler from 'react-reconciler'
 import { parseColor } from './color.js'
+import { Composition } from './components.js'
+import { FrameContext, type VideoConfig } from './frame.js'
 import { type HostNode, type RootContainer, hostConfig } from './host-config.js'
 import type { Scene, SceneNode, ShapeGeometry, Stroke, Transform } from './scene.js'
 
 const reconciler = Reconciler(hostConfig)
 
-/** Render `element` (whose root must be a `<Composition>`) to a {@link Scene}. */
-export function renderToScene(element: ReactElement): Scene {
+/** Render `element` (root must be `<Composition>`) at `frame` to a static
+ *  {@link Scene}. Components read the frame via {@link useCurrentFrame}. */
+export function renderFrame(element: ReactElement, frame: number): Scene {
+  const config = videoConfig(element)
   const container: RootContainer = { children: [] }
   const root = reconciler.createContainer(
     container,
@@ -23,18 +27,58 @@ export function renderToScene(element: ReactElement): Scene {
     },
     null,
   )
-  reconciler.updateContainer(element, root, null, null)
+  reconciler.updateContainer(
+    createElement(FrameContext.Provider, { value: { ...config, frame } }, element),
+    root,
+    null,
+    null,
+  )
 
   const top = container.children[0]
   if (container.children.length !== 1 || !top || top.type !== 'onda-composition') {
-    throw new Error('renderToScene: the root element must be a single <Composition>')
+    throw new Error('render: the root element must be a single <Composition>')
   }
-  return compositionToScene(top)
+  const scene = compositionToScene(top)
+  reconciler.updateContainer(null, root, null, null) // unmount, running effect cleanups
+  return scene
 }
 
-/** Render to a JSON string (ready for `onda render`/`onda export`). */
+/** Render the composition once, at frame 0. */
+export function renderToScene(element: ReactElement): Scene {
+  return renderFrame(element, 0)
+}
+
+/** Render every frame `0..durationInFrames` to static scenes. */
+export function renderFrames(element: ReactElement): Scene[] {
+  const { durationInFrames } = videoConfig(element)
+  const frames: Scene[] = []
+  for (let frame = 0; frame < durationInFrames; frame++) {
+    frames.push(renderFrame(element, frame))
+  }
+  return frames
+}
+
+/** Render frame 0 to a JSON string (for `onda render`). */
 export function renderToSceneJSON(element: ReactElement, space = 2): string {
   return JSON.stringify(renderToScene(element), null, space)
+}
+
+/** Render all frames to a JSON array of scenes (for `onda export-frames`). */
+export function renderFramesJSON(element: ReactElement, space = 0): string {
+  return JSON.stringify(renderFrames(element), null, space)
+}
+
+function videoConfig(element: ReactElement): VideoConfig {
+  if (element.type !== Composition) {
+    throw new Error('render: the root element must be a <Composition>')
+  }
+  const props = element.props as Record<string, unknown>
+  return {
+    width: numberProp(props, 'width', 'Composition'),
+    height: numberProp(props, 'height', 'Composition'),
+    fps: numberProp(props, 'fps', 'Composition'),
+    durationInFrames: numberProp(props, 'durationInFrames', 'Composition'),
+  }
 }
 
 function compositionToScene(node: HostNode): Scene {
