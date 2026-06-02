@@ -1,6 +1,6 @@
 //! `@onda/react` — write React, get an ONDA scene graph.
 
-export { parseColor, type ColorInput } from './color.js'
+export { parseColor, interpolateColors, type ColorInput } from './color.js'
 export {
   type ClipInput,
   clipEllipse,
@@ -41,6 +41,9 @@ export {
   type TextRunInput,
   type NodeProps,
 } from './components.js'
+// `Img` is an alias of `Image` for Remotion-migration compatibility (Remotion
+// names it `Img`). Prefer `Image` in new code.
+export { Image as Img } from './components.js'
 export {
   Easing,
   type EasingFn,

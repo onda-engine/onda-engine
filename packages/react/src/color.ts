@@ -1,3 +1,4 @@
+import { type InterpolateOptions, interpolate } from './interpolate.js'
 import type { Color } from './scene.js'
 
 /** A color as a hex string (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`) or an
@@ -25,4 +26,32 @@ export function parseColor(input: ColorInput): Color {
   const color: Color = { r: channel(0), g: channel(2), b: channel(4) }
   if (hex.length === 8) color.a = channel(6)
   return color
+}
+
+const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v)
+const toHex = (v: number): string =>
+  Math.round(clamp01(v) * 255)
+    .toString(16)
+    .padStart(2, '0')
+
+/**
+ * Interpolate between colors — like {@link interpolate}, but each output is a
+ * {@link ColorInput}. Channels are mixed in 0..1 sRGB and returned as a hex
+ * string (`#rrggbb`, or `#rrggbbaa` when any stop has alpha). Out-of-range
+ * inputs clamp by default. Mirrors Remotion's `interpolateColors`.
+ *
+ * @example `interpolateColors(frame, [0, 30], ['#d96b82', '#2974f2'])`
+ */
+export function interpolateColors(
+  input: number,
+  inputRange: readonly number[],
+  outputRange: readonly ColorInput[],
+  options: InterpolateOptions = {},
+): string {
+  const colors = outputRange.map(parseColor)
+  const mix = (sel: (c: Color) => number) =>
+    interpolate(input, inputRange, colors.map(sel), options)
+  const hasAlpha = colors.some((c) => c.a !== undefined && c.a < 1)
+  const rgb = `${toHex(mix((c) => c.r))}${toHex(mix((c) => c.g))}${toHex(mix((c) => c.b))}`
+  return `#${rgb}${hasAlpha ? toHex(mix((c) => c.a ?? 1)) : ''}`
 }

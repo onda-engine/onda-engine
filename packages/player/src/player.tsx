@@ -16,9 +16,11 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type ReactElement,
+  forwardRef,
   useCallback,
   useEffect,
   useId,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -71,6 +73,42 @@ export interface PlayerProps {
   label?: string
   /** Optional className on the root for app-level layout/overrides. */
   className?: string
+  /** Frame to start on. Default `0`. Clamped to the composition length. */
+  initialFrame?: number
+  /** Called whenever the current frame changes (scrub or playback). */
+  onFrameUpdate?: (frame: number) => void
+  /** Called when playback starts. */
+  onPlay?: () => void
+  /** Called when playback pauses (or stops at the end of a non-looping clip). */
+  onPause?: () => void
+}
+
+/**
+ * Imperative handle for `<Player>` (via `ref`) — drive playback from a host app
+ * such as an editor timeline.
+ *
+ * @example
+ * ```tsx
+ * const ref = useRef<PlayerHandle>(null)
+ * <Player ref={ref} composition={…} />
+ * ref.current?.seekTo(48)
+ * ```
+ */
+export interface PlayerHandle {
+  /** Seek to a frame (clamped). Does not change the play/pause state. */
+  seekTo(frame: number): void
+  /** Start playing (restarts from 0 if at the end of a non-looping clip). */
+  play(): void
+  /** Pause playback. */
+  pause(): void
+  /** Toggle play/pause. */
+  toggle(): void
+  /** The current frame. */
+  getCurrentFrame(): number
+  /** Total frames in the composition. */
+  getTotalFrames(): number
+  /** Whether playback is currently running. */
+  isPlaying(): boolean
 }
 
 /**
@@ -83,18 +121,25 @@ export interface PlayerProps {
  * <Player composition={<Composition …>…</Composition>} engine={ondaEngine} />
  * ```
  */
-export function Player({
-  composition,
-  autoPlay = true,
-  loop: initialLoop = true,
-  draw,
-  gpuEngine,
-  engine,
-  showStatus = true,
-  controls = 'auto',
-  label = 'ONDA composition player',
-  className,
-}: PlayerProps): ReactElement {
+export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
+  {
+    composition,
+    autoPlay = true,
+    loop: initialLoop = true,
+    draw,
+    gpuEngine,
+    engine,
+    showStatus = true,
+    controls = 'auto',
+    label = 'ONDA composition player',
+    className,
+    initialFrame = 0,
+    onFrameUpdate,
+    onPlay,
+    onPause,
+  }: PlayerProps,
+  ref,
+): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const uid = useId()
@@ -134,7 +179,9 @@ export function Player({
   const totalFrames = Math.max(1, config.duration_in_frames)
   const lastFrame = totalFrames - 1
 
-  const [frame, setFrame] = useState(0)
+  const [frame, setFrame] = useState(() =>
+    Math.min(lastFrame, Math.max(0, Math.floor(initialFrame))),
+  )
   const [playing, setPlaying] = useState(autoPlay)
   const [loop, setLoop] = useState(initialLoop)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -143,6 +190,17 @@ export function Player({
   // render so the async GPU loop can always pull the latest target.
   const targetRef = useRef({ composition, frame })
   targetRef.current = { composition, frame }
+
+  // Latest values for the imperative handle + event callbacks, read from refs so
+  // the handle/effects don't re-subscribe on every frame.
+  const liveRef = useRef({ frame, playing, loop, lastFrame, totalFrames })
+  liveRef.current = { frame, playing, loop, lastFrame, totalFrames }
+  const onFrameUpdateRef = useRef(onFrameUpdate)
+  onFrameUpdateRef.current = onFrameUpdate
+  const onPlayRef = useRef(onPlay)
+  onPlayRef.current = onPlay
+  const onPauseRef = useRef(onPause)
+  onPauseRef.current = onPause
 
   // Single-flight async GPU paint: render the latest target, dropping any
   // intermediate frames (the readback can't always keep up at 60fps). The busy
@@ -219,6 +277,17 @@ export function Player({
     if (!loop && frame >= lastFrame) setPlaying(false)
   }, [frame, lastFrame, loop])
 
+  // Emit frame/play/pause events for host apps (e.g. an editor syncing an
+  // overlay to the composition). Callbacks are read from refs so a changing
+  // callback identity doesn't re-subscribe these effects.
+  useEffect(() => {
+    onFrameUpdateRef.current?.(frame)
+  }, [frame])
+  useEffect(() => {
+    if (playing) onPlayRef.current?.()
+    else onPauseRef.current?.()
+  }, [playing])
+
   const togglePlay = useCallback(() => {
     setPlaying((p) => {
       // Restart from 0 if pressing play at the end of a non-looping clip.
@@ -233,6 +302,35 @@ export function Player({
       setFrame(Math.min(lastFrame, Math.max(0, next)))
     },
     [lastFrame],
+  )
+
+  // Programmatic seek (imperative handle): clamp + set, WITHOUT pausing — a host
+  // editor may scrub while playing. (The UI scrubber/keyboard use the pausing
+  // `seekTo` above.)
+  const goToFrame = useCallback(
+    (next: number) => {
+      setFrame(Math.min(lastFrame, Math.max(0, Math.floor(next))))
+    },
+    [lastFrame],
+  )
+
+  // Imperative API for host apps driving playback (e.g. an editor timeline).
+  useImperativeHandle(
+    ref,
+    () => ({
+      seekTo: goToFrame,
+      play: () => {
+        const { frame: f, loop: lp, lastFrame: lf } = liveRef.current
+        if (!lp && f >= lf) setFrame(0) // restart a finished non-looping clip
+        setPlaying(true)
+      },
+      pause: () => setPlaying(false),
+      toggle: togglePlay,
+      getCurrentFrame: () => liveRef.current.frame,
+      getTotalFrames: () => liveRef.current.totalFrames,
+      isPlaying: () => liveRef.current.playing,
+    }),
+    [goToFrame, togglePlay],
   )
 
   // Fullscreen the stage (canvas + controls). Uses the standard API with a
@@ -441,7 +539,7 @@ export function Player({
       </div>
     </div>
   )
-}
+})
 
 function PlayIcon(): ReactElement {
   return (
