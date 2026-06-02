@@ -69,7 +69,7 @@ export default function ThemeControls(): ReactElement {
             {p.name}
           </button>
         ))}
-        <button type="button" onClick={reset} style={{ ...styles.chip, ...styles.reset }}>
+        <button type="button" onClick={reset} style={styles.resetBtn}>
           Reset
         </button>
       </div>
@@ -148,7 +148,20 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   chipOn: { background: '#d96b82', border: '1px solid #d96b82', color: '#0e0e12', fontWeight: 600 },
-  reset: { color: '#8e8e98' },
+  // A text action, pushed to the far right of the preset row — not a preset chip.
+  resetBtn: {
+    marginLeft: 'auto',
+    appearance: 'none',
+    border: 0,
+    background: 'transparent',
+    color: '#8e8e98',
+    fontFamily: 'inherit',
+    fontSize: 13,
+    padding: '5px 4px',
+    cursor: 'pointer',
+    textDecoration: 'underline',
+    textUnderlineOffset: 3,
+  },
   swatch: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 },
   swatchLabel: {
     fontSize: 10,
