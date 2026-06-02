@@ -103,7 +103,6 @@ export function Marquee({
         {copies.map((copyOffset, copyIndex) =>
           placed.map(({ item, x }, i) => (
             <Text
-              // biome-ignore lint/suspicious/noArrayIndexKey: positional row, stable order
               key={`${copyIndex}-${i}`}
               x={copyOffset + x}
               y={textY}
