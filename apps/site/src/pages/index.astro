@@ -3,6 +3,7 @@
 // doc); the docs live under /guide, /api, etc. CTAs link into the docs. Brand
 // marks come from assets/brand (onda-studio): the rose-gradient wave (static in
 // nav/footer, animated in the hero). Styles are scoped to this component.
+import OndaPlayer from '../components/OndaPlayer.tsx'
 const REPO = 'https://github.com/degueba/onda-engine'
 const year = new Date().getFullYear()
 ---
@@ -300,6 +301,33 @@ const year = new Date().getFullYear()
           </div>
         </section>
 
+        <!-- ============ LIVE PLAYER ============ -->
+        <section class="section section--alt live" id="live" aria-labelledby="live-title">
+          <div class="container">
+            <header class="section__head live__head">
+              <p class="eyebrow">See it run</p>
+              <h2 id="live-title" class="section__title">A live composition, in your browser</h2>
+              <p class="section__lede">
+                Not a video — an <code>@onda/react</code> scene rendered live by the GPU engine
+                (Vello over WebGPU), the very same scene graph <code>onda export</code> writes to a
+                file. Press play, scrub, loop.
+              </p>
+              <button
+                class="btn btn--primary live__toggle"
+                type="button"
+                data-live-toggle
+                aria-expanded="false"
+                aria-controls="live-stage"
+              >
+                Show the live demo
+              </button>
+            </header>
+            <div class="live__stage" id="live-stage" data-live-stage hidden>
+              <OndaPlayer client:only="react" />
+            </div>
+          </div>
+        </section>
+
         <!-- ============ CTA STRIP ============ -->
         <section class="cta" aria-labelledby="cta-title">
           <div class="container cta__inner">
@@ -371,6 +399,20 @@ const year = new Date().getFullYear()
               }, 1600)
             })
             .catch(() => {})
+        })
+      }
+
+      // Live demo toggle: reveal the player on demand. The island is
+      // client:visible, so it only hydrates (and boots WebGPU) once shown.
+      const liveToggle = document.querySelector('[data-live-toggle]')
+      const liveStage = document.querySelector('[data-live-stage]')
+      if (liveToggle && liveStage) {
+        liveToggle.addEventListener('click', () => {
+          const show = liveStage.hasAttribute('hidden')
+          liveStage.toggleAttribute('hidden', !show)
+          liveToggle.setAttribute('aria-expanded', String(show))
+          liveToggle.textContent = show ? 'Hide the live demo' : 'Show the live demo'
+          if (show) liveStage.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
         })
       }
 
@@ -1165,6 +1207,19 @@ const year = new Date().getFullYear()
         margin-top: var(--s-4);
         color: var(--text-muted);
         font-size: var(--fs-sm);
+      }
+
+      /* ---------- live player ---------- */
+      .live__toggle {
+        margin-top: var(--s-8);
+      }
+      .live__stage {
+        margin-top: var(--s-12);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r-card);
+        padding: var(--s-6);
+        box-shadow: var(--elev-card);
       }
 
       .cta {

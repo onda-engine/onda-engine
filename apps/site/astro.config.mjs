@@ -1,3 +1,5 @@
+import mdx from '@astrojs/mdx'
+import react from '@astrojs/react'
 import starlight from '@astrojs/starlight'
 import { defineConfig } from 'astro/config'
 
@@ -97,6 +99,7 @@ export default defineConfig({
           label: 'Examples',
           items: [
             { label: 'Overview', link: '/examples/' },
+            { label: 'Live demo', link: '/examples/live', badge: 'new' },
             { label: 'Hello ONDA', link: '/examples/hello' },
             { label: 'Animated title', link: '/examples/animated' },
             { label: 'Vector (paths, gradients, clip)', link: '/examples/vector' },
@@ -105,5 +108,9 @@ export default defineConfig({
         },
       ],
     }),
+    // React islands — for live @onda/react + @onda/player demos (client-only).
+    react(),
+    // MDX — lets doc pages embed React islands (e.g. the live player demo).
+    mdx(),
   ],
 })
