@@ -9,5 +9,6 @@ export const Root = () => (
     fps={30}
     width={1920}
     height={1080}
+    defaultProps={{ repeats: 1 }}
   />
 )

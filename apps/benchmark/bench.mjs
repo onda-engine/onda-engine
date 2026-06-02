@@ -1,18 +1,19 @@
 // Time a real Remotion render of the equivalent 1080p composition on this
 // machine, for an apples-to-apples comparison with `onda-bench`.
-//   node bench.mjs
+//   node bench.mjs [repeats]      (repeats = number of scattered clusters; default 1)
 import { bundle } from '@remotion/bundler'
 import { renderMedia, selectComposition } from '@remotion/renderer'
 
-const fps = 30
+const repeats = Number(process.argv[2] ?? '1')
+const inputProps = { repeats }
 
-console.log('Remotion render benchmark — 1920x1080, 120 frames\n')
+console.log(`Remotion render benchmark — 1920x1080, ${repeats} clusters\n`)
 
 const bundleStart = Date.now()
 const serveUrl = await bundle({ entryPoint: new URL('src/index.ts', import.meta.url).pathname })
 console.log(`  bundle (cold-start): ${((Date.now() - bundleStart) / 1000).toFixed(2)}s`)
 
-const composition = await selectComposition({ serveUrl, id: 'Bench', inputProps: {} })
+const composition = await selectComposition({ serveUrl, id: 'Bench', inputProps })
 const frames = composition.durationInFrames
 
 async function bench(label, concurrency) {
@@ -23,7 +24,7 @@ async function bench(label, concurrency) {
     codec: 'h264',
     outputLocation: '/tmp/remotion-bench.mp4',
     concurrency,
-    inputProps: {},
+    inputProps,
   })
   const secs = (Date.now() - start) / 1000
   console.log(
