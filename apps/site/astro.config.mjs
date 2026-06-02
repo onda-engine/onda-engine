@@ -71,6 +71,7 @@ export default defineConfig({
             { label: 'Rendering & export', link: '/guide/rendering' },
             { label: 'Layout', link: '/guide/layout' },
             { label: 'Typography & fonts', link: '/guide/typography' },
+            { label: 'Theming & brand kit', link: '/guide/theming' },
             { label: 'Backends', link: '/guide/backends' },
             { label: 'SVG import', link: '/guide/svg' },
           ],

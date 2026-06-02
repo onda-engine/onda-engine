@@ -1,5 +1,7 @@
 import { defaultTheme } from '@onda/components'
 import type { CSSProperties, ReactElement } from 'react'
+import { CopyButton } from './CopyButton.js'
+import { themeSnippet } from './snippet.js'
 import { PRESETS, useThemeStore } from './theme-store.js'
 
 // The theme configurator for the gallery — set up a brand kit (colors + font)
@@ -54,6 +56,23 @@ export default function ThemeControls(): ReactElement {
   const palette = theme.palette ?? defaultTheme.palette
   const font = theme.fontFamily ?? ''
 
+  // The brand kit as copyable code — the configured overrides, or a starter set
+  // of the default tokens when nothing's been changed yet. This is the artifact
+  // ONDA Studio consumes: one kit in, on-brand compositions out.
+  const copyText = themeSnippet(
+    Object.keys(theme).length > 0
+      ? theme
+      : {
+          accent: defaultTheme.accent,
+          text: defaultTheme.text,
+          textMuted: defaultTheme.textMuted,
+          background: defaultTheme.background,
+          surface: defaultTheme.surface,
+          border: defaultTheme.border,
+          palette: defaultTheme.palette,
+        },
+  )
+
   return (
     <div style={styles.panel}>
       {/* Presets — a starting point you can then tweak. */}
@@ -69,9 +88,12 @@ export default function ThemeControls(): ReactElement {
             {p.name}
           </button>
         ))}
-        <button type="button" onClick={reset} style={styles.resetBtn}>
-          Reset
-        </button>
+        <div style={styles.rightActions}>
+          <CopyButton text={copyText} label="Copy theme" style={styles.copyTheme} />
+          <button type="button" onClick={reset} style={styles.linkAction}>
+            Reset
+          </button>
+        </div>
       </div>
 
       {/* Colors + palette + font. */}
@@ -148,9 +170,21 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   chipOn: { background: '#d96b82', border: '1px solid #d96b82', color: '#0e0e12', fontWeight: 600 },
-  // A text action, pushed to the far right of the preset row — not a preset chip.
-  resetBtn: {
-    marginLeft: 'auto',
+  // Text actions, pushed to the far right of the preset row — not preset chips.
+  rightActions: { marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 14 },
+  copyTheme: {
+    appearance: 'none',
+    border: 0,
+    background: 'transparent',
+    color: '#e89aac',
+    fontFamily: 'inherit',
+    fontSize: 13,
+    padding: '5px 4px',
+    cursor: 'pointer',
+    textDecoration: 'underline',
+    textUnderlineOffset: 3,
+  },
+  linkAction: {
     appearance: 'none',
     border: 0,
     background: 'transparent',
