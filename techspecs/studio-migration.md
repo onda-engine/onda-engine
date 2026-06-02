@@ -94,11 +94,11 @@ Done:
 - `@onda/react` transitions: `flip`/`clockWipe`/`iris`/`none` presentations
   (+ unit tests), completing the Remotion-standard set. `clockWipe` uses a
   polygon wedge (no arc dependency); `iris` an ellipse clip; `flip` a
-  centre-pivot scale — all render-proven (`shape_path` handles rect/ellipse/path).
+  centre-pivot scale. **Visually verified rendering in the real WebGPU/Vello
+  engine** (centred-circle reveal, angular sweep, centre-pivot collapse, hard
+  cut) via a throwaway probe page. Not yet a formal pixel-diff against Remotion's
+  own output (a stricter bar, if exactness matters).
 
 Next: the Node render bridge (#3) is the highest-value remaining unblock (the
 actual Chromium-removal payoff). The remaining transition customs (#4) and the
-audio path (#5) are self-contained parallel tracks. One caveat still open: the
-ported transitions are structure-tested + built from render-proven primitives,
-but not yet pixel-diffed against Remotion in a live composition (a transitions
-demo page would close that).
+audio path (#5) are self-contained parallel tracks.
