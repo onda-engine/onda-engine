@@ -25,7 +25,7 @@ Studio is migrated separately — this repo never modifies it.**
 | Surface | Studio usage | @onda status |
 | --- | --- | --- |
 | `remotion` core | ~269 import sites; top: useVideoConfig, useCurrentFrame, interpolate, AbsoluteFill, spring | ✅ ~70% covered by `@onda/react`; gaps: Audio/Video primitives, `interpolateColors` (now added), `registerRoot`/`getInputProps`/`staticFile` (bundler-only, N/A) |
-| `@remotion/transitions` | TransitionSeries + ~12 presentations; 18 vendored transitions | ⚠️ primitive + fade/slide/wipe covered; ~12 presentations are gaps |
+| `@remotion/transitions` | TransitionSeries + ~12 presentations; 18 vendored transitions | ✅ primitive + the full Remotion-standard set (fade/slide/wipe/flip/clockWipe/iris/none); ⚠️ ~9 Onda-original customs remain (some need the engine blur/blend pass) |
 | `@remotion/paths` / `shapes` / `media-utils` | evolvePath, shapes, getAudioData/visualizeAudio | ❌ paths→engine draw-on (stroke-dash) gap; shapes partial; audio-data gap |
 | `@remotion/player` | editor preview (scrub/controls/seek/ref) | ⚠️ `@onda/player` exists; needed imperative ref/events/initialFrame (now added) |
 | `@remotion/bundler` + `renderer` (backend) | bundle + renderMedia → MP4 (headless Chromium) | ❌ engine renders via CLI; needs a Node render bridge (progress + codec flags) |
@@ -51,9 +51,11 @@ Studio is migrated separately — this repo never modifies it.**
    `@remotion/player` for the editor preview surface. *(Done.)*
 3. **Node render bridge** *(large)* — `packages/cli-rs` (progress + flags) + a TS
    wrapper. Unblocks the backend export pipeline.
-4. **Transition catalog** *(medium)* — port the ~12 presentations as
-   `@onda/react` `TransitionPresentation`s (clip/transform ones now; blur/effect
-   ones after the Vello blur pass).
+4. **Transition catalog** *(medium)* — *(standard set done: `flip`/`clockWipe`/
+   `iris`/`none` added to fade/slide/wipe.)* Remaining: the ~9 Onda-original
+   customs — `push`/`zoom`/`dipToColor`/`depthPush`/`devicePullback` are
+   clip/transform (buildable now from Studio's source); `glassWipe`/`gridPixelate`/
+   `chromaticAberration`/`blur`/`morph` need the Vello blur/blend pass first.
 5. **Audio in the render graph** *(medium)* — `scene-rs` Audio node + `cli-rs`
    mux + `@onda/components` AudioClip export path.
 6. **Video decode** *(large)* — a `<Video>` decode path feeding the scene graph
@@ -84,12 +86,19 @@ Studio is migrated separately — this repo never modifies it.**
 
 ## Status
 
-Done (this pass):
+Done:
 - `@onda/react`: `interpolateColors` (+ unit tests); `Img` alias of `Image`.
 - `@onda/player`: imperative `ref` (`PlayerHandle`: seekTo/play/pause/toggle/
   getCurrentFrame/getTotalFrames/isPlaying) + `onFrameUpdate`/`onPlay`/`onPause`
   + `initialFrame`. The single-flight paint + re-entrancy guard are preserved.
+- `@onda/react` transitions: `flip`/`clockWipe`/`iris`/`none` presentations
+  (+ unit tests), completing the Remotion-standard set. `clockWipe` uses a
+  polygon wedge (no arc dependency); `iris` an ellipse clip; `flip` a
+  centre-pivot scale — all render-proven (`shape_path` handles rect/ellipse/path).
 
 Next: the Node render bridge (#3) is the highest-value remaining unblock (the
-actual Chromium-removal payoff), with the transition catalog (#4) as a
-self-contained parallel track.
+actual Chromium-removal payoff). The remaining transition customs (#4) and the
+audio path (#5) are self-contained parallel tracks. One caveat still open: the
+ported transitions are structure-tested + built from render-proven primitives,
+but not yet pixel-diffed against Remotion in a live composition (a transitions
+demo page would close that).
