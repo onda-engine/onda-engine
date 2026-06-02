@@ -1,0 +1,53 @@
+/* ONDA brand theming for Starlight — onda.video-aligned: neutral near-black
+   surfaces + a single muted-rose accent, brand type. Tunes Starlight's CSS
+   custom properties; see https://starlight.astro.build/guides/css-and-tailwind/ */
+
+:root {
+  /* Type — Space Grotesk (body), JetBrains Mono (code). Loaded in astro.config head. */
+  --sl-font: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --sl-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Dark theme (default brand surface) — rose accent + warm near-black. */
+:root,
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #3a1f27;
+  --sl-color-accent: #d96b82;
+  --sl-color-accent-high: #f0c2cc;
+  --sl-color-text-accent: #e89aab;
+
+  --sl-color-white: #f2f2f4;
+  --sl-color-gray-1: #e7e7ea;
+  --sl-color-gray-2: #c2c2c8;
+  --sl-color-gray-3: #8e8e98;
+  --sl-color-gray-4: #56565f;
+  --sl-color-gray-5: #2a2a30;
+  --sl-color-gray-6: #18181d;
+  --sl-color-black: #0e0e12;
+  --sl-color-bg: #0e0e12;
+  --sl-color-bg-nav: rgba(14, 14, 18, 0.85);
+  --sl-color-bg-sidebar: #0e0e12;
+  --sl-color-hairline: #26262c;
+  --sl-color-hairline-light: #26262c;
+}
+
+/* Light theme — keep the same rose so links/CTAs stay on-brand. */
+:root[data-theme='light'] {
+  --sl-color-accent-low: #f7dde3;
+  --sl-color-accent: #c8576f;
+  --sl-color-accent-high: #5e1f2b;
+  --sl-color-text-accent: #c8576f;
+}
+
+/* Headings in the display face, to match the landing. */
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+.content-panel h1,
+h1.hero-title,
+.sl-heading,
+site-title,
+.page-title {
+  font-family: 'Clash Display', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.015em;
+}

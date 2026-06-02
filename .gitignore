@@ -9,6 +9,9 @@ dist
 .turbo
 *.tsbuildinfo
 
+# Astro generated cache/types
+.astro
+
 # WASM build output
 pkg
 

@@ -1,0 +1,1216 @@
+---
+// ONDA home — the marketing landing. A standalone static page (not a Starlight
+// doc); the docs live under /guide, /api, etc. CTAs link into the docs. Brand
+// marks come from assets/brand (onda-studio): the rose-gradient wave (static in
+// nav/footer, animated in the hero). Styles are scoped to this component.
+const REPO = 'https://github.com/degueba/onda-engine'
+const year = new Date().getFullYear()
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ONDA — Motion graphics at GPU speed. No browser.</title>
+    <meta
+      name="description"
+      content="ONDA is an open-source, GPU-native, browser-free motion-graphics engine in Rust. Author in React, render through a native GPU pipeline — no Chromium anywhere."
+    />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0e0e12" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ONDA — Motion graphics at GPU speed. No browser." />
+    <meta
+      property="og:description"
+      content="Open-source, GPU-native, browser-free motion-graphics engine in Rust. Author in React; render through a native GPU pipeline."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="onda-landing">
+      <a class="skip-link" href="#main">Skip to content</a>
+
+      <!-- ============ STICKY NAV ============ -->
+      <header class="nav" id="site-nav">
+        <div class="container nav__inner">
+          <a class="brand" href="#top" aria-label="ONDA — home">
+            <img class="brand__mark-img" src="/onda-mark.svg" alt="" width="88" height="22" />
+            <span class="brand__word">ONDA</span>
+          </a>
+          <nav class="nav__links" aria-label="Primary">
+            <a href="#features">Features</a>
+            <a href="/guide/introduction">Docs</a>
+            <a href={REPO} rel="noopener">GitHub</a>
+          </nav>
+          <a class="btn btn--primary nav__cta" href="/guide/getting-started">Get started</a>
+        </div>
+      </header>
+
+      <main id="main">
+        <span id="top"></span>
+
+        <!-- ============ HERO ============ -->
+        <section class="hero" aria-labelledby="hero-title">
+          <div class="hero__bg" aria-hidden="true">
+            <div class="hero__wash"></div>
+          </div>
+          <div class="container hero__grid">
+            <div class="hero__copy">
+              <img
+                class="hero__mark"
+                src="/onda-mark-animated.svg"
+                alt="ONDA"
+                width="216"
+                height="54"
+              />
+              <p class="eyebrow">Open source · Rust · GPU-native</p>
+              <h1 id="hero-title" class="hero__title">
+                Motion graphics at <span class="accent-text">GPU speed</span>.<br />No browser.
+              </h1>
+              <p class="hero__sub">
+                ONDA is a programmatic motion-graphics engine written in Rust. Author
+                compositions in React, render them through a native GPU pipeline — with
+                <strong>zero Chromium</strong> anywhere in the loop.
+              </p>
+              <div class="hero__actions">
+                <a class="btn btn--primary" href="/guide/getting-started">Get started</a>
+                <a class="btn btn--ghost" href={REPO} rel="noopener">
+                  <svg class="btn__icon" width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+                  </svg>
+                  View on GitHub
+                </a>
+              </div>
+              <ul class="hero__chips" aria-label="At a glance">
+                <li>No DOM · No Chromium</li>
+                <li>Vello GPU renderer</li>
+                <li>MIT / Apache-2.0</li>
+              </ul>
+            </div>
+
+            <figure class="code-card hero__code" aria-label="ONDA composition written in React">
+              <figcaption class="code-card__bar">
+                <span class="code-card__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="code-card__file">Hello.tsx</span>
+                <button class="code-card__copy" type="button" data-copy="hero-code" aria-label="Copy code to clipboard">Copy</button>
+              </figcaption>
+              <pre class="code-card__pre"><code id="hero-code"><span class="tok-kw">import</span> &#123; Composition, Rect, Text, Path, linearGradient &#125; <span class="tok-kw">from</span> <span class="tok-str">'@onda/react'</span>
+
+<span class="tok-kw">export const</span> <span class="tok-fn">Hello</span> = () =&gt; (
+  &lt;<span class="tok-tag">Composition</span> <span class="tok-attr">width</span>=&#123;<span class="tok-num">1920</span>&#125; <span class="tok-attr">height</span>=&#123;<span class="tok-num">1080</span>&#125; <span class="tok-attr">fps</span>=&#123;<span class="tok-num">30</span>&#125; <span class="tok-attr">durationInFrames</span>=&#123;<span class="tok-num">90</span>&#125;&gt;
+    &lt;<span class="tok-tag">Rect</span> <span class="tok-attr">width</span>=&#123;<span class="tok-num">1920</span>&#125; <span class="tok-attr">height</span>=&#123;<span class="tok-num">1080</span>&#125; <span class="tok-attr">fill</span>=<span class="tok-str">"#0a0d17"</span> /&gt;
+    &lt;<span class="tok-tag">Rect</span> <span class="tok-attr">x</span>=&#123;<span class="tok-num">160</span>&#125; <span class="tok-attr">y</span>=&#123;<span class="tok-num">840</span>&#125; <span class="tok-attr">width</span>=&#123;<span class="tok-num">900</span>&#125; <span class="tok-attr">height</span>=&#123;<span class="tok-num">12</span>&#125; <span class="tok-attr">cornerRadius</span>=&#123;<span class="tok-num">6</span>&#125;
+      <span class="tok-attr">gradient</span>=&#123;<span class="tok-fn">linearGradient</span>([<span class="tok-num">0</span>, <span class="tok-num">0</span>], [<span class="tok-num">900</span>, <span class="tok-num">0</span>],
+        [&#123; offset: <span class="tok-num">0</span>, color: <span class="tok-str">'#3b82f6'</span> &#125;, &#123; offset: <span class="tok-num">1</span>, color: <span class="tok-str">'#f25a8c'</span> &#125;])&#125; /&gt;
+    &lt;<span class="tok-tag">Text</span> <span class="tok-attr">x</span>=&#123;<span class="tok-num">160</span>&#125; <span class="tok-attr">y</span>=&#123;<span class="tok-num">420</span>&#125; <span class="tok-attr">fontSize</span>=&#123;<span class="tok-num">140</span>&#125; <span class="tok-attr">color</span>=<span class="tok-str">"#fff"</span>&gt;GPU-native&lt;/<span class="tok-tag">Text</span>&gt;
+  &lt;/<span class="tok-tag">Composition</span>&gt;
+)</code></pre>
+            </figure>
+          </div>
+        </section>
+
+        <!-- ============ ARCHITECTURE CONTRAST ============ -->
+        <section class="section section--alt" id="architecture" aria-labelledby="arch-title">
+          <div class="container">
+            <header class="section__head">
+              <p class="eyebrow">Architecture</p>
+              <h2 id="arch-title" class="section__title">One less universe to render through</h2>
+              <p class="section__lede">
+                Remotion drives every frame through a headless browser. ONDA compiles your
+                scene to a graph and hands it straight to the GPU. Fewer hops, no DOM,
+                no screenshot pipeline.
+              </p>
+            </header>
+            <div class="arch">
+              <article class="arch__col arch__col--remotion">
+                <h3 class="arch__name">Remotion <span class="arch__tag arch__tag--muted">browser-based</span></h3>
+                <ol class="flow" aria-label="Remotion render pipeline">
+                  <li class="flow__node">React</li>
+                  <li class="flow__node flow__node--warn">DOM</li>
+                  <li class="flow__node flow__node--warn">Headless Chromium</li>
+                  <li class="flow__node flow__node--warn">Screenshot per frame</li>
+                  <li class="flow__node">Encode</li>
+                  <li class="flow__node flow__node--end">Video</li>
+                </ol>
+                <p class="arch__note">Browser, DOM, CSS layout and IPC overhead on every single frame.</p>
+              </article>
+              <div class="arch__vs" aria-hidden="true"><span>vs</span></div>
+              <article class="arch__col arch__col--onda">
+                <h3 class="arch__name">ONDA <span class="arch__tag arch__tag--brand">GPU-native</span></h3>
+                <ol class="flow" aria-label="ONDA render pipeline">
+                  <li class="flow__node">React</li>
+                  <li class="flow__node flow__node--ok">Scene graph</li>
+                  <li class="flow__node flow__node--ok">Native GPU renderer</li>
+                  <li class="flow__node flow__node--end">Frame &rarr; Video</li>
+                </ol>
+                <p class="arch__note">No browser anywhere. Deterministic, low-memory, high-concurrency per machine.</p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ WHY 100x ============ -->
+        <section class="section" id="why" aria-labelledby="why-title">
+          <div class="container">
+            <header class="section__head">
+              <p class="eyebrow">Why it's faster</p>
+              <h2 id="why-title" class="section__title">100× is the trajectory. Here are the measured numbers.</h2>
+              <p class="section__lede">
+                The advantage is <strong>architectural</strong>, not a single magic benchmark.
+                On a <em>trivial</em> scene — Remotion's best case — ONDA already pulls ahead.
+                The gap widens with scene complexity, GPU work, cold starts and memory pressure.
+              </p>
+            </header>
+            <div class="stats" role="list">
+              <div class="stat" role="listitem">
+                <p class="stat__num"><span class="accent-text">4.5×</span></p>
+                <p class="stat__label">faster per thread</p>
+                <p class="stat__sub">vs Remotion, single-thread render</p>
+              </div>
+              <div class="stat" role="listitem">
+                <p class="stat__num"><span class="accent-text">9.3×</span></p>
+                <p class="stat__label">machine throughput</p>
+                <p class="stat__sub">full-machine concurrency, same scene</p>
+              </div>
+              <div class="stat" role="listitem">
+                <p class="stat__num"><span class="accent-text">→ 100×</span></p>
+                <p class="stat__label">as complexity grows</p>
+                <p class="stat__sub">GPU · cold-start · memory headroom</p>
+              </div>
+            </div>
+            <p class="stats__foot">
+              Measured on Apple M4 Pro at 1080p against Remotion's fastest configuration.
+              No browser process to spawn, warm up, or feed frames to.
+            </p>
+          </div>
+        </section>
+
+        <!-- ============ FEATURES ============ -->
+        <section class="section section--alt" id="features" aria-labelledby="features-title">
+          <div class="container">
+            <header class="section__head">
+              <p class="eyebrow">What's inside</p>
+              <h2 id="features-title" class="section__title">A renderer-first engine, end to end</h2>
+              <p class="section__lede">
+                The renderer is the product; React, JSON and AI are all adapters onto one
+                universal scene graph.
+              </p>
+            </header>
+            <ul class="features" role="list">
+              <li class="card feature">
+                <span class="feature__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12c3-5 6-5 9 0s6 5 9 0"/><path d="M3 17c3-5 6-5 9 0s6 5 9 0"/></svg>
+                </span>
+                <h3 class="feature__title">GPU-native Vello renderer</h3>
+                <p class="feature__body">Anti-aliased fills and strokes, real rounded rects, arbitrary Bézier paths, linear/radial gradients, clip masks, and native per-glyph vector text.</p>
+              </li>
+              <li class="card feature">
+                <span class="feature__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 6-6 6 6 6"/><path d="m16 6 6 6-6 6"/></svg>
+                </span>
+                <h3 class="feature__title">Author in React / JSX</h3>
+                <p class="feature__body"><code>&lt;Composition&gt;</code>, <code>&lt;Rect&gt;</code>, <code>&lt;Path&gt;</code>, <code>&lt;Sequence&gt;</code>, <code>useCurrentFrame</code>, <code>interpolate</code>, <code>spring</code>. The Remotion DX you know, compiled to a scene graph.</p>
+              </li>
+              <li class="card feature">
+                <span class="feature__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="12" cy="20" r="2"/><path d="M7 6.5 10 10m4 0 3-3.5M12 15v3"/></svg>
+                </span>
+                <h3 class="feature__title">Universal scene graph</h3>
+                <p class="feature__body">React, JSON or an AI agent all emit the same graph. One runtime renders it — the renderer is the platform, not any single front end.</p>
+              </li>
+              <li class="card feature">
+                <span class="feature__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h10l6 6v10H4z"/><path d="M9 13c2-3 4-3 6 0"/></svg>
+                </span>
+                <h3 class="feature__title">SVG import</h3>
+                <p class="feature__body"><code>&lt;Svg src=… | markup=…&gt;</code> expands logos and icons into native vector nodes — animate them like any other primitive.</p>
+              </li>
+              <li class="card feature">
+                <span class="feature__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><circle cx="7" cy="6.5" r=".6" fill="currentColor"/></svg>
+                </span>
+                <h3 class="feature__title">CPU + GPU backends</h3>
+                <p class="feature__body"><code>--backend auto|vello|cpu</code>. A CPU reference rasterizer produces bit-identical, deterministic output for CI and golden-image tests.</p>
+              </li>
+              <li class="card feature">
+                <span class="feature__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m23 7-7 5 7 5z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                </span>
+                <h3 class="feature__title">Export PNG / GIF / MP4</h3>
+                <p class="feature__body">Drive everything from the <code>onda</code> CLI: <code>render</code>, <code>export</code>, <code>export-frames</code>. Scale across cores and GPU workers.</p>
+              </li>
+            </ul>
+            <div class="features__note">
+              <p>Built on a Rust workspace, fully open source under <strong>MIT OR Apache-2.0</strong>. <a href="/guide/introduction">Read the docs →</a></p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ FROM JSX TO VIDEO ============ -->
+        <section class="section" id="story" aria-labelledby="story-title">
+          <div class="container">
+            <header class="section__head">
+              <p class="eyebrow">The flow</p>
+              <h2 id="story-title" class="section__title">From JSX to video</h2>
+              <p class="section__lede">Write a composition, point the CLI at it, get a frame or a movie. No browser to install or babysit.</p>
+            </header>
+            <div class="story">
+              <figure class="code-card" aria-label="Render commands using the onda CLI">
+                <figcaption class="code-card__bar">
+                  <span class="code-card__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                  <span class="code-card__file">terminal</span>
+                  <button class="code-card__copy" type="button" data-copy="cli-code" aria-label="Copy commands to clipboard">Copy</button>
+                </figcaption>
+                <pre class="code-card__pre"><code id="cli-code"><span class="tok-comment"># render through the GPU (Vello) backend — no browser involved</span>
+<span class="tok-fn">onda</span> render scene.json out.png
+<span class="tok-fn">onda</span> export movie.json out.mp4 <span class="tok-attr">--backend</span> vello</code></pre>
+              </figure>
+              <div class="story__arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+              </div>
+              <figure class="story__result" aria-label="Rendered frame preview">
+                <div class="preview" role="img" aria-label="A rendered 1920×1080 frame: the words ‘GPU-native’ over a near-black background with a rose underline bar.">
+                  <span class="preview__badge">1920 × 1080 · MP4</span>
+                  <span class="preview__text">GPU-native</span>
+                  <span class="preview__bar"></span>
+                </div>
+                <figcaption class="story__caption">Same scene, deterministic output — rendered straight from the scene graph.</figcaption>
+              </figure>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ CTA STRIP ============ -->
+        <section class="cta" aria-labelledby="cta-title">
+          <div class="container cta__inner">
+            <h2 id="cta-title" class="cta__title">Render your first frame without a browser</h2>
+            <p class="cta__sub">Clone the repo, write a composition, ship a video. It's all open source.</p>
+            <a class="btn btn--primary btn--lg" href="/guide/getting-started">Get started</a>
+          </div>
+        </section>
+      </main>
+
+      <!-- ============ FOOTER ============ -->
+      <footer class="footer">
+        <div class="container footer__inner">
+          <div class="footer__brand">
+            <a class="brand" href="#top" aria-label="ONDA — home">
+              <img class="brand__mark-img" src="/onda-mark.svg" alt="" width="80" height="20" />
+              <span class="brand__word">ONDA</span>
+            </a>
+            <p class="footer__tag">The rendering foundation for the next decade of motion graphics.</p>
+          </div>
+          <nav class="footer__nav" aria-label="Footer">
+            <h3 class="footer__col-title">Project</h3>
+            <a href="#features">Features</a>
+            <a href="#architecture">Architecture</a>
+            <a href="/guide/introduction">Docs</a>
+          </nav>
+          <nav class="footer__nav" aria-label="Resources">
+            <h3 class="footer__col-title">Resources</h3>
+            <a href={REPO} rel="noopener">GitHub repository</a>
+            <a href="/guide/getting-started">Getting started</a>
+            <a href={`${REPO}/blob/main/LICENSE`} rel="noopener">License</a>
+          </nav>
+        </div>
+        <div class="container footer__bottom">
+          <p>© {year} ONDA. Open source under <strong>MIT OR Apache-2.0</strong>.</p>
+          <a href={REPO} rel="noopener">github.com/degueba/onda-engine</a>
+        </div>
+      </footer>
+    </div>
+
+    <script>
+      // Sticky-nav shadow, scroll-reveal (reduced-motion aware), copy buttons.
+      const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+      const nav = document.getElementById('site-nav')
+      if (nav) {
+        const onScroll = () => nav.classList.toggle('is-scrolled', window.scrollY > 8)
+        onScroll()
+        window.addEventListener('scroll', onScroll, { passive: true })
+      }
+
+      const targets = Array.from(
+        document.querySelectorAll(
+          '.section__head, .arch__col, .arch__vs, .stat, .feature, .story > *, .cta__inner, .hero__code',
+        ),
+      )
+      for (const el of targets) el.classList.add('reveal')
+      if (prefersReduced || !('IntersectionObserver' in window)) {
+        for (const el of targets) el.classList.add('is-visible')
+      } else {
+        const io = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (entry.isIntersecting) {
+                entry.target.classList.add('is-visible')
+                io.unobserve(entry.target)
+              }
+            }
+          },
+          { rootMargin: '0px 0px -10% 0px', threshold: 0.12 },
+        )
+        for (const el of targets) io.observe(el)
+      }
+
+      for (const btn of Array.from(document.querySelectorAll('.code-card__copy'))) {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-copy')
+          const target = id ? document.getElementById(id) : null
+          if (!target) return
+          const reset = (label) => {
+            btn.textContent = 'Copied'
+            btn.classList.add('is-copied')
+            window.setTimeout(() => {
+              btn.textContent = label
+              btn.classList.remove('is-copied')
+            }, 1600)
+          }
+          navigator.clipboard?.writeText(target.innerText).then(() => reset('Copy')).catch(() => {})
+        })
+      }
+    </script>
+
+    <style>
+      /* Scoped to this page (Astro) — cannot affect the Starlight docs. Tokens
+         from assets/brand/BRAND.md. Fonts loaded in <head> above. */
+      .onda-landing {
+        --bg: #0e0e12;
+        --bg-deep: #08080a;
+        --surface: #121217;
+        --surface-2: #18181d;
+        --border: #26262c;
+        --text: #f2f2f4;
+        --text-muted: #8e8e98;
+        --text-dim: #56565f;
+        --accent: #d96b82;
+        --accent-600: #c8576f;
+        --accent-soft: rgba(217, 107, 130, 0.12);
+        --on-accent: #0e0e12;
+        --font-head: 'Clash Display', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+        --font-body: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+        --font-code: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+        --fs-sm: 0.875rem;
+        --fs-base: 1rem;
+        --fs-md: 1.125rem;
+        --fs-lg: 1.25rem;
+        --fs-xl: 1.5rem;
+        --fs-2xl: 2rem;
+        --fs-3xl: 3rem;
+        --fs-4xl: 4rem;
+        --fs-5xl: 5.5rem;
+        --s-1: 4px;
+        --s-2: 8px;
+        --s-3: 12px;
+        --s-4: 16px;
+        --s-6: 24px;
+        --s-8: 32px;
+        --s-12: 48px;
+        --s-16: 64px;
+        --s-20: 80px;
+        --s-24: 96px;
+        --s-32: 128px;
+        --r-control: 8px;
+        --r-card: 14px;
+        --r-pill: 999px;
+        --elev-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 10px 34px rgba(0, 0, 0, 0.45);
+        --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+        --dur: 200ms;
+        --maxw: 1200px;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font-body);
+        font-size: var(--fs-base);
+        line-height: 1.6;
+        min-height: 100vh;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        overflow-x: hidden;
+      }
+      .onda-landing *,
+      .onda-landing *::before,
+      .onda-landing *::after {
+        box-sizing: border-box;
+      }
+      .onda-landing img,
+      .onda-landing svg {
+        display: block;
+        max-width: 100%;
+      }
+      .onda-landing h1,
+      .onda-landing h2,
+      .onda-landing h3 {
+        font-family: var(--font-head);
+        line-height: 1.02;
+        margin: 0;
+        letter-spacing: -0.015em;
+        font-weight: 600;
+      }
+      .onda-landing p {
+        margin: 0;
+      }
+      .onda-landing a {
+        color: var(--accent);
+        text-decoration: none;
+        transition: color var(--dur) var(--ease);
+      }
+      .onda-landing a:hover {
+        color: var(--accent-600);
+      }
+      .onda-landing code {
+        font-family: var(--font-code);
+        font-size: 0.92em;
+      }
+      .onda-landing strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .onda-landing em {
+        font-style: italic;
+        color: var(--text);
+      }
+      .onda-landing :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+
+      .skip-link {
+        position: absolute;
+        left: var(--s-4);
+        top: -120%;
+        z-index: 200;
+        background: var(--accent);
+        color: var(--on-accent);
+        padding: var(--s-3) var(--s-4);
+        border-radius: var(--r-control);
+        font-weight: 600;
+        transition: top var(--dur) var(--ease);
+      }
+      .skip-link:focus {
+        top: var(--s-4);
+        color: var(--on-accent);
+      }
+
+      .container {
+        width: 100%;
+        max-width: var(--maxw);
+        margin-inline: auto;
+        padding-inline: var(--s-6);
+      }
+      .section {
+        padding-block: var(--s-32);
+      }
+      .section--alt {
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+      }
+      .section__head {
+        max-width: 60ch;
+        margin-bottom: var(--s-16);
+      }
+      .section__title {
+        font-size: var(--fs-3xl);
+        font-weight: 600;
+        margin-bottom: var(--s-6);
+      }
+      .section__lede {
+        font-size: var(--fs-md);
+        color: var(--text-muted);
+      }
+      .eyebrow {
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        margin-bottom: var(--s-6);
+      }
+      .accent-text {
+        color: var(--accent);
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--s-2);
+        min-height: 44px;
+        padding: 0 var(--s-6);
+        border-radius: var(--r-control);
+        font-family: var(--font-body);
+        font-weight: 600;
+        font-size: var(--fs-base);
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease),
+          transform var(--dur) var(--ease), color var(--dur) var(--ease);
+        white-space: nowrap;
+      }
+      .btn:active {
+        transform: translateY(1px);
+      }
+      .btn--primary {
+        background: var(--accent);
+        color: var(--on-accent);
+      }
+      .btn--primary:hover {
+        background: var(--accent-600);
+        color: var(--on-accent);
+      }
+      .btn--ghost {
+        background: transparent;
+        color: var(--text);
+        border-color: var(--border);
+      }
+      .btn--ghost:hover {
+        background: var(--surface-2);
+        color: var(--text);
+        border-color: #34343c;
+      }
+      .btn--lg {
+        min-height: 52px;
+        padding: 0 var(--s-8);
+        font-size: var(--fs-md);
+      }
+      .btn__icon {
+        flex: none;
+      }
+
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: rgba(14, 14, 18, 0.72);
+        backdrop-filter: saturate(120%) blur(12px);
+        -webkit-backdrop-filter: saturate(120%) blur(12px);
+        border-bottom: 1px solid transparent;
+        transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+      }
+      .nav.is-scrolled {
+        border-bottom-color: var(--border);
+        background: rgba(14, 14, 18, 0.9);
+      }
+      .nav__inner {
+        display: flex;
+        align-items: center;
+        gap: var(--s-6);
+        min-height: 64px;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--s-3);
+        color: var(--text);
+        font-family: var(--font-head);
+      }
+      .brand:hover {
+        color: var(--text);
+      }
+      .brand__mark-img {
+        height: 22px;
+        width: auto;
+      }
+      .brand__word {
+        font-weight: 700;
+        font-size: var(--fs-lg);
+        letter-spacing: 0.02em;
+      }
+      .nav__links {
+        display: flex;
+        gap: var(--s-6);
+        margin-left: auto;
+      }
+      .nav__links a {
+        color: var(--text-muted);
+        font-weight: 500;
+        padding: var(--s-2) 0;
+      }
+      .nav__links a:hover {
+        color: var(--text);
+      }
+      .nav__cta {
+        margin-left: var(--s-2);
+      }
+
+      .hero {
+        position: relative;
+        padding-block: var(--s-32) var(--s-32);
+        overflow: hidden;
+      }
+      .hero__bg {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+      }
+      .hero__wash {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(60% 70% at 88% 0%, var(--accent-soft), transparent 60%);
+      }
+      .hero__grid {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: 1.05fr 1fr;
+        gap: var(--s-16);
+        align-items: center;
+      }
+      .hero__mark {
+        height: 54px;
+        width: auto;
+        margin-bottom: var(--s-6);
+      }
+      .hero__title {
+        font-size: clamp(3rem, 7.5vw, var(--fs-5xl));
+        font-weight: 700;
+        line-height: 0.98;
+        letter-spacing: -0.025em;
+        margin-bottom: var(--s-8);
+      }
+      .hero__sub {
+        font-size: var(--fs-lg);
+        color: var(--text-muted);
+        max-width: 52ch;
+        margin-bottom: var(--s-8);
+      }
+      .hero__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--s-4);
+        margin-bottom: var(--s-8);
+      }
+      .hero__chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--s-2);
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .hero__chips li {
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        color: var(--text-muted);
+        border: 1px solid var(--border);
+        border-radius: var(--r-pill);
+        padding: var(--s-2) var(--s-4);
+      }
+
+      .code-card {
+        margin: 0;
+        background: var(--bg-deep);
+        border: 1px solid var(--border);
+        border-radius: var(--r-card);
+        box-shadow: var(--elev-card);
+        overflow: hidden;
+      }
+      .code-card__bar {
+        display: flex;
+        align-items: center;
+        gap: var(--s-3);
+        padding: var(--s-3) var(--s-4);
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+      }
+      .code-card__dots {
+        display: inline-flex;
+        gap: 6px;
+      }
+      .code-card__dots i {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+      }
+      .code-card__file {
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        color: var(--text-muted);
+      }
+      .code-card__copy {
+        margin-left: auto;
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        padding: var(--s-1) var(--s-3);
+        border-radius: var(--r-control);
+        min-height: 32px;
+        cursor: pointer;
+        transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease),
+          background var(--dur) var(--ease);
+      }
+      .code-card__copy:hover {
+        color: var(--text);
+        border-color: #34343c;
+        background: var(--surface-2);
+      }
+      .code-card__copy.is-copied {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+      .code-card__pre {
+        margin: 0;
+        padding: var(--s-6);
+        overflow-x: auto;
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        line-height: 1.7;
+        tab-size: 2;
+      }
+      .code-card__pre code {
+        color: var(--text);
+        white-space: pre;
+        font-family: var(--font-code);
+      }
+      .tok-kw {
+        color: var(--accent);
+      }
+      .tok-tag {
+        color: var(--text);
+        font-weight: 500;
+      }
+      .tok-attr {
+        color: var(--text-muted);
+      }
+      .tok-str {
+        color: #b8b8c0;
+      }
+      .tok-num {
+        color: var(--text);
+      }
+      .tok-fn {
+        color: var(--accent);
+      }
+      .tok-comment {
+        color: var(--text-dim);
+        font-style: italic;
+      }
+
+      .arch {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: var(--s-12);
+        align-items: stretch;
+      }
+      .arch__col {
+        border: 1px solid var(--border);
+        border-radius: var(--r-card);
+        padding: var(--s-8);
+      }
+      .arch__col--onda {
+        border-color: rgba(217, 107, 130, 0.45);
+      }
+      .arch__name {
+        font-size: var(--fs-xl);
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: var(--s-3);
+        margin-bottom: var(--s-8);
+      }
+      .arch__tag {
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        font-weight: 500;
+        padding: 2px var(--s-3);
+        border-radius: var(--r-pill);
+      }
+      .arch__tag--muted {
+        color: var(--text-muted);
+        border: 1px solid var(--border);
+      }
+      .arch__tag--brand {
+        background: var(--accent-soft);
+        color: var(--accent);
+        border: 1px solid rgba(217, 107, 130, 0.4);
+      }
+      .flow {
+        list-style: none;
+        margin: 0 0 var(--s-6);
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: var(--s-3);
+      }
+      .flow__node {
+        position: relative;
+        border: 1px solid var(--border);
+        border-radius: var(--r-control);
+        padding: var(--s-3) var(--s-4);
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        color: var(--text-muted);
+      }
+      .flow__node + .flow__node::before {
+        content: '';
+        position: absolute;
+        top: calc(-1 * var(--s-3) - 1px);
+        left: 50%;
+        width: 1px;
+        height: var(--s-3);
+        background: var(--border);
+      }
+      .flow__node--warn {
+        color: var(--text-dim);
+        border-style: dashed;
+      }
+      .flow__node--ok {
+        color: var(--text);
+      }
+      .flow__node--end {
+        background: var(--accent-soft);
+        border-color: rgba(217, 107, 130, 0.4);
+        color: var(--text);
+        font-weight: 600;
+      }
+      .arch__note {
+        color: var(--text-muted);
+        font-size: var(--fs-sm);
+      }
+      .arch__vs {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .arch__vs span {
+        font-family: var(--font-code);
+        font-weight: 500;
+        font-size: var(--fs-sm);
+        color: var(--text-dim);
+        border: 1px solid var(--border);
+        border-radius: var(--r-pill);
+        width: 44px;
+        height: 44px;
+        display: grid;
+        place-items: center;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0;
+        border-top: 1px solid var(--border);
+      }
+      .stat {
+        padding: var(--s-12) var(--s-8) var(--s-8);
+        border-bottom: 1px solid var(--border);
+        border-right: 1px solid var(--border);
+      }
+      .stat:first-child {
+        border-left: 1px solid var(--border);
+      }
+      .stat__num {
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: var(--fs-4xl);
+        line-height: 1;
+        letter-spacing: -0.02em;
+        margin-bottom: var(--s-4);
+      }
+      .stat__label {
+        font-size: var(--fs-md);
+        font-weight: 600;
+        margin-bottom: var(--s-1);
+      }
+      .stat__sub {
+        color: var(--text-muted);
+        font-size: var(--fs-sm);
+      }
+      .stats__foot {
+        margin-top: var(--s-8);
+        color: var(--text-muted);
+        font-size: var(--fs-sm);
+        max-width: 70ch;
+      }
+
+      .features {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--s-8) var(--s-12);
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .feature {
+        padding-top: var(--s-8);
+        border-top: 1px solid var(--border);
+        transition: border-color var(--dur) var(--ease);
+      }
+      .feature:hover {
+        border-top-color: var(--accent);
+      }
+      .feature__icon {
+        display: inline-grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border-radius: var(--r-control);
+        border: 1px solid var(--border);
+        color: var(--accent);
+        margin-bottom: var(--s-6);
+      }
+      .feature__title {
+        font-size: var(--fs-lg);
+        font-weight: 600;
+        margin-bottom: var(--s-3);
+      }
+      .feature__body {
+        color: var(--text-muted);
+      }
+      .feature__body code {
+        color: var(--text);
+        background: var(--surface-2);
+        padding: 1px 5px;
+        border-radius: 5px;
+      }
+      .features__note {
+        margin-top: var(--s-16);
+        text-align: center;
+        color: var(--text-muted);
+      }
+
+      .story {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: var(--s-12);
+        align-items: center;
+      }
+      .story__arrow {
+        display: grid;
+        place-items: center;
+        color: var(--text-dim);
+      }
+      .story__result {
+        margin: 0;
+      }
+      .preview {
+        position: relative;
+        aspect-ratio: 16 / 9;
+        width: 100%;
+        border-radius: var(--r-card);
+        border: 1px solid var(--border);
+        background: var(--bg-deep);
+        overflow: hidden;
+        display: grid;
+        place-content: center;
+        box-shadow: var(--elev-card);
+      }
+      .preview__badge {
+        position: absolute;
+        top: var(--s-3);
+        right: var(--s-3);
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        color: var(--text-muted);
+        background: rgba(8, 8, 10, 0.7);
+        border: 1px solid var(--border);
+        border-radius: var(--r-pill);
+        padding: 2px var(--s-3);
+      }
+      .preview__text {
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: clamp(2rem, 6vw, 3.4rem);
+        letter-spacing: -0.02em;
+        color: var(--text);
+      }
+      .preview__bar {
+        position: absolute;
+        left: 12%;
+        right: 12%;
+        bottom: 16%;
+        height: 6px;
+        border-radius: var(--r-pill);
+        background: var(--accent);
+      }
+      .story__caption {
+        margin-top: var(--s-4);
+        color: var(--text-muted);
+        font-size: var(--fs-sm);
+      }
+
+      .cta {
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        padding-block: var(--s-32);
+      }
+      .cta__inner {
+        text-align: center;
+        max-width: 60ch;
+        margin-inline: auto;
+      }
+      .cta__title {
+        font-size: var(--fs-3xl);
+        font-weight: 600;
+        margin-bottom: var(--s-6);
+      }
+      .cta__sub {
+        color: var(--text-muted);
+        font-size: var(--fs-md);
+        margin-bottom: var(--s-8);
+      }
+
+      .footer {
+        padding-top: var(--s-20);
+      }
+      .footer__inner {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr;
+        gap: var(--s-8);
+        padding-bottom: var(--s-16);
+      }
+      .footer__tag {
+        color: var(--text-muted);
+        margin-top: var(--s-4);
+        max-width: 38ch;
+      }
+      .footer__nav {
+        display: flex;
+        flex-direction: column;
+        gap: var(--s-3);
+      }
+      .footer__col-title {
+        font-family: var(--font-head);
+        font-size: var(--fs-base);
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: var(--s-1);
+      }
+      .footer__nav a {
+        color: var(--text-muted);
+        font-weight: 500;
+      }
+      .footer__nav a:hover {
+        color: var(--text);
+      }
+      .footer__bottom {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--s-4);
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid var(--border);
+        padding-block: var(--s-6) var(--s-12);
+        color: var(--text-muted);
+        font-size: var(--fs-sm);
+      }
+      .footer__bottom a {
+        color: var(--text-muted);
+        font-family: var(--font-code);
+      }
+      .footer__bottom a:hover {
+        color: var(--accent);
+      }
+
+      .reveal {
+        opacity: 0;
+        transform: translateY(16px);
+        transition: opacity 500ms var(--ease), transform 500ms var(--ease);
+        will-change: opacity, transform;
+      }
+      .reveal.is-visible {
+        opacity: 1;
+        transform: none;
+      }
+
+      @media (max-width: 1024px) {
+        .hero__grid {
+          grid-template-columns: 1fr;
+          gap: var(--s-12);
+        }
+        .features {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .footer__inner {
+          grid-template-columns: 1fr 1fr;
+        }
+        .footer__brand {
+          grid-column: 1 / -1;
+        }
+      }
+      @media (max-width: 768px) {
+        .section {
+          padding-block: var(--s-20);
+        }
+        .hero {
+          padding-block: var(--s-20);
+        }
+        .section__title,
+        .cta__title {
+          font-size: var(--fs-2xl);
+        }
+        .arch {
+          grid-template-columns: 1fr;
+          gap: var(--s-8);
+        }
+        .arch__vs {
+          padding: var(--s-2) 0;
+        }
+        .stats {
+          grid-template-columns: 1fr;
+          border: 1px solid var(--border);
+          border-bottom: 0;
+        }
+        .stat {
+          border-right: 0;
+          border-left: 0;
+        }
+        .stat:first-child {
+          border-left: 0;
+        }
+        .story {
+          grid-template-columns: 1fr;
+          gap: var(--s-8);
+        }
+        .story__arrow {
+          transform: rotate(90deg);
+        }
+        .nav__links {
+          display: none;
+        }
+      }
+      @media (max-width: 480px) {
+        .container {
+          padding-inline: var(--s-4);
+        }
+        .features {
+          grid-template-columns: 1fr;
+        }
+        .footer__inner {
+          grid-template-columns: 1fr;
+        }
+        .nav__cta {
+          padding: 0 var(--s-4);
+        }
+        .code-card__pre {
+          font-size: 0.8rem;
+          padding: var(--s-4);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .reveal {
+          opacity: 1;
+          transform: none;
+          transition: none;
+        }
+      }
+    </style>
+  </body>
+</html>
