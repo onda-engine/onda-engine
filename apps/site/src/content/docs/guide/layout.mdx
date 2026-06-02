@@ -3,9 +3,15 @@ title: Layout
 description: Position content with flexbox-style layout instead of absolute coordinates.
 ---
 
+import OndaDemo from '../../../components/OndaDemo.tsx'
+
 By default every node is placed by absolute `x`/`y`. That's precise, but tedious for the common cases — centering a title, stacking cards, spacing a row of logos. ONDA has a small **flexbox-style layout** system for exactly those.
 
 A layout is resolved by a pre-pass (`onda-layout`) that measures each container's children and writes their absolute positions, so the renderers stay layout-agnostic. It runs on both the export path **and** in the browser, so a laid-out preview matches the rendered file.
+
+Try it — change `direction` / `justify` / `align` and watch a `<Flex>` re-lay-out, rendered live by the engine in your browser:
+
+<OndaDemo demo="layout" client:only="react" />
 
 ## `<AbsoluteFill>` — center / full-bleed
 
