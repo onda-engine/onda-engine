@@ -16,6 +16,7 @@ members = [
     "packages/vello-rs",
     "packages/svg-rs",
     "packages/image-rs",
+    "packages/layout-rs",
     "packages/audio-rs",
 ]
 
@@ -38,6 +39,7 @@ onda-animation = { path = "packages/animation-rs", version = "0.0.0" }
 onda-vello = { path = "packages/vello-rs", version = "0.0.0" }
 onda-svg = { path = "packages/svg-rs", version = "0.0.0" }
 onda-image = { path = "packages/image-rs", version = "0.0.0" }
+onda-layout = { path = "packages/layout-rs", version = "0.0.0" }
 onda-audio = { path = "packages/audio-rs", version = "0.0.0" }
 
 serde = { version = "1", features = ["derive"] }

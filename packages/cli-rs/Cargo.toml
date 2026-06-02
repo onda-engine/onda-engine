@@ -14,12 +14,15 @@ name = "onda"
 path = "src/main.rs"
 
 [dependencies]
+onda-core = { workspace = true }
 onda-scene = { workspace = true }
 onda-animation = { workspace = true }
 onda-renderer = { workspace = true, features = ["png", "gif", "parallel"] }
 onda-vello = { workspace = true }
 onda-svg = { workspace = true }
 onda-image = { workspace = true }
+onda-layout = { workspace = true }
+onda-typography = { workspace = true }
 onda-audio = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
