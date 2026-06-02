@@ -205,13 +205,13 @@ export default function OndaShowcase(): ReactElement {
     ;(async () => {
       try {
         const { default: initVello, VelloEngine } = await import('@onda/wasm-vello')
-        await initVello(velloWasmUrl)
+        await initVello({ module_or_path: velloWasmUrl })
         const engine = await VelloEngine.create()
         if (!cancelled) setGpu(engine)
       } catch {
         // No WebGPU here — fall back to the CPU engine (gradients render flat).
         const { default: initCpu, OndaEngine } = await import('@onda/wasm')
-        await initCpu(cpuWasmUrl)
+        await initCpu({ module_or_path: cpuWasmUrl })
         const engine = new OndaEngine()
         if (!cancelled) setCpu(engine)
       }

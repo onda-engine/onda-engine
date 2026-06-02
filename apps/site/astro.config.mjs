@@ -14,6 +14,9 @@ export default defineConfig({
   // Pin dev/preview to one port so `pnpm dev` is always http://localhost:4330
   // (no auto-incrementing to a new port every run).
   server: { port: 4330 },
+  // The dev-toolbar overlay is dev-only noise here (and its lazy entrypoint
+  // throws a transient Vite "504 Outdated Optimize Dep" on first load); off.
+  devToolbar: { enabled: false },
   integrations: [
     starlight({
       title: 'ONDA',
