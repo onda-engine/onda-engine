@@ -2,6 +2,8 @@
 title: "Timeline: <Sequence>, <Series>, <Loop>"
 ---
 
+import OndaDemo from '../../../components/OndaDemo.tsx'
+
 These time-shifting primitives are how you assemble a timeline — Remotion's compositional grammar. They work by manipulating the **frame context**: children inside them see a shifted `useCurrentFrame()`, and render only within their window.
 
 ## `<Sequence>`
@@ -96,6 +98,10 @@ function Pulse() {
 ## `<TransitionSeries>`
 
 Like `<Series>`, but consecutive sequences **overlap** by a transition's duration — cross-fading (or sliding/wiping) from one to the next. Children alternate `<TransitionSeries.Sequence durationInFrames={…}>` and `<TransitionSeries.Transition presentation={…} timing={…} />`.
+
+Switch the presentation and watch it run (rendered live by the engine):
+
+<OndaDemo demo="transitions" client:only="react" />
 
 ```tsx
 import {
