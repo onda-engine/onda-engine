@@ -26,7 +26,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { CopyButton } from './CopyButton.js'
+import { CodeBlock } from './CodeBlock.js'
 
 // The transitions showcase — every @onda/react TransitionSeries presentation,
 // played A→B live by the real engine (Vello/WebGPU, CPU fallback), with the
@@ -212,6 +212,7 @@ export default function TransitionsGallery(): ReactElement {
             composition={composition}
             gpuEngine={gpu ?? undefined}
             engine={cpu ?? undefined}
+            showStatus={false}
             loop
           />
         ) : (
@@ -222,13 +223,7 @@ export default function TransitionsGallery(): ReactElement {
       <div style={styles.meta}>
         <h2 style={styles.name}>{selected.name}</h2>
         <p style={styles.blurb}>{selected.blurb}</p>
-        <div style={styles.codeHead}>
-          <span style={styles.codeLabel}>Usage</span>
-          <CopyButton text={snippet} style={styles.copyBtn} />
-        </div>
-        <pre style={styles.code}>
-          <code>{snippet}</code>
-        </pre>
+        <CodeBlock code={snippet} />
       </div>
     </div>
   )
@@ -278,41 +273,4 @@ const styles: Record<string, CSSProperties> = {
   meta: { marginTop: 22 },
   name: { fontSize: 26, fontWeight: 600, margin: '0 0 6px', letterSpacing: '-0.01em' },
   blurb: { color: '#8e8e98', fontSize: 16, margin: '0 0 18px', maxWidth: '60ch' },
-  codeHead: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  codeLabel: {
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 11,
-    letterSpacing: '0.1em',
-    textTransform: 'uppercase',
-    color: '#56565f',
-  },
-  copyBtn: {
-    appearance: 'none',
-    border: '1px solid #26262c',
-    background: 'transparent',
-    color: '#b8b8c0',
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 12,
-    padding: '3px 10px',
-    borderRadius: 7,
-    cursor: 'pointer',
-  },
-  code: {
-    margin: 0,
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 13,
-    lineHeight: 1.65,
-    color: '#d7d7de',
-    background: '#121217',
-    border: '1px solid #26262c',
-    borderRadius: 10,
-    padding: '14px 16px',
-    overflowX: 'auto',
-    whiteSpace: 'pre',
-  },
 }
