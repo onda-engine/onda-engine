@@ -93,7 +93,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       required: false,
       type: 'string | string[]',
       description:
-        'Bar color. Pass a single hex string for a one-tone visualizer, or a two-entry array `[top, bottom]` for a vertical gradient ramp. The FIRST entry is the meaningful color on the CPU backend (see header).',
+        'Bar color. Pass a single hex string for a one-tone visualizer, or a two-entry array `[top, bottom]` for a vertical gradient ramp. The FIRST entry is the meaningful color on the CPU backend (see header). (default: theme `accent` for the top, theme `palette[1]` for the bottom)',
     },
     {
       name: 'width',
@@ -123,7 +123,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'barRadius',
       required: false,
       type: 'number',
-      description: 'Bar corner radius in px (also the minimum bar height so idle bars read).',
+      description:
+        'Bar corner radius in px (also the minimum bar height so idle bars read) (default: theme `radius`).',
     },
     {
       name: 'speed',
@@ -339,43 +340,44 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Title color.',
+      description: 'Title color (default: theme `text`).',
     },
     {
       name: 'captionColor',
       required: false,
       type: 'string',
-      description: 'Caption color.',
+      description: 'Caption color (default: theme `textMuted`).',
     },
     {
       name: 'accentColor',
       required: false,
       type: 'string',
-      description: 'Accent color for the earned `accent` cell.',
+      description: 'Accent color for the earned `accent` cell (default: theme `accent`).',
     },
     {
       name: 'cardColor',
       required: false,
       type: 'string',
-      description: 'Card fill — translucent dark, approximating glass (default `#0e0e128c`).',
+      description: 'Card fill — translucent dark, approximating glass (default: theme `surface`).',
     },
     {
       name: 'borderColor',
       required: false,
       type: 'string',
-      description: 'Card border color (default the Onda border grey).',
+      description: 'Card border color (default: theme `border`).',
     },
     {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Display font family for titles and values.',
+      description:
+        'Display font family for titles and values (default: theme `headingFamily ?? fontFamily`).',
     },
     {
       name: 'captionFontFamily',
       required: false,
       type: 'string',
-      description: 'Body font family for captions.',
+      description: 'Body font family for captions (default: theme `fontFamily`).',
     },
   ],
   BlurReveal: [
@@ -410,7 +412,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Text color (hex `#rrggbb` / `#rrggbbaa`). Ignored when `children` is set.',
+      description:
+        'Text color (hex `#rrggbb` / `#rrggbbaa`). Ignored when `children` is set. (default: theme `text`)',
     },
     {
       name: 'fontSize',
@@ -422,7 +425,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family. Ignored when `children` is set.',
+      description:
+        'Loaded font family. Ignored when `children` is set. (default: theme `fontFamily`)',
     },
     {
       name: 'fontWeight',
@@ -485,7 +489,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Outline / tick / tag color — the earned Onda rose by default.',
+      description:
+        'Outline / tick / tag color — the earned Onda rose by default (default: theme `accent`).',
     },
     {
       name: 'delay',
@@ -534,7 +539,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Label font family (must be loaded by the renderer).',
+      description:
+        'Label font family (must be loaded by the renderer) (default: theme `headingFamily`).',
     },
   ],
   BrowserFrame: [
@@ -582,6 +588,60 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       description: 'Starting scale for the entrance (default 0.96 — restrained, like ondajs).',
     },
     {
+      name: 'surface',
+      required: false,
+      type: 'string',
+      description: 'Card body fill (default: theme `surface`).',
+    },
+    {
+      name: 'border',
+      required: false,
+      type: 'string',
+      description: '1px card border and chrome divider (default: theme `border`).',
+    },
+    {
+      name: 'borderLit',
+      required: false,
+      type: 'string',
+      description: 'Traffic-light dot color (default: theme `border`).',
+    },
+    {
+      name: 'surface2',
+      required: false,
+      type: 'string',
+      description: 'Address-pill fill (default: theme `surface`).',
+    },
+    {
+      name: 'bg',
+      required: false,
+      type: 'string',
+      description: 'Content canvas background (default: theme `background`).',
+    },
+    {
+      name: 'dim',
+      required: false,
+      type: 'string',
+      description: 'Pill/URL text color (default: theme `textMuted`).',
+    },
+    {
+      name: 'faint',
+      required: false,
+      type: 'string',
+      description: 'Placeholder text color (default: theme `textMuted`).',
+    },
+    {
+      name: 'cardRadius',
+      required: false,
+      type: 'number',
+      description: 'Card corner radius in px (default: theme `radius`).',
+    },
+    {
+      name: 'pillRadius',
+      required: false,
+      type: 'number',
+      description: 'Address-pill corner radius in px (default: theme `radius`).',
+    },
+    {
       name: 'children',
       required: false,
       type: 'ReactNode',
@@ -607,14 +667,14 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       required: false,
       type: 'string',
       description:
-        'Accent color — the primary fill and the ghost border/label tint (default the Onda rose `#d96b82`).',
+        'Accent color — the primary fill and the ghost border/label tint (default: theme `accent`).',
     },
     {
       name: 'textColor',
       required: false,
       type: 'string',
       description:
-        "Label color on the primary variant (default the Onda bg `#08080a`). Ignored by `'ghost'`, which tints the label with `color`.",
+        "Label color on the primary variant (default: theme `text`). Ignored by `'ghost'`, which tints the label with `color`.",
     },
     {
       name: 'width',
@@ -632,7 +692,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'cornerRadius',
       required: false,
       type: 'number',
-      description: 'Corner radius in px. Defaults to a full pill (`height / 2`).',
+      description: 'Corner radius in px (default: theme `radius`).',
     },
     {
       name: 'borderWidth',
@@ -650,7 +710,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family (e.g. a `--font` passed to `onda render`).',
+      description:
+        'Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`).',
     },
     {
       name: 'fontWeight',
@@ -755,19 +816,19 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Label color.',
+      description: 'Label color (default: theme `text`).',
     },
     {
       name: 'bgColor',
       required: false,
       type: 'string',
-      description: 'Bubble background fill.',
+      description: 'Bubble background fill (default: theme `surface`).',
     },
     {
       name: 'borderColor',
       required: false,
       type: 'string',
-      description: 'Bubble border color.',
+      description: 'Bubble border color (default: theme `border`).',
     },
     {
       name: 'borderWidth',
@@ -785,7 +846,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family (the Onda display font).',
+      description: 'Loaded font family (the Onda display font) (default: theme `fontFamily`).',
     },
     {
       name: 'fontWeight',
@@ -809,7 +870,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'cornerRadius',
       required: false,
       type: 'number',
-      description: 'Bubble corner radius (default 12).',
+      description: 'Bubble corner radius (default: theme `radius`).',
     },
     {
       name: 'pointerWidth',
@@ -908,14 +969,14 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Inactive word color (the Onda dim).',
+      description: 'Inactive word color (the Onda dim) (default: theme `textMuted`).',
     },
     {
       name: 'accentColor',
       required: false,
       type: 'string',
       description:
-        'Active word color (the Onda text color). The contrast moment is brightness, not a rose accent — captions appear in batches and a rose pulse on every word would burn the eye.',
+        'Active word color (the Onda text color). The contrast moment is brightness, not a rose accent — captions appear in batches and a rose pulse on every word would burn the eye (default: theme `text`).',
     },
     {
       name: 'fontSize',
@@ -927,7 +988,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family (e.g. a `--font` passed to `onda render`).',
+      description:
+        'Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`).',
     },
     {
       name: 'fontWeight',
@@ -1001,19 +1063,21 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'numberColor',
       required: false,
       type: 'string',
-      description: 'Number color when `accent` is `true` (the Onda rose).',
+      description:
+        'Number color when `accent` is `true` (the Onda rose) (default: theme `accent`).',
     },
     {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Chapter title color.',
+      description: 'Chapter title color (default: theme `text`).',
     },
     {
       name: 'subtitleColor',
       required: false,
       type: 'string',
-      description: 'Number color when `accent` is `false` — quiet metadata dim.',
+      description:
+        'Number color when `accent` is `false` — quiet metadata dim (default: theme `textMuted`).',
     },
     {
       name: 'numberFontSize',
@@ -1043,7 +1107,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Onda display font, applied to both number and title for tonal consistency.',
+      description:
+        'Onda display font, applied to both number and title for tonal consistency (default: theme `headingFamily ?? fontFamily`).',
     },
   ],
   CodeBlock: [
@@ -1088,7 +1153,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Monospace font stack. Real monospace by default — code needs column alignment.',
+      description:
+        'Monospace font stack. Real monospace by default — code needs column alignment (default: theme `monoFamily`).',
     },
     {
       name: 'fontSize',
@@ -1106,49 +1172,51 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'textColor',
       required: false,
       type: 'string',
-      description: 'Default text color — identifiers, punctuation, operators.',
+      description:
+        'Default text color — identifiers, punctuation, operators (default: theme `text`).',
     },
     {
       name: 'keywordColor',
       required: false,
       type: 'string',
-      description: 'Keyword color. A muted, dusty violet — reads as syntax, not the brand accent.',
+      description:
+        'Keyword color. A muted, dusty violet — reads as syntax, not the brand accent (default: theme `palette[1]`).',
     },
     {
       name: 'stringColor',
       required: false,
       type: 'string',
-      description: 'String literal color — dusty sage.',
+      description: 'String literal color — dusty sage (default: theme `palette[3]`).',
     },
     {
       name: 'commentColor',
       required: false,
       type: 'string',
-      description: 'Comment color.',
+      description: 'Comment color (default: theme `textMuted`).',
     },
     {
       name: 'numberColor',
       required: false,
       type: 'string',
-      description: 'Numeric literal color — dusty amber.',
+      description: 'Numeric literal color — dusty amber (default: theme `palette[2]`).',
     },
     {
       name: 'tagColor',
       required: false,
       type: 'string',
-      description: 'JSX / HTML tag-name color — dusty cyan.',
+      description: 'JSX / HTML tag-name color — dusty cyan (default: theme `palette[1]`).',
     },
     {
       name: 'panelColor',
       required: false,
       type: 'string',
-      description: 'Panel background fill (the "glass" surface).',
+      description: 'Panel background fill (the "glass" surface) (default: theme `surface`).',
     },
     {
       name: 'borderColor',
       required: false,
       type: 'string',
-      description: 'Panel border color.',
+      description: 'Panel border color (default: theme `border`).',
     },
   ],
   CodeDiff: [
@@ -1192,7 +1260,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Monospace font stack for code (and the title).',
+      description:
+        'Monospace font stack for code (and the title) (default: theme `monoFamily ?? fontFamily`).',
     },
     {
       name: 'fontSize',
@@ -1210,31 +1279,49 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'textColor',
       required: false,
       type: 'string',
-      description: 'Default (context) text color.',
+      description: 'Default (context) text color (default: theme `textMuted`).',
     },
     {
       name: 'addColor',
       required: false,
       type: 'string',
-      description: 'Added-line color.',
+      description: 'Added-line color (default: theme `palette[3]`).',
     },
     {
       name: 'removeColor',
       required: false,
       type: 'string',
-      description: 'Removed-line color.',
+      description: 'Removed-line color (default: theme `accent`).',
     },
     {
       name: 'surfaceColor',
       required: false,
       type: 'string',
-      description: 'Panel surface (glass) fill.',
+      description: 'Panel surface (glass) fill (default: theme `surface`).',
     },
     {
       name: 'borderColor',
       required: false,
       type: 'string',
-      description: 'Panel border / chrome divider color.',
+      description: 'Panel border / chrome divider color (default: theme `border`).',
+    },
+    {
+      name: 'cornerRadius',
+      required: false,
+      type: 'number',
+      description: 'Panel corner radius in px (default: theme `radius`).',
+    },
+    {
+      name: 'chromeDotsColor',
+      required: false,
+      type: 'string',
+      description: 'Window-chrome traffic-light dot color (default: theme `border`).',
+    },
+    {
+      name: 'chromeTitleColor',
+      required: false,
+      type: 'string',
+      description: 'Window-chrome title (filename) color (default: theme `textMuted`).',
     },
   ],
   Confetti: [
@@ -1256,7 +1343,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       required: false,
       type: 'string[]',
       description:
-        "Palette pieces are picked from. Defaults to the Onda accent plus tasteful neutrals (hex; ondajs's CSS-var defaults resolved to their fallbacks).",
+        'Palette pieces are picked from. Defaults to the Onda accent plus tasteful neutrals (default: theme `accent`, theme `text`, theme `textMuted`, theme `border`).',
     },
     {
       name: 'originX',
@@ -1355,7 +1442,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Text color (default `#F2F2F4`).',
+      description: 'Text color (default: theme `text`).',
     },
     {
       name: 'fontSize',
@@ -1367,7 +1454,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family (e.g. a `--font` passed to `onda render`).',
+      description:
+        'Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`).',
     },
     {
       name: 'fontWeight',
@@ -1448,7 +1536,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Pointer + ripple color (hex `#rrggbb` / `#rrggbbaa`).',
+      description: 'Pointer + ripple color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `text`).',
     },
     {
       name: 'size',
@@ -1493,7 +1581,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Bezel color (hex `#rrggbb` / `#rrggbbaa`).',
+      description: 'Bezel color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `surface`).',
     },
     {
       name: 'children',
@@ -1514,7 +1602,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Stroke color (hex `#rrggbb` / `#rrggbbaa`). Defaults to the Onda text color.',
+      description: 'Stroke color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `text`).',
     },
     {
       name: 'strokeWidth',
@@ -1552,7 +1640,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Grid color (hex `#rrggbb` / `#rrggbbaa`).',
+      description: 'Grid color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `border`).',
     },
     {
       name: 'speed',
@@ -1576,13 +1664,14 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'glowColor',
       required: false,
       type: 'string',
-      description: 'Glow color (hex). The meaningful color on the CPU fallback (first stop).',
+      description:
+        'Glow color (hex). The meaningful color on the CPU fallback (first stop) (default: theme `accent`).',
     },
     {
       name: 'background',
       required: false,
       type: 'string',
-      description: 'Canvas color painted behind the grid.',
+      description: 'Canvas color painted behind the grid (default: theme `background`).',
     },
     {
       name: 'thickness',
@@ -1644,26 +1733,26 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'CTA color (default the Onda text color `#f2f2f4`).',
+      description: 'CTA color (default: theme `text`).',
     },
     {
       name: 'handlesColor',
       required: false,
       type: 'string',
-      description: 'Handles color — defaults to the Onda faint `#56565f` so the row reads quiet.',
+      description: 'Handles color — defaults so the row reads quiet (default: theme `textMuted`).',
     },
     {
       name: 'accentColor',
       required: false,
       type: 'string',
-      description: 'Underline color — the earned rose (default `#d96b82`).',
+      description: 'Underline color — the earned rose (default: theme `accent`).',
     },
     {
       name: 'fontFamily',
       required: false,
       type: 'string',
       description:
-        'Loaded display font for both CTA and handles (e.g. a `--font` passed to render).',
+        'Loaded display font for both CTA and handles (e.g. a `--font` passed to render) (default: theme `fontFamily`).',
     },
   ],
   FadeIn: [
@@ -1712,14 +1801,14 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       required: false,
       type: 'string',
       description:
-        'Gradient start color (`#rrggbb` / `#rrggbbaa`). Default is the canvas tone — near-identical to `to`, so the drift reads as a dark-on-dark breath.',
+        'Gradient start color (`#rrggbb` / `#rrggbbaa`). Default is the canvas tone — near-identical to `to`, so the drift reads as a dark-on-dark breath (default: theme `background`).',
     },
     {
       name: 'to',
       required: false,
       type: 'string',
       description:
-        'Gradient end color. Default is one step warmer than `from`, intentionally near-identical so the shift is a whisper rather than a colored wash.',
+        'Gradient end color. Default is one step warmer than `from`, intentionally near-identical so the shift is a whisper rather than a colored wash (default: theme `surface`).',
     },
     {
       name: 'angle',
@@ -1784,7 +1873,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       required: false,
       type: 'string',
       description:
-        "Grain color (hex `#rrggbb`). Defaults to near-black, matching ondajs's monochrome alpha grain. Use a light color over dark footage if desired.",
+        "Grain color (hex `#rrggbb`). Matches ondajs's monochrome alpha grain. Use a light color over dark footage if desired (default: theme `background`).",
     },
     {
       name: 'animate',
@@ -1912,7 +2001,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Icon color (default the Onda rose accent).',
+      description: 'Icon color (default: theme `accent`).',
     },
     {
       name: 'strokeWidth',
@@ -2025,7 +2114,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'cornerRadius',
       required: false,
       type: 'number',
-      description: 'Corner radius of the box (clips the image to a rounded rect).',
+      description:
+        'Corner radius of the box (clips the image to a rounded rect) (default: theme `radius`).',
     },
   ],
   InputField: [
@@ -2087,43 +2177,45 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'UI font family (e.g. a `--font` passed to `onda render`).',
+      description:
+        'UI font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`).',
     },
     {
       name: 'textColor',
       required: false,
       type: 'string',
-      description: 'Value text color.',
+      description: 'Value text color (default: theme `text`).',
     },
     {
       name: 'placeholderColor',
       required: false,
       type: 'string',
-      description: 'Placeholder text color.',
+      description: 'Placeholder text color (default: theme `textMuted`).',
     },
     {
       name: 'labelColor',
       required: false,
       type: 'string',
-      description: 'Label text color.',
+      description: 'Label text color (default: theme `textMuted`).',
     },
     {
       name: 'accentColor',
       required: false,
       type: 'string',
-      description: 'Caret + focus-ring color — the one earned accent (the Onda rose).',
+      description:
+        'Caret + focus-ring color — the one earned accent (the Onda rose) (default: theme `accent`).',
     },
     {
       name: 'borderColor',
       required: false,
       type: 'string',
-      description: 'Resting (unfocused) field border color.',
+      description: 'Resting (unfocused) field border color (default: theme `border`).',
     },
     {
       name: 'fieldColor',
       required: false,
       type: 'string',
-      description: 'Field background fill (the "glass" surface).',
+      description: 'Field background fill (the "glass" surface) (default: theme `surface`).',
     },
     {
       name: 'x',
@@ -2179,49 +2271,54 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family for headers and ticket labels.',
+      description:
+        'Loaded font family for headers and ticket labels (default: theme `fontFamily`).',
     },
     {
       name: 'accent',
       required: false,
       type: 'string',
-      description: 'Default accent for the dot/count when a column omits its own.',
+      description:
+        'Default accent for the dot/count when a column omits its own (default: theme `accent`).',
     },
     {
       name: 'textColor',
       required: false,
       type: 'string',
-      description: 'Header / title text color.',
+      description: 'Header / title text color (default: theme `text`).',
     },
     {
       name: 'cardTextColor',
       required: false,
       type: 'string',
-      description: 'Ticket-label text color.',
+      description: 'Ticket-label text color (default: theme `textMuted`).',
     },
     {
       name: 'faintColor',
       required: false,
       type: 'string',
-      description: 'Faint color for neutral dots, counts, and card accent stripes.',
+      description:
+        'Faint color for neutral dots, counts, and card accent stripes (default: theme `textMuted`).',
     },
     {
       name: 'columnFill',
       required: false,
       type: 'string',
-      description: 'Glass column fill (translucent — see approximations).',
+      description:
+        'Glass column fill (translucent — see approximations) (default: theme `surface`).',
     },
     {
       name: 'columnStroke',
       required: false,
       type: 'string',
-      description: 'Glass column border color.',
+      description: 'Glass column border color (default: theme `border`).',
     },
     {
       name: 'cardFill',
       required: false,
       type: 'string',
-      description: 'Ticket card fill (translucent — see approximations).',
+      description:
+        'Ticket card fill (translucent — see approximations) (default: theme `surface`).',
     },
   ],
   KenBurns: [
@@ -2316,7 +2413,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Line + dot color — the earned accent.',
+      description: 'Line + dot color — the earned accent (default: theme `accent`).',
     },
     {
       name: 'strokeWidth',
@@ -2402,13 +2499,13 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'stroke',
       required: false,
       type: 'string',
-      description: 'Logo stroke color.',
+      description: 'Logo stroke color (default: theme `text`).',
     },
     {
       name: 'accentColor',
       required: false,
       type: 'string',
-      description: 'Underline accent color — the signature dusty rose.',
+      description: 'Underline accent color — the signature dusty rose (default: theme `accent`).',
     },
     {
       name: 'titleFontSize',
@@ -2420,13 +2517,14 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Title color.',
+      description: 'Title color (default: theme `text`).',
     },
     {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Display font family (must be loaded at render time).',
+      description:
+        'Display font family (must be loaded at render time) (default: theme `headingFamily`).',
     },
     {
       name: 'fontWeight',
@@ -2471,19 +2569,19 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Name color (default the Onda text color `#f2f2f4`).',
+      description: 'Name color (default: theme `text`).',
     },
     {
       name: 'roleColor',
       required: false,
       type: 'string',
-      description: 'Role color (default the Onda dim grey `#8e8e98`).',
+      description: 'Role color (default: theme `textMuted`).',
     },
     {
       name: 'accentColor',
       required: false,
       type: 'string',
-      description: 'Accent rule color (default the Onda rose `#d96b82`).',
+      description: 'Accent rule color (default: theme `accent`).',
     },
     {
       name: 'fontSize',
@@ -2513,7 +2611,15 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family for both lines (e.g. a `--font` passed to `onda render`).',
+      description:
+        'Loaded font family for both lines (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`).',
+    },
+    {
+      name: 'cornerRadius',
+      required: false,
+      type: 'number',
+      description:
+        'Accent rule corner radius in px (capped so a thin sliver never bulges) (default: theme `radius`).',
     },
   ],
   Marquee: [
@@ -2545,7 +2651,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Text color (default an atmospheric faint grey).',
+      description: 'Text color (default: theme `textMuted`).',
     },
     {
       name: 'fontSize',
@@ -2557,7 +2663,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family (e.g. a `--font` passed to `onda render`).',
+      description:
+        'Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`).',
     },
     {
       name: 'fontWeight',
@@ -2608,7 +2715,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Text color (hex `#rrggbb` / `#rrggbbaa`). Default the Onda text `#f2f2f4`.',
+      description: 'Text color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `text`).',
     },
     {
       name: 'fontSize',
@@ -2620,7 +2727,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family (e.g. a `--font` passed to `onda render`).',
+      description:
+        'Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `headingFamily ?? fontFamily`).',
     },
     {
       name: 'fontWeight',
@@ -2701,13 +2809,14 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Settled text color (default the Onda text `#f2f2f4`).',
+      description: 'Settled text color (default: theme `text`).',
     },
     {
       name: 'scrambleColor',
       required: false,
       type: 'string',
-      description: 'Color of still-scrambling glyphs — the earned accent (default rose `#d96b82`).',
+      description:
+        'Color of still-scrambling glyphs — the earned accent (default: theme `accent`).',
     },
     {
       name: 'fontSize',
@@ -2719,7 +2828,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Monospace stack keeps the advance steady as glyphs flicker.',
+      description:
+        'Monospace stack keeps the advance steady as glyphs flicker (default: theme `monoFamily`).',
     },
     {
       name: 'fontWeight',
@@ -2757,13 +2867,14 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'colors',
       required: false,
       type: 'string[]',
-      description: 'Blob colors. 2–4 reads best; they drift over the `background` canvas.',
+      description:
+        'Blob colors. 2–4 reads best; they drift over the `background` canvas (default: theme `palette[0]`).',
     },
     {
       name: 'background',
       required: false,
       type: 'string',
-      description: 'Base canvas color behind the blobs.',
+      description: 'Base canvas color behind the blobs (default: theme `background`).',
     },
     {
       name: 'speed',
@@ -2802,7 +2913,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'accent',
       required: false,
       type: 'string',
-      description: 'The earned accent — hub fill tint, the connection lines, and the glow.',
+      description:
+        'The earned accent — hub fill tint, the connection lines, and the glow (default: theme `accent`).',
     },
     {
       name: 'ellipse',
@@ -2844,25 +2956,26 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'background',
       required: false,
       type: 'string',
-      description: 'Background canvas color behind the constellation.',
+      description:
+        'Background canvas color behind the constellation (default: theme `background`).',
     },
     {
       name: 'surface',
       required: false,
       type: 'string',
-      description: 'Surface (fill) color of the satellite pills.',
+      description: 'Surface (fill) color of the satellite pills (default: theme `surface`).',
     },
     {
       name: 'borderColor',
       required: false,
       type: 'string',
-      description: 'Border color of the satellite pills.',
+      description: 'Border color of the satellite pills (default: theme `border`).',
     },
     {
       name: 'textColor',
       required: false,
       type: 'string',
-      description: 'Text color of every label.',
+      description: 'Text color of every label (default: theme `text`).',
     },
     {
       name: 'satelliteFontSize',
@@ -2874,7 +2987,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Display font for every label.',
+      description: 'Display font for every label (default: theme `fontFamily`).',
     },
     {
       name: 'centerX',
@@ -2959,7 +3072,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'holeColor',
       required: false,
       type: 'string',
-      description: 'Color filling the donut hole — match the composition background.',
+      description:
+        'Color filling the donut hole — match the composition background (default: theme `background`).',
     },
     {
       name: 'delay',
@@ -3007,7 +3121,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'labelColor',
       required: false,
       type: 'string',
-      description: 'Center label color.',
+      description: 'Center label color (default: theme `text`).',
     },
     {
       name: 'fontSize',
@@ -3019,7 +3133,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Center label font family (must be loaded by the renderer).',
+      description:
+        'Center label font family (must be loaded by the renderer) (default: theme `headingFamily ?? fontFamily`).',
     },
   ],
   PricingCard: [
@@ -3063,7 +3178,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'accent',
       required: false,
       type: 'string',
-      description: 'The earned accent — checkmarks, badge, CTA, recommended border + glow.',
+      description:
+        'The earned accent — checkmarks, badge, CTA, recommended border + glow (default: theme `accent`).',
     },
     {
       name: 'delay',
@@ -3087,43 +3203,43 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'background',
       required: false,
       type: 'string',
-      description: 'Panel fill color.',
+      description: 'Panel fill color (default: theme `surface`).',
     },
     {
       name: 'borderColor',
       required: false,
       type: 'string',
-      description: 'Panel border color (when not `recommended`).',
+      description: 'Panel border color (when not `recommended`) (default: theme `border`).',
     },
     {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Primary text color (price, features).',
+      description: 'Primary text color (price, features) (default: theme `text`).',
     },
     {
       name: 'dimColor',
       required: false,
       type: 'string',
-      description: 'Dim color for the tier label.',
+      description: 'Dim color for the tier label (default: theme `textMuted`).',
     },
     {
       name: 'faintColor',
       required: false,
       type: 'string',
-      description: 'Faint color for the billing period.',
+      description: 'Faint color for the billing period (default: theme `textMuted`).',
     },
     {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Display font for the price.',
+      description: 'Display font for the price (default: theme `headingFamily ?? fontFamily`).',
     },
     {
       name: 'bodyFontFamily',
       required: false,
       type: 'string',
-      description: 'Body font for tier / features / CTA.',
+      description: 'Body font for tier / features / CTA (default: theme `fontFamily`).',
     },
     {
       name: 'x',
@@ -3241,25 +3357,26 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'accentColor',
       required: false,
       type: 'string',
-      description: 'Completed / active color — the earned accent (Onda rose).',
+      description:
+        'Completed / active color — the earned accent (Onda rose) (default: theme `accent`).',
     },
     {
       name: 'dimColor',
       required: false,
       type: 'string',
-      description: 'Pending color (dots + connector track).',
+      description: 'Pending color (dots + connector track) (default: theme `border`).',
     },
     {
       name: 'labelColor',
       required: false,
       type: 'string',
-      description: 'Label color.',
+      description: 'Label color (default: theme `textMuted`).',
     },
     {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family for labels.',
+      description: 'Loaded font family for labels (default: theme `fontFamily`).',
     },
     {
       name: 'fontSize',
@@ -3291,7 +3408,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Dot + ring color (default the Onda rose).',
+      description: 'Dot + ring color (default: theme `accent`).',
     },
     {
       name: 'size',
@@ -3309,13 +3426,14 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'labelColor',
       required: false,
       type: 'string',
-      description: 'Label color.',
+      description: 'Label color (default: theme `textMuted`).',
     },
     {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Label font family (must be loaded by the renderer).',
+      description:
+        'Label font family (must be loaded by the renderer) (default: theme `fontFamily`).',
     },
     {
       name: 'fontSize',
@@ -3401,25 +3519,26 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Quote color (default the Onda text color `#f2f2f4`).',
+      description: 'Quote color (default: theme `text`).',
     },
     {
       name: 'authorColor',
       required: false,
       type: 'string',
-      description: 'Author / role color (default the Onda dim color `#8e8e98`).',
+      description: 'Author / role color (default: theme `textMuted`).',
     },
     {
       name: 'accentColor',
       required: false,
       type: 'string',
-      description: 'Divider color (default the Onda accent rose `#d96b82`).',
+      description: 'Divider color (default: theme `accent`).',
     },
     {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family for every line (e.g. a `--font` passed to `onda render`).',
+      description:
+        'Loaded font family for every line (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`).',
     },
     {
       name: 'quoteWidth',
@@ -3476,19 +3595,19 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Base (center) text color.',
+      description: 'Base (center) text color (default: theme `text`).',
     },
     {
       name: 'redColor',
       required: false,
       type: 'string',
-      description: 'Red-channel copy color.',
+      description: 'Red-channel copy color (default: theme `accent`).',
     },
     {
       name: 'cyanColor',
       required: false,
       type: 'string',
-      description: 'Cyan-channel copy color.',
+      description: 'Cyan-channel copy color (default: theme `palette[1]`).',
     },
     {
       name: 'channelOpacity',
@@ -3507,7 +3626,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family (e.g. a `--font` passed to `onda render`).',
+      description:
+        'Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`).',
     },
     {
       name: 'fontWeight',
@@ -3627,13 +3747,14 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Base (dim) text color so the bright band reads as a highlight.',
+      description:
+        'Base (dim) text color so the bright band reads as a highlight (default: theme `textMuted`).',
     },
     {
       name: 'shimmerColor',
       required: false,
       type: 'string',
-      description: 'The sweeping highlight color.',
+      description: 'The sweeping highlight color (default: theme `text`).',
     },
     {
       name: 'angle',
@@ -3651,7 +3772,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family (e.g. a `--font` passed to `onda render`).',
+      description:
+        'Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`).',
     },
     {
       name: 'fontWeight',
@@ -3701,25 +3823,27 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'shimmerColor',
       required: false,
       type: 'string',
-      description: 'The travelling highlight color — a soft sheen over the bars.',
+      description:
+        'The travelling highlight color — a soft sheen over the bars (default: theme `border`).',
     },
     {
       name: 'barColor',
       required: false,
       type: 'string',
-      description: 'Resting fill of the placeholder bars / thumbnail.',
+      description: 'Resting fill of the placeholder bars / thumbnail (default: theme `surface`).',
     },
     {
       name: 'cardColor',
       required: false,
       type: 'string',
-      description: 'Card (panel) background — the translucent glass fill.',
+      description:
+        'Card (panel) background — the translucent glass fill (default: theme `background`).',
     },
     {
       name: 'borderColor',
       required: false,
       type: 'string',
-      description: 'Card border color (the 1px-equivalent stroke).',
+      description: 'Card border color (the 1px-equivalent stroke) (default: theme `border`).',
     },
     {
       name: 'delay',
@@ -3863,7 +3987,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Text color (default the Onda text `#f2f2f4`).',
+      description: 'Text color (default: theme `text`).',
     },
     {
       name: 'fontSize',
@@ -3875,7 +3999,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Monospace/display stack keeps reels column-aligned.',
+      description:
+        'Monospace/display stack keeps reels column-aligned (default: theme `fontFamily`).',
     },
     {
       name: 'fontWeight',
@@ -3974,31 +4099,32 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'paneBackground',
       required: false,
       type: 'string',
-      description: 'Pane background fill.',
+      description: 'Pane background fill (default: theme `surface`).',
     },
     {
       name: 'background',
       required: false,
       type: 'string',
-      description: 'Outer (gutter) background fill, seen in the gap behind the divider.',
+      description:
+        'Outer (gutter) background fill, seen in the gap behind the divider (default: theme `background`).',
     },
     {
       name: 'dividerColor',
       required: false,
       type: 'string',
-      description: 'Divider color (thin token line).',
+      description: 'Divider color (thin token line) (default: theme `border`).',
     },
     {
       name: 'placeholderColor',
       required: false,
       type: 'string',
-      description: 'Placeholder label color for an empty pane.',
+      description: 'Placeholder label color for an empty pane (default: theme `textMuted`).',
     },
     {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family for empty-pane placeholders.',
+      description: 'Loaded font family for empty-pane placeholders (default: theme `fontFamily`).',
     },
   ],
   Spotlight: [
@@ -4076,7 +4202,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'glowColor',
       required: false,
       type: 'string',
-      description: 'The drifting spotlight color — the earned accent.',
+      description: 'The drifting spotlight color — the earned accent (default: theme `accent`).',
     },
     {
       name: 'width',
@@ -4106,13 +4232,14 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Display font for the title.',
+      description:
+        'Display font for the title (default: theme `headingFamily ?? theme.fontFamily`).',
     },
     {
       name: 'bodyFontFamily',
       required: false,
       type: 'string',
-      description: 'Font family for the eyebrow + body copy (defaults to `fontFamily`).',
+      description: 'Font family for the eyebrow + body copy (default: theme `fontFamily`).',
     },
     {
       name: 'titleSize',
@@ -4136,37 +4263,37 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'titleColor',
       required: false,
       type: 'string',
-      description: 'Title color.',
+      description: 'Title color (default: theme `text`).',
     },
     {
       name: 'bodyColor',
       required: false,
       type: 'string',
-      description: 'Body color.',
+      description: 'Body color (default: theme `textMuted`).',
     },
     {
       name: 'eyebrowColor',
       required: false,
       type: 'string',
-      description: 'Eyebrow color.',
+      description: 'Eyebrow color (default: theme `textMuted`).',
     },
     {
       name: 'background',
       required: false,
       type: 'string',
-      description: 'Card glass fill (translucent dark by default).',
+      description: 'Card glass fill (translucent dark by default) (default: theme `surface`).',
     },
     {
       name: 'borderColor',
       required: false,
       type: 'string',
-      description: 'Card border (stroke) color.',
+      description: 'Card border (stroke) color (default: theme `border`).',
     },
     {
       name: 'cornerRadius',
       required: false,
       type: 'number',
-      description: 'Corner radius in px.',
+      description: 'Corner radius in px (default: theme `radius`).',
     },
   ],
   StaggerGroup: [
@@ -4216,7 +4343,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Text color (default the Onda text color `#f2f2f4`).',
+      description: 'Text color (default: theme `text`).',
     },
     {
       name: 'fontSize',
@@ -4228,7 +4355,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family (bundled: "Open Sans", "IBM Plex Sans").',
+      description:
+        'Loaded font family (bundled: "Open Sans", "IBM Plex Sans") (default: theme `fontFamily`).',
     },
     {
       name: 'fontWeight',
@@ -4346,7 +4474,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Monospace font stack.',
+      description: 'Monospace font stack (default: theme `monoFamily`).',
     },
     {
       name: 'fontSize',
@@ -4365,25 +4493,31 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'textColor',
       required: false,
       type: 'string',
-      description: 'Command text color.',
+      description: 'Command text color (default: theme `text`).',
     },
     {
       name: 'promptColor',
       required: false,
       type: 'string',
-      description: 'Prompt glyph color — the earned accent.',
+      description: 'Prompt glyph color — the earned accent (default: theme `accent`).',
     },
     {
       name: 'outputColor',
       required: false,
       type: 'string',
-      description: 'Output line color.',
+      description: 'Output line color (default: theme `textMuted`).',
     },
     {
       name: 'background',
       required: false,
       type: 'string',
-      description: 'Window background color.',
+      description: 'Window background color (default: theme `background`).',
+    },
+    {
+      name: 'cornerRadius',
+      required: false,
+      type: 'number',
+      description: 'Window corner radius in px (default: theme `radius`).',
     },
     {
       name: 'x',
@@ -4435,13 +4569,14 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Text color (hex `#rrggbb` / `#rrggbbaa`, default `#F2F2F4`).',
+      description: 'Text color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `text`).',
     },
     {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family (e.g. a `--font` passed to `onda render`).',
+      description:
+        'Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `headingFamily`).',
     },
     {
       name: 'fontWeight',
@@ -4509,25 +4644,25 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'lineColor',
       required: false,
       type: 'string',
-      description: 'Line color.',
+      description: 'Line color (default: theme `border`).',
     },
     {
       name: 'dotColor',
       required: false,
       type: 'string',
-      description: 'Non-final dot color.',
+      description: 'Non-final dot color (default: theme `text`).',
     },
     {
       name: 'accentColor',
       required: false,
       type: 'string',
-      description: 'Final dot color — the earned accent (Onda rose).',
+      description: 'Final dot color — the earned accent (Onda rose) (default: theme `accent`).',
     },
     {
       name: 'labelColor',
       required: false,
       type: 'string',
-      description: 'Label color.',
+      description: 'Label color (default: theme `textMuted`).',
     },
     {
       name: 'fontSize',
@@ -4539,7 +4674,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family for labels.',
+      description: 'Loaded font family for labels (default: theme `headingFamily ?? fontFamily`).',
     },
   ],
   TitleCard: [
@@ -4615,7 +4750,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Text color (hex `#rrggbb` / `#rrggbbaa`).',
+      description: 'Text color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `text`).',
     },
     {
       name: 'fromTracking',
@@ -4645,7 +4780,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family (e.g. a `--font` passed to `onda render`).',
+      description:
+        'Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`).',
     },
     {
       name: 'fontWeight',
@@ -4715,13 +4851,13 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'cursorColor',
       required: false,
       type: 'string',
-      description: 'Cursor color (default the Onda rose `#d96b82`).',
+      description: 'Cursor color (default: theme `accent`).',
     },
     {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Text color (default `#f2f2f4`).',
+      description: 'Text color (default: theme `text`).',
     },
     {
       name: 'fontSize',
@@ -4733,7 +4869,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family (e.g. a `--font` passed to `onda render`).',
+      description:
+        'Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`).',
     },
     {
       name: 'fontWeight',
@@ -4921,7 +5058,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'borderRadius',
       required: false,
       type: 'number',
-      description: 'Rounded corner radius of the box in px (default 0).',
+      description: 'Rounded corner radius of the box in px (default: theme `radius`).',
     },
     {
       name: 'letterbox',
@@ -4934,7 +5071,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'backgroundColor',
       required: false,
       type: 'string',
-      description: 'Backing color shown behind/around the poster (default black).',
+      description: 'Backing color shown behind/around the poster (default: theme `background`).',
     },
   ],
   Vignette: [
@@ -4955,7 +5092,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Edge color. Defaults to pure black for the classic cinematic frame.',
+      description:
+        'Edge color. Defaults to pure black for the classic cinematic frame (default: theme `background`).',
     },
   ],
   WordRotate: [
@@ -4989,7 +5127,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Text color (default the Onda text color `#f2f2f4`).',
+      description: 'Text color (default: theme `text`).',
     },
     {
       name: 'fontSize',
@@ -5001,7 +5139,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family (e.g. a `--font` passed to `onda render`).',
+      description:
+        'Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`).',
     },
     {
       name: 'fontWeight',
@@ -5052,7 +5191,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'color',
       required: false,
       type: 'string',
-      description: 'Text color (default the Onda text color `#f2f2f4`).',
+      description: 'Text color (default: theme `text`).',
     },
     {
       name: 'width',
@@ -5064,7 +5203,8 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       name: 'fontFamily',
       required: false,
       type: 'string',
-      description: 'Loaded font family (e.g. a `--font` passed to `onda render`).',
+      description:
+        'Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`).',
     },
     {
       name: 'fontWeight',
