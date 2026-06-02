@@ -374,17 +374,41 @@ pub struct ResolvedRun {
     pub italic: bool,
 }
 
-/// A bitmap image referenced by `src`. Decoding/loading is the renderer's job.
+/// A bitmap image referenced by `src` (a file path, URL, or `data:` URI).
+/// Decoding is a pre-pass (the `onda-image` crate) that fills [`Image::data`];
+/// renderers draw from that and skip an image whose pixels aren't resolved yet.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Image {
     pub src: String,
+    /// Decoded pixels, attached by the image-loading pass. Never serialized —
+    /// the scene-graph JSON stays portable, carrying only `src`.
+    #[serde(skip)]
+    pub data: Option<ImageData>,
 }
 
 impl Image {
-    /// Construct from a path or URL.
+    /// Construct from a path, URL, or `data:` URI (no pixels yet).
     pub fn new(src: impl Into<String>) -> Self {
-        Image { src: src.into() }
+        Image {
+            src: src.into(),
+            data: None,
+        }
     }
+
+    /// Attach decoded pixels (used by the `onda-image` loading pass).
+    pub fn with_data(mut self, data: ImageData) -> Self {
+        self.data = Some(data);
+        self
+    }
+}
+
+/// Decoded bitmap pixels: straight-alpha RGBA8, row-major, `width`×`height`.
+/// Shared via `Arc` so cloning a scene per frame stays cheap.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImageData {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: std::sync::Arc<Vec<u8>>,
 }
 
 /// A reference to an SVG document, to be expanded into vector [`Node`]s by a

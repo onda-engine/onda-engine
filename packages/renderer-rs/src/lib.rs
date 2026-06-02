@@ -17,7 +17,7 @@
 //! the node's (composed) transform places it on the canvas.
 
 use onda_core::{Color, Transform, Vec2};
-use onda_scene::{Gradient, Node, NodeKind, Scene, Shape, ShapeGeometry, Text};
+use onda_scene::{Gradient, Image, Node, NodeKind, Scene, Shape, ShapeGeometry, Text};
 pub use onda_typography::{FontContext, TextRaster};
 
 /// An RGBA8 image: `width * height * 4` bytes, row-major, top-left origin.
@@ -259,8 +259,9 @@ impl Renderer {
             NodeKind::Group => {}
             NodeKind::Shape(shape) => rasterize_shape(fb, shape, transform, opacity),
             NodeKind::Text(text) => self.rasterize_text(fb, text, transform, opacity),
-            // Images need decoding; lands with the asset loader.
-            NodeKind::Image(_) => {}
+            // Draws the decoded pixels (attached by the onda-image pass); an
+            // unresolved image (no pixels) is skipped.
+            NodeKind::Image(image) => rasterize_image(fb, image, transform, opacity),
             // SVG nodes are expanded to shapes (onda-svg) before rendering; the
             // CPU backend can't draw paths anyway, so an unexpanded one is a no-op.
             NodeKind::Svg(_) => {}
@@ -432,6 +433,56 @@ fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, op
             };
             if inside {
                 fb.blend(px, py, fill);
+            }
+        }
+    }
+}
+
+/// Blit a decoded [`Image`] into the framebuffer. The image's natural pixel box
+/// `[0,0]..[w,h]` is mapped through `transform` to an axis-aligned canvas box
+/// (translate + scale; no rotation), nearest-neighbor sampled, and composited
+/// straight-alpha over the destination with `opacity` folded in.
+fn rasterize_image(fb: &mut Framebuffer, image: &Image, transform: Transform, opacity: f32) {
+    let Some(data) = &image.data else {
+        return; // unresolved (no pixels) — nothing to draw
+    };
+    if data.width == 0 || data.height == 0 || opacity <= 0.0 {
+        return;
+    }
+
+    let a = transform.apply(Vec2::ZERO);
+    let b = transform.apply(Vec2::new(data.width as f32, data.height as f32));
+    let (x0, x1) = (a.x.min(b.x), a.x.max(b.x));
+    let (y0, y1) = (a.y.min(b.y), a.y.max(b.y));
+    let (bw, bh) = ((x1 - x0).max(f32::EPSILON), (y1 - y0).max(f32::EPSILON));
+
+    let px_min = x0.floor().max(0.0) as u32;
+    let py_min = y0.floor().max(0.0) as u32;
+    let px_max = (x1.ceil() as i64).clamp(0, fb.width() as i64) as u32;
+    let py_max = (y1.ceil() as i64).clamp(0, fb.height() as i64) as u32;
+
+    for py in py_min..py_max {
+        for px in px_min..px_max {
+            let (sx, sy) = (px as f32 + 0.5, py as f32 + 0.5);
+            if sx < x0 || sx >= x1 || sy < y0 || sy >= y1 {
+                continue;
+            }
+            let ix = (((sx - x0) / bw * data.width as f32) as i64).clamp(0, data.width as i64 - 1);
+            let iy =
+                (((sy - y0) / bh * data.height as f32) as i64).clamp(0, data.height as i64 - 1);
+            let i = (iy as usize * data.width as usize + ix as usize) * 4;
+            let Some(texel) = data.rgba.get(i..i + 4) else {
+                continue;
+            };
+            let src = Color::new(
+                texel[0] as f32 / 255.0,
+                texel[1] as f32 / 255.0,
+                texel[2] as f32 / 255.0,
+                texel[3] as f32 / 255.0,
+            );
+            let src = src.with_alpha(src.a * opacity);
+            if src.a > 0.0 {
+                fb.blend(px, py, src);
             }
         }
     }
