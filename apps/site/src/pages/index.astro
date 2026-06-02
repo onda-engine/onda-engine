@@ -562,20 +562,22 @@ const year = new Date().getFullYear()
       .btn:active {
         transform: translateY(1px);
       }
-      .btn--primary {
+      /* Prefixed with .onda-landing so the button text color outranks the
+         scoped base `.onda-landing a` rule (these buttons are <a> elements). */
+      .onda-landing .btn--primary {
         background: var(--accent);
         color: var(--on-accent);
       }
-      .btn--primary:hover {
+      .onda-landing .btn--primary:hover {
         background: var(--accent-600);
         color: var(--on-accent);
       }
-      .btn--ghost {
+      .onda-landing .btn--ghost {
         background: transparent;
         color: var(--text);
         border-color: var(--border);
       }
-      .btn--ghost:hover {
+      .onda-landing .btn--ghost:hover {
         background: var(--surface-2);
         color: var(--text);
         border-color: #34343c;
@@ -609,14 +611,14 @@ const year = new Date().getFullYear()
         gap: var(--s-6);
         min-height: 64px;
       }
-      .brand {
+      .onda-landing .brand {
         display: inline-flex;
         align-items: center;
         gap: var(--s-3);
         color: var(--text);
         font-family: var(--font-head);
       }
-      .brand:hover {
+      .onda-landing .brand:hover {
         color: var(--text);
       }
       .brand__mark-img {
