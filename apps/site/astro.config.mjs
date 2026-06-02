@@ -95,6 +95,7 @@ export default defineConfig({
             { label: 'Hooks', link: '/api/hooks' },
             { label: 'Animation', link: '/api/animation' },
             { label: 'Timeline (Sequence/Series/Loop)', link: '/api/timeline' },
+            { label: 'Transitions', link: '/api/transitions' },
             { label: 'Render functions', link: '/api/render' },
             { label: 'Scene-graph JSON', link: '/api/scene-json' },
           ],
