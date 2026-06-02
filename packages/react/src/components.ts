@@ -11,7 +11,9 @@
 import { type ReactNode, createElement } from 'react'
 import type { ClipInput } from './clip.js'
 import type { ColorInput } from './color.js'
+import { useVideoConfig } from './frame.js'
 import type { GradientInput } from './gradient.js'
+import type { Layout } from './scene.js'
 
 /** Properties shared by every scene node: identity, placement, opacity, clip. */
 export interface NodeProps {
@@ -60,6 +62,28 @@ export type GroupProps = NodeProps
 /** A transform/opacity container with no visual of its own. */
 export function Group(props: GroupProps) {
   return createElement('onda-group', props)
+}
+
+/** Flex layout props for {@link Flex} / {@link AbsoluteFill} (CSS-flexbox subset). */
+export interface FlexProps extends NodeProps, Layout {}
+
+/** A flex container: lays out its direct children (row/column, with
+ *  justify/align/gap/padding) instead of requiring absolute x/y. Resolved to
+ *  absolute positions by the engine's layout pass. */
+export function Flex(props: FlexProps) {
+  const { direction, justify, align, gap, padding, width, height, ...rest } = props
+  const layout: Layout = { direction, justify, align, gap, padding, width, height }
+  return createElement('onda-group', { ...rest, layout })
+}
+
+export type AbsoluteFillProps = Omit<FlexProps, 'width' | 'height'>
+
+/** A full-canvas flex container (like Remotion's `<AbsoluteFill>`): fills the
+ *  composition and lays children out (column by default) — ideal for centering
+ *  or stacking. Combine with `justify`/`align` to center content. */
+export function AbsoluteFill(props: AbsoluteFillProps) {
+  const { width, height } = useVideoConfig()
+  return Flex({ direction: 'column', ...props, width, height })
 }
 
 export interface RectProps extends NodeProps, PaintProps {

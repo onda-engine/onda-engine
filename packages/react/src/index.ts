@@ -17,10 +17,14 @@ export {
   radialGradient,
 } from './gradient.js'
 export {
+  AbsoluteFill,
+  type AbsoluteFillProps,
   Composition,
   type CompositionProps,
   Ellipse,
   type EllipseProps,
+  Flex,
+  type FlexProps,
   Group,
   type GroupProps,
   Image,
@@ -66,6 +70,7 @@ export type {
   Composition as CompositionData,
   Gradient,
   GradientStop,
+  Layout,
   NodeKind,
   Scene,
   SceneNode,
