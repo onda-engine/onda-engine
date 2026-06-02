@@ -34,6 +34,12 @@ export interface GpuEngine {
   render(sceneJson: string): Promise<{ width: number; height: number; pixels: Uint8Array }>
 }
 
+// GPU engines currently mid-render. Keyed on the engine instance so multiple
+// <Player>s sharing one engine serialize their `&mut render()` calls (a wasm
+// engine panics on re-entrant use). Module-level on purpose — the guard must
+// outlive any single component instance.
+const enginesRendering = new WeakSet<object>()
+
 export interface PlayerProps {
   /** A `<Composition>` element (from `@onda/react`). */
   composition: ReactElement
@@ -137,14 +143,16 @@ export function Player({
   // render so the async GPU loop can always pull the latest target.
   const targetRef = useRef({ composition, frame })
   targetRef.current = { composition, frame }
-  const gpuBusyRef = useRef(false)
 
   // Single-flight async GPU paint: render the latest target, dropping any
-  // intermediate frames (the readback can't always keep up at 60fps). Never
-  // runs two `render()` calls concurrently (the engine is &mut).
+  // intermediate frames (the readback can't always keep up at 60fps). The busy
+  // flag is keyed on the ENGINE (module-level {@link enginesRendering}), not this
+  // component — so multiple <Player>s sharing one engine (e.g. a gallery that
+  // remounts on switch) never call its `&mut render()` re-entrantly (wasm:
+  // "recursive use of an object … unsafe aliasing in rust").
   const paintGpu = useCallback((gpu: GpuEngine) => {
-    if (gpuBusyRef.current) return
-    gpuBusyRef.current = true
+    if (enginesRendering.has(gpu)) return
+    enginesRendering.add(gpu)
     ;(async () => {
       try {
         let done: { c: ReactElement; f: number } | null = null
@@ -168,7 +176,7 @@ export function Player({
       } catch {
         setGpuFailed(true) // drop to the next renderer
       } finally {
-        gpuBusyRef.current = false
+        enginesRendering.delete(gpu)
       }
     })()
   }, [])
