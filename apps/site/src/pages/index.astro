@@ -446,12 +446,35 @@ const year = new Date().getFullYear()
 
         for (const el of document.querySelectorAll('.cta__inner, .stats__foot, .features__note'))
           reveal(el, { y: [16, 0] })
+
+        // Cursor spotlight: track the pointer over the feature grid (the CSS
+        // ::before radial follows --mx/--my).
+        const grid = document.querySelector('.features')
+        if (grid) {
+          grid.addEventListener(
+            'pointermove',
+            (e) => {
+              const r = grid.getBoundingClientRect()
+              grid.style.setProperty('--mx', `${e.clientX - r.left}px`)
+              grid.style.setProperty('--my', `${e.clientY - r.top}px`)
+            },
+            { passive: true },
+          )
+        }
       }
     </script>
 
     <style>
       /* Scoped to this page (Astro) — cannot affect the Starlight docs. Tokens
          from assets/brand/BRAND.md. Fonts loaded in <head> above. */
+
+      /* Animatable angle for the ONDA column's shimmer border (see "Lights"). */
+      @property --bd-angle {
+        syntax: '<angle>';
+        initial-value: 0deg;
+        inherits: false;
+      }
+
       .onda-landing {
         --bg: #0e0e12;
         --bg-deep: #08080a;
@@ -727,6 +750,7 @@ const year = new Date().getFullYear()
         position: absolute;
         inset: 0;
         background: radial-gradient(60% 70% at 88% 0%, var(--accent-soft), transparent 60%);
+        will-change: transform, opacity;
       }
       .hero__grid {
         position: relative;
@@ -887,6 +911,8 @@ const year = new Date().getFullYear()
       }
       .arch__col--onda {
         border-color: rgba(217, 107, 130, 0.45);
+        position: relative;
+        box-shadow: 0 10px 50px -18px rgba(217, 107, 130, 0.35);
       }
       .arch__name {
         font-size: var(--fs-xl);
@@ -1018,8 +1044,30 @@ const year = new Date().getFullYear()
         list-style: none;
         margin: 0;
         padding: 0;
+        position: relative;
+      }
+      /* Cursor spotlight: a soft rose light tracks the pointer (--mx/--my set in JS). */
+      .features::before {
+        content: '';
+        position: absolute;
+        inset: -8% -3%;
+        pointer-events: none;
+        z-index: 0;
+        border-radius: var(--r-card);
+        background: radial-gradient(
+          260px circle at var(--mx, 50%) var(--my, -30%),
+          rgba(217, 107, 130, 0.14),
+          transparent 60%
+        );
+        opacity: 0;
+        transition: opacity 0.4s var(--ease);
+      }
+      .features:hover::before {
+        opacity: 1;
       }
       .feature {
+        position: relative;
+        z-index: 1;
         padding-top: var(--s-8);
         border-top: 1px solid var(--border);
         transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
@@ -1196,6 +1244,80 @@ const year = new Date().getFullYear()
       :global(html.anim) .hero__copy > *,
       :global(html.anim) .hero__code {
         opacity: 0;
+      }
+
+      /* ===================== Lights & effects =====================
+         All motion-only — gated behind prefers-reduced-motion so the page is
+         calm and fully legible when reduced motion is requested. */
+      @keyframes bd-rotate {
+        to {
+          --bd-angle: 360deg;
+        }
+      }
+      @keyframes node-flow {
+        0%,
+        55%,
+        100% {
+          box-shadow: 0 0 0 0 transparent;
+        }
+        14% {
+          box-shadow: 0 0 16px -3px rgba(217, 107, 130, 0.55);
+        }
+      }
+      @keyframes wash-breathe {
+        from {
+          transform: translate3d(0, 0, 0) scale(1);
+          opacity: 0.7;
+        }
+        to {
+          transform: translate3d(-4%, 3%, 0) scale(1.18);
+          opacity: 1;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        /* A light sweeps the ONDA column's rose border (conic gradient masked to
+           the edge, rotated via the @property angle). */
+        .arch__col--onda::before {
+          content: '';
+          position: absolute;
+          inset: -1px;
+          border-radius: inherit;
+          padding: 1.5px;
+          background: conic-gradient(
+            from var(--bd-angle),
+            transparent 0deg,
+            transparent 250deg,
+            #e89aab 300deg,
+            #f6d9df 330deg,
+            #e89aab 360deg
+          );
+          -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          -webkit-mask-composite: xor;
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask-composite: exclude;
+          pointer-events: none;
+          animation: bd-rotate 5.5s linear infinite;
+        }
+        /* A pulse of glow races down the ONDA pipeline nodes, like data through it. */
+        .arch__col--onda .flow__node {
+          animation: node-flow 4.2s ease-in-out infinite;
+        }
+        .arch__col--onda .flow__node:nth-child(1) {
+          animation-delay: 0s;
+        }
+        .arch__col--onda .flow__node:nth-child(2) {
+          animation-delay: 0.45s;
+        }
+        .arch__col--onda .flow__node:nth-child(3) {
+          animation-delay: 0.9s;
+        }
+        .arch__col--onda .flow__node:nth-child(4) {
+          animation-delay: 1.35s;
+        }
+        /* The hero aurora slowly breathes. */
+        .hero__wash {
+          animation: wash-breathe 14s ease-in-out infinite alternate;
+        }
       }
 
       @media (max-width: 1024px) {
