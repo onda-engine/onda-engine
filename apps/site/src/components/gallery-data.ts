@@ -894,12 +894,10 @@ export const GALLERY: GalleryItem[] = [
       value: 72,
       width: 720,
       height: 16,
-      accentColor: '#d96b82',
-      trackColor: '#26262e',
-      color: '#f2f2f4',
       fontSize: 32,
       showValue: true,
     },
+    themed: true,
   },
   {
     name: 'ProgressSteps',

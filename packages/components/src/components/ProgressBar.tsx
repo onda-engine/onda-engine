@@ -20,6 +20,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** Estimated label width per glyph as a fraction of `fontSize`, for a
  *  proportional display font — used only to reserve space so the whole assembly
@@ -39,13 +40,13 @@ export interface ProgressBarProps {
   height?: number
   /** Corner radius in px. Defaults to a full pill. */
   radius?: number
-  /** Track color — the unfilled portion. */
+  /** Track color — the unfilled portion (default: theme `surface`). */
   trackColor?: string
-  /** Fill color — the earned accent. */
+  /** Fill color (default: theme `accent`). */
   accentColor?: string
   /** Whether to render the `${value}%` label beside the bar. */
   showValue?: boolean
-  /** Label color. */
+  /** Label color (default: theme `text`). */
   color?: string
   /** Label font size in px. */
   fontSize?: number
@@ -60,15 +61,20 @@ export function ProgressBar({
   width = 640,
   height = 12,
   radius = 999,
-  trackColor = '#26262e',
-  accentColor = '#d96b82',
+  trackColor: trackColorProp,
+  accentColor: accentColorProp,
   showValue = true,
-  color = '#f2f2f4',
+  color: colorProp,
   fontSize = 28,
-  fontFamily,
+  fontFamily: fontFamilyProp,
 }: ProgressBarProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  const theme = useTheme()
+  const trackColor = trackColorProp ?? theme.surface
+  const accentColor = accentColorProp ?? theme.accent
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   const progress = spring({
     frame: Math.max(0, frame - delay),
