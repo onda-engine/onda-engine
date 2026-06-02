@@ -60,6 +60,16 @@ export interface BarChartProps {
   color?: string
   /** Show the numeric value at the end of each bar. */
   showValues?: boolean
+  /** Count each value up from 0 in sync with its bar's growth (lands exactly on
+   *  the true value). Only applies when `showValues` is on. Default `true`. */
+  countUp?: boolean
+  /** Optional headline above the chart — tells viewers what the numbers measure
+   *  (e.g. "Frames per second"). */
+  title?: string
+  /** Title font size in px. Default ~1.5× the label `fontSize`. */
+  titleSize?: number
+  /** Title color. Defaults to `color`. */
+  titleColor?: string
   /** Label / value font size in px. */
   fontSize?: number
   /** Loaded font family for labels and values. */
@@ -88,6 +98,10 @@ export function BarChart({
   trackColor = '#1c1c22',
   color = '#f2f2f4',
   showValues = false,
+  countUp = true,
+  title,
+  titleSize,
+  titleColor,
   fontSize = 24,
   fontFamily,
 }: BarChartProps) {
@@ -97,12 +111,21 @@ export function BarChart({
   const rowHeight = barHeight + gap
   // Total chart footprint (no trailing gap below the last row).
   const chartWidth = labelWidth + labelGap + trackWidth
-  const chartHeight = data.length > 0 ? rowHeight * data.length - gap : 0
+  const barsHeight = data.length > 0 ? rowHeight * data.length - gap : 0
+  // Optional headline above the bars. Reserve its line + a margin.
+  const titleFont = titleSize ?? Math.round(fontSize * 1.5)
+  const titleBlock = title ? Math.round(titleFont * 1.6) : 0
+  const blockHeight = barsHeight + titleBlock
 
-  // Center the fixed-size chart by computing its top-left offset directly — no
-  // layout container, so the per-frame width growth never triggers a reflow.
+  // Center the fixed-size block (title + bars) by computing its top-left offset
+  // directly — no layout container, so the per-frame width growth never
+  // triggers a reflow.
   const originX = Math.round((width - chartWidth) / 2)
-  const originY = Math.round((height - chartHeight) / 2)
+  const originY = Math.round((height - blockHeight) / 2)
+  // Center the title over the chart width (estimated — the engine has no
+  // author-time text metrics or text-align).
+  const titleWidth = title ? title.length * titleFont * 0.55 : 0
+  const titleX = Math.max(0, Math.round((chartWidth - titleWidth) / 2))
 
   // Largest value earns the accent. Ties go to the first occurrence; the reduce
   // seed handles an empty array without producing -Infinity downstream.
@@ -112,6 +135,18 @@ export function BarChart({
 
   return (
     <Group x={originX} y={originY}>
+      {title ? (
+        <Text
+          x={titleX}
+          y={0}
+          fontSize={titleFont}
+          color={titleColor ?? color}
+          fontFamily={fontFamily}
+          fontWeight={600}
+        >
+          {title}
+        </Text>
+      ) : null}
       {data.map((d, i) => {
         const barDelay = delay + staggerFrames(i, stagger)
         const local = Math.max(0, frame - barDelay)
@@ -129,15 +164,23 @@ export function BarChart({
           extrapolateRight: 'clamp',
         })
 
+        // A clamped growth fraction that reaches exactly 1 (the overdamped
+        // spring settles at ~0.995). Drives BOTH the bar width and the count-up,
+        // so the number and the bar land together on the true value.
+        const grow = interpolate(progress, [0, 0.99], [0, 1], {
+          extrapolateLeft: 'clamp',
+          extrapolateRight: 'clamp',
+        })
+
         // Target fill fraction of the track, clamped to [0, 1] so out-of-range
         // data never overflows (callers can raise `max`).
         const targetFrac = max > 0 ? Math.max(0, Math.min(1, d.value / max)) : 0
-        const fillWidth = trackWidth * targetFrac * Math.max(0, progress)
+        const fillWidth = trackWidth * targetFrac * grow
 
         const isLargest = d.value === maxValue
         const fillColor = isLargest ? accentColor : barColor
 
-        const rowY = rowHeight * i
+        const rowY = titleBlock + rowHeight * i
         const radius = barHeight / 2
 
         return (
@@ -190,7 +233,7 @@ export function BarChart({
                 fontFamily={fontFamily}
                 fontWeight={500}
               >
-                {`${Math.round(d.value)}`}
+                {`${countUp ? Math.round(d.value * grow) : Math.round(d.value)}`}
               </Text>
             ) : null}
           </Group>
