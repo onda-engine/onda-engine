@@ -79,6 +79,7 @@ function NoBrowser() {
 function Speed() {
   return (
     <BarChart
+      title="Frames per second"
       max={720}
       showValues
       barHeight={70}

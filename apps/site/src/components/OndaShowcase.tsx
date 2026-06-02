@@ -87,6 +87,7 @@ function buildPromo(): ReactElement {
         />
         <TransitionSeries.Sequence durationInFrames={130}>
           <BarChart
+            title="Frames per second"
             max={720}
             showValues
             barHeight={46}
