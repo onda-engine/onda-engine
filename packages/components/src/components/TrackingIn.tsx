@@ -31,6 +31,7 @@
 import { Group, Text, useVideoConfig } from '@onda/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 export interface TrackingInProps {
   /** The text to settle in. */
@@ -39,7 +40,7 @@ export interface TrackingInProps {
   delay?: number
   /** Frames until the text settles (default `DURATION.slow` = 24). */
   durationInFrames?: number
-  /** Text color (hex `#rrggbb` / `#rrggbbaa`). */
+  /** Text color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `text`). */
   color?: string
   /** Starting letter-spacing in em — the text begins spread wide and contracts. */
   fromTracking?: number
@@ -49,7 +50,7 @@ export interface TrackingInProps {
   blur?: boolean
   /** Font size in px. */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`). */
+  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (display default 600). */
   fontWeight?: number
@@ -70,12 +71,12 @@ export function TrackingIn({
   text = 'Onda',
   delay = 0,
   durationInFrames = DURATION.slow,
-  color = '#f2f2f4',
+  color: colorProp,
   fromTracking = 0.5,
   tracking = -0.02,
   blur = true,
   fontSize = 96,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
   align = 'center',
@@ -84,6 +85,9 @@ export function TrackingIn({
   y,
 }: TrackingInProps) {
   const { width, height } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   // House spring (SPRING_SMOOTH, no overshoot), matching ondajs.
   const progress = useSpringValue({ delay, durationInFrames })

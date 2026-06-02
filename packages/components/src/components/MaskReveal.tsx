@@ -28,6 +28,7 @@ import { Group, Text, clipRect } from '@onda/react'
 import type { ReactNode } from 'react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** Mean glyph advance as a fraction of font size — a rough display-sans heuristic
  *  used only to size the clip box (the engine measures the real glyphs). */
@@ -49,11 +50,11 @@ export interface MaskRevealProps {
   /** The side the content appears to come IN from (mirrors `SlideIn`). The mask
    *  retreats toward this side. */
   direction?: 'left' | 'right' | 'top' | 'bottom'
-  /** Text color (hex `#rrggbb` / `#rrggbbaa`). Default the Onda text `#f2f2f4`. */
+  /** Text color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `text`). */
   color?: string
   /** Text size in px (default 96). */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`). */
+  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `headingFamily ?? fontFamily`). */
   fontFamily?: string
   /** Font weight (display default 600). */
   fontWeight?: number
@@ -72,9 +73,9 @@ export function MaskReveal({
   delay = 0,
   duration = DURATION.base,
   direction = 'left',
-  color = '#f2f2f4',
+  color: colorProp,
   fontSize = 96,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
   width,
@@ -84,6 +85,9 @@ export function MaskReveal({
   // House spring (SPRING_SMOOTH, no overshoot), matching ondajs. `useSpringValue`
   // clamps the pre-delay frames to 0 internally, so it reads 0 before `delay`.
   const progress = useSpringValue({ delay, durationInFrames: duration })
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
   // Revealed fraction 0 → 1 (ondajs animates `cover` 100 → 0; this is `1 - cover`).
   const p = Math.min(1, Math.max(0, progress))
 

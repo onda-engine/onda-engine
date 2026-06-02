@@ -21,6 +21,7 @@
 import { Group, Image, Rect, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFade, exitFade } from '../choreography.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 export interface VideoClipProps {
   /** URL or path to the POSTER image (the video pipeline is not yet implemented,
@@ -52,12 +53,12 @@ export interface VideoClipProps {
   sourceWidth?: number
   /** Intrinsic poster height in px. Defaults to the composition height. */
   sourceHeight?: number
-  /** Rounded corner radius of the box in px (default 0). */
+  /** Rounded corner radius of the box in px (default: theme `radius`). */
   borderRadius?: number
   /** Draw cinematic black letterbox bars top & bottom, each this many px tall
    *  (default 0 = none). Drawn over the poster, inside the box. */
   letterbox?: number
-  /** Backing color shown behind/around the poster (default black). */
+  /** Backing color shown behind/around the poster (default: theme `background`). */
   backgroundColor?: string
 }
 
@@ -74,12 +75,15 @@ export function VideoClip({
   y = 0,
   sourceWidth,
   sourceHeight,
-  borderRadius = 0,
+  borderRadius: borderRadiusProp,
   letterbox = 0,
-  backgroundColor = '#000000',
+  backgroundColor: backgroundColorProp,
 }: VideoClipProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  const theme = useTheme()
+  const borderRadius = borderRadiusProp ?? theme.radius
+  const backgroundColor = backgroundColorProp ?? theme.background
 
   // Box the clip fills — default is the whole composition (ondajs's fill default).
   const boxW = width ?? compWidth

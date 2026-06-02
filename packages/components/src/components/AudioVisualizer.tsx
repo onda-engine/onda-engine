@@ -27,6 +27,7 @@
 import { Group, Rect, linearGradient, noise2D, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 export interface AudioVisualizerProps {
   /** Number of frequency bars. */
@@ -34,7 +35,8 @@ export interface AudioVisualizerProps {
   /**
    * Bar color. Pass a single hex string for a one-tone visualizer, or a
    * two-entry array `[top, bottom]` for a vertical gradient ramp. The FIRST
-   * entry is the meaningful color on the CPU backend (see header).
+   * entry is the meaningful color on the CPU backend (see header). (default:
+   * theme `accent` for the top, theme `palette[1]` for the bottom)
    */
   color?: string | string[]
   /** Overall width of the bar row, in px. */
@@ -45,7 +47,7 @@ export interface AudioVisualizerProps {
   align?: 'top' | 'middle' | 'bottom'
   /** Pixel gap between adjacent bars. */
   gap?: number
-  /** Bar corner radius in px (also the minimum bar height so idle bars read). */
+  /** Bar corner radius in px (also the minimum bar height so idle bars read) (default: theme `radius`). */
   barRadius?: number
   /** Animation speed multiplier for the fake spectrum's drift. */
   speed?: number
@@ -71,12 +73,12 @@ function toColorRamp(color: string | string[]): [string, string] {
 
 export function AudioVisualizer({
   barCount = 48,
-  color = ['#d96b82', '#7c5ce5'],
+  color: colorProp,
   width = 640,
   height = 160,
   align = 'middle',
   gap = 4,
-  barRadius = 2,
+  barRadius: barRadiusProp,
   speed = 1,
   seed = 1,
   delay = 0,
@@ -84,6 +86,9 @@ export function AudioVisualizer({
 }: AudioVisualizerProps) {
   const frame = useCurrentFrame()
   const { width: compWidth, height: compHeight } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? [theme.accent, theme.palette[1] ?? '#7c5ce5']
+  const barRadius = barRadiusProp ?? theme.radius
 
   const n = Math.max(1, Math.floor(barCount))
 

@@ -29,6 +29,7 @@
 import { Group, Image, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFade, entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** Which entrance fingerprint the image uses. `'wipe'` replaces ondajs's
  *  blur-rise variant (the engine has no blur filter). */
@@ -64,7 +65,7 @@ export interface ImageRevealProps {
   srcWidth?: number
   /** Intrinsic source pixel height (see {@link srcWidth}). */
   srcHeight?: number
-  /** Corner radius of the box (clips the image to a rounded rect). */
+  /** Corner radius of the box (clips the image to a rounded rect) (default: theme `radius`). */
   cornerRadius?: number
 }
 
@@ -80,10 +81,12 @@ export function ImageReveal({
   height,
   srcWidth,
   srcHeight,
-  cornerRadius,
+  cornerRadius: cornerRadiusProp,
 }: ImageRevealProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  const theme = useTheme()
+  const cornerRadius = cornerRadiusProp ?? theme.radius
 
   // Box: defaults to the full composition (ondajs's hero-fill default).
   const boxW = width ?? compWidth

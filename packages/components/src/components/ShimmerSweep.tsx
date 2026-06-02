@@ -38,6 +38,7 @@ import {
 } from '@onda/react'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** Mean glyph advance as a fraction of font size — a display-sans heuristic used
  *  only to estimate the text box (the engine measures the real glyphs). Matches
@@ -59,15 +60,15 @@ export interface ShimmerSweepProps {
   loop?: boolean
   /** Frames between sweeps when looping. */
   interval?: number
-  /** Base (dim) text color so the bright band reads as a highlight. */
+  /** Base (dim) text color so the bright band reads as a highlight (default: theme `textMuted`). */
   color?: string
-  /** The sweeping highlight color. */
+  /** The sweeping highlight color (default: theme `text`). */
   shimmerColor?: string
   /** Sweep angle in degrees (approximated by tilting the gradient band). */
   angle?: number
   /** Font size in px (default 96). */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`). */
+  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (display default 600). */
   fontWeight?: number
@@ -85,17 +86,21 @@ export function ShimmerSweep({
   duration = DURATION.slower,
   loop = false,
   interval = 60,
-  color = '#8e8e98',
-  shimmerColor = '#f2f2f4',
+  color: colorProp,
+  shimmerColor: shimmerColorProp,
   angle = 110,
   fontSize = 96,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
   width,
   x = 0,
   y = 0,
 }: ShimmerSweepProps) {
   const frame = useCurrentFrame()
+  const theme = useTheme()
+  const color = colorProp ?? theme.textMuted
+  const shimmerColor = shimmerColorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   const local = frame - delay
 

@@ -30,13 +30,19 @@ import { Group, Image, Rect, clipRect, useCurrentFrame, useVideoConfig } from '@
 import type { ReactNode } from 'react'
 import { entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
-/** ondajs palette tokens (resolved from CSS vars there; literal hex here). */
-const BEZEL = '#1c1c22'
+/** ondajs palette tokens (resolved from CSS vars there; literal hex here).
+ *  These are the fallbacks behind the theme tokens:
+ *  - bezel → theme `surface`
+ *  - hinge (BEZEL_LIT) → theme `border` (default: theme `border`)
+ *  - screen background (SCREEN_BG) → theme `background` (default: theme `background`)
+ *  - notch (NOTCH) → theme `background` (default: theme `background`) */
 const BEZEL_LIT = '#26262e'
 const SCREEN_BG = '#08080a'
 const NOTCH = '#000000'
-/** Soft approximation of the ondajs `box-shadow` drop. */
+/** Soft approximation of the ondajs `box-shadow` drop. Stays dark across themes
+ *  (a drop shadow isn't a theme color), so it's not theme-driven. */
 const SHADOW = '#000000a6'
 
 export interface DeviceFrameProps {
@@ -51,7 +57,7 @@ export interface DeviceFrameProps {
   animate?: boolean
   /** Device width in px (height is derived from the device aspect). */
   width?: number
-  /** Bezel color (hex `#rrggbb` / `#rrggbbaa`). */
+  /** Bezel color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `surface`). */
   color?: string
   /** Content to wrap (scene nodes). Takes precedence over `src`. */
   children?: ReactNode
@@ -63,11 +69,17 @@ export function DeviceFrame({
   delay = 0,
   animate = true,
   width = 420,
-  color = BEZEL,
+  color: colorProp,
   children,
 }: DeviceFrameProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.surface
+  const screenBg = theme.background ?? SCREEN_BG
+  const notch = theme.background ?? NOTCH
+  const bezelLit = theme.border ?? BEZEL_LIT
+  const shadow = SHADOW
 
   // House-spring scale-and-fade entrance (matches ondajs `useEntrance` scale).
   const entrance = entryScale({ frame, fps, delay, durationInFrames: DURATION.base, from: 0.96 })
@@ -86,8 +98,8 @@ export function DeviceFrame({
     <Group x={centerX} y={centerY} scaleX={scale} scaleY={scale} opacity={opacity}>
       <Group x={-box.width / 2} y={-box.height / 2}>
         {device === 'phone'
-          ? renderPhone(width, color, src, children)
-          : renderLaptop(width, color, src, children)}
+          ? renderPhone(width, color, src, children, { screenBg, notch, shadow })
+          : renderLaptop(width, color, src, children, { screenBg, bezelLit, shadow })}
       </Group>
     </Group>
   )
@@ -104,7 +116,14 @@ function deviceBox(device: 'phone' | 'laptop', width: number): { width: number; 
 }
 
 /** Phone bezel: rounded body, inset rounded screen, clipped content, top notch. */
-function renderPhone(width: number, color: string, src?: string, children?: ReactNode) {
+function renderPhone(
+  width: number,
+  color: string,
+  src: string | undefined,
+  children: ReactNode,
+  colors: { screenBg: string; notch: string; shadow: string },
+) {
+  const { screenBg, notch, shadow } = colors
   const height = width * 2.05
   const radius = width * 0.15
   const bezel = Math.max(12, width * 0.035)
@@ -119,7 +138,7 @@ function renderPhone(width: number, color: string, src?: string, children?: Reac
   return (
     <Group>
       {/* Drop-shadow approximation (no engine box-shadow): offset, soft alpha. */}
-      <Rect x={6} y={18} width={width} height={height} cornerRadius={radius} fill={SHADOW} />
+      <Rect x={6} y={18} width={width} height={height} cornerRadius={radius} fill={shadow} />
       {/* Bezel body. */}
       <Rect width={width} height={height} cornerRadius={radius} fill={color} />
       {/* Screen background (rounded), inset by the bezel padding. */}
@@ -129,7 +148,7 @@ function renderPhone(width: number, color: string, src?: string, children?: Reac
         width={screenW}
         height={screenH}
         cornerRadius={screenRadius}
-        fill={SCREEN_BG}
+        fill={screenBg}
       />
       {/* Content, masked to the rounded screen box. */}
       <Group x={bezel} y={bezel} clip={clipRect(screenW, screenH, screenRadius)}>
@@ -142,14 +161,21 @@ function renderPhone(width: number, color: string, src?: string, children?: Reac
         width={notchW}
         height={notchH}
         cornerRadius={notchH / 2}
-        fill={NOTCH}
+        fill={notch}
       />
     </Group>
   )
 }
 
 /** Laptop bezel: rounded screen body centered over a wider hinge + foot. */
-function renderLaptop(width: number, color: string, src?: string, children?: ReactNode) {
+function renderLaptop(
+  width: number,
+  color: string,
+  src: string | undefined,
+  children: ReactNode,
+  colors: { screenBg: string; bezelLit: string; shadow: string },
+) {
+  const { screenBg, bezelLit, shadow } = colors
   const screenH = width * 0.62
   const bezel = Math.max(10, width * 0.02)
   const radius = 16
@@ -179,7 +205,7 @@ function renderLaptop(width: number, color: string, src?: string, children?: Rea
         width={width}
         height={screenH}
         cornerRadius={radius}
-        fill={SHADOW}
+        fill={shadow}
       />
       {/* Screen body bezel. */}
       <Rect x={bodyX} y={0} width={width} height={screenH} cornerRadius={radius} fill={color} />
@@ -190,7 +216,7 @@ function renderLaptop(width: number, color: string, src?: string, children?: Rea
         width={screenW}
         height={screenInnerH}
         cornerRadius={screenRadius}
-        fill={SCREEN_BG}
+        fill={screenBg}
       />
       {/* Content, masked to the rounded screen box. */}
       <Group x={bodyX + bezel} y={bezel} clip={clipRect(screenW, screenInnerH, screenRadius)}>
@@ -203,7 +229,7 @@ function renderLaptop(width: number, color: string, src?: string, children?: Rea
         width={hingeW}
         height={hingeH}
         cornerRadius={hingeH / 2}
-        fill={BEZEL_LIT}
+        fill={bezelLit}
       />
       <Rect
         x={footX}

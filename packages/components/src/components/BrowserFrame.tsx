@@ -45,26 +45,15 @@ import {
 import type { ReactNode } from 'react'
 import { entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
-// Onda palette tokens (from ondajs `lib/tokens.ts`), inlined as hex since the
-// engine has no CSS-variable resolution.
-const BG = '#08080a' // near-black content canvas
-const SURFACE = '#0e0e12' // card body
-const SURFACE_2 = '#121217' // address-pill fill
-const BORDER = '#1c1c22' // 1px borders / chrome divider
-const BORDER_LIT = '#26262e' // traffic-light dots
-const DIM = '#8e8e98' // pill (url) text
-const FAINT = '#56565f' // placeholder text
-
-// Card geometry (matches ondajs: RADIUS.lg = 20 corners, the chrome bar's 16/22px
-// padding, 18px dots with a 10px gap, a 40px-tall pill).
-const CARD_RADIUS = 20
+// Card geometry (matches ondajs: the chrome bar's 16/22px padding, 18px dots with
+// a 10px gap, a 40px-tall pill).
 const CHROME_PAD_Y = 16
 const CHROME_PAD_X = 22
 const DOT_SIZE = 18
 const DOT_GAP = 10
 const PILL_HEIGHT = 40
-const PILL_RADIUS = PILL_HEIGHT / 2
 // Gap between the last dot and the pill. In ondajs the chrome row is a flex
 // container with `gap: 10` AND the pill carries `marginLeft: 16`, so the
 // last-dot → pill distance is the sum of both.
@@ -98,6 +87,24 @@ export interface BrowserFrameProps {
   height?: number
   /** Starting scale for the entrance (default 0.96 — restrained, like ondajs). */
   from?: number
+  /** Card body fill (default: theme `surface`). */
+  surface?: string
+  /** 1px card border and chrome divider (default: theme `border`). */
+  border?: string
+  /** Traffic-light dot color (default: theme `border`). */
+  borderLit?: string
+  /** Address-pill fill (default: theme `surface`). */
+  surface2?: string
+  /** Content canvas background (default: theme `background`). */
+  bg?: string
+  /** Pill/URL text color (default: theme `textMuted`). */
+  dim?: string
+  /** Placeholder text color (default: theme `textMuted`). */
+  faint?: string
+  /** Card corner radius in px (default: theme `radius`). */
+  cardRadius?: number
+  /** Address-pill corner radius in px (default: theme `radius`). */
+  pillRadius?: number
   /** Content to wrap; renders at the content area's local origin (0,0). */
   children?: ReactNode
 }
@@ -110,10 +117,29 @@ export function BrowserFrame({
   width = 1280,
   height = 720,
   from = 0.96,
+  surface: surfaceProp,
+  border: borderProp,
+  borderLit: borderLitProp,
+  surface2: surface2Prop,
+  bg: bgProp,
+  dim: dimProp,
+  faint: faintProp,
+  cardRadius: cardRadiusProp,
+  pillRadius: pillRadiusProp,
   children,
 }: BrowserFrameProps) {
   const frame = useCurrentFrame()
   const { width: compWidth, height: compHeight, fps } = useVideoConfig()
+  const theme = useTheme()
+  const SURFACE = surfaceProp ?? theme.surface
+  const BORDER = borderProp ?? theme.border
+  const BORDER_LIT = borderLitProp ?? theme.border
+  const SURFACE_2 = surface2Prop ?? theme.surface
+  const BG = bgProp ?? theme.background
+  const DIM = dimProp ?? theme.textMuted
+  const FAINT = faintProp ?? theme.textMuted
+  const CARD_RADIUS = cardRadiusProp ?? theme.radius
+  const PILL_RADIUS = pillRadiusProp ?? theme.radius
 
   // Total card footprint: chrome bar on top, content area below.
   const cardWidth = width

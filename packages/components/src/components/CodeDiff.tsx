@@ -30,6 +30,7 @@
 import { Ellipse, Group, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFadeRise } from '../choreography.js'
 import { DURATION, STAGGER, staggerFrames } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** Line kind — drives gutter symbol, color, and row treatment. */
 export type DiffLineType = 'add' | 'remove' | 'context'
@@ -55,22 +56,28 @@ export interface CodeDiffProps {
   delay?: number
   /** Frames between consecutive line reveals (default canonical `STAGGER` = 4). */
   lineDelay?: number
-  /** Monospace font stack for code (and the title). */
+  /** Monospace font stack for code (and the title) (default: theme `monoFamily ?? fontFamily`). */
   fontFamily?: string
   /** Code font size in px. */
   fontSize?: number
   /** Panel width in px. */
   width?: number
-  /** Default (context) text color. */
+  /** Default (context) text color (default: theme `textMuted`). */
   textColor?: string
-  /** Added-line color. */
+  /** Added-line color (default: theme `palette[3]`). */
   addColor?: string
-  /** Removed-line color. */
+  /** Removed-line color (default: theme `accent`). */
   removeColor?: string
-  /** Panel surface (glass) fill. */
+  /** Panel surface (glass) fill (default: theme `surface`). */
   surfaceColor?: string
-  /** Panel border / chrome divider color. */
+  /** Panel border / chrome divider color (default: theme `border`). */
   borderColor?: string
+  /** Panel corner radius in px (default: theme `radius`). */
+  cornerRadius?: number
+  /** Window-chrome traffic-light dot color (default: theme `border`). */
+  chromeDotsColor?: string
+  /** Window-chrome title (filename) color (default: theme `textMuted`). */
+  chromeTitleColor?: string
 }
 
 const DEFAULT_LINES: DiffLine[] = [
@@ -107,17 +114,30 @@ export function CodeDiff({
   revealLines = true,
   delay = 0,
   lineDelay = STAGGER,
-  fontFamily = 'ui-monospace, "SF Mono", Menlo, monospace',
+  fontFamily: fontFamilyProp,
   fontSize = 44,
   width = 760,
-  textColor = '#8e8e98',
-  addColor = '#7fb58c',
-  removeColor = '#d08c8c',
-  surfaceColor = '#121217',
-  borderColor = '#1c1c22',
+  textColor: textColorProp,
+  addColor: addColorProp,
+  removeColor: removeColorProp,
+  surfaceColor: surfaceColorProp,
+  borderColor: borderColorProp,
+  cornerRadius: cornerRadiusProp,
+  chromeDotsColor: chromeDotsColorProp,
+  chromeTitleColor: chromeTitleColorProp,
 }: CodeDiffProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  const theme = useTheme()
+  const fontFamily = fontFamilyProp ?? theme.monoFamily ?? theme.fontFamily
+  const textColor = textColorProp ?? theme.textMuted
+  const addColor = addColorProp ?? theme.palette[3] ?? '#7fb58c'
+  const removeColor = removeColorProp ?? theme.accent
+  const surfaceColor = surfaceColorProp ?? theme.surface
+  const borderColor = borderColorProp ?? theme.border
+  const cornerRadius = cornerRadiusProp ?? theme.radius
+  const chromeDotsColor = chromeDotsColorProp ?? theme.border
+  const chromeTitleColor = chromeTitleColorProp ?? theme.textMuted
 
   // Monospace line box height (CSS line-height 1.6 in ondajs).
   const lineHeight = Math.round(fontSize * 1.6)
@@ -138,7 +158,6 @@ export function CodeDiff({
   const originX = Math.round((compWidth - width) / 2)
   const originY = Math.round((compHeight - panelHeight) / 2)
 
-  const cornerRadius = 16
   const dotRadius = 9
   const dotGap = 10
 
@@ -170,7 +189,7 @@ export function CodeDiff({
               y={Math.round(chromeHeight / 2)}
               width={dotRadius * 2}
               height={dotRadius * 2}
-              fill="#26262e"
+              fill={chromeDotsColor}
             />
           ))}
           {/* Filename label, to the right of the dots. */}
@@ -178,7 +197,7 @@ export function CodeDiff({
             x={24 + 3 * (dotRadius * 2 + dotGap) + 10}
             y={Math.round((chromeHeight - fontSize * 0.6) / 2)}
             fontSize={Math.round(fontSize * 0.6)}
-            color="#56565f"
+            color={chromeTitleColor}
             fontFamily={fontFamily}
           >
             {title}

@@ -30,6 +30,7 @@
 import { AbsoluteFill, Group, Text, useCurrentFrame } from '@onda/react'
 import { stateSwap } from '../choreography.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 export interface TextFadeReplaceProps {
   /** The outgoing phrase (shown first, fades out). */
@@ -44,9 +45,9 @@ export interface TextFadeReplaceProps {
   durationInFrames?: number
   /** Font size in px (default `96`, matching the ondajs display default). */
   fontSize?: number
-  /** Text color (hex `#rrggbb` / `#rrggbbaa`, default `#F2F2F4`). */
+  /** Text color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `text`). */
   color?: string
-  /** Loaded font family (e.g. a `--font` passed to `onda render`). */
+  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `headingFamily`). */
   fontFamily?: string
   /** Font weight (default `600`). */
   fontWeight?: number
@@ -58,11 +59,14 @@ export function TextFadeReplace({
   delay = DURATION.hold,
   durationInFrames = DURATION.base,
   fontSize = 96,
-  color = '#F2F2F4',
-  fontFamily,
+  color: colorProp,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
 }: TextFadeReplaceProps) {
   const frame = useCurrentFrame()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
 
   // In-place crossfade on HOUSE_EASE: old fades out over the first half of the
   // window, new fades in over the second. Both are rendered (layered, same

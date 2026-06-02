@@ -32,6 +32,7 @@
 import { Group, Path, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFade, entryFadeRise, entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** Empirical advance ratio: average glyph advance ÷ font size for a display
  *  face. Used only to estimate the bubble width when `width` is omitted. */
@@ -58,17 +59,17 @@ export interface CalloutProps {
   lineDelay?: number
   /** Pointer reveal duration in frames (default `DURATION.base`). */
   lineDuration?: number
-  /** Label color. */
+  /** Label color (default: theme `text`). */
   color?: string
-  /** Bubble background fill. */
+  /** Bubble background fill (default: theme `surface`). */
   bgColor?: string
-  /** Bubble border color. */
+  /** Bubble border color (default: theme `border`). */
   borderColor?: string
   /** Bubble border width in px (default 1). */
   borderWidth?: number
   /** Label font size in px (default 20). */
   fontSize?: number
-  /** Loaded font family (the Onda display font). */
+  /** Loaded font family (the Onda display font) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Label font weight (default 500). */
   fontWeight?: number
@@ -76,7 +77,7 @@ export interface CalloutProps {
   paddingX?: number
   /** Vertical padding inside the bubble (default 8). */
   paddingY?: number
-  /** Bubble corner radius (default 12). */
+  /** Bubble corner radius (default: theme `radius`). */
   cornerRadius?: number
   /** Pointer triangle base width in px (default 18). */
   pointerWidth?: number
@@ -95,22 +96,28 @@ export function Callout({
   duration = DURATION.base,
   lineDelay = 6,
   lineDuration = DURATION.base,
-  color = '#f2f2f4',
-  bgColor = '#0e0e12',
-  borderColor = '#26262e',
+  color: colorProp,
+  bgColor: bgColorProp,
+  borderColor: borderColorProp,
   borderWidth = 1,
   fontSize = 20,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 500,
   paddingX = 14,
   paddingY = 8,
-  cornerRadius = 12,
+  cornerRadius: cornerRadiusProp,
   pointerWidth = 18,
   pointerLength = 12,
   width,
 }: CalloutProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const bgColor = bgColorProp ?? theme.surface
+  const borderColor = borderColorProp ?? theme.border
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
+  const cornerRadius = cornerRadiusProp ?? theme.radius
 
   // Bubble center in pixels. x/y are 0..1 canvas fractions (ondajs semantics),
   // so the default 0.5/0.5 centers the bubble regardless of resolution.

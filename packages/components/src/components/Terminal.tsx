@@ -32,6 +32,7 @@ import { Ellipse, Group, Rect, Text, useCurrentFrame, useVideoConfig } from '@on
 import type { TextRunInput } from '@onda/react'
 import { useStaggeredEntrance, useTextReveal } from '../hooks.js'
 import { STAGGER } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 export interface TerminalProps {
   /** The command that types itself out after the prompt. */
@@ -50,21 +51,23 @@ export interface TerminalProps {
   typeSpeed?: number
   /** Frames after the command finishes before output begins. */
   outputDelay?: number
-  /** Monospace font stack. */
+  /** Monospace font stack (default: theme `monoFamily`). */
   fontFamily?: string
   /** Font size in px. Sized for a 1080p+ video canvas, not a screen UI. */
   fontSize?: number
   /** Width of the window in px. Fixed so the frame is stable while the command
    *  types into it — a terminal has a defined size, it doesn't grow char by char. */
   width?: number
-  /** Command text color. */
+  /** Command text color (default: theme `text`). */
   textColor?: string
-  /** Prompt glyph color — the earned accent. */
+  /** Prompt glyph color — the earned accent (default: theme `accent`). */
   promptColor?: string
-  /** Output line color. */
+  /** Output line color (default: theme `textMuted`). */
   outputColor?: string
-  /** Window background color. */
+  /** Window background color (default: theme `background`). */
   background?: string
+  /** Window corner radius in px (default: theme `radius`). */
+  cornerRadius?: number
   /** Absolute x of the window's top-left. Defaults to horizontally centered. */
   x?: number
   /** Absolute y of the window's top-left. Defaults to vertically centered. */
@@ -86,18 +89,29 @@ export function Terminal({
   delay = 0,
   typeSpeed = 30,
   outputDelay = 8,
-  fontFamily = 'ui-monospace, "SF Mono", Menlo, monospace',
+  fontFamily: fontFamilyProp,
   fontSize = 48,
   width = 1100,
-  textColor = '#f2f2f4',
-  promptColor = '#d96b82',
-  outputColor = '#8e8e98',
-  background = '#161619',
+  textColor: textColorProp,
+  promptColor: promptColorProp,
+  outputColor: outputColorProp,
+  background: backgroundProp,
+  cornerRadius: cornerRadiusProp,
   x,
   y,
 }: TerminalProps) {
   const frame = useCurrentFrame()
   const { width: compWidth, height: compHeight, fps } = useVideoConfig()
+  const theme = useTheme()
+  const textColor = textColorProp ?? theme.text
+  const promptColor = promptColorProp ?? theme.accent
+  const outputColor = outputColorProp ?? theme.textMuted
+  const background = backgroundProp ?? theme.background
+  const fontFamily =
+    fontFamilyProp ??
+    theme.monoFamily ??
+    theme.fontFamily ??
+    'ui-monospace, "SF Mono", Menlo, monospace'
 
   // Linear char count for the command — constant cadence (the intentional
   // non-spring case; matches ondajs `useTextReveal`).
@@ -127,7 +141,7 @@ export function Terminal({
   const lineCount = 1 + output.length
   const bodyHeight = bodyPadY * 2 + lineCount * lineBox
   const windowHeight = titleBarHeight + bodyHeight
-  const cornerRadius = Math.round(fontSize * 0.4)
+  const cornerRadius = cornerRadiusProp ?? theme.radius
 
   // Center on the canvas unless an explicit position is given (the engine has no
   // CSS placement). x/y are the window's top-left in composition space.

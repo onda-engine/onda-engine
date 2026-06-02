@@ -38,6 +38,7 @@ import {
 } from '@onda/react'
 import { entryFadeRise } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { useTheme } from '../theme.js'
 import { FadeIn } from './FadeIn.js'
 
 export interface ChapterCardProps {
@@ -49,11 +50,11 @@ export interface ChapterCardProps {
   delay?: number
   /** When `true`, the number takes `numberColor` (the rose) and an underline punctuates the title. */
   accent?: boolean
-  /** Number color when `accent` is `true` (the Onda rose). */
+  /** Number color when `accent` is `true` (the Onda rose) (default: theme `accent`). */
   numberColor?: string
-  /** Chapter title color. */
+  /** Chapter title color (default: theme `text`). */
   color?: string
-  /** Number color when `accent` is `false` — quiet metadata dim. */
+  /** Number color when `accent` is `false` — quiet metadata dim (default: theme `textMuted`). */
   subtitleColor?: string
   /** Number font size in px — smaller than the title, sitting above it. */
   numberFontSize?: number
@@ -63,7 +64,7 @@ export interface ChapterCardProps {
   titleFontSize?: number
   /** Title font weight. */
   titleFontWeight?: number
-  /** Onda display font, applied to both number and title for tonal consistency. */
+  /** Onda display font, applied to both number and title for tonal consistency (default: theme `headingFamily ?? fontFamily`). */
   fontFamily?: string
 }
 
@@ -89,17 +90,22 @@ export function ChapterCard({
   number = '01',
   delay = 0,
   accent = true,
-  numberColor = '#d96b82',
-  color = '#f2f2f4',
-  subtitleColor = '#8e8e98',
+  numberColor: numberColorProp,
+  color: colorProp,
+  subtitleColor: subtitleColorProp,
   numberFontSize = 32,
   numberFontWeight = 600,
   titleFontSize = 96,
   titleFontWeight = 600,
-  fontFamily,
+  fontFamily: fontFamilyProp,
 }: ChapterCardProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  const theme = useTheme()
+  const numberColor = numberColorProp ?? theme.accent
+  const color = colorProp ?? theme.text
+  const subtitleColor = subtitleColorProp ?? theme.textMuted
+  const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
 
   // Title rise — the focal beat. `entryFadeRise` is the spring rise + fade that
   // stands in for the ondajs `BlurReveal` (sans the unsupported blur).
@@ -132,7 +138,10 @@ export function ChapterCard({
     extrapolateRight: 'clamp',
   })
   const ruleThickness = 3
-  const ruleRadius = Math.min(ruleThickness / 2, ruleWidth / 2)
+  // Rule corner radius defaults to the theme `radius` token (for future override
+  // capability), capped at half the rule's own thickness/width so a thin sliver
+  // stays a clean rounded rule rather than bulging into a lens.
+  const ruleRadius = Math.min(theme.radius, ruleThickness / 2, ruleWidth / 2)
   // Reserve a fixed-height row for the rule so the Flex column never reflows as
   // the rule width animates. Width is centered within the row by absolute x.
   const ruleRowHeight = ruleThickness + 4

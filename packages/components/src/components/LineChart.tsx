@@ -39,6 +39,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { useSceneProgress } from '../hooks.js'
+import { useTheme } from '../theme.js'
 
 export interface LineChartProps {
   /** The series values, left to right. */
@@ -47,7 +48,7 @@ export interface LineChartProps {
   delay?: number
   /** Frames for the line to fully draw on. */
   duration?: number
-  /** Line + dot color — the earned accent. */
+  /** Line + dot color — the earned accent (default: theme `accent`). */
   color?: string
   /** Stroke width in px. */
   strokeWidth?: number
@@ -88,7 +89,7 @@ export function LineChart({
   data = DEFAULT_DATA,
   delay = 0,
   duration = 40,
-  color = '#d96b82',
+  color: colorProp,
   strokeWidth = 4,
   width = 900,
   height = 440,
@@ -99,6 +100,9 @@ export function LineChart({
 
   // House easing (non-physical reveal), matching ondajs `useSceneProgress`.
   const progress = useSceneProgress({ delay, durationInFrames: duration, eased: true })
+
+  const theme = useTheme()
+  const color = colorProp ?? theme.accent
 
   const n = data.length
   const padX = 24

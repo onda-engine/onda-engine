@@ -43,6 +43,7 @@ import {
 } from '@onda/react'
 import { HOUSE_EASE } from '../easing.js'
 import { SPRING_SMOOTH, STAGGER } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** One orbiting satellite node in the constellation. */
 export interface Satellite {
@@ -62,7 +63,7 @@ export interface NodeGraphProps {
   /** The orbiting satellites. Each flies in from off-frame, then settles into
    *  its elliptical orbit. ~5 reads as a believable constellation. */
   satellites?: Satellite[]
-  /** The earned accent — hub fill tint, the connection lines, and the glow. */
+  /** The earned accent — hub fill tint, the connection lines, and the glow (default: theme `accent`). */
   accent?: string
   /** Vertical squash of every orbit (1 = circular, <1 = elliptical). */
   ellipse?: number
@@ -76,17 +77,17 @@ export interface NodeGraphProps {
   hubDiameter?: number
   /** Hub label size in px. */
   hubFontSize?: number
-  /** Background canvas color behind the constellation. */
+  /** Background canvas color behind the constellation (default: theme `background`). */
   background?: string
-  /** Surface (fill) color of the satellite pills. */
+  /** Surface (fill) color of the satellite pills (default: theme `surface`). */
   surface?: string
-  /** Border color of the satellite pills. */
+  /** Border color of the satellite pills (default: theme `border`). */
   borderColor?: string
-  /** Text color of every label. */
+  /** Text color of every label (default: theme `text`). */
   textColor?: string
   /** Satellite label font size in px. */
   satelliteFontSize?: number
-  /** Display font for every label. */
+  /** Display font for every label (default: theme `fontFamily`). */
   fontFamily?: string
   /** Horizontal center of the constellation as a 0–1 fraction of canvas width. */
   centerX?: number
@@ -112,24 +113,31 @@ const AVG_CHAR_W = 0.6
 export function NodeGraph({
   hubLabel = 'AI',
   satellites = DEFAULT_SATELLITES,
-  accent = '#d96b82',
+  accent: accentProp,
   ellipse = 0.62,
   seed = 7,
   delay = 0,
   glow = true,
   hubDiameter = 120,
   hubFontSize = 34,
-  background = '#08080a',
-  surface = '#0e0e12',
-  borderColor = '#1c1c22',
-  textColor = '#f2f2f4',
+  background: backgroundProp,
+  surface: surfaceProp,
+  borderColor: borderColorProp,
+  textColor: textColorProp,
   satelliteFontSize = 20,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   centerX = 0.5,
   centerY = 0.5,
 }: NodeGraphProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  const theme = useTheme()
+  const accent = accentProp ?? theme.accent
+  const background = backgroundProp ?? theme.background
+  const surface = surfaceProp ?? theme.surface
+  const borderColor = borderColorProp ?? theme.border
+  const textColor = textColorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   const anchorX = centerX * width
   const anchorY = centerY * height

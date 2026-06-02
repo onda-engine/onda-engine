@@ -31,6 +31,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** One pie slice: a numeric weight and its color. */
 export interface PieRevealSlice {
@@ -50,7 +51,7 @@ export interface PieRevealProps {
   /** Inner radius (donut hole) in px. `0` is a solid pie. The hole is filled
    *  with {@link holeColor}, so set that to match the background. */
   innerRadius?: number
-  /** Color filling the donut hole — match the composition background. */
+  /** Color filling the donut hole — match the composition background (default: theme `background`). */
   holeColor?: string
   /** Frames before the **first** slice starts sweeping. */
   delay?: number
@@ -66,11 +67,11 @@ export interface PieRevealProps {
   showLabel?: boolean
   /** Center label text. Defaults to the slice count. */
   label?: string
-  /** Center label color. */
+  /** Center label color (default: theme `text`). */
   labelColor?: string
   /** Center label font size in px. */
   fontSize?: number
-  /** Center label font family (must be loaded by the renderer). */
+  /** Center label font family (must be loaded by the renderer) (default: theme `headingFamily ?? fontFamily`). */
   fontFamily?: string
 }
 
@@ -120,7 +121,7 @@ export function PieReveal({
   data = DEFAULT_DATA,
   radius = 180,
   innerRadius = 0,
-  holeColor = '#0a0a0f',
+  holeColor: holeColorProp,
   delay = 0,
   duration = DURATION.slow,
   stagger = STAGGER,
@@ -128,12 +129,16 @@ export function PieReveal({
   y = 0.5,
   showLabel = false,
   label,
-  labelColor = '#f2f2f4',
+  labelColor: labelColorProp,
   fontSize = 56,
-  fontFamily,
+  fontFamily: fontFamilyProp,
 }: PieRevealProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  const theme = useTheme()
+  const holeColor = holeColorProp ?? theme.background
+  const labelColor = labelColorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
 
   // Center the fixed-size disc by mapping the 0–1 fractions onto the canvas.
   const cx = x * width

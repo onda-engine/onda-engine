@@ -24,6 +24,7 @@
 import { Flex, Group, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFadeRise } from '../choreography.js'
 import { DURATION, STAGGER, staggerFrames } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 export interface StaggerGroupProps {
   /** The items to reveal, in source order (default: four short lines). */
@@ -40,11 +41,11 @@ export interface StaggerGroupProps {
   gap?: number
   /** Cross-axis alignment of items (default `'center'`). */
   align?: 'start' | 'center' | 'end'
-  /** Text color (default the Onda text color `#f2f2f4`). */
+  /** Text color (default: theme `text`). */
   color?: string
   /** Font size in px (default 48). */
   fontSize?: number
-  /** Loaded font family (bundled: "Open Sans", "IBM Plex Sans"). */
+  /** Loaded font family (bundled: "Open Sans", "IBM Plex Sans") (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (display default 600). */
   fontWeight?: number
@@ -58,13 +59,16 @@ export function StaggerGroup({
   direction = 'column',
   gap = 16,
   align = 'center',
-  color = '#f2f2f4',
+  color: colorProp,
   fontSize = 48,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
 }: StaggerGroupProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   return (
     <Flex direction={direction} align={align} gap={gap}>

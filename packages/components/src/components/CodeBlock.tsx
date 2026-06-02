@@ -35,6 +35,7 @@
 import { Ellipse, Group, Rect, Text, useVideoConfig } from '@onda/react'
 import type { TextRunInput } from '@onda/react'
 import { useStaggeredEntrance } from '../hooks.js'
+import { useTheme } from '../theme.js'
 
 export interface CodeBlockProps {
   /** The source to render. Newlines split into reveal-able lines. */
@@ -49,27 +50,27 @@ export interface CodeBlockProps {
   delay?: number
   /** Frames between successive line reveals. */
   lineDelay?: number
-  /** Monospace font stack. Real monospace by default — code needs column alignment. */
+  /** Monospace font stack. Real monospace by default — code needs column alignment (default: theme `monoFamily`). */
   fontFamily?: string
   /** Code font size in px. Sized for a video canvas, not a screen UI. */
   fontSize?: number
   /** Panel width in px. */
   width?: number
-  /** Default text color — identifiers, punctuation, operators. */
+  /** Default text color — identifiers, punctuation, operators (default: theme `text`). */
   textColor?: string
-  /** Keyword color. A muted, dusty violet — reads as syntax, not the brand accent. */
+  /** Keyword color. A muted, dusty violet — reads as syntax, not the brand accent (default: theme `palette[1]`). */
   keywordColor?: string
-  /** String literal color — dusty sage. */
+  /** String literal color — dusty sage (default: theme `palette[3]`). */
   stringColor?: string
-  /** Comment color. */
+  /** Comment color (default: theme `textMuted`). */
   commentColor?: string
-  /** Numeric literal color — dusty amber. */
+  /** Numeric literal color — dusty amber (default: theme `palette[2]`). */
   numberColor?: string
-  /** JSX / HTML tag-name color — dusty cyan. */
+  /** JSX / HTML tag-name color — dusty cyan (default: theme `palette[1]`). */
   tagColor?: string
-  /** Panel background fill (the "glass" surface). */
+  /** Panel background fill (the "glass" surface) (default: theme `surface`). */
   panelColor?: string
-  /** Panel border color. */
+  /** Panel border color (default: theme `border`). */
   borderColor?: string
 }
 
@@ -155,19 +156,29 @@ export function CodeBlock({
   revealLines = true,
   delay = 0,
   lineDelay = 3,
-  fontFamily = 'IBM Plex Sans',
+  fontFamily: fontFamilyProp,
   fontSize = 48,
   width = 900,
-  textColor = '#E8E8EC',
-  keywordColor = '#B49DDD',
-  stringColor = '#9DBE9A',
-  commentColor = '#56565F',
-  numberColor = '#D6A87C',
-  tagColor = '#82B8C9',
-  panelColor = '#101014',
-  borderColor = '#26262E',
+  textColor: textColorProp,
+  keywordColor: keywordColorProp,
+  stringColor: stringColorProp,
+  commentColor: commentColorProp,
+  numberColor: numberColorProp,
+  tagColor: tagColorProp,
+  panelColor: panelColorProp,
+  borderColor: borderColorProp,
 }: CodeBlockProps) {
   const { width: compWidth, height: compHeight } = useVideoConfig()
+  const theme = useTheme()
+  const fontFamily = fontFamilyProp ?? theme.monoFamily
+  const textColor = textColorProp ?? theme.text
+  const keywordColor = keywordColorProp ?? theme.palette[1] ?? '#B49DDD'
+  const stringColor = stringColorProp ?? theme.palette[3] ?? '#9DBE9A'
+  const commentColor = commentColorProp ?? theme.textMuted
+  const numberColor = numberColorProp ?? theme.palette[2] ?? '#D6A87C'
+  const tagColor = tagColorProp ?? theme.palette[1] ?? '#82B8C9'
+  const panelColor = panelColorProp ?? theme.surface
+  const borderColor = borderColorProp ?? theme.border
 
   const colorFor: Record<TokenType, string> = {
     text: textColor,
@@ -211,7 +222,7 @@ export function CodeBlock({
   const originX = Math.round((compWidth - width) / 2)
   const originY = Math.round((compHeight - panelHeight) / 2)
 
-  const cornerRadius = Math.round(fontSize * 0.4)
+  const cornerRadius = theme.radius ?? Math.round(fontSize * 0.4)
 
   return (
     <Group x={originX} y={originY}>

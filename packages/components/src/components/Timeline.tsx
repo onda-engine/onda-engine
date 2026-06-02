@@ -36,6 +36,7 @@ import {
 } from '@onda/react'
 import { entryFade, entryScale } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** One anchor on the timeline. */
 export interface TimelineEvent {
@@ -61,17 +62,17 @@ export interface TimelineProps {
   spacing?: number
   /** Line thickness in px. */
   lineWidth?: number
-  /** Line color. */
+  /** Line color (default: theme `border`). */
   lineColor?: string
-  /** Non-final dot color. */
+  /** Non-final dot color (default: theme `text`). */
   dotColor?: string
-  /** Final dot color — the earned accent (Onda rose). */
+  /** Final dot color — the earned accent (Onda rose) (default: theme `accent`). */
   accentColor?: string
-  /** Label color. */
+  /** Label color (default: theme `textMuted`). */
   labelColor?: string
   /** Label font size in px. */
   fontSize?: number
-  /** Loaded font family for labels. */
+  /** Loaded font family for labels (default: theme `headingFamily ?? fontFamily`). */
   fontFamily?: string
 }
 
@@ -92,15 +93,21 @@ export function Timeline({
   dotSize = 18,
   spacing = 110,
   lineWidth = 4,
-  lineColor = '#26262e',
-  dotColor = '#f2f2f4',
-  accentColor = '#d96b82',
-  labelColor = '#8e8e98',
+  lineColor: lineColorProp,
+  dotColor: dotColorProp,
+  accentColor: accentColorProp,
+  labelColor: labelColorProp,
   fontSize = 28,
-  fontFamily,
+  fontFamily: fontFamilyProp,
 }: TimelineProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  const theme = useTheme()
+  const lineColor = lineColorProp ?? theme.border
+  const dotColor = dotColorProp ?? theme.text
+  const accentColor = accentColorProp ?? theme.accent
+  const labelColor = labelColorProp ?? theme.textMuted
+  const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
 
   const count = events.length
   const lastIndex = count - 1

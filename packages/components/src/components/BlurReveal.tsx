@@ -30,6 +30,7 @@ import {
 } from '@onda/react'
 import type { ReactNode } from 'react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 export interface BlurRevealProps {
   /** What to reveal. Rendered as a single-line `<Text>` unless `children` is
@@ -43,11 +44,12 @@ export interface BlurRevealProps {
   /** Frames until the reveal fully settles (default `DURATION.base` = 18). With
    *  `SPRING_SMOOTH` the visible motion settles in roughly this range. */
   durationInFrames?: number
-  /** Text color (hex `#rrggbb` / `#rrggbbaa`). Ignored when `children` is set. */
+  /** Text color (hex `#rrggbb` / `#rrggbbaa`). Ignored when `children` is set.
+   *  (default: theme `text`) */
   color?: string
   /** Text size in px. Ignored when `children` is set. */
   fontSize?: number
-  /** Loaded font family. Ignored when `children` is set. */
+  /** Loaded font family. Ignored when `children` is set. (default: theme `fontFamily`) */
   fontFamily?: string
   /** Font weight (display default 600). Ignored when `children` is set. */
   fontWeight?: number
@@ -67,9 +69,9 @@ export function BlurReveal({
   children,
   delay = 0,
   durationInFrames = DURATION.base,
-  color = '#f2f2f4',
+  color: colorProp,
   fontSize = 96,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
   placement = 'center',
   travelPx = 16,
@@ -77,6 +79,9 @@ export function BlurReveal({
 }: BlurRevealProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   // One house spring drives opacity, rise, and the focus-settle scale so they
   // read as a single motion — mirrors the ondajs original, where opacity, blur,

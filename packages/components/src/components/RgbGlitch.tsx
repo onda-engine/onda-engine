@@ -31,6 +31,7 @@
 //! letter-spacing (ondajs `-0.02em`) has no scene-graph equivalent and is dropped.
 
 import { Group, Text, random, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { useTheme } from '../theme.js'
 
 /** Approximate average glyph advance as a fraction of font size, for
  *  proportional display fonts (used only to centre/right-align the line). */
@@ -51,18 +52,18 @@ export interface RgbGlitchProps {
   glitchDuration?: number
   /** Seed for the (deterministic) burst jitter. */
   seed?: number
-  /** Base (center) text color. */
+  /** Base (center) text color (default: theme `text`). */
   color?: string
-  /** Red-channel copy color. */
+  /** Red-channel copy color (default: theme `accent`). */
   redColor?: string
-  /** Cyan-channel copy color. */
+  /** Cyan-channel copy color (default: theme `palette[1]`). */
   cyanColor?: string
   /** Opacity of the coloured channel copies (the screen-blend approximation —
    *  lower keeps the center read as clean white). Default 0.85. */
   channelOpacity?: number
   /** Font size in px. */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`). */
+  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (default 600). */
   fontWeight?: number
@@ -84,12 +85,12 @@ export function RgbGlitch({
   glitchPeriod = 48,
   glitchDuration = 8,
   seed = 7,
-  color = '#f2f2f4',
-  redColor = '#ff4d6d',
-  cyanColor = '#4de2ff',
+  color: colorProp,
+  redColor: redColorProp,
+  cyanColor: cyanColorProp,
   channelOpacity = 0.85,
   fontSize = 120,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
   align = 'center',
@@ -98,6 +99,11 @@ export function RgbGlitch({
 }: RgbGlitchProps) {
   const frame = useCurrentFrame()
   const { width, height } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const redColor = redColorProp ?? theme.accent
+  const cyanColor = cyanColorProp ?? theme.palette[1] ?? '#4de2ff'
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   const local = Math.max(0, frame - delay)
 

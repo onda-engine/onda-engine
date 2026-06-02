@@ -26,12 +26,13 @@
 import { Group, Path, clipRect } from '@onda/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 export interface DrawOnProps {
   /** SVG path `d` attribute (in the path's own coordinate space). The default is
    *  a gentle wave — on-brand. */
   d?: string
-  /** Stroke color (hex `#rrggbb` / `#rrggbbaa`). Defaults to the Onda text color. */
+  /** Stroke color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `text`). */
   color?: string
   /** Stroke width in path coordinate units. */
   strokeWidth?: number
@@ -135,7 +136,7 @@ function pathBounds(d: string): { minX: number; minY: number; maxX: number; maxY
 
 export function DrawOn({
   d = 'M 10 50 Q 100 10 190 50',
-  color = '#f2f2f4',
+  color: colorProp,
   strokeWidth = 3,
   delay = 0,
   durationInFrames = DURATION.slow,
@@ -144,6 +145,8 @@ export function DrawOn({
   // spring/config/timing ondajs feeds to `evolvePath`. (useSpringValue reads
   // frame + fps internally.)
   const progress = useSpringValue({ delay, durationInFrames })
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
 
   const bounds = pathBounds(d)
 

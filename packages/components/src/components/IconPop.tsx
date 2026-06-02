@@ -38,6 +38,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** The four built-in shape icons, matching ondajs (inside a 0–24 viewBox). */
 export type IconShape = 'check' | 'cross' | 'dot' | 'star'
@@ -62,7 +63,7 @@ export interface IconPopProps {
   shape?: IconShape
   /** Icon size in px (the icon is square-ish, centered on its placement point). */
   iconSize?: number
-  /** Icon color (default the Onda rose accent). */
+  /** Icon color (default: theme `accent`). */
   color?: string
   /** Stroke width for the outline shapes (check, cross). Ignored by glyph and by
    *  the filled shapes (dot, star). */
@@ -96,7 +97,7 @@ export function IconPop({
   glyph,
   shape = 'check',
   iconSize = 96,
-  color = '#d96b82',
+  color: colorProp,
   strokeWidth = 3,
   delay = 0,
   durationInFrames = DURATION.base,
@@ -106,6 +107,9 @@ export function IconPop({
 }: IconPopProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.accent
+  const fontFamily = theme.fontFamily
 
   // Underdamped spring: progress 0 → ~1.19 (overshooting past 1) → 1, re-timed
   // to settle in `durationInFrames`.
@@ -136,7 +140,7 @@ export function IconPop({
       {/* Inner group: scales (with overshoot) about that center + fades. */}
       <Group scaleX={scale} scaleY={scale} opacity={opacity}>
         {glyph
-          ? renderGlyph(glyph, iconSize, color)
+          ? renderGlyph(glyph, iconSize, color, fontFamily)
           : renderShape(shape, iconSize, color, strokeWidth)}
       </Group>
     </Group>
@@ -148,12 +152,18 @@ export function IconPop({
  *  approximation: width is estimated from `iconSize`, and the vertical nudge
  *  assumes the glyph cap-box is ~0.7 of the font size. Wide/narrow glyphs will
  *  sit slightly off-center. */
-function renderGlyph(glyph: string, iconSize: number, color: string) {
+function renderGlyph(glyph: string, iconSize: number, color: string, fontFamily?: string) {
   // Estimate the rendered glyph width (most emoji/symbols are ~square at this
   // font size; multi-codepoint strings will be wider and under-shifted).
   const estWidth = iconSize * 0.62
   return (
-    <Text fontSize={iconSize} color={color} x={-estWidth / 2} y={-iconSize / 2}>
+    <Text
+      fontSize={iconSize}
+      color={color}
+      fontFamily={fontFamily}
+      x={-estWidth / 2}
+      y={-iconSize / 2}
+    >
       {glyph}
     </Text>
   )

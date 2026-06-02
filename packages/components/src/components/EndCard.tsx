@@ -26,6 +26,7 @@
 
 import { AbsoluteFill, Flex, Text } from '@onda/react'
 import { DURATION, STAGGER, staggerFrames } from '../motion.js'
+import { useTheme } from '../theme.js'
 import { FadeIn } from './FadeIn.js'
 import { Underline } from './Underline.js'
 
@@ -46,13 +47,13 @@ export interface EndCardProps {
   handlesFontSize?: number
   /** Font weight for the handles row (default 600). */
   handlesFontWeight?: number
-  /** CTA color (default the Onda text color `#f2f2f4`). */
+  /** CTA color (default: theme `text`). */
   color?: string
-  /** Handles color — defaults to the Onda faint `#56565f` so the row reads quiet. */
+  /** Handles color — defaults so the row reads quiet (default: theme `textMuted`). */
   handlesColor?: string
-  /** Underline color — the earned rose (default `#d96b82`). */
+  /** Underline color — the earned rose (default: theme `accent`). */
   accentColor?: string
-  /** Loaded display font for both CTA and handles (e.g. a `--font` passed to render). */
+  /** Loaded display font for both CTA and handles (e.g. a `--font` passed to render) (default: theme `fontFamily`). */
   fontFamily?: string
 }
 
@@ -72,11 +73,17 @@ export function EndCard({
   ctaFontWeight = 600,
   handlesFontSize = 24,
   handlesFontWeight = 600,
-  color = '#f2f2f4',
-  handlesColor = '#56565f',
-  accentColor = '#d96b82',
-  fontFamily,
+  color: colorProp,
+  handlesColor: handlesColorProp,
+  accentColor: accentColorProp,
+  fontFamily: fontFamilyProp,
 }: EndCardProps) {
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const handlesColor = handlesColorProp ?? theme.textMuted
+  const accentColor = accentColorProp ?? theme.accent
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
+
   // Vertical gap between the CTA and the handles strip, scaled off the CTA size
   // so the rhythm holds at any headline size (~40px at the default 96px CTA).
   const stackGap = Math.round(ctaFontSize * 0.42)

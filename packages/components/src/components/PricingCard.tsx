@@ -36,6 +36,7 @@ import {
 } from '@onda/react'
 import { entryFade, entryFadeRise } from '../choreography.js'
 import { DURATION, staggerFrames } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** Engine line-box height as a multiple of font size (matches typography crate). */
 const LINE_RATIO = 1.2
@@ -56,7 +57,7 @@ export interface PricingCardProps {
   cta?: string
   /** Lifts + scales the card and shows an accent badge — the highlighted tier. */
   recommended?: boolean
-  /** The earned accent — checkmarks, badge, CTA, recommended border + glow. */
+  /** The earned accent — checkmarks, badge, CTA, recommended border + glow (default: theme `accent`). */
   accent?: string
   /** Frames before the card enters. */
   delay?: number
@@ -64,19 +65,19 @@ export interface PricingCardProps {
   width?: number
   /** Price font size in px (the large display number). */
   priceSize?: number
-  /** Panel fill color. */
+  /** Panel fill color (default: theme `surface`). */
   background?: string
-  /** Panel border color (when not `recommended`). */
+  /** Panel border color (when not `recommended`) (default: theme `border`). */
   borderColor?: string
-  /** Primary text color (price, features). */
+  /** Primary text color (price, features) (default: theme `text`). */
   color?: string
-  /** Dim color for the tier label. */
+  /** Dim color for the tier label (default: theme `textMuted`). */
   dimColor?: string
-  /** Faint color for the billing period. */
+  /** Faint color for the billing period (default: theme `textMuted`). */
   faintColor?: string
-  /** Display font for the price. */
+  /** Display font for the price (default: theme `headingFamily ?? fontFamily`). */
   fontFamily?: string
-  /** Body font for tier / features / CTA. */
+  /** Body font for tier / features / CTA (default: theme `fontFamily`). */
   bodyFontFamily?: string
   /** Local-space x of the card's top-left. Omit to center on the composition. */
   x?: number
@@ -98,22 +99,31 @@ export function PricingCard({
   features = DEFAULT_FEATURES,
   cta = 'Get started',
   recommended = false,
-  accent = '#d96b82',
+  accent: accentProp,
   delay = 0,
   width = 380,
   priceSize = 64,
-  background = '#14141aee',
-  borderColor = '#26262e',
-  color = '#f2f2f4',
-  dimColor = '#8e8e98',
-  faintColor = '#56565f',
-  fontFamily,
-  bodyFontFamily,
+  background: backgroundProp,
+  borderColor: borderColorProp,
+  color: colorProp,
+  dimColor: dimColorProp,
+  faintColor: faintColorProp,
+  fontFamily: fontFamilyProp,
+  bodyFontFamily: bodyFontFamilyProp,
   x,
   y,
 }: PricingCardProps) {
   const frame = useCurrentFrame()
   const { fps, width: cw, height: ch } = useVideoConfig()
+  const theme = useTheme()
+  const accent = accentProp ?? theme.accent
+  const background = backgroundProp ?? theme.surface
+  const borderColor = borderColorProp ?? theme.border
+  const color = colorProp ?? theme.text
+  const dimColor = dimColorProp ?? theme.textMuted
+  const faintColor = faintColorProp ?? theme.textMuted
+  const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
+  const bodyFontFamily = bodyFontFamilyProp ?? theme.fontFamily
 
   // --- Layout constants (px) — the explicit column the engine layout pass
   // would otherwise produce, kept fixed so per-frame row fades don't reflow. ---
@@ -191,7 +201,7 @@ export function PricingCard({
         <Rect
           width={width}
           height={cardHeight}
-          cornerRadius={20}
+          cornerRadius={theme.radius}
           fill={background}
           stroke={panelBorder}
           strokeWidth={recommended ? 2 : 1}
@@ -302,7 +312,7 @@ export function PricingCard({
             <Rect
               width={contentWidth}
               height={ctaHeight}
-              cornerRadius={12}
+              cornerRadius={theme.radius}
               fill={recommended ? accent : '#00000000'}
               stroke={recommended ? accent : borderColor}
               strokeWidth={1}

@@ -26,6 +26,7 @@
 
 import { Group, Rect, random, useCurrentFrame, useVideoConfig } from '@onda/react'
 import type { ReactNode } from 'react'
+import { useTheme } from '../theme.js'
 
 export interface GrainOverlayProps {
   /**
@@ -52,8 +53,8 @@ export interface GrainOverlayProps {
    * effective count also scales mildly with `baseFrequency`. Default `800`.
    */
   count?: number
-  /** Grain color (hex `#rrggbb`). Defaults to near-black, matching ondajs's
-   *  monochrome alpha grain. Use a light color over dark footage if desired. */
+  /** Grain color (hex `#rrggbb`). Matches ondajs's monochrome alpha grain. Use
+   *  a light color over dark footage if desired (default: theme `background`). */
   color?: string
   /**
    * When `true`, the scatter re-seeds on a frame bucket so the grain animates
@@ -93,12 +94,14 @@ export function GrainOverlay({
   numOctaves = 1,
   seed = 0,
   count = 800,
-  color = '#0a0a0c',
+  color: colorProp,
   animate = false,
   animateEvery = 2,
 }: GrainOverlayProps) {
   const { width, height } = useVideoConfig()
   const frame = useCurrentFrame()
+  const theme = useTheme()
+  const color = colorProp ?? theme.background
 
   const layerOpacity = clamp(opacity, 0, 0.15)
   const freq = Math.max(0, baseFrequency)

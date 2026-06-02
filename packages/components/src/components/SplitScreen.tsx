@@ -39,6 +39,7 @@ import {
 } from '@onda/react'
 import type { ReactNode } from 'react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 export interface SplitScreenProps {
   /** Content for the left (or top) pane — any scene subtree. */
@@ -61,25 +62,20 @@ export interface SplitScreenProps {
   width?: number
   /** Overall height in px. Defaults to the full composition height. */
   height?: number
-  /** Pane background fill. */
+  /** Pane background fill (default: theme `surface`). */
   paneBackground?: string
-  /** Outer (gutter) background fill, seen in the gap behind the divider. */
+  /** Outer (gutter) background fill, seen in the gap behind the divider (default: theme `background`). */
   background?: string
-  /** Divider color (thin token line). */
+  /** Divider color (thin token line) (default: theme `border`). */
   dividerColor?: string
-  /** Placeholder label color for an empty pane. */
+  /** Placeholder label color for an empty pane (default: theme `textMuted`). */
   placeholderColor?: string
-  /** Loaded font family for empty-pane placeholders. */
+  /** Loaded font family for empty-pane placeholders (default: theme `fontFamily`). */
   fontFamily?: string
 }
 
 /** House-spring travel for the pane entrance, in px (matches ondajs). */
 const TRAVEL = 16
-
-/** Outer container corner radius in px (matches ondajs `borderRadius: 20`). The
- *  engine's `clipRect` takes an optional corner radius, so the rounded container
- *  is reproduced faithfully. */
-const OUTER_RADIUS = 20
 
 export function SplitScreen({
   left,
@@ -92,14 +88,24 @@ export function SplitScreen({
   delay = 0,
   width,
   height,
-  paneBackground = '#0e0e12',
-  background = '#08080a',
-  dividerColor = '#1c1c22',
-  placeholderColor = '#56565f',
-  fontFamily,
+  paneBackground: paneBackgroundProp,
+  background: backgroundProp,
+  dividerColor: dividerColorProp,
+  placeholderColor: placeholderColorProp,
+  fontFamily: fontFamilyProp,
 }: SplitScreenProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  const theme = useTheme()
+  const paneBackground = paneBackgroundProp ?? theme.surface
+  const background = backgroundProp ?? theme.background
+  const dividerColor = dividerColorProp ?? theme.border
+  const placeholderColor = placeholderColorProp ?? theme.textMuted
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
+  // Outer container corner radius in px (matches ondajs `borderRadius`). The
+  // engine's `clipRect` takes an optional corner radius, so the rounded
+  // container is reproduced faithfully.
+  const OUTER_RADIUS = theme.radius ?? 20
 
   const boxWidth = width ?? compWidth
   const boxHeight = height ?? compHeight
