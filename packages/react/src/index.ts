@@ -58,6 +58,21 @@ export {
   Series,
   type SeriesSequenceProps,
 } from './sequence.js'
+export { noise2D, noise3D, random } from './random.js'
+export {
+  type PresentationState,
+  type SlideDirection,
+  TransitionSeries,
+  type TransitionSeriesSequenceProps,
+  type TransitionSeriesTransitionProps,
+  type TransitionPresentation,
+  type TransitionTiming,
+  fade,
+  linearTiming,
+  slide,
+  springTiming,
+  wipe,
+} from './transitions.js'
 export {
   renderFrame,
   renderFrames,
