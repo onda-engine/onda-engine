@@ -538,16 +538,17 @@ const year = new Date().getFullYear()
         display: block;
         max-width: 100%;
       }
-      .onda-landing h1,
-      .onda-landing h2,
-      .onda-landing h3 {
+      /* Element resets wrapped in :where() so they stay specificity (0,1,0) and
+         never outrank component classes like .arch__name / .section__title that
+         set their own margins (otherwise the reset's margin:0 silently wins). */
+      .onda-landing :where(h1, h2, h3) {
         font-family: var(--font-head);
         line-height: 1.02;
         margin: 0;
         letter-spacing: -0.015em;
         font-weight: 600;
       }
-      .onda-landing p {
+      .onda-landing :where(p) {
         margin: 0;
       }
       .onda-landing a {
