@@ -88,6 +88,8 @@ function buildPromo(): ReactElement {
         <TransitionSeries.Sequence durationInFrames={130}>
           <BarChart
             title="Frames per second"
+            // Wait for the slide-in (~20f) to land before growing the bars.
+            delay={24}
             max={720}
             showValues
             barHeight={46}
