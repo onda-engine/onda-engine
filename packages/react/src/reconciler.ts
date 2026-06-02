@@ -226,6 +226,7 @@ function parseLayout(layout: Layout): Layout {
   if (layout.align !== undefined) out.align = layout.align
   if (typeof layout.gap === 'number') out.gap = layout.gap
   if (typeof layout.padding === 'number') out.padding = layout.padding
+  if (layout.wrap === true) out.wrap = true
   if (typeof layout.width === 'number') out.width = layout.width
   if (typeof layout.height === 'number') out.height = layout.height
   return out

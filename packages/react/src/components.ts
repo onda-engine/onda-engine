@@ -71,8 +71,8 @@ export interface FlexProps extends NodeProps, Layout {}
  *  justify/align/gap/padding) instead of requiring absolute x/y. Resolved to
  *  absolute positions by the engine's layout pass. */
 export function Flex(props: FlexProps) {
-  const { direction, justify, align, gap, padding, width, height, ...rest } = props
-  const layout: Layout = { direction, justify, align, gap, padding, width, height }
+  const { direction, justify, align, gap, padding, wrap, width, height, ...rest } = props
+  const layout: Layout = { direction, justify, align, gap, padding, wrap, width, height }
   return createElement('onda-group', { ...rest, layout })
 }
 

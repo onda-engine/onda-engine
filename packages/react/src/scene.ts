@@ -91,6 +91,9 @@ export interface Layout {
   align?: 'start' | 'center' | 'end'
   gap?: number
   padding?: number
+  /** Wrap children onto multiple lines when they overflow the main axis
+   *  (CSS `flex-wrap`). Needs a fixed main-axis size (`width`/`height`). */
+  wrap?: boolean
   width?: number
   height?: number
 }
