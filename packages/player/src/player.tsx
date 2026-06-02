@@ -57,6 +57,10 @@ export interface PlayerProps {
   engine?: RenderEngine
   /** Show a small backend indicator (WebGPU/CPU/Canvas2D). Default `true`. */
   showStatus?: boolean
+  /** Control visibility. `'auto'` (default) reveals the controls on hover / focus
+   *  / when paused; `'always'` keeps them visible (good for a gallery/showcase,
+   *  where the player isn't the hovered element). */
+  controls?: 'auto' | 'always'
   /** Accessible label for the player region. Default `"ONDA composition player"`. */
   label?: string
   /** Optional className on the root for app-level layout/overrides. */
@@ -81,6 +85,7 @@ export function Player({
   gpuEngine,
   engine,
   showStatus = true,
+  controls = 'auto',
   label = 'ONDA composition player',
   className,
 }: PlayerProps): ReactElement {
@@ -313,7 +318,14 @@ export function Player({
 
   return (
     <div
-      className={['onda-player', playing ? '' : 'is-paused', className].filter(Boolean).join(' ')}
+      className={[
+        'onda-player',
+        playing ? '' : 'is-paused',
+        controls === 'always' ? 'is-controls' : '',
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
       style={styles.root}
       role="group"
       aria-label={label}
@@ -585,7 +597,8 @@ const PLAYER_CSS = `
 }
 .onda-player__stage:hover .onda-player__overlay,
 .onda-player__stage:focus-within .onda-player__overlay,
-.onda-player.is-paused .onda-player__overlay {
+.onda-player.is-paused .onda-player__overlay,
+.onda-player.is-controls .onda-player__overlay {
   opacity: 1; transform: none; pointer-events: auto;
 }
 .onda-player__row { display: flex; align-items: center; gap: 14px; }
@@ -603,7 +616,8 @@ const PLAYER_CSS = `
 }
 .onda-player__stage:hover .onda-player__badge,
 .onda-player__stage:focus-within .onda-player__badge,
-.onda-player.is-paused .onda-player__badge { opacity: 1; }
+.onda-player.is-paused .onda-player__badge,
+.onda-player.is-controls .onda-player__badge { opacity: 1; }
 /* Fullscreen toggle (top-right), fades in with the controls like the badge. */
 .onda-player__fs {
   position: absolute; top: 12px; right: 12px;
@@ -620,7 +634,8 @@ const PLAYER_CSS = `
 }
 .onda-player__stage:hover .onda-player__fs,
 .onda-player__stage:focus-within .onda-player__fs,
-.onda-player.is-paused .onda-player__fs { opacity: 1; transform: none; pointer-events: auto; }
+.onda-player.is-paused .onda-player__fs,
+.onda-player.is-controls .onda-player__fs { opacity: 1; transform: none; pointer-events: auto; }
 .onda-player__fs:hover { background: rgba(8,8,10,.85); color: #fff; }
 .onda-player__fs:focus-visible { outline: 2px solid var(--onda-accent); outline-offset: 2px; }
 .onda-player__fs svg { display: block; }

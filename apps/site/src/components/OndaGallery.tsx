@@ -146,6 +146,7 @@ export default function OndaGallery(): ReactElement {
               gpuEngine={gpu ?? undefined}
               engine={cpu ?? undefined}
               loop
+              controls="always"
             />
           ) : (
             <div style={styles.booting}>Booting the GPU engine…</div>
