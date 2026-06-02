@@ -1,8 +1,8 @@
 ---
-// The ONDA component gallery — every @onda/components component, previewed live
-// by the engine (Vello/WebGPU). Standalone page (not a Starlight doc) so the
-// list + player can use a full-width two-column layout.
-import OndaGallery from '../components/OndaGallery.tsx'
+// The ONDA transitions showcase — every @onda/react TransitionSeries
+// presentation, played A→B live by the engine (Vello/WebGPU). Standalone page
+// (not a Starlight doc) so the player can use a full-width layout.
+import TransitionsGallery from '../components/TransitionsGallery.tsx'
 const REPO = 'https://github.com/degueba/onda-engine'
 ---
 
@@ -11,10 +11,10 @@ const REPO = 'https://github.com/degueba/onda-engine'
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Components — ONDA</title>
+    <title>Transitions — ONDA</title>
     <meta
       name="description"
-      content="70 motion-graphics components, each rendered live in your browser by the ONDA GPU engine — the same scene graph onda export writes to a file."
+      content="Every @onda/react TransitionSeries presentation, played A→B live in your browser by the ONDA GPU engine."
     />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#0e0e12" />
@@ -40,8 +40,8 @@ const REPO = 'https://github.com/degueba/onda-engine'
         </a>
         <nav class="gnav__links" aria-label="Primary">
           <a href="/">Home</a>
-          <a href="/components" aria-current="page">Components</a>
-          <a href="/transitions">Transitions</a>
+          <a href="/components">Components</a>
+          <a href="/transitions" aria-current="page">Transitions</a>
           <a href="/guide/introduction">Docs</a>
           <a href={REPO} rel="noopener">GitHub</a>
         </nav>
@@ -49,15 +49,14 @@ const REPO = 'https://github.com/degueba/onda-engine'
 
       <main class="gmain">
         <header class="ghead">
-          <p class="eyebrow">Component library</p>
-          <h1>70 components, rendered live by the engine.</h1>
+          <p class="eyebrow">Motion</p>
+          <h1>Transitions, played by the engine.</h1>
           <p class="lede">
-            Every <code>@onda/components</code> component, playing in your browser via the GPU
-            engine (Vello over WebGPU) — the very same scene graph <code>onda export</code> writes
-            to a file. Pick one to preview it.
+            Every <code>@onda/react</code> <code>TransitionSeries</code> presentation, rendered live
+            A→B in your browser by the GPU engine. Pick one to see it play — and copy the code.
           </p>
         </header>
-        <OndaGallery client:only="react" />
+        <TransitionsGallery client:only="react" />
       </main>
     </div>
 
