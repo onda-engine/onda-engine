@@ -12,3 +12,4 @@ authors.workspace = true
 [dependencies]
 onda-core = { workspace = true }
 onda-scene = { workspace = true }
+taffy = "0.10.1"

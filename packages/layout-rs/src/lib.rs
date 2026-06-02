@@ -18,6 +18,11 @@
 
 use onda_core::{Size, Vec2};
 use onda_scene::{Align, Direction, Justify, Layout, Node, NodeKind, Scene, ShapeGeometry, Text};
+use taffy::geometry::{Rect as TaffyRect, Size as TaffySize};
+use taffy::prelude::{TaffyTree, auto, length};
+use taffy::style::{
+    AlignItems, AvailableSpace, Display, FlexDirection, FlexWrap, JustifyContent, Style,
+};
 
 /// Resolve every [`Layout`] in `scene`, returning a new scene whose laid-out
 /// children carry absolute translations. `measure_text` returns the rendered
@@ -55,59 +60,91 @@ fn resolve(node: &Node, measure: &dyn Fn(&Text) -> Size) -> (Node, Size) {
     )
 }
 
-/// Position `children` per the flex `layout`, returning the container's size.
+/// Position `children` per the flex `layout` using **taffy** (a CSS Flexbox/Grid
+/// engine), returning the container's resolved size. Each child is a fixed-size
+/// leaf (its measured/intrinsic size, no grow/shrink); nested layouts resolve
+/// bottom-up and flow in here as fixed-size items. Taffy owns the flexbox math
+/// (justify/align/gap/padding/wrap), so the engine inherits battle-tested
+/// layout — and the door is open to grid, flex-grow, %, min/max later.
 fn arrange(layout: &Layout, children: &mut [Node], sizes: &[Size]) -> Size {
-    let n = children.len();
-    let row = layout.direction == Direction::Row;
-    let main = |s: &Size| if row { s.width } else { s.height };
-    let cross = |s: &Size| if row { s.height } else { s.width };
+    let mut tree: TaffyTree<()> = TaffyTree::new();
 
-    let content_main: f32 =
-        sizes.iter().map(main).sum::<f32>() + layout.gap * n.saturating_sub(1) as f32;
-    let content_cross: f32 = sizes.iter().map(cross).fold(0.0, f32::max);
+    let leaves: Vec<_> = sizes
+        .iter()
+        .map(|s| {
+            tree.new_leaf(Style {
+                size: TaffySize {
+                    width: length(s.width),
+                    height: length(s.height),
+                },
+                flex_grow: 0.0,
+                flex_shrink: 0.0,
+                ..Default::default()
+            })
+            .expect("taffy leaf")
+        })
+        .collect();
 
-    let explicit_main = if row { layout.width } else { layout.height };
-    let explicit_cross = if row { layout.height } else { layout.width };
-    let pad = layout.padding;
-    let outer_main = explicit_main.unwrap_or(content_main + 2.0 * pad);
-    let outer_cross = explicit_cross.unwrap_or(content_cross + 2.0 * pad);
-    let inner_cross = outer_cross - 2.0 * pad;
-    let free = (outer_main - 2.0 * pad - content_main).max(0.0);
-
-    // Main-axis distribution of free space (CSS justify-content).
-    let (lead, extra_gap) = match layout.justify {
-        Justify::Start => (0.0, 0.0),
-        Justify::Center => (free / 2.0, 0.0),
-        Justify::End => (free, 0.0),
-        Justify::SpaceBetween if n > 1 => (0.0, free / (n - 1) as f32),
-        Justify::SpaceBetween => (0.0, 0.0),
-        Justify::SpaceAround if n > 0 => (free / (2.0 * n as f32), free / n as f32),
-        Justify::SpaceAround => (0.0, 0.0),
-    };
-
-    let mut cursor = pad + lead;
-    for (child, size) in children.iter_mut().zip(sizes) {
-        let cross_pos = pad
-            + match layout.align {
-                Align::Start => 0.0,
-                Align::Center => (inner_cross - cross(size)) / 2.0,
-                Align::End => inner_cross - cross(size),
-            };
-        let (x, y) = if row {
-            (cursor, cross_pos)
+    let style = Style {
+        display: Display::Flex,
+        flex_direction: match layout.direction {
+            Direction::Row => FlexDirection::Row,
+            Direction::Column => FlexDirection::Column,
+        },
+        flex_wrap: if layout.wrap {
+            FlexWrap::Wrap
         } else {
-            (cross_pos, cursor)
-        };
-        // Layout owns position inside a container; keep the child's scale/rotate.
-        child.transform.translate = Vec2::new(x, y);
-        cursor += main(size) + layout.gap + extra_gap;
-    }
+            FlexWrap::NoWrap
+        },
+        justify_content: Some(match layout.justify {
+            Justify::Start => JustifyContent::FlexStart,
+            Justify::Center => JustifyContent::Center,
+            Justify::End => JustifyContent::FlexEnd,
+            Justify::SpaceBetween => JustifyContent::SpaceBetween,
+            Justify::SpaceAround => JustifyContent::SpaceAround,
+        }),
+        align_items: Some(match layout.align {
+            Align::Start => AlignItems::FlexStart,
+            Align::Center => AlignItems::Center,
+            Align::End => AlignItems::FlexEnd,
+        }),
+        gap: TaffySize {
+            width: length(layout.gap),
+            height: length(layout.gap),
+        },
+        padding: TaffyRect {
+            left: length(layout.padding),
+            right: length(layout.padding),
+            top: length(layout.padding),
+            bottom: length(layout.padding),
+        },
+        size: TaffySize {
+            width: layout.width.map(|w| length(w)).unwrap_or_else(auto),
+            height: layout.height.map(|h| length(h)).unwrap_or_else(auto),
+        },
+        ..Default::default()
+    };
+    let root = tree.new_with_children(style, &leaves).expect("taffy container");
 
-    if row {
-        Size::new(outer_main, outer_cross)
-    } else {
-        Size::new(outer_cross, outer_main)
+    let avail = TaffySize {
+        width: layout
+            .width
+            .map(AvailableSpace::Definite)
+            .unwrap_or(AvailableSpace::MaxContent),
+        height: layout
+            .height
+            .map(AvailableSpace::Definite)
+            .unwrap_or(AvailableSpace::MaxContent),
+    };
+    tree.compute_layout(root, avail).expect("taffy compute");
+
+    for (child, &leaf) in children.iter_mut().zip(&leaves) {
+        let loc = tree.layout(leaf).expect("taffy leaf layout").location;
+        // Layout owns position inside a container; keep the child's scale/rotate.
+        child.transform.translate = Vec2::new(loc.x, loc.y);
     }
+    let s = tree.layout(root).expect("taffy root layout").size;
+    Size::new(s.width, s.height)
 }
 
 /// The layout size of a node that is *not* itself a flex container.
@@ -244,6 +281,25 @@ mod tests {
             })
             .with_child(rect(10.0, 10.0)));
         assert_eq!(translate(&root.children[0]), Vec2::new(16.0, 16.0));
+    }
+
+    #[test]
+    fn wrap_breaks_onto_a_new_line_when_the_row_overflows() {
+        // 100-wide row, three 40x20 children, wrap on: two fit per line
+        // (40+40=80 <= 100), the third wraps down -> (0,0), (40,0), (0,20).
+        let root = run(Node::group()
+            .with_layout(Layout {
+                direction: Direction::Row,
+                wrap: true,
+                width: Some(100.0),
+                ..Layout::default()
+            })
+            .with_child(rect(40.0, 20.0))
+            .with_child(rect(40.0, 20.0))
+            .with_child(rect(40.0, 20.0)));
+        assert_eq!(translate(&root.children[0]), Vec2::new(0.0, 0.0));
+        assert_eq!(translate(&root.children[1]), Vec2::new(40.0, 0.0));
+        assert_eq!(translate(&root.children[2]), Vec2::new(0.0, 20.0));
     }
 
     #[test]

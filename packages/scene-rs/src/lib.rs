@@ -477,6 +477,10 @@ pub struct Layout {
     /// Uniform inner padding, in pixels.
     #[serde(default)]
     pub padding: f32,
+    /// Wrap children onto multiple lines when they overflow the main axis
+    /// (CSS `flex-wrap`). Needs a fixed main-axis size to have an effect.
+    #[serde(default)]
+    pub wrap: bool,
     /// Fixed container width; shrink-to-content when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub width: Option<f32>,
@@ -493,6 +497,7 @@ impl Default for Layout {
             align: Align::default(),
             gap: 0.0,
             padding: 0.0,
+            wrap: false,
             width: None,
             height: None,
         }
