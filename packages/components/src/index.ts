@@ -19,6 +19,15 @@ export {
 // House easing
 export { HOUSE_EASE } from './easing.js'
 
+// Theme (brand tokens — colors, fonts, logo) via React context
+export {
+  type Theme,
+  type ThemeProviderProps,
+  ThemeProvider,
+  defaultTheme,
+  useTheme,
+} from './theme.js'
+
 // Choreography vocabulary (pure frame → Motion functions)
 export {
   type Motion,

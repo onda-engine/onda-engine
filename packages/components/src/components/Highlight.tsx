@@ -25,6 +25,7 @@ import {
 } from '@onda/react'
 import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** Empirical advance ratio: average glyph advance ÷ font size for a display
  *  face. Used only to estimate the accent bar width when `width` is omitted. */
@@ -43,9 +44,9 @@ export interface HighlightProps {
   lineDelay?: number
   /** Accent-bar wipe duration. Fast on purpose — emphatic (default `DURATION.fast`). */
   lineDuration?: number
-  /** Text color. */
+  /** Text color (default: theme `text`). */
   color?: string
-  /** Accent (highlight) bar color — the earned rose. */
+  /** Accent (highlight) bar color (default: theme `accent`). */
   accentColor?: string
   /** Font size in px (default 64). */
   fontSize?: number
@@ -69,10 +70,10 @@ export function Highlight({
   duration = DURATION.base,
   lineDelay = 8,
   lineDuration = DURATION.fast,
-  color = '#f2f2f4',
-  accentColor = '#d96b82',
+  color: colorProp,
+  accentColor: accentColorProp,
   fontSize = 64,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
   paddingX = 8,
   width,
@@ -81,6 +82,10 @@ export function Highlight({
 }: HighlightProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const accentColor = accentColorProp ?? theme.accent
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   // Phase 1: text fade — opacity 0 → 1 on the house spring.
   const { opacity } = entryFade({ frame, fps, delay, durationInFrames: duration })

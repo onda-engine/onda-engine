@@ -1,4 +1,5 @@
 import * as Lib from '@onda/components'
+import type { Theme } from '@onda/components'
 import { Player } from '@onda/player'
 import { AbsoluteFill, Composition, Rect, Text } from '@onda/react'
 import velloWasmUrl from '@onda/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
@@ -22,27 +23,89 @@ import { GALLERY, GALLERY_CATEGORIES, type GalleryItem } from './gallery-data.js
 
 const W = 1280
 const H = 720
-const BG = '#0a0d17'
+
+// Demo themes the gallery can switch between, to show components re-skinning
+// from a single brand kit. Each is a Partial<Theme> merged over the default.
+// (Fonts kept to families the wasm engine bundles so they render in-browser.)
+const THEMES: { name: string; theme: Partial<Theme> }[] = [
+  { name: 'Onda', theme: {} },
+  {
+    name: 'Ocean',
+    theme: {
+      accent: '#3b82f6',
+      accentSoft: 'rgba(59,130,246,0.16)',
+      background: '#070b14',
+      surface: '#0e1626',
+      border: '#1c2740',
+      palette: ['#64748b', '#22d3ee', '#a78bfa', '#34d399'],
+    },
+  },
+  {
+    name: 'Sunset',
+    theme: {
+      accent: '#f59e0b',
+      accentSoft: 'rgba(245,158,11,0.16)',
+      text: '#fff7ed',
+      textMuted: '#b8a99a',
+      background: '#140b06',
+      surface: '#241405',
+      border: '#3a2410',
+      headingFamily: 'IBM Plex Sans',
+      palette: ['#9a8478', '#ef4444', '#ec4899', '#22c55e'],
+    },
+  },
+  {
+    name: 'Mono',
+    theme: {
+      accent: '#e5e7eb',
+      accentSoft: 'rgba(229,231,235,0.12)',
+      text: '#fafafa',
+      textMuted: '#a1a1aa',
+      background: '#0a0a0a',
+      surface: '#171717',
+      border: '#262626',
+      palette: ['#52525b', '#71717a', '#a1a1aa', '#d4d4d8'],
+    },
+  },
+  {
+    name: 'Light',
+    theme: {
+      accent: '#d96b82',
+      text: '#0e0e12',
+      textMuted: '#56565f',
+      background: '#f5f5f7',
+      surface: '#ffffff',
+      border: '#e2e2e6',
+      palette: ['#9aa4b2', '#2974f2', '#e6b450', '#6bbf8a'],
+    },
+  },
+]
 
 /** Sample content for the wrapper components (FadeIn, SlideIn, frames, …). */
-function sampleChild(): ReactElement {
+function sampleChild(theme: Partial<Theme>): ReactElement {
   return createElement(
     AbsoluteFill,
     { justify: 'center', align: 'center' },
-    createElement(Text, { fontSize: 132, color: '#f2f2f4', fontWeight: 700 }, 'Onda'),
+    createElement(Text, { fontSize: 132, color: theme.text ?? '#f2f2f4', fontWeight: 700 }, 'Onda'),
   )
 }
 
-function buildComposition(item: GalleryItem): ReactElement | null {
+function buildComposition(item: GalleryItem, theme: Partial<Theme>): ReactElement | null {
   const Comp = (Lib as Record<string, unknown>)[item.name] as
     | FunctionComponent<Record<string, unknown>>
     | undefined
   if (!Comp) return null
+  // Wrap the scene in a ThemeProvider so themed components pick up the brand
+  // kit; the background uses the theme too.
   return createElement(
     Composition,
     { width: W, height: H, fps: 30, durationInFrames: 120 },
-    createElement(Rect, { width: W, height: H, fill: BG }),
-    createElement(Comp, item.props, item.child ? sampleChild() : undefined),
+    createElement(
+      Lib.ThemeProvider,
+      { theme },
+      createElement(Rect, { width: W, height: H, fill: theme.background ?? '#0a0d17' }),
+      createElement(Comp, item.props, item.child ? sampleChild(theme) : undefined),
+    ),
   )
 }
 
@@ -97,8 +160,13 @@ function useEngine() {
 export default function OndaGallery(): ReactElement {
   const { ref, gpu, cpu, ready } = useEngine()
   const [name, setName] = useState('TitleCard')
+  const [themeName, setThemeName] = useState('Onda')
   const selected = useMemo(() => GALLERY.find((g) => g.name === name) ?? GALLERY[0], [name])
-  const composition = useMemo(() => (selected ? buildComposition(selected) : null), [selected])
+  const theme = useMemo(() => THEMES.find((t) => t.name === themeName)?.theme ?? {}, [themeName])
+  const composition = useMemo(
+    () => (selected ? buildComposition(selected, theme) : null),
+    [selected, theme],
+  )
 
   const groups = useMemo(
     () =>
@@ -131,6 +199,23 @@ export default function OndaGallery(): ReactElement {
       </aside>
 
       <div style={styles.main}>
+        <div style={styles.themebar}>
+          <span style={styles.themeLabel}>Theme</span>
+          {THEMES.map((t) => (
+            <button
+              key={t.name}
+              type="button"
+              onClick={() => setThemeName(t.name)}
+              style={
+                t.name === themeName
+                  ? { ...styles.themePill, ...styles.themePillOn }
+                  : styles.themePill
+              }
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
         <div style={styles.stage}>
           {selected?.note ? (
             <div style={styles.note}>
@@ -153,7 +238,10 @@ export default function OndaGallery(): ReactElement {
         </div>
         {selected ? (
           <div style={styles.meta}>
-            <h1 style={styles.name}>{selected.name}</h1>
+            <div style={styles.nameRow}>
+              <h1 style={styles.name}>{selected.name}</h1>
+              {selected.themed ? <span style={styles.themedTag}>Themeable</span> : null}
+            </div>
             <p style={styles.blurb}>{selected.blurb}</p>
             <code
               style={styles.import}
@@ -215,6 +303,38 @@ const styles: Record<string, CSSProperties> = {
   },
   itemOn: { background: '#d96b82', color: '#0e0e12', fontWeight: 600 },
   main: { minWidth: 0 },
+  themebar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 14,
+    flexWrap: 'wrap',
+  },
+  themeLabel: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 11,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: '#56565f',
+    marginRight: 4,
+  },
+  themePill: {
+    appearance: 'none',
+    border: '1px solid #26262c',
+    background: 'transparent',
+    color: '#b8b8c0',
+    fontFamily: 'inherit',
+    fontSize: 13,
+    padding: '5px 12px',
+    borderRadius: 999,
+    cursor: 'pointer',
+  },
+  themePillOn: {
+    background: '#d96b82',
+    border: '1px solid #d96b82',
+    color: '#0e0e12',
+    fontWeight: 600,
+  },
   stage: {
     borderRadius: 14,
     overflow: 'hidden',
@@ -242,7 +362,17 @@ const styles: Record<string, CSSProperties> = {
   },
   noteIcon: { fontSize: 30, color: '#56565f' },
   meta: { marginTop: 20 },
-  name: { fontSize: 28, fontWeight: 600, margin: '0 0 6px', letterSpacing: '-0.01em' },
+  nameRow: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 },
+  themedTag: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 11,
+    letterSpacing: '0.04em',
+    color: '#6bbf8a',
+    border: '1px solid rgba(107,191,138,0.4)',
+    borderRadius: 999,
+    padding: '2px 9px',
+  },
+  name: { fontSize: 28, fontWeight: 600, margin: 0, letterSpacing: '-0.01em' },
   blurb: { color: '#8e8e98', fontSize: 16, margin: '0 0 14px', maxWidth: '60ch' },
   import: {
     display: 'inline-block',

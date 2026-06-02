@@ -4,6 +4,7 @@
 
 import { AbsoluteFill, Flex, Rect, Text } from '@onda/react'
 import { DURATION, staggerFrames } from '../motion.js'
+import { useTheme } from '../theme.js'
 import { FadeIn } from './FadeIn.js'
 
 export interface StatCardProps {
@@ -13,10 +14,13 @@ export interface StatCardProps {
   label: string
   valueSize?: number
   labelSize?: number
+  /** Value color (default: theme `text`). */
   valueColor?: string
+  /** Label color (default: theme `textMuted`). */
   labelColor?: string
-  /** Accent color for the underline bar (default the Onda rose). */
+  /** Accent color for the underline bar (default: theme `accent`). */
   accent?: string
+  /** Loaded font family (default: theme body family). */
   fontFamily?: string
   delay?: number
 }
@@ -26,25 +30,31 @@ export function StatCard({
   label,
   valueSize = 140,
   labelSize = 34,
-  valueColor = '#ffffff',
-  labelColor = '#9aa4b2',
-  accent = '#d96b82',
+  valueColor,
+  labelColor,
+  accent,
   fontFamily,
   delay = 0,
 }: StatCardProps) {
+  const theme = useTheme()
+  const valueCol = valueColor ?? theme.text
+  const labelCol = labelColor ?? theme.textMuted
+  const accentCol = accent ?? theme.accent
+  const family = fontFamily ?? theme.fontFamily
+
   return (
     <AbsoluteFill justify="center" align="center">
       <Flex direction="column" align="center" gap={Math.round(labelSize * 0.7)}>
         <FadeIn delay={delay} durationInFrames={DURATION.slow}>
-          <Text fontSize={valueSize} color={valueColor} fontFamily={fontFamily} fontWeight={700}>
+          <Text fontSize={valueSize} color={valueCol} fontFamily={family} fontWeight={700}>
             {value}
           </Text>
         </FadeIn>
         <FadeIn delay={delay + staggerFrames(2)}>
-          <Rect width={Math.round(valueSize * 0.6)} height={6} cornerRadius={3} fill={accent} />
+          <Rect width={Math.round(valueSize * 0.6)} height={6} cornerRadius={3} fill={accentCol} />
         </FadeIn>
         <FadeIn delay={delay + staggerFrames(4)}>
-          <Text fontSize={labelSize} color={labelColor} fontFamily={fontFamily}>
+          <Text fontSize={labelSize} color={labelCol} fontFamily={family}>
             {label}
           </Text>
         </FadeIn>
