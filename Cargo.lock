@@ -1065,8 +1065,12 @@ name = "onda-wasm"
 version = "0.0.0"
 dependencies = [
  "console_error_panic_hook",
+ "onda-core",
+ "onda-image",
+ "onda-layout",
  "onda-renderer",
  "onda-scene",
+ "onda-typography",
  "serde_json",
  "wasm-bindgen",
 ]
@@ -1076,7 +1080,11 @@ name = "onda-wasm-vello"
 version = "0.0.0"
 dependencies = [
  "console_error_panic_hook",
+ "onda-core",
+ "onda-image",
+ "onda-layout",
  "onda-scene",
+ "onda-typography",
  "onda-vello",
  "serde_json",
  "wasm-bindgen",

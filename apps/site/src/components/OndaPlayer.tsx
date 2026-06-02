@@ -2,6 +2,7 @@ import { Player } from '@onda/player'
 import {
   Composition,
   Ellipse,
+  Flex,
   Group,
   Path,
   Rect,
@@ -132,6 +133,12 @@ function buildDemo(): ReactElement {
         </Series.Sequence>
       </Series>
       <Underline />
+      {/* A flex row, centered by the layout engine (no absolute x math). */}
+      <Flex x={0} y={408} width={W} direction="row" justify="center" gap={16}>
+        <Rect width={150} height={34} cornerRadius={17} fill="#18181d" />
+        <Rect width={150} height={34} cornerRadius={17} fill="#18181d" />
+        <Rect width={150} height={34} cornerRadius={17} fill="#18181d" />
+      </Flex>
     </Composition>
   )
 }
