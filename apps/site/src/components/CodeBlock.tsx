@@ -26,18 +26,30 @@ const KEYWORDS = new Set([
   'new',
 ])
 
+// Match the docs' code theme (Starlight dark — Night Owl) so code reads the same
+// across the site.
 const COLOR = {
-  comment: '#56565f',
-  string: '#7fb38a',
-  number: '#e6b450',
-  keyword: '#d96b82',
-  tag: '#7cb3f0',
-  punct: '#7a7a86',
+  comment: '#637777',
+  string: '#ecc48d',
+  number: '#f78c6c',
+  keyword: '#c792ea',
+  tag: '#f78c6c', // PascalCase components/tags
+  func: '#82aaff', // identifier before `(`
+  attr: '#c5e478', // identifier before `=`
+  bracket: '#7fdbca', // JSX angle brackets < > / >
+  punct: '#7e8aa0',
 }
 
 // One token per match: comment | string | number | identifier | whitespace | punctuation.
 const TOKEN =
   /(\/\*[\s\S]*?\*\/|\/\/[^\n]*)|('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)|(\d+(?:\.\d+)?)|([A-Za-z_$][\w$]*)|(\s+)|([^\s\w$'"`]+)/g
+
+/** The next non-whitespace character at or after `idx` (for call/attr lookahead). */
+function nextNonSpace(code: string, idx: number): string {
+  let j = idx
+  while (j < code.length && /\s/.test(code[j] ?? '')) j++
+  return code[j] ?? ''
+}
 
 function highlight(code: string): ReactNode[] {
   const out: ReactNode[] = []
@@ -48,9 +60,14 @@ function highlight(code: string): ReactNode[] {
     if (comment) color = COLOR.comment
     else if (str) color = COLOR.string
     else if (num) color = COLOR.number
-    else if (word)
-      color = KEYWORDS.has(word) ? COLOR.keyword : /^[A-Z]/.test(word) ? COLOR.tag : undefined
-    else if (punct) color = COLOR.punct
+    else if (word) {
+      if (KEYWORDS.has(word)) color = COLOR.keyword
+      else if (/^[A-Z]/.test(word)) color = COLOR.tag
+      else {
+        const after = nextNonSpace(code, (m.index ?? 0) + tok.length)
+        color = after === '(' ? COLOR.func : after === '=' ? COLOR.attr : undefined
+      }
+    } else if (punct) color = /^[<>/]+$/.test(punct) ? COLOR.bracket : COLOR.punct
     out.push(
       color ? (
         <span key={i} style={{ color }}>
@@ -112,8 +129,8 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: "'JetBrains Mono', monospace",
     fontSize: 13,
     lineHeight: 1.65,
-    color: '#d7d7de',
-    background: '#121217',
+    color: '#c2c2c8',
+    background: '#18181d',
     border: '1px solid #26262c',
     borderRadius: 10,
     padding: '14px 16px',
