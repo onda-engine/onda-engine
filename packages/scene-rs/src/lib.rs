@@ -74,6 +74,11 @@ pub struct Node {
     /// (Vello); the CPU backend ignores it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub clip: Option<ShapeGeometry>,
+    /// Optional flex layout: when set, this node positions its direct children
+    /// (sets their `transform.translate`) per the rules — resolved by the
+    /// `onda-layout` pre-pass before rendering, so backends just draw.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout: Option<Layout>,
     pub kind: NodeKind,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<Node>,
@@ -107,6 +112,7 @@ impl Node {
             transform: Transform::IDENTITY,
             opacity: 1.0,
             clip: None,
+            layout: None,
             kind,
             children: Vec::new(),
         }
@@ -159,6 +165,12 @@ impl Node {
     /// Builder: clip this node and its subtree to `geometry` (local space).
     pub fn with_clip(mut self, geometry: ShapeGeometry) -> Self {
         self.clip = Some(geometry);
+        self
+    }
+
+    /// Builder: flex-lay-out this node's direct children.
+    pub fn with_layout(mut self, layout: Layout) -> Self {
+        self.layout = Some(layout);
         self
     }
 
@@ -409,6 +421,82 @@ pub struct ImageData {
     pub width: u32,
     pub height: u32,
     pub rgba: std::sync::Arc<Vec<u8>>,
+}
+
+/// Main-axis direction of a [`Layout`] container.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Direction {
+    /// Lay children out left-to-right.
+    #[default]
+    Row,
+    /// Lay children out top-to-bottom.
+    Column,
+}
+
+/// Main-axis distribution of free space in a [`Layout`] (CSS `justify-content`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Justify {
+    #[default]
+    Start,
+    Center,
+    End,
+    SpaceBetween,
+    SpaceAround,
+}
+
+/// Cross-axis alignment of children in a [`Layout`] (CSS `align-items`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Align {
+    #[default]
+    Start,
+    Center,
+    End,
+}
+
+/// Flex layout for a node's direct children — a small, CSS-flexbox-shaped subset
+/// resolved to absolute child translations by the `onda-layout` pre-pass.
+///
+/// When `width`/`height` are omitted the container shrink-wraps its content (so
+/// `justify` distribution only has an effect when an explicit size leaves free
+/// space). Children are measured by their intrinsic size (shape geometry, image
+/// pixels, measured text, or a nested container's resolved box).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Layout {
+    #[serde(default)]
+    pub direction: Direction,
+    #[serde(default)]
+    pub justify: Justify,
+    #[serde(default)]
+    pub align: Align,
+    /// Space between adjacent children, in pixels.
+    #[serde(default)]
+    pub gap: f32,
+    /// Uniform inner padding, in pixels.
+    #[serde(default)]
+    pub padding: f32,
+    /// Fixed container width; shrink-to-content when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<f32>,
+    /// Fixed container height; shrink-to-content when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<f32>,
+}
+
+impl Default for Layout {
+    fn default() -> Self {
+        Layout {
+            direction: Direction::default(),
+            justify: Justify::default(),
+            align: Align::default(),
+            gap: 0.0,
+            padding: 0.0,
+            width: None,
+            height: None,
+        }
+    }
 }
 
 /// A reference to an SVG document, to be expanded into vector [`Node`]s by a

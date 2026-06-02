@@ -967,10 +967,13 @@ dependencies = [
  "anyhow",
  "onda-animation",
  "onda-audio",
+ "onda-core",
  "onda-image",
+ "onda-layout",
  "onda-renderer",
  "onda-scene",
  "onda-svg",
+ "onda-typography",
  "onda-vello",
  "serde_json",
 ]
@@ -991,6 +994,14 @@ dependencies = [
  "image",
  "onda-scene",
  "png 0.18.1",
+]
+
+[[package]]
+name = "onda-layout"
+version = "0.0.0"
+dependencies = [
+ "onda-core",
+ "onda-scene",
 ]
 
 [[package]]

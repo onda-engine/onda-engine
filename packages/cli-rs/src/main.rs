@@ -9,12 +9,15 @@
 //!   onda render <scene.json> <out.png> [--backend auto|vello|cpu] [--system-fonts]
 //!   onda export <movie.json> <out.gif|out.mp4> [--backend ...] [--system-fonts]
 
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use onda_animation::{AnimatedScene, AudioTrack};
+use onda_core::Size;
 use onda_renderer::{encode_gif, Framebuffer, Renderer};
-use onda_scene::Scene;
+use onda_scene::{Scene, Text};
+use onda_typography::{FontContext, StyledRun};
 use onda_vello::VelloRenderer;
 
 const USAGE: &str = "\
@@ -339,6 +342,22 @@ fn render_scenes(
     font: FontMode,
     extra_fonts: &[Vec<u8>],
 ) -> Result<(Vec<Framebuffer>, &'static str)> {
+    // Resolve flex layout to absolute child transforms before rendering. Text is
+    // measured with a font context matching the render, so it lands where drawn.
+    // Skipped entirely (no clone) when no scene uses a layout.
+    let laid_out: Vec<Scene>;
+    let scenes = if scenes.iter().any(scene_has_layout) {
+        let fonts = RefCell::new(measure_font_context(font, extra_fonts));
+        let measure = |text: &Text| measure_text(&mut fonts.borrow_mut(), text);
+        laid_out = scenes
+            .iter()
+            .map(|s| onda_layout::layout(s, &measure))
+            .collect();
+        &laid_out
+    } else {
+        scenes
+    };
+
     match backend {
         BackendChoice::Cpu => Ok((render_scenes_cpu(scenes, font, extra_fonts), "cpu")),
         BackendChoice::Vello => {
@@ -394,6 +413,53 @@ fn render_scenes_vello(scenes: &[Scene], renderer: &mut VelloRenderer) -> Vec<Fr
             Framebuffer::from_rgba(frame.width, frame.height, frame.pixels)
         })
         .collect()
+}
+
+/// Whether any node in the scene carries a flex layout (so we can skip the
+/// layout pass — and its clone — when nothing needs it).
+fn scene_has_layout(scene: &Scene) -> bool {
+    fn walk(node: &onda_scene::Node) -> bool {
+        node.layout.is_some() || node.children.iter().any(walk)
+    }
+    walk(&scene.root)
+}
+
+/// A font context for measuring text during layout — same fonts as the render
+/// (bundled/system + any `--font` files) so measurement matches drawing.
+fn measure_font_context(font: FontMode, extra_fonts: &[Vec<u8>]) -> FontContext {
+    let mut fonts = match font {
+        FontMode::Bundled => FontContext::with_default_font(),
+        FontMode::System => FontContext::with_system_fonts(),
+    };
+    for data in extra_fonts {
+        fonts.load_font(data.clone());
+    }
+    fonts
+}
+
+/// Measure a text node's rendered size for layout. Shapes glyph runs and reads
+/// the pen extent; the final advance + line height are approximated (good enough
+/// to center/justify; exact per-glyph metrics can refine this later).
+fn measure_text(fonts: &mut FontContext, text: &Text) -> Size {
+    let runs = text.resolved_runs();
+    let styled: Vec<StyledRun> = runs
+        .iter()
+        .map(|r| StyledRun {
+            text: &r.text,
+            font_size: r.font_size,
+            color: [0.0, 0.0, 0.0, 1.0],
+            family: r.font_family.as_deref(),
+            weight: r.weight,
+            italic: r.italic,
+        })
+        .collect();
+    let layout = fonts.layout_rich(&styled);
+    if layout.glyphs.is_empty() {
+        return Size::ZERO;
+    }
+    let max_x = layout.glyphs.iter().map(|g| g.x).fold(0.0_f32, f32::max);
+    let em = runs.iter().map(|r| r.font_size).fold(0.0_f32, f32::max);
+    Size::new(max_x + em * 0.55, em * 1.25)
 }
 
 /// The per-frame scenes of an animated document plus its soundtrack.
