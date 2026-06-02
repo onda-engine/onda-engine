@@ -18,6 +18,10 @@ crate-type = ["cdylib", "rlib"]
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 onda-vello = { workspace = true }
 onda-scene = { workspace = true }
+onda-core = { workspace = true }
+onda-typography = { workspace = true }
+onda-image = { workspace = true }
+onda-layout = { workspace = true }
 serde_json = { workspace = true }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
