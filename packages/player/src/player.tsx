@@ -85,6 +85,7 @@ export function Player({
   className,
 }: PlayerProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
   const uid = useId()
 
   // If a renderer throws at runtime, drop it and fall back for the rest of the
@@ -124,6 +125,7 @@ export function Player({
   const [frame, setFrame] = useState(0)
   const [playing, setPlaying] = useState(autoPlay)
   const [loop, setLoop] = useState(initialLoop)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // The frame/composition the canvas should show. Updated synchronously each
   // render so the async GPU loop can always pull the latest target.
@@ -219,6 +221,38 @@ export function Player({
     [lastFrame],
   )
 
+  // Fullscreen the stage (canvas + controls). Uses the standard API with a
+  // WebKit fallback so it works in Safari too.
+  const toggleFullscreen = useCallback(() => {
+    const el = stageRef.current as
+      | (HTMLDivElement & { webkitRequestFullscreen?: () => void })
+      | null
+    if (!el) return
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element
+      webkitExitFullscreen?: () => void
+    }
+    if (document.fullscreenElement ?? doc.webkitFullscreenElement) {
+      ;(document.exitFullscreen ?? doc.webkitExitFullscreen)?.call(document)
+    } else {
+      ;(el.requestFullscreen ?? el.webkitRequestFullscreen)?.call(el)
+    }
+  }, [])
+
+  // Track fullscreen state so the icon/label reflect it.
+  useEffect(() => {
+    const onChange = () => {
+      const doc = document as Document & { webkitFullscreenElement?: Element }
+      setIsFullscreen(Boolean(document.fullscreenElement ?? doc.webkitFullscreenElement))
+    }
+    document.addEventListener('fullscreenchange', onChange)
+    document.addEventListener('webkitfullscreenchange', onChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange)
+      document.removeEventListener('webkitfullscreenchange', onChange)
+    }
+  }, [])
+
   // Keyboard: Space = play/pause, arrows = step (Shift = jump 10), Home/End.
   // The handler lives on the focusable region so it works from anywhere in the
   // player. When a native <button> has focus, the browser already activates it
@@ -254,9 +288,13 @@ export function Player({
           event.preventDefault()
           setLoop((v) => !v)
           break
+        case 'f':
+          event.preventDefault()
+          toggleFullscreen()
+          break
       }
     },
-    [frame, lastFrame, togglePlay, seekTo],
+    [frame, lastFrame, togglePlay, seekTo, toggleFullscreen],
   )
 
   const seconds = frame / config.fps
@@ -287,6 +325,7 @@ export function Player({
       {/* The stage is the positioning context: canvas fills it, controls overlay
           on top (auto-hidden unless hovering / paused / keyboard-focused). */}
       <div
+        ref={stageRef}
         className="onda-player__stage"
         style={{ ...styles.stage, aspectRatio: `${config.width} / ${config.height}` }}
       >
@@ -309,6 +348,17 @@ export function Player({
             <span>{statusLabel}</span>
           </div>
         )}
+
+        <button
+          type="button"
+          className="onda-player__fs"
+          onClick={toggleFullscreen}
+          aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
+          aria-pressed={isFullscreen}
+          title={isFullscreen ? 'Exit full screen (f)' : 'Full screen (f)'}
+        >
+          {isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
+        </button>
 
         <div className="onda-player__overlay">
           <input
@@ -407,6 +457,48 @@ function LoopIcon(): ReactElement {
       <path d="M3 11V9a4 4 0 0 1 4-4h14" />
       <path d="M7 22.5 3 18.5 7 14.5" />
       <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+    </svg>
+  )
+}
+
+function FullscreenIcon(): ReactElement {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 8V4a1 1 0 0 1 1-1h4" />
+      <path d="M21 8V4a1 1 0 0 0-1-1h-4" />
+      <path d="M3 16v4a1 1 0 0 0 1 1h4" />
+      <path d="M21 16v4a1 1 0 0 1-1 1h-4" />
+    </svg>
+  )
+}
+
+function ExitFullscreenIcon(): ReactElement {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8 3v4a1 1 0 0 1-1 1H3" />
+      <path d="M16 3v4a1 1 0 0 0 1 1h4" />
+      <path d="M8 21v-4a1 1 0 0 0-1-1H3" />
+      <path d="M16 21v-4a1 1 0 0 1 1-1h4" />
     </svg>
   )
 }
@@ -512,6 +604,35 @@ const PLAYER_CSS = `
 .onda-player__stage:hover .onda-player__badge,
 .onda-player__stage:focus-within .onda-player__badge,
 .onda-player.is-paused .onda-player__badge { opacity: 1; }
+/* Fullscreen toggle (top-right), fades in with the controls like the badge. */
+.onda-player__fs {
+  position: absolute; top: 12px; right: 12px;
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  border-radius: 9px;
+  background: rgba(8,8,10,.55); backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,.1);
+  color: rgba(255,255,255,.85);
+  cursor: pointer;
+  opacity: 0; transform: translateY(-4px);
+  transition: opacity 200ms ease-out, transform 200ms ease-out, background 160ms ease-out, color 160ms ease-out;
+  pointer-events: none;
+}
+.onda-player__stage:hover .onda-player__fs,
+.onda-player__stage:focus-within .onda-player__fs,
+.onda-player.is-paused .onda-player__fs { opacity: 1; transform: none; pointer-events: auto; }
+.onda-player__fs:hover { background: rgba(8,8,10,.85); color: #fff; }
+.onda-player__fs:focus-visible { outline: 2px solid var(--onda-accent); outline-offset: 2px; }
+.onda-player__fs svg { display: block; }
+/* In fullscreen: fill the screen and letterbox the canvas (preserve aspect). */
+.onda-player__stage:fullscreen,
+.onda-player__stage:-webkit-full-screen {
+  width: 100vw; height: 100vh; border-radius: 0; aspect-ratio: auto; background: #000;
+}
+.onda-player__stage:fullscreen .onda-player__canvas,
+.onda-player__stage:-webkit-full-screen .onda-player__canvas {
+  width: 100vw; height: 100vh; object-fit: contain;
+}
 /* Circular primary play/pause — the player's focal control. */
 .onda-player__play {
   flex: 0 0 auto;
