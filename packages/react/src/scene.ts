@@ -83,12 +83,26 @@ export type NodeKind =
   | { type: 'shape'; geometry: ShapeGeometry; fill?: Color; gradient?: Gradient; stroke?: Stroke }
   | { type: 'svg'; src?: string; markup?: string }
 
+/** Flex layout for a node's direct children (mirrors onda-scene's `Layout`).
+ *  Resolved to absolute child transforms by the engine's layout pass. */
+export interface Layout {
+  direction?: 'row' | 'column'
+  justify?: 'start' | 'center' | 'end' | 'space-between' | 'space-around'
+  align?: 'start' | 'center' | 'end'
+  gap?: number
+  padding?: number
+  width?: number
+  height?: number
+}
+
 export interface SceneNode {
   id?: number
   transform?: Transform
   opacity?: number
   /** Clip this node and its subtree to a geometry (local space). */
   clip?: ShapeGeometry
+  /** Flex-lay-out this node's direct children. */
+  layout?: Layout
   kind: NodeKind
   children?: SceneNode[]
 }

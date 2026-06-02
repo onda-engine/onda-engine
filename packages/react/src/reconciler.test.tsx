@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  AbsoluteFill,
   Composition,
   Ellipse,
+  Flex,
   Group,
   Path,
   Rect,
@@ -259,6 +261,36 @@ describe('renderToScene', () => {
     expect(scene.root.children?.[0]?.transform).toEqual({
       translate: { x: 2, y: 0 },
       rotate: 45,
+    })
+  })
+
+  it('emits a flex layout on a Flex container', () => {
+    const scene = renderToScene(
+      <Composition width={200} height={200} fps={1} durationInFrames={1}>
+        <Flex direction="row" justify="center" align="center" gap={12}>
+          <Rect width={20} height={20} fill="#fff" />
+        </Flex>
+      </Composition>,
+    )
+    const group = scene.root.children?.[0]
+    expect(group?.kind).toEqual({ type: 'group' })
+    expect(group?.layout).toEqual({ direction: 'row', justify: 'center', align: 'center', gap: 12 })
+  })
+
+  it('AbsoluteFill fills the composition and lays out as a column', () => {
+    const scene = renderToScene(
+      <Composition width={320} height={240} fps={1} durationInFrames={1}>
+        <AbsoluteFill justify="center" align="center">
+          <Rect width={10} height={10} fill="#fff" />
+        </AbsoluteFill>
+      </Composition>,
+    )
+    expect(scene.root.children?.[0]?.layout).toEqual({
+      direction: 'column',
+      justify: 'center',
+      align: 'center',
+      width: 320,
+      height: 240,
     })
   })
 

@@ -10,6 +10,7 @@ import { type GradientInput, parseGradient } from './gradient.js'
 import { type HostNode, type RootContainer, hostConfig } from './host-config.js'
 import type {
   Gradient,
+  Layout,
   NodeKind,
   Scene,
   SceneNode,
@@ -115,6 +116,7 @@ function toNode(node: HostNode): SceneNode {
   if (transform) base.transform = transform
   if (typeof props.opacity === 'number') base.opacity = props.opacity
   if (props.clip !== undefined) base.clip = parseClip(props.clip as ClipInput)
+  if (props.layout !== undefined) base.layout = parseLayout(props.layout as Layout)
   const children = node.children.map(toNode)
   const withChildren = children.length ? { children } : {}
 
@@ -214,6 +216,19 @@ function transformOf(props: Record<string, unknown>): Transform | undefined {
   return transform.translate || transform.scale || transform.rotate !== undefined
     ? transform
     : undefined
+}
+
+/** Copy the defined layout fields (names/values already match the scene JSON). */
+function parseLayout(layout: Layout): Layout {
+  const out: Layout = {}
+  if (layout.direction !== undefined) out.direction = layout.direction
+  if (layout.justify !== undefined) out.justify = layout.justify
+  if (layout.align !== undefined) out.align = layout.align
+  if (typeof layout.gap === 'number') out.gap = layout.gap
+  if (typeof layout.padding === 'number') out.padding = layout.padding
+  if (typeof layout.width === 'number') out.width = layout.width
+  if (typeof layout.height === 'number') out.height = layout.height
+  return out
 }
 
 function fillStroke(props: Record<string, unknown>): {
