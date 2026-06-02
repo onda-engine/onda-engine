@@ -12,6 +12,16 @@
     "enabled": true,
     "rules": { "recommended": true }
   },
+  "overrides": [
+    {
+      "include": ["packages/components/**"],
+      "linter": {
+        "rules": {
+          "suspicious": { "noArrayIndexKey": "off" }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": { "quoteStyle": "single", "semicolons": "asNeeded" }
   }
