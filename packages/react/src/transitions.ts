@@ -102,8 +102,15 @@ export function wipe({
   direction = 'from-left',
 }: { direction?: SlideDirection } = {}): TransitionPresentation {
   return (children, { progress, entering, width, height }) => {
-    // Only the incoming scene is masked (it reveals over the static outgoing one).
-    if (!entering) return createElement(Group, null, children)
+    // The incoming scene is masked (it reveals over the outgoing one). The
+    // outgoing scene fades out faster than the wipe completes — so it doesn't
+    // linger at full opacity beneath an incoming scene that has transparent
+    // areas (otherwise the old scene bleeds through the new one's gaps). Gone
+    // by ~60% of the wipe.
+    if (!entering) {
+      const fade = Math.max(0, 1 - progress / 0.6)
+      return createElement(Group, { opacity: fade }, children)
+    }
     const p = Math.min(1, Math.max(0, progress))
     switch (direction) {
       case 'from-left':
