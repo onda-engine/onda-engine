@@ -14,7 +14,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { CopyButton } from './CopyButton.js'
+import { CodeBlock } from './CodeBlock.js'
 import ThemeControls from './ThemeControls.js'
 import { COMPONENT_PROPS } from './component-props.js'
 import { GALLERY, GALLERY_CATEGORIES, type GalleryItem } from './gallery-data.js'
@@ -177,6 +177,7 @@ export default function OndaGallery(): ReactElement {
               composition={composition}
               gpuEngine={gpu ?? undefined}
               engine={cpu ?? undefined}
+              showStatus={false}
               loop
             />
           ) : (
@@ -191,13 +192,7 @@ export default function OndaGallery(): ReactElement {
             </div>
             <p style={styles.blurb}>{selected.blurb}</p>
 
-            <div style={styles.codeHead}>
-              <span style={styles.sectionLabel}>Usage</span>
-              <CopyButton text={snippet} style={styles.copyBtn} />
-            </div>
-            <pre style={styles.code}>
-              <code>{snippet}</code>
-            </pre>
+            <CodeBlock code={snippet} />
 
             {props.length ? (
               <div style={styles.propsBlock}>
@@ -324,37 +319,6 @@ const styles: Record<string, CSSProperties> = {
     letterSpacing: '0.1em',
     textTransform: 'uppercase',
     color: '#56565f',
-  },
-  codeHead: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  copyBtn: {
-    appearance: 'none',
-    border: '1px solid #26262c',
-    background: 'transparent',
-    color: '#b8b8c0',
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 12,
-    padding: '3px 10px',
-    borderRadius: 7,
-    cursor: 'pointer',
-  },
-  code: {
-    margin: 0,
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 13,
-    lineHeight: 1.65,
-    color: '#d7d7de',
-    background: '#121217',
-    border: '1px solid #26262c',
-    borderRadius: 10,
-    padding: '14px 16px',
-    overflowX: 'auto',
-    maxHeight: 360,
-    whiteSpace: 'pre',
   },
   propsBlock: { marginTop: 22 },
   table: {
