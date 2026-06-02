@@ -526,6 +526,7 @@ mod tests {
             Transform {
                 translate: Vec2::new(4.0, 4.0),
                 scale: Vec2::splat(1.0),
+                ..Transform::IDENTITY
             },
         );
         let fb = render(&Scene::new(comp(8, 8)).with_root(Node::group().with_child(shape)));
@@ -541,6 +542,7 @@ mod tests {
             .with_transform(Transform {
                 translate: Vec2::ZERO,
                 scale: Vec2::splat(10.0),
+                ..Transform::IDENTITY
             });
         let fb = render(&Scene::new(comp(16, 16)).with_root(Node::group().with_child(shape)));
         let covered = (0..16)
@@ -581,6 +583,7 @@ mod tests {
                 .with_transform(Transform {
                     translate: Vec2::new(2.0, 0.0),
                     scale: Vec2::splat(1.0),
+                    ..Transform::IDENTITY
                 });
         let fb =
             render(&Scene::new(comp(4, 4)).with_root(Node::group().with_children([red, blue])));
@@ -603,11 +606,13 @@ mod tests {
             .with_transform(Transform {
                 translate: Vec2::new(2.0, 0.0),
                 scale: Vec2::splat(1.0),
+                ..Transform::IDENTITY
             });
         let root = Node::group()
             .with_transform(Transform {
                 translate: Vec2::new(3.0, 0.0),
                 scale: Vec2::splat(1.0),
+                ..Transform::IDENTITY
             })
             .with_child(inner);
         let fb = render(&Scene::new(comp(8, 2)).with_root(root));
@@ -619,6 +624,7 @@ mod tests {
         Transform {
             translate: Vec2::new(x, y),
             scale: Vec2::splat(1.0),
+            ..Transform::IDENTITY
         }
     }
 

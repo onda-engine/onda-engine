@@ -20,6 +20,7 @@ fn at(x: f32, y: f32) -> Transform {
     Transform {
         translate: Vec2::new(x, y),
         scale: Vec2::splat(1.0),
+        ..Transform::IDENTITY
     }
 }
 

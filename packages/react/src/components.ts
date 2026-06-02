@@ -23,6 +23,9 @@ export interface NodeProps {
   /** Scale factor (1 = identity). */
   scaleX?: number
   scaleY?: number
+  /** Clockwise rotation in degrees, about the node's local origin (0,0).
+   *  Renders on the GPU (Vello) backend; the CPU reference rasterizer ignores it. */
+  rotation?: number
   /** Opacity, 0..1. */
   opacity?: number
   /** Clip this node and its subtree to a region (local space). */

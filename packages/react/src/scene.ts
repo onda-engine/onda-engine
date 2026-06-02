@@ -25,6 +25,8 @@ export interface Color {
 export interface Transform {
   translate?: Vec2
   scale?: Vec2
+  /** Clockwise rotation in degrees about the node's local origin. */
+  rotate?: number
 }
 
 export interface Stroke {

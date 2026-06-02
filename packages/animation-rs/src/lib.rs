@@ -12,7 +12,8 @@
 //! Keyframe times are in **seconds**, independent of frame rate; evaluate at a
 //! frame via the composition's fps ([`Timeline::evaluate_frame`]).
 //!
-//! v0 scope: keyframes + easing driving opacity / translate / scale. Springs,
+//! v0 scope: keyframes + easing driving opacity / translate / scale / rotation.
+//! Springs,
 //! noise, sequences, and state machines (all named in the charter) build on this
 //! and are deliberate follow-ups.
 
@@ -273,9 +274,19 @@ impl<T: Lerp + Clone> Track<T> {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AnimatedProperty {
-    Opacity { track: Track<f32> },
-    Translate { track: Track<Vec2> },
-    Scale { track: Track<Vec2> },
+    Opacity {
+        track: Track<f32>,
+    },
+    Translate {
+        track: Track<Vec2>,
+    },
+    Scale {
+        track: Track<Vec2>,
+    },
+    /// Rotation in degrees (about the node's local origin). Vello-only.
+    Rotate {
+        track: Track<f32>,
+    },
 }
 
 /// Binds a property animation to a target node (by id).
@@ -344,6 +355,11 @@ fn apply(node: &mut Node, property: &AnimatedProperty, time: f32) {
         AnimatedProperty::Scale { track } => {
             if let Some(v) = track.sample(time) {
                 node.transform.scale = v;
+            }
+        }
+        AnimatedProperty::Rotate { track } => {
+            if let Some(v) = track.sample(time) {
+                node.transform.rotate = v;
             }
         }
     }
@@ -644,6 +660,19 @@ mod tests {
             scene.root.children[0].transform.translate,
             Vec2::new(50.0, 0.0)
         );
+    }
+
+    #[test]
+    fn timeline_animates_rotation() {
+        let base = scene_with_text();
+        let timeline = Timeline::new().with(Animation::new(
+            NodeId(1),
+            AnimatedProperty::Rotate {
+                track: Track::new(vec![Keyframe::new(0.0, 0.0), Keyframe::new(1.0, 90.0)]),
+            },
+        ));
+        let scene = timeline.evaluate_frame(&base, 15.0); // 0.5s -> 45°
+        assert_eq!(scene.root.children[0].transform.rotate, 45.0);
     }
 
     #[test]

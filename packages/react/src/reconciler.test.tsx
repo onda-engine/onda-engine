@@ -250,6 +250,18 @@ describe('renderToScene', () => {
     }
   })
 
+  it('emits rotation on the transform', () => {
+    const scene = renderToScene(
+      <Composition width={10} height={10} fps={1} durationInFrames={1}>
+        <Rect x={2} width={4} height={4} fill="#fff" rotation={45} />
+      </Composition>,
+    )
+    expect(scene.root.children?.[0]?.transform).toEqual({
+      translate: { x: 2, y: 0 },
+      rotate: 45,
+    })
+  })
+
   it('requires a single Composition root', () => {
     expect(() => renderToScene(<Group />)).toThrow(/Composition/)
   })
