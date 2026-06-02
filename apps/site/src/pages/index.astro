@@ -3,7 +3,7 @@
 // doc); the docs live under /guide, /api, etc. CTAs link into the docs. Brand
 // marks come from assets/brand (onda-studio): the rose-gradient wave (static in
 // nav/footer, animated in the hero). Styles are scoped to this component.
-import OndaPlayer from '../components/OndaPlayer.tsx'
+import OndaShowcase from '../components/OndaShowcase.tsx'
 const REPO = 'https://github.com/degueba/onda-engine'
 const year = new Date().getFullYear()
 ---
@@ -308,9 +308,10 @@ const year = new Date().getFullYear()
               <p class="eyebrow">See it run</p>
               <h2 id="live-title" class="section__title">A live composition, in your browser</h2>
               <p class="section__lede">
-                Not a video — an <code>@onda/react</code> scene rendered live by the GPU engine
-                (Vello over WebGPU), the very same scene graph <code>onda export</code> writes to a
-                file. Press play, scrub, loop.
+                Not a video — the ONDA promo, built entirely from <code>@onda/components</code> and
+                rendered live by the GPU engine (Vello over WebGPU). The very same scene graph
+                <code>onda export</code> writes to an MP4, playing here frame-for-frame. Press play,
+                scrub, loop.
               </p>
               <button
                 class="btn btn--primary live__toggle"
@@ -323,7 +324,7 @@ const year = new Date().getFullYear()
               </button>
             </header>
             <div class="live__stage" id="live-stage" data-live-stage hidden>
-              <OndaPlayer client:only="react" />
+              <OndaShowcase client:only="react" />
             </div>
           </div>
         </section>
