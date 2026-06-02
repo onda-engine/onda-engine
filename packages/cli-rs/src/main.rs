@@ -411,6 +411,8 @@ fn movie_scenes(json: &str, base_dir: &Path) -> Result<Movie> {
     let mut doc: AnimatedScene =
         serde_json::from_str(json).context("movie JSON is not a valid animated scene")?;
     doc.scene = onda_svg::expand_svg(&doc.scene, base_dir).context("expanding <svg> nodes")?;
+    // Decode images once on the template; frame clones then share the pixels.
+    doc.scene = onda_image::load_images(&doc.scene, base_dir).context("loading images")?;
     let scenes: Vec<Scene> = (0..doc.frame_count()).map(|n| doc.frame(n)).collect();
     Ok(Movie {
         scenes,
@@ -431,7 +433,8 @@ fn frames_scenes(json: &str, base_dir: &Path) -> Result<(Vec<Scene>, f32)> {
     let fps = first.composition.fps;
     let mut scenes = Vec::with_capacity(raw.len());
     for scene in &raw {
-        scenes.push(onda_svg::expand_svg(scene, base_dir).context("expanding <svg> nodes")?);
+        let expanded = onda_svg::expand_svg(scene, base_dir).context("expanding <svg> nodes")?;
+        scenes.push(onda_image::load_images(&expanded, base_dir).context("loading images")?);
     }
     Ok((scenes, fps))
 }
@@ -540,6 +543,7 @@ fn render_scene_file(
         serde_json::from_str(&json).context("scene JSON is not a valid scene graph")?;
     let base_dir = input.parent().unwrap_or(Path::new(""));
     let scene = onda_svg::expand_svg(&parsed, base_dir).context("expanding <svg> nodes")?;
+    let scene = onda_image::load_images(&scene, base_dir).context("loading images")?;
     let (mut frames, used) =
         render_scenes(std::slice::from_ref(&scene), backend, font, extra_fonts)
             .with_context(|| format!("rendering scene '{}'", input.display()))?;

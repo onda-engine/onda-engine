@@ -1,0 +1,24 @@
+[package]
+name = "onda-image"
+description = "Decode the bitmap images referenced by an ONDA scene's Image nodes."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[dependencies]
+onda-scene = { workspace = true }
+# Decode-only, common web formats; default features off to keep the dep tree lean.
+image = { version = "0.25", default-features = false, features = [
+    "png",
+    "jpeg",
+    "gif",
+    "webp",
+] }
+base64 = "0.22"
+
+[dev-dependencies]
+png = "0.18"

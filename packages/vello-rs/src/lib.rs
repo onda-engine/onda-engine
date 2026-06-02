@@ -16,7 +16,8 @@ use onda_scene::{Gradient, GradientStop, Node, NodeKind, Scene, ShapeGeometry, T
 use onda_typography::{FontContext, StyledRun};
 use vello::kurbo::{Affine, BezPath, Ellipse, Rect, RoundedRect, Shape, Stroke};
 use vello::peniko::{
-    Blob, Brush, Color as PenikoColor, ColorStop, Fill, Font, Gradient as PenikoGradient, Mix,
+    Blob, Brush, Color as PenikoColor, ColorStop, Fill, Font, Format, Gradient as PenikoGradient,
+    Image as PenikoImage, Mix,
 };
 use vello::{wgpu, AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene as VelloScene};
 
@@ -206,7 +207,27 @@ fn build(
             }
         }
         NodeKind::Text(text) => draw_text(vscene, fonts, font_cache, text, affine, opacity),
-        NodeKind::Image(_) => {}
+        NodeKind::Image(image) => {
+            if let Some(data) = &image.data {
+                if data.width > 0 && data.height > 0 {
+                    let pimg = PenikoImage::new(
+                        Blob::new(data.rgba.clone()),
+                        Format::Rgba8,
+                        data.width,
+                        data.height,
+                    );
+                    // draw_image has no alpha arg; fold node opacity in via a layer.
+                    if opacity < 1.0 {
+                        let bounds = Rect::new(0.0, 0.0, data.width as f64, data.height as f64);
+                        vscene.push_layer(Mix::Normal, opacity, affine, &bounds);
+                        vscene.draw_image(&pimg, affine);
+                        vscene.pop_layer();
+                    } else {
+                        vscene.draw_image(&pimg, affine);
+                    }
+                }
+            }
+        }
         // SVG nodes are expanded to shapes before rendering (see onda-svg); an
         // unexpanded one draws nothing.
         NodeKind::Svg(_) => {}
