@@ -15,7 +15,7 @@
 //! ```
 
 import { Children, type ReactElement, type ReactNode, createElement, isValidElement } from 'react'
-import { clipRect } from './clip.js'
+import { clipEllipse, clipPath, clipRect } from './clip.js'
 import { Group } from './components.js'
 import { useCurrentFrame, useVideoConfig } from './frame.js'
 import { Sequence } from './sequence.js'
@@ -135,6 +135,86 @@ export function wipe({
         )
       }
     }
+  }
+}
+
+/** A hard cut — the overlap timing with no visual effect. The incoming scene
+ *  (drawn on top) simply replaces the outgoing one. */
+export function none(): TransitionPresentation {
+  return (children) => createElement(Group, {}, children)
+}
+
+/** Scale `children` by (sx, sy) about the pivot `(px, py)` — translate to the
+ *  pivot, scale, then translate back (node scale pivots on the local origin). */
+function scaleAbout(
+  children: ReactNode,
+  sx: number,
+  sy: number,
+  px: number,
+  py: number,
+): ReactElement {
+  return createElement(
+    Group,
+    { x: px, y: py },
+    createElement(
+      Group,
+      { scaleX: sx, scaleY: sy },
+      createElement(Group, { x: -px, y: -py }, children),
+    ),
+  )
+}
+
+/** A 2D card flip: the outgoing scene collapses horizontally to the centre line
+ *  by the midpoint, then the incoming scene expands out of it. */
+export function flip(): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    const sx = entering
+      ? Math.max(0, progress * 2 - 1) // incoming expands over the back half
+      : Math.max(0, 1 - progress * 2) // outgoing collapses over the front half
+    return scaleAbout(children, sx, 1, width / 2, height / 2)
+  }
+}
+
+const round = (n: number): number => Math.round(n * 1000) / 1000
+
+/** Iris: a circular reveal of the incoming scene expanding from the centre. The
+ *  outgoing scene stays full beneath it (the incoming draws on top). */
+export function iris(): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    if (!entering || progress >= 1) return createElement(Group, {}, children)
+    if (progress <= 0) return createElement(Group, { opacity: 0 }, children)
+    const cx = width / 2
+    const cy = height / 2
+    const r = progress * Math.hypot(cx, cy) // cover the corners at progress 1
+    // Centre a 2r×2r ellipse clip on (cx,cy): translate the clipped group to the
+    // clip box's origin, then untranslate the children back (cf. `wipe`).
+    return createElement(
+      Group,
+      { x: cx - r, y: cy - r, clip: clipEllipse(2 * r, 2 * r) },
+      createElement(Group, { x: -(cx - r), y: -(cy - r) }, children),
+    )
+  }
+}
+
+/** Clock wipe: an angular sweep revealing the incoming scene clockwise from 12
+ *  o'clock. Outgoing stays full beneath (the incoming draws on top). The wedge is
+ *  a polygon fan (M/L/Z only — no arc command) so it clips on any path renderer. */
+export function clockWipe(): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    if (!entering || progress >= 1) return createElement(Group, {}, children)
+    if (progress <= 0) return createElement(Group, { opacity: 0 }, children)
+    const cx = width / 2
+    const cy = height / 2
+    const r = Math.hypot(cx, cy) // reach the corners
+    const theta = progress * Math.PI * 2 // clockwise from the top
+    const steps = Math.max(2, Math.ceil((theta / (Math.PI * 2)) * 64))
+    let d = `M ${round(cx)} ${round(cy)}`
+    for (let i = 0; i <= steps; i++) {
+      const a = (theta * i) / steps
+      d += ` L ${round(cx + r * Math.sin(a))} ${round(cy - r * Math.cos(a))}`
+    }
+    d += ' Z'
+    return createElement(Group, { clip: clipPath(d) }, children)
   }
 }
 
