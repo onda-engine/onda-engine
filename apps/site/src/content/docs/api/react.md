@@ -22,6 +22,7 @@ Accepted by `<Group>`, `<Rect>`, `<Ellipse>`, `<Path>`, `<Text>`, `<Image>`, `<S
 | `id`               | `number`    | —       | Stable id; required to target the node from a timeline. |
 | `x`, `y`           | `number`    | 0       | Translation in pixels.                        |
 | `scaleX`, `scaleY` | `number`    | 1       | Scale factor.                                 |
+| `rotation`         | `number`    | 0       | Clockwise degrees about the local origin (GPU backend). |
 | `opacity`          | `number`    | 1       | 0..1.                                         |
 | `clip`             | `ClipInput` | —       | Clip the node + subtree (local space).        |
 | `children`         | `ReactNode` | —       | Child nodes.                                  |
@@ -53,6 +54,16 @@ The root of every tree. **Required** props: `width`, `height`, `fps`, `durationI
 
 `GroupProps = NodeProps`. A transform/opacity/clip container with no visual of its own.
 
+### `<Flex>` / `<AbsoluteFill>`
+
+Flex layout containers — position children relatively instead of by absolute `x`/`y`. `<Flex>` takes `direction` (`'row' | 'column'`), `justify` (`'start' | 'center' | 'end' | 'space-between' | 'space-around'`), `align` (`'start' | 'center' | 'end'`), `gap`, `padding`, and optional `width`/`height` (a fixed box distributes free space per `justify`; otherwise it shrink-wraps its content). `<AbsoluteFill>` fills the composition and lays out as a column by default — the idiomatic "center everything" / full-bleed container. Works on both backends and in the browser. See [Layout](/guide/layout).
+
+```tsx
+<AbsoluteFill justify="center" align="center">
+  <Text fontSize={96}>Centered</Text>
+</AbsoluteFill>
+```
+
 ### `<Rect>`
 
 `RectProps extends NodeProps, PaintProps`. Required: `width`, `height`. Optional: `cornerRadius?: number`.
@@ -79,15 +90,19 @@ The root of every tree. **Required** props: `width`, `height`, `fps`, `durationI
 
 ### `<Text>`
 
-`TextProps extends NodeProps`. Optional: `fontSize?: number` (engine default 48), `color?: ColorInput` (default white). The text is the element's children.
+`TextProps extends NodeProps`. Optional: `fontSize?: number` (engine default 48), `color?: ColorInput` (default white). The text is the element's children. Fonts: `fontFamily?`, `fontWeight?` (CSS 1..1000), `italic?`, and rich `runs?` for mixed inline styles; bundled families are **Open Sans** and **IBM Plex Sans**. See [Typography](/guide/typography).
 
 ```tsx
-<Text x={96} y={110} fontSize={96} color="#ffffff">Hello ONDA</Text>
+<Text x={96} y={110} fontSize={96} color="#ffffff" fontFamily="IBM Plex Sans" fontWeight={700}>Hello ONDA</Text>
 ```
 
 ### `<Image>`
 
-`ImageProps extends NodeProps`. Required: `src: string`. **Modeled but not yet drawn by the renderers.**
+`ImageProps extends NodeProps`. Required: `src: string` — a file path (resolved relative to the scene JSON's directory) or a base64 `data:` URI. The image is decoded (PNG/JPEG/GIF/WebP) and drawn on **both backends**, scaled by the node's transform; `data:` URIs work in the browser too.
+
+```tsx
+<Image x={40} y={40} src="logo.png" scaleX={1.5} scaleY={1.5} />
+```
 
 ### `<Svg>`
 

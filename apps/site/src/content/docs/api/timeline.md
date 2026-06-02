@@ -93,9 +93,36 @@ function Pulse() {
 
 `durationInFrames <= 0` renders nothing.
 
+## `<TransitionSeries>`
+
+Like `<Series>`, but consecutive sequences **overlap** by a transition's duration — cross-fading (or sliding/wiping) from one to the next. Children alternate `<TransitionSeries.Sequence durationInFrames={…}>` and `<TransitionSeries.Transition presentation={…} timing={…} />`.
+
+```tsx
+import {
+  TransitionSeries,
+  fade,
+  slide,
+  wipe,
+  linearTiming,
+  springTiming,
+} from '@onda/react'
+
+;<TransitionSeries>
+  <TransitionSeries.Sequence durationInFrames={60}>
+    <Intro />
+  </TransitionSeries.Sequence>
+  <TransitionSeries.Transition presentation={fade()} timing={linearTiming({ durationInFrames: 20 })} />
+  <TransitionSeries.Sequence durationInFrames={60}>
+    <Main />
+  </TransitionSeries.Sequence>
+</TransitionSeries>
+```
+
+**Presentations:** `fade()` (opacity), `slide({ direction })`, `wipe({ direction })`, where `direction` is `'from-left' | 'from-right' | 'from-top' | 'from-bottom'`. **Timings:** `linearTiming({ durationInFrames })`, `springTiming({ durationInFrames?, config? })`. A transition's duration is the **overlap** between its two sequences, so the total length is the sum of the sequence durations minus the transition durations. Built entirely on `opacity` / `translate` / `clip`, so it works on both backends and in the browser.
+
 ## How it works
 
-All three are React components that re-provide the internal frame context with a shifted `frame` value (and, for `<Sequence>`, conditionally render based on visibility). Because everything downstream reads the frame through that context, the shift composes naturally — nest a `<Loop>` inside a `<Sequence>` and the offsets stack.
+All three (plus `<TransitionSeries>`) are React components that re-provide the internal frame context with a shifted `frame` value (and, for `<Sequence>`, conditionally render based on visibility). Because everything downstream reads the frame through that context, the shift composes naturally — nest a `<Loop>` inside a `<Sequence>` and the offsets stack.
 
 ## Not yet available
 

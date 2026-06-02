@@ -1,0 +1,62 @@
+---
+title: Layout
+description: Position content with flexbox-style layout instead of absolute coordinates.
+---
+
+By default every node is placed by absolute `x`/`y`. That's precise, but tedious for the common cases — centering a title, stacking cards, spacing a row of logos. ONDA has a small **flexbox-style layout** system for exactly those.
+
+A layout is resolved by a pre-pass (`onda-layout`) that measures each container's children and writes their absolute positions, so the renderers stay layout-agnostic. It runs on both the export path **and** in the browser, so a laid-out preview matches the rendered file.
+
+## `<AbsoluteFill>` — center / full-bleed
+
+`<AbsoluteFill>` fills the whole composition and lays its children out as a column. Combine with `justify`/`align` to center — the idiomatic "title in the middle" container:
+
+```tsx
+import { AbsoluteFill, Text } from '@onda/react'
+
+;<AbsoluteFill justify="center" align="center">
+  <Text fontSize={96} fontFamily="IBM Plex Sans" fontWeight={700}>
+    Centered
+  </Text>
+</AbsoluteFill>
+```
+
+## `<Flex>` — rows and columns
+
+`<Flex>` is a flex container for finer control. Props (a CSS-flexbox subset):
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `direction` | `'row' \| 'column'` | Main axis (default `row`). |
+| `justify` | `'start' \| 'center' \| 'end' \| 'space-between' \| 'space-around'` | Main-axis distribution. |
+| `align` | `'start' \| 'center' \| 'end'` | Cross-axis alignment. |
+| `gap` | `number` | Space between children (px). |
+| `padding` | `number` | Uniform inner padding (px). |
+| `width`, `height` | `number` | Fixed box. Omit to shrink-wrap the content. |
+
+Plus the usual `NodeProps` (`x`, `y`, …) to place the container itself.
+
+```tsx
+import { Flex, Rect } from '@onda/react'
+
+// A centered row of three pills near the bottom of a 1280-wide canvas.
+;<Flex x={0} y={408} width={1280} direction="row" justify="center" gap={16}>
+  <Rect width={150} height={34} cornerRadius={17} fill="#18181d" />
+  <Rect width={150} height={34} cornerRadius={17} fill="#18181d" />
+  <Rect width={150} height={34} cornerRadius={17} fill="#18181d" />
+</Flex>
+```
+
+## How sizing works
+
+A container measures each child to lay it out:
+
+- **Shapes** use their geometry size; **images** their decoded pixel size.
+- **Text** is measured with the engine's font context (so centered text lands where it's drawn).
+- A **nested container** contributes its own resolved box, so you can nest rows inside columns.
+
+A container with an explicit `width`/`height` distributes leftover space according to `justify`; without one it shrink-wraps to its content (so `justify` only matters once there's free space).
+
+:::note Layout vs. animation
+Inside a layout container, a child's position is owned by the layout — its `x`/`y` are managed for you. Animate the **container**, or animate other properties (opacity, scale, rotation), rather than a laid-out child's position.
+:::

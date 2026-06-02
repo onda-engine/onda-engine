@@ -102,7 +102,25 @@ Pass `from` / `to` to settle between arbitrary values:
 const y = spring({ frame, fps, from: 200, to: 0 }) // slide up into place
 ```
 
+## `random`
+
+`random(seed: number | string): number` — a deterministic value in `[0, 1)`. Compositions must render identically every time (same frame → same pixels), so reach for this instead of `Math.random()`.
+
+```ts
+import { random } from '@onda/react'
+const jitter = random(`dot-${i}`) * 10 - 5 // stable per i, every render
+```
+
+## `noise2D` / `noise3D`
+
+Smooth, coherent value noise in `[-1, 1]` — seeded and deterministic — for organic motion (drift, wobble, jitter). Scale the inputs to set the frequency; animate a coordinate over `frame` for movement.
+
+```ts
+import { noise2D } from '@onda/react'
+const y = baseY + noise2D('drift', frame * 0.05, 0) * 20
+```
+
 ## Notes
 
 - The `interpolate` easings and `spring` integration **mirror the Rust `onda-animation` runtime**, so React-authored motion and a Rust-side timeline produce matching curves.
-- Today these drive **opacity, translate, and scale**. Animating rotation, skew, color, or path morphing isn't available yet (rotation/skew aren't in the transform model).
+- These drive **opacity, translate, scale, and rotation** (rotation is honored by the GPU backend). Skew, color, and path morphing aren't available yet.

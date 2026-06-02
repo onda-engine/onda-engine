@@ -10,11 +10,13 @@ Pixel space, **origin top-left, +x right, +y down**. A shape's geometry is autho
 
 ## Transform
 
-ONDA's transform is **translate + scale only** — no rotation or skew yet (those are deliberate follow-ups tied to the animation runtime).
+ONDA's transform is **translate, scale, and rotate** (`rotate` in degrees, clockwise about the node's local origin). Skew is a deliberate follow-up. Rotation is honored by the GPU (Vello) backend — including nested rotation, composed as affine matrices down the tree; the CPU reference rasterizer applies translate + scale only.
 
 ```json
-{ "translate": { "x": 96, "y": 110 }, "scale": { "x": 1, "y": 1 } }
+{ "translate": { "x": 96, "y": 110 }, "scale": { "x": 1, "y": 1 }, "rotate": 30 }
 ```
+
+In React, set it with the `rotation` prop (degrees), and animate it like anything else: `rotation={interpolate(frame, [0, 90], [0, 360])}`.
 
 - `translate` defaults to `(0, 0)`.
 - `scale` defaults to `(1, 1)` (identity).
