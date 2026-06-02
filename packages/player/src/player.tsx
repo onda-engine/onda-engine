@@ -92,6 +92,7 @@ export function Player({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const uid = useId()
+  useInjectStyles()
 
   // If a renderer throws at runtime, drop it and fall back for the rest of the
   // session rather than blanking.
@@ -333,7 +334,6 @@ export function Player({
       tabIndex={0}
       onKeyDown={onKeyDown}
     >
-      <ScopedStyles />
       {/* The stage is the positioning context: canvas fills it, controls overlay
           on top (auto-hidden unless hovering / paused / keyboard-focused). */}
       <div
@@ -552,21 +552,23 @@ const styles: Record<string, CSSProperties> = {
   },
 }
 
-let stylesInjected = false
-
-/** Injects the player's brand-token stylesheet once per document. Using a real
- *  stylesheet (not just inline styles) lets us style `:focus-visible`, `:hover`,
- *  the range thumb/track, and honor `prefers-reduced-motion`. */
-function ScopedStyles(): ReactElement | null {
-  // Render the <style> only on first mount to avoid duplicate rules.
-  const [first] = useState(() => {
-    if (stylesInjected) return false
-    stylesInjected = true
-    return true
-  })
-  if (!first) return null
-  // biome-ignore lint/security/noDangerouslySetInnerHtml: a static, trusted CSS string.
-  return <style dangerouslySetInnerHTML={{ __html: PLAYER_CSS }} />
+/** Inject the player's stylesheet once into `<head>`, persistently. A real
+ *  stylesheet (not inline styles) lets us style `:hover`, `:focus-visible`, the
+ *  range thumb/track, `:fullscreen`, and honor `prefers-reduced-motion`.
+ *
+ *  It lives in `<head>` — NOT the component tree — so it survives the player
+ *  unmounting/remounting. (The gallery swaps compositions via `key`, which would
+ *  otherwise tear out an in-tree `<style>` and leave every player after the first
+ *  unstyled — no visible controls.) */
+function useInjectStyles(): void {
+  useEffect(() => {
+    const id = 'onda-player-styles'
+    if (typeof document === 'undefined' || document.getElementById(id)) return
+    const style = document.createElement('style')
+    style.id = id
+    style.textContent = PLAYER_CSS
+    document.head.appendChild(style)
+  }, [])
 }
 
 const PLAYER_CSS = `
