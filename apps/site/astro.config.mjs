@@ -11,6 +11,9 @@ const REPO = 'https://github.com/degueba/onda-engine'
 
 export default defineConfig({
   site: 'https://onda.video',
+  // Pin dev/preview to one port so `pnpm dev` is always http://localhost:4330
+  // (no auto-incrementing to a new port every run).
+  server: { port: 4330 },
   integrations: [
     starlight({
       title: 'ONDA',
