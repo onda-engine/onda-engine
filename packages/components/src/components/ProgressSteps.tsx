@@ -23,6 +23,7 @@
 import { Ellipse, Group, Rect, Text, interpolate, useVideoConfig } from '@onda/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 export interface ProgressStepsProps {
   /** Step labels, left to right. */
@@ -33,13 +34,13 @@ export interface ProgressStepsProps {
   delay?: number
   /** Frames for the fill to travel to `current`. */
   duration?: number
-  /** Completed / active color — the earned accent (Onda rose). */
+  /** Completed / active color — the earned accent (Onda rose) (default: theme `accent`). */
   accentColor?: string
-  /** Pending color (dots + connector track). */
+  /** Pending color (dots + connector track) (default: theme `border`). */
   dimColor?: string
-  /** Label color. */
+  /** Label color (default: theme `textMuted`). */
   labelColor?: string
-  /** Loaded font family for labels. */
+  /** Loaded font family for labels (default: theme `fontFamily`). */
   fontFamily?: string
   /** Label font size in px. */
   fontSize?: number
@@ -60,16 +61,21 @@ export function ProgressSteps({
   current = 2,
   delay = 0,
   duration = DURATION.slower,
-  accentColor = '#d96b82',
-  dimColor = '#26262e',
-  labelColor = '#8e8e98',
-  fontFamily,
+  accentColor: accentColorProp,
+  dimColor: dimColorProp,
+  labelColor: labelColorProp,
+  fontFamily: fontFamilyProp,
   fontSize = 34,
   width = 1280,
   dotSize = 30,
   trackThickness = 3,
 }: ProgressStepsProps) {
   const { width: compWidth, height: compHeight } = useVideoConfig()
+  const theme = useTheme()
+  const accentColor = accentColorProp ?? theme.accent
+  const dimColor = dimColorProp ?? theme.border
+  const labelColor = labelColorProp ?? theme.textMuted
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   // House spring (SPRING_SMOOTH, no overshoot), matching ondajs's useSpringValue.
   const p = useSpringValue({ delay, durationInFrames: duration })

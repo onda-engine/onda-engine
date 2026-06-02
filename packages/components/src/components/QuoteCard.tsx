@@ -35,6 +35,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER } from '../motion.js'
+import { useTheme } from '../theme.js'
 import { FadeIn } from './FadeIn.js'
 import { WordStagger } from './WordStagger.js'
 
@@ -68,13 +69,13 @@ export interface QuoteCardProps {
   authorFontSize?: number
   /** Author / role font weight. */
   authorFontWeight?: number
-  /** Quote color (default the Onda text color `#f2f2f4`). */
+  /** Quote color (default: theme `text`). */
   color?: string
-  /** Author / role color (default the Onda dim color `#8e8e98`). */
+  /** Author / role color (default: theme `textMuted`). */
   authorColor?: string
-  /** Divider color (default the Onda accent rose `#d96b82`). */
+  /** Divider color (default: theme `accent`). */
   accentColor?: string
-  /** Loaded font family for every line (e.g. a `--font` passed to `onda render`). */
+  /** Loaded font family for every line (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Wrap width for the quote in px. Defaults to ~44% of the composition width
    *  (the ondajs `40vw` pull-quote feel), so long quotes wrap onto multiple
@@ -94,14 +95,19 @@ export function QuoteCard({
   quoteFontWeight = 600,
   authorFontSize = 22,
   authorFontWeight = 500,
-  color = '#f2f2f4',
-  authorColor = '#8e8e98',
-  accentColor = '#d96b82',
-  fontFamily,
+  color: colorProp,
+  authorColor: authorColorProp,
+  accentColor: accentColorProp,
+  fontFamily: fontFamilyProp,
   quoteWidth,
 }: QuoteCardProps) {
   const frame = useCurrentFrame()
   const { fps, width } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const authorColor = authorColorProp ?? theme.textMuted
+  const accentColor = accentColorProp ?? theme.accent
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   // ~40vw pull-quote feel when no explicit width is given.
   const resolvedQuoteWidth = quoteWidth ?? Math.round(width * 0.44)

@@ -26,6 +26,7 @@
 
 import { Group, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useTextReveal } from '../hooks.js'
+import { useTheme } from '../theme.js'
 
 /** Approximate average glyph advance as a fraction of font size, for a
  *  proportional display face. Matches the Marquee/Highlight estimate; used only
@@ -53,19 +54,19 @@ export interface InputFieldProps {
   width?: number
   /** Text size in px. */
   fontSize?: number
-  /** UI font family (e.g. a `--font` passed to `onda render`). */
+  /** UI font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
-  /** Value text color. */
+  /** Value text color (default: theme `text`). */
   textColor?: string
-  /** Placeholder text color. */
+  /** Placeholder text color (default: theme `textMuted`). */
   placeholderColor?: string
-  /** Label text color. */
+  /** Label text color (default: theme `textMuted`). */
   labelColor?: string
-  /** Caret + focus-ring color — the one earned accent (the Onda rose). */
+  /** Caret + focus-ring color — the one earned accent (the Onda rose) (default: theme `accent`). */
   accentColor?: string
-  /** Resting (unfocused) field border color. */
+  /** Resting (unfocused) field border color (default: theme `border`). */
   borderColor?: string
-  /** Field background fill (the "glass" surface). */
+  /** Field background fill (the "glass" surface) (default: theme `surface`). */
   fieldColor?: string
   /** Horizontal center of the field as a 0–1 fraction of canvas width. */
   x?: number
@@ -83,18 +84,26 @@ export function InputField({
   focusRing = true,
   width = 640,
   fontSize = 36,
-  fontFamily,
-  textColor = '#f2f2f4',
-  placeholderColor = '#56565f',
-  labelColor = '#8e8e98',
-  accentColor = '#d96b82',
-  borderColor = '#1c1c22',
-  fieldColor = '#16161a',
+  fontFamily: fontFamilyProp,
+  textColor: textColorProp,
+  placeholderColor: placeholderColorProp,
+  labelColor: labelColorProp,
+  accentColor: accentColorProp,
+  borderColor: borderColorProp,
+  fieldColor: fieldColorProp,
   x = 0.5,
   y = 0.5,
 }: InputFieldProps) {
   const frame = useCurrentFrame()
   const { width: compWidth, height: compHeight } = useVideoConfig()
+  const theme = useTheme()
+  const textColor = textColorProp ?? theme.text
+  const placeholderColor = placeholderColorProp ?? theme.textMuted
+  const labelColor = labelColorProp ?? theme.textMuted
+  const accentColor = accentColorProp ?? theme.accent
+  const borderColor = borderColorProp ?? theme.border
+  const fieldColor = fieldColorProp ?? theme.surface
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   // How much of the value is visible. With typing off, the whole value shows.
   const shown = useTextReveal({ length: value.length, delay, durationInFrames: typeDuration })
@@ -118,7 +127,7 @@ export function InputField({
   const padY = Math.round(fontSize * 0.6)
   const lineHeight = fontSize * LINE_RATIO
   const fieldHeight = lineHeight + padY * 2
-  const cornerRadius = Math.round(fontSize * 0.4)
+  const cornerRadius = theme.radius ?? Math.round(fontSize * 0.4)
 
   // Label sits above the field, uppercased and dim (ondajs `textTransform` +
   // `letterSpacing`; the engine has no letter-spacing — see approximations).

@@ -30,6 +30,7 @@
 
 import { Group, Path, Text, clipRect, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { useTheme } from '../theme.js'
 import { ScaleIn } from './ScaleIn.js'
 import { Underline } from './Underline.js'
 
@@ -67,15 +68,15 @@ export interface LogoStingProps {
   pathHeight?: number
   /** Stroke width, in px (after the viewBox→pixel scale; see note below). */
   strokeWidth?: number
-  /** Logo stroke color. */
+  /** Logo stroke color (default: theme `text`). */
   stroke?: string
-  /** Underline accent color — the signature dusty rose. */
+  /** Underline accent color — the signature dusty rose (default: theme `accent`). */
   accentColor?: string
   /** Title font size in px. */
   titleFontSize?: number
-  /** Title color. */
+  /** Title color (default: theme `text`). */
   color?: string
-  /** Display font family (must be loaded at render time). */
+  /** Display font family (must be loaded at render time) (default: theme `headingFamily`). */
   fontFamily?: string
   /** Title font weight (display default 600). */
   fontWeight?: number
@@ -109,15 +110,20 @@ export function LogoSting({
   pathWidth = 400,
   pathHeight = 160,
   strokeWidth = 3,
-  stroke = '#f2f2f4',
-  accentColor = '#d96b82',
+  stroke: strokeProp,
+  accentColor: accentColorProp,
   titleFontSize = 96,
-  color = '#f2f2f4',
-  fontFamily,
+  color: colorProp,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
 }: LogoStingProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  const theme = useTheme()
+  const stroke = strokeProp ?? theme.text
+  const accentColor = accentColorProp ?? theme.accent
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
 
   // ── Mark reveal: a clip-wipe standing in for ondajs's stroke draw-on. ──────
   // Progress 0→1 on the house spring over DURATION.slow (24f), the DrawOn default.

@@ -43,6 +43,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { SPRING_SMOOTH } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** One transcript entry: a word and its `[startMs, endMs)` activation window. */
 export interface CaptionEntry {
@@ -57,15 +58,15 @@ export interface CaptionsProps {
   captions?: CaptionEntry[]
   /** Frames before the timeline starts (shifts every `startMs` by this). */
   delay?: number
-  /** Inactive word color (the Onda dim). */
+  /** Inactive word color (the Onda dim) (default: theme `textMuted`). */
   color?: string
   /** Active word color (the Onda text color). The contrast moment is brightness,
    *  not a rose accent — captions appear in batches and a rose pulse on every
-   *  word would burn the eye. */
+   *  word would burn the eye (default: theme `text`). */
   accentColor?: string
   /** Font size in px. */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`). */
+  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (display default 600). */
   fontWeight?: number
@@ -115,10 +116,10 @@ const PLACEMENT_TO_JUSTIFY: Record<
 export function Captions({
   captions = DEFAULT_CAPTIONS,
   delay = 0,
-  color = '#8e8e98',
-  accentColor = '#f2f2f4',
+  color: colorProp,
+  accentColor: accentColorProp,
   fontSize = 96,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
   align = 'center',
   placement = 'lower-third',
@@ -126,6 +127,10 @@ export function Captions({
 }: CaptionsProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.textMuted
+  const accentColor = accentColorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   // Convert the local frame (after `delay`) into milliseconds so the captions
   // array can be authored in real-world ms. Pure function of the current frame —

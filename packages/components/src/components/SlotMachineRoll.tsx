@@ -42,6 +42,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** Estimated cell advance as a fraction of font size — the per-character column
  *  width. Tuned for a monospace/display stack (matches the spirit of `Marquee`'s
@@ -63,11 +64,11 @@ export interface SlotMachineRollProps {
   seed?: number
   /** Glyph pool the reel spins through. */
   charset?: string
-  /** Text color (default the Onda text `#f2f2f4`). */
+  /** Text color (default: theme `text`). */
   color?: string
   /** Font size in px (default 140). The cell height equals this. */
   fontSize?: number
-  /** Monospace/display stack keeps reels column-aligned. */
+  /** Monospace/display stack keeps reels column-aligned (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (default 600). */
   fontWeight?: number
@@ -90,9 +91,9 @@ export function SlotMachineRoll({
   reelLength = 12,
   seed = 7,
   charset = '0123456789',
-  color = '#f2f2f4',
+  color: colorProp,
   fontSize = 140,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
   align = 'center',
@@ -101,6 +102,9 @@ export function SlotMachineRoll({
 }: SlotMachineRollProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   const cell = fontSize
   const chars = [...text]

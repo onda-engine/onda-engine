@@ -37,6 +37,7 @@
 import { Group, Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { HOUSE_EASE } from '../easing.js'
 import { SPRING_SMOOTH } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
 
@@ -56,11 +57,11 @@ export interface WordRotateProps {
   /** Frames for a single phrase to fade in (and, separately, fade out)
    *  (default `12`). */
   transitionDuration?: number
-  /** Text color (default the Onda text color `#f2f2f4`). */
+  /** Text color (default: theme `text`). */
   color?: string
   /** Font size in px. Phrases are usually large (default `96`). */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`). */
+  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (display default `600`). */
   fontWeight?: number
@@ -80,9 +81,9 @@ export function WordRotate({
   delay = 0,
   holdDuration = 30,
   transitionDuration = 12,
-  color = '#f2f2f4',
+  color: colorProp,
   fontSize = 96,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
   align = 'left',
@@ -91,6 +92,9 @@ export function WordRotate({
 }: WordRotateProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   // Each phrase's slot overlaps its neighbor's by `transitionDuration` — the
   // outgoing fade and the incoming fade share frames, so the swap reads as one

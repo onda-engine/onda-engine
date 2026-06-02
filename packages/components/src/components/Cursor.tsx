@@ -34,6 +34,7 @@
 import { Ellipse, Group, Path, interpolate, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 export interface CursorProps {
   /** Start X as a 0..1 fraction of canvas width. */
@@ -52,7 +53,7 @@ export interface CursorProps {
   click?: boolean
   /** Frames after arrival before the click fires. */
   clickDelay?: number
-  /** Pointer + ripple color (hex `#rrggbb` / `#rrggbbaa`). */
+  /** Pointer + ripple color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `text`). */
   color?: string
   /** Pointer height in px. */
   size?: number
@@ -77,11 +78,13 @@ export function Cursor({
   travelDuration = DURATION.slow,
   click = true,
   clickDelay = 6,
-  color = '#f2f2f4',
+  color: colorProp,
   size = 56,
 }: CursorProps) {
   const frame = useCurrentFrame()
   const { width, height } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
 
   // House spring travel (SPRING_SMOOTH, no overshoot), matching ondajs's
   // `useSpringValue` default.

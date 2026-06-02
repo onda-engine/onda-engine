@@ -20,6 +20,7 @@
 
 import { Group, Rect, interpolate, random, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { HOUSE_EASE } from '../easing.js'
+import { useTheme } from '../theme.js'
 
 export interface ConfettiProps {
   /** Seed for every per-piece random (angle, velocity, spin, colour, size) — the
@@ -28,7 +29,8 @@ export interface ConfettiProps {
   /** Number of confetti pieces. ~80 reads full without thrashing the render. */
   count?: number
   /** Palette pieces are picked from. Defaults to the Onda accent plus tasteful
-   *  neutrals (hex; ondajs's CSS-var defaults resolved to their fallbacks). */
+   *  neutrals (default: theme `accent`, theme `text`, theme `textMuted`, theme
+   *  `border`). */
   colors?: string[]
   /** Burst origin X, as a fraction of canvas width (0 = left, 1 = right). */
   originX?: number
@@ -53,7 +55,7 @@ const DEFAULT_COLORS = ['#d96b82', '#e89aab', '#f2f2f4', '#8e8e98', '#26262e']
 export function Confetti({
   seed = 7,
   count = 80,
-  colors = DEFAULT_COLORS,
+  colors: colorsProp,
   originX = 0.5,
   originY = 0.35,
   delay = 0,
@@ -64,6 +66,15 @@ export function Confetti({
 }: ConfettiProps) {
   const frame = useCurrentFrame()
   const { width, height, fps } = useVideoConfig()
+  const theme = useTheme()
+  const colors = colorsProp ?? [
+    theme.accent ?? '#d96b82',
+    '#e89aab',
+    theme.text ?? '#f2f2f4',
+    theme.textMuted ?? '#8e8e98',
+    theme.border ?? '#26262e',
+  ]
+  const cornerRadius = theme.radius ?? 1
 
   const local = frame - delay
   const ox = originX * width
@@ -126,7 +137,7 @@ export function Confetti({
     // so the GPU rotation tumbles about the centre (pivot is the local origin).
     return (
       <Group key={i} x={x} y={y} rotation={rotate} opacity={opacity}>
-        <Rect x={-w / 2} y={-h / 2} width={w} height={h} cornerRadius={1} fill={color} />
+        <Rect x={-w / 2} y={-h / 2} width={w} height={h} cornerRadius={cornerRadius} fill={color} />
       </Group>
     )
   })

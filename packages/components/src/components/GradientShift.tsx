@@ -22,13 +22,16 @@
 //! color, deliberately the first stop).
 
 import { Rect, linearGradient, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { useTheme } from '../theme.js'
 
 export interface GradientShiftProps {
   /** Gradient start color (`#rrggbb` / `#rrggbbaa`). Default is the canvas tone
-   *  — near-identical to `to`, so the drift reads as a dark-on-dark breath. */
+   *  — near-identical to `to`, so the drift reads as a dark-on-dark breath
+   *  (default: theme `background`). */
   from?: string
   /** Gradient end color. Default is one step warmer than `from`, intentionally
-   *  near-identical so the shift is a whisper rather than a colored wash. */
+   *  near-identical so the shift is a whisper rather than a colored wash
+   *  (default: theme `surface`). */
   to?: string
   /** Starting gradient angle in degrees (CSS convention: `0deg` points up,
    *  increasing clockwise). Default `135`. */
@@ -42,14 +45,17 @@ export interface GradientShiftProps {
 }
 
 export function GradientShift({
-  from = '#0E0E12',
-  to = '#1C1C22',
+  from: fromProp,
+  to: toProp,
   angle = 135,
   speed = 0.5,
   delay = 0,
 }: GradientShiftProps) {
   const frame = useCurrentFrame()
   const { width, height } = useVideoConfig()
+  const theme = useTheme()
+  const from = fromProp ?? theme.background
+  const to = toProp ?? theme.surface
 
   // Linear-by-design: the angle is a pure function of (frame - delay), clamped so
   // nothing drifts before `delay`. No spring — a constant drift is the point.

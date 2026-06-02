@@ -13,17 +13,18 @@
 //! the ring can't make a layout container reflow/jiggle.
 
 import { Ellipse, Group, Text, interpolate, useCurrentFrame } from '@onda/react'
+import { useTheme } from '../theme.js'
 
 export interface PulsingIndicatorProps {
-  /** Dot + ring color (default the Onda rose). */
+  /** Dot + ring color (default: theme `accent`). */
   color?: string
   /** Dot diameter in px. */
   size?: number
   /** Optional label to the right of the dot. Empty hides it. */
   label?: string
-  /** Label color. */
+  /** Label color (default: theme `textMuted`). */
   labelColor?: string
-  /** Label font family (must be loaded by the renderer). */
+  /** Label font family (must be loaded by the renderer) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Label font size in px. */
   fontSize?: number
@@ -35,17 +36,21 @@ export interface PulsingIndicatorProps {
 }
 
 export function PulsingIndicator({
-  color = '#d96b82',
+  color: colorProp,
   size = 20,
   label = 'LIVE',
-  labelColor = '#8e8e98',
-  fontFamily,
+  labelColor: labelColorProp,
+  fontFamily: fontFamilyProp,
   fontSize = 28,
   period = 45,
   x = 0,
   y = 0,
 }: PulsingIndicatorProps) {
   const frame = useCurrentFrame()
+  const theme = useTheme()
+  const color = colorProp ?? theme.accent
+  const labelColor = labelColorProp ?? theme.textMuted
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
   const safePeriod = Math.max(1, period)
   // Normalized 0..1 phase within the cycle; the modulo keeps it seamless and
   // handles negative frames (e.g. inside a delayed Sequence).

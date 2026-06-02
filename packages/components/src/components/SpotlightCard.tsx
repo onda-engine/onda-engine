@@ -37,6 +37,7 @@
 import { Group, Rect, Text, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION, staggerFrames } from '../motion.js'
+import { useTheme } from '../theme.js'
 import { FadeIn } from './FadeIn.js'
 import { Spotlight } from './Spotlight.js'
 
@@ -53,7 +54,7 @@ export interface SpotlightCardProps {
   body?: string
   /** Frames before the card enters. */
   delay?: number
-  /** The drifting spotlight color — the earned accent. */
+  /** The drifting spotlight color — the earned accent (default: theme `accent`). */
   glowColor?: string
   /** Card width in px. */
   width?: number
@@ -63,9 +64,9 @@ export interface SpotlightCardProps {
   padding?: number
   /** Text alignment within the card. */
   align?: 'left' | 'center'
-  /** Display font for the title. */
+  /** Display font for the title (default: theme `headingFamily ?? theme.fontFamily`). */
   fontFamily?: string
-  /** Font family for the eyebrow + body copy (defaults to `fontFamily`). */
+  /** Font family for the eyebrow + body copy (default: theme `fontFamily`). */
   bodyFontFamily?: string
   /** Title font size in px (default 44). */
   titleSize?: number
@@ -73,17 +74,17 @@ export interface SpotlightCardProps {
   bodySize?: number
   /** Eyebrow font size in px (default 15). */
   eyebrowSize?: number
-  /** Title color. */
+  /** Title color (default: theme `text`). */
   titleColor?: string
-  /** Body color. */
+  /** Body color (default: theme `textMuted`). */
   bodyColor?: string
-  /** Eyebrow color. */
+  /** Eyebrow color (default: theme `textMuted`). */
   eyebrowColor?: string
-  /** Card glass fill (translucent dark by default). */
+  /** Card glass fill (translucent dark by default) (default: theme `surface`). */
   background?: string
-  /** Card border (stroke) color. */
+  /** Card border (stroke) color (default: theme `border`). */
   borderColor?: string
-  /** Corner radius in px. */
+  /** Corner radius in px (default: theme `radius`). */
   cornerRadius?: number
 }
 
@@ -92,25 +93,35 @@ export function SpotlightCard({
   title = 'Motion identity',
   body = 'One consistent feel across every component.',
   delay = 0,
-  glowColor = '#d96b82',
+  glowColor: glowColorProp,
   width = 560,
   height,
   padding = 48,
   align = 'left',
-  fontFamily,
-  bodyFontFamily,
+  fontFamily: fontFamilyProp,
+  bodyFontFamily: bodyFontFamilyProp,
   titleSize = 44,
   bodySize = 20,
   eyebrowSize = 15,
-  titleColor = '#f2f2f4',
-  bodyColor = '#8e8e98',
-  eyebrowColor = '#56565f',
-  background = '#0e0e128c',
-  borderColor = '#ffffff1f',
-  cornerRadius = 24,
+  titleColor: titleColorProp,
+  bodyColor: bodyColorProp,
+  eyebrowColor: eyebrowColorProp,
+  background: backgroundProp,
+  borderColor: borderColorProp,
+  cornerRadius: cornerRadiusProp,
 }: SpotlightCardProps) {
   const frame = useCurrentFrame()
   const { width: compWidth, height: compHeight } = useVideoConfig()
+  const theme = useTheme()
+  const glowColor = glowColorProp ?? theme.accent
+  const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
+  const bodyFontFamily = bodyFontFamilyProp ?? theme.fontFamily
+  const titleColor = titleColorProp ?? theme.text
+  const bodyColor = bodyColorProp ?? theme.textMuted
+  const eyebrowColor = eyebrowColorProp ?? theme.textMuted
+  const background = backgroundProp ?? theme.surface
+  const borderColor = borderColorProp ?? theme.border
+  const cornerRadius = cornerRadiusProp ?? theme.radius
 
   // ── Content layout (manual stacking; engine <Text> is single-line) ─────────
   const hasEyebrow = eyebrow.length > 0

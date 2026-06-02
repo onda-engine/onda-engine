@@ -26,6 +26,7 @@
 import { Group, Rect, Text, linearGradient, useVideoConfig } from '@onda/react'
 import { useStaggeredEntrance } from '../hooks.js'
 import { STAGGER } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** A single bento cell. Spans default to 1×1; `accent` earns the rose tint. */
 export interface BentoItem {
@@ -62,19 +63,19 @@ export interface BentoGridProps {
   stagger?: number
   /** Base title font size in px (default 30). */
   fontSize?: number
-  /** Title color. */
+  /** Title color (default: theme `text`). */
   color?: string
-  /** Caption color. */
+  /** Caption color (default: theme `textMuted`). */
   captionColor?: string
-  /** Accent color for the earned `accent` cell. */
+  /** Accent color for the earned `accent` cell (default: theme `accent`). */
   accentColor?: string
-  /** Card fill — translucent dark, approximating glass (default `#0e0e128c`). */
+  /** Card fill — translucent dark, approximating glass (default: theme `surface`). */
   cardColor?: string
-  /** Card border color (default the Onda border grey). */
+  /** Card border color (default: theme `border`). */
   borderColor?: string
-  /** Display font family for titles and values. */
+  /** Display font family for titles and values (default: theme `headingFamily ?? fontFamily`). */
   fontFamily?: string
-  /** Body font family for captions. */
+  /** Body font family for captions (default: theme `fontFamily`). */
   captionFontFamily?: string
 }
 
@@ -236,18 +237,27 @@ export function BentoGrid({
   delay = 0,
   stagger = STAGGER,
   fontSize = 30,
-  color = '#f2f2f4',
-  captionColor = '#8e8e98',
-  accentColor = '#d96b82',
-  cardColor = '#0e0e128c',
-  borderColor = '#1c1c22',
-  fontFamily,
-  captionFontFamily,
+  color: colorProp,
+  captionColor: captionColorProp,
+  accentColor: accentColorProp,
+  cardColor: cardColorProp,
+  borderColor: borderColorProp,
+  fontFamily: fontFamilyProp,
+  captionFontFamily: captionFontFamilyProp,
 }: BentoGridProps) {
   const { width: canvasW, height: canvasH } = useVideoConfig()
 
   // One hook call, then a per-index entrance — never a hook in a loop.
   const at = useStaggeredEntrance({ type: 'rise', delay, increment: stagger })
+
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const captionColor = captionColorProp ?? theme.textMuted
+  const accentColor = accentColorProp ?? theme.accent
+  const cardColor = cardColorProp ?? theme.surface
+  const borderColor = borderColorProp ?? theme.border
+  const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
+  const captionFontFamily = captionFontFamilyProp ?? theme.fontFamily
 
   const cols = Math.max(1, Math.round(columns))
   // Column-track width from the overall grid width (CSS `repeat(cols, 1fr)`).
@@ -266,7 +276,7 @@ export function BentoGrid({
   const originX = Math.round((canvasW - width) / 2)
   const originY = Math.round((canvasH - gridHeight) / 2)
 
-  const radius = 20
+  const radius = theme.radius
   const valueSize = Math.round(fontSize * 1.8)
   const captionSize = Math.round(fontSize * 0.56)
 

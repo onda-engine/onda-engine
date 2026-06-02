@@ -15,6 +15,7 @@
 //! equivalent, since scene nodes have no separate compositing-layer opacity).
 
 import { Rect, radialGradient, useVideoConfig } from '@onda/react'
+import { useTheme } from '../theme.js'
 
 export interface VignetteProps {
   /** Edge darkness. `0` = no vignette, `1` = fully dark edges. Default `0.5`. */
@@ -24,7 +25,7 @@ export interface VignetteProps {
    * clean middle. Default `40`.
    */
   innerRadius?: number
-  /** Edge color. Defaults to pure black for the classic cinematic frame. */
+  /** Edge color. Defaults to pure black for the classic cinematic frame (default: theme `background`). */
   color?: string
 }
 
@@ -58,8 +59,10 @@ function alphaHex(a: number): string {
     .padStart(2, '0')
 }
 
-export function Vignette({ intensity = 0.5, innerRadius = 40, color = '#000000' }: VignetteProps) {
+export function Vignette({ intensity = 0.5, innerRadius = 40, color: colorProp }: VignetteProps) {
   const { width, height } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.background
 
   // The clean center ends where the gradient starts darkening.
   const innerOffset = clamp(innerRadius, 0, 100) / 100

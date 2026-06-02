@@ -16,6 +16,7 @@
 import { Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH, SPRING_SNAPPY } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 export interface CountUpProps {
   /** Starting value (default `0`). */
@@ -35,11 +36,11 @@ export interface CountUpProps {
   prefix?: string
   /** Appended to the number, e.g. `'%'` (default `''`). */
   suffix?: string
-  /** Text color (default `#F2F2F4`). */
+  /** Text color (default: theme `text`). */
   color?: string
   /** Font size in px. Counters are usually large (default `120`). */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`). */
+  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (default `600`). */
   fontWeight?: number
@@ -82,9 +83,9 @@ export function CountUp({
   useGrouping = true,
   prefix = '',
   suffix = '',
-  color = '#F2F2F4',
+  color: colorProp,
   fontSize = 120,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
   snappy = false,
   x = 0,
@@ -92,6 +93,9 @@ export function CountUp({
 }: CountUpProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   // Opacity rides the shared house entrance so the fade-in and the counting
   // curve settle together rather than racing each other.

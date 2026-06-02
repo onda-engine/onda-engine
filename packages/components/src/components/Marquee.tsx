@@ -14,6 +14,7 @@
 //! from it so coverage holds even when one set is narrower than the viewport.
 
 import { Group, Text, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { useTheme } from '../theme.js'
 
 /** Approximate average glyph advance as a fraction of font size, for
  *  proportional display fonts. Matches the ondajs estimate. */
@@ -28,11 +29,11 @@ export interface MarqueeProps {
   direction?: 'left' | 'right'
   /** Pixels between items (default 64). */
   gap?: number
-  /** Text color (default an atmospheric faint grey). */
+  /** Text color (default: theme `textMuted`). */
   color?: string
   /** Font size in px (default 32). */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`). */
+  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
   /** CSS weight 1..1000 (default 500). */
   fontWeight?: number
@@ -47,15 +48,18 @@ export function Marquee({
   speed = 30,
   direction = 'left',
   gap = 64,
-  color = '#56565f',
+  color: colorProp,
   fontSize = 32,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 500,
   width,
   height,
 }: MarqueeProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.textMuted
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   const viewportWidth = width ?? compWidth
   const viewportHeight = height ?? compHeight

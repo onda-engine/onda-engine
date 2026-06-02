@@ -27,6 +27,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** A single Kanban column: a header, an optional accent, and its ticket cards. */
 export interface KanbanColumn {
@@ -52,21 +53,21 @@ export interface KanbanBoardProps {
   stagger?: number
   /** Base column-header font size in px. */
   fontSize?: number
-  /** Loaded font family for headers and ticket labels. */
+  /** Loaded font family for headers and ticket labels (default: theme `fontFamily`). */
   fontFamily?: string
-  /** Default accent for the dot/count when a column omits its own. */
+  /** Default accent for the dot/count when a column omits its own (default: theme `accent`). */
   accent?: string
-  /** Header / title text color. */
+  /** Header / title text color (default: theme `text`). */
   textColor?: string
-  /** Ticket-label text color. */
+  /** Ticket-label text color (default: theme `textMuted`). */
   cardTextColor?: string
-  /** Faint color for neutral dots, counts, and card accent stripes. */
+  /** Faint color for neutral dots, counts, and card accent stripes (default: theme `textMuted`). */
   faintColor?: string
-  /** Glass column fill (translucent — see approximations). */
+  /** Glass column fill (translucent — see approximations) (default: theme `surface`). */
   columnFill?: string
-  /** Glass column border color. */
+  /** Glass column border color (default: theme `border`). */
   columnStroke?: string
-  /** Ticket card fill (translucent — see approximations). */
+  /** Ticket card fill (translucent — see approximations) (default: theme `surface`). */
   cardFill?: string
 }
 
@@ -93,17 +94,26 @@ export function KanbanBoard({
   delay = 0,
   stagger = STAGGER,
   fontSize = 22,
-  fontFamily,
-  accent = '#d96b82',
-  textColor = '#f2f2f4',
-  cardTextColor = '#8e8e98',
-  faintColor = '#56565f',
-  columnFill = '#ffffff14',
-  columnStroke = '#ffffff1f',
-  cardFill = '#ffffff0f',
+  fontFamily: fontFamilyProp,
+  accent: accentProp,
+  textColor: textColorProp,
+  cardTextColor: cardTextColorProp,
+  faintColor: faintColorProp,
+  columnFill: columnFillProp,
+  columnStroke: columnStrokeProp,
+  cardFill: cardFillProp,
 }: KanbanBoardProps) {
   const frame = useCurrentFrame()
   const { fps, width: canvasW, height: canvasH } = useVideoConfig()
+  const theme = useTheme()
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
+  const accent = accentProp ?? theme.accent
+  const textColor = textColorProp ?? theme.text
+  const cardTextColor = cardTextColorProp ?? theme.textMuted
+  const faintColor = faintColorProp ?? theme.textMuted
+  const columnFill = columnFillProp ?? theme.surface
+  const columnStroke = columnStrokeProp ?? theme.border
+  const cardFill = cardFillProp ?? theme.surface
 
   const headerSize = fontSize
   const cardSize = Math.round(headerSize * 0.82)

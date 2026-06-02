@@ -13,6 +13,7 @@
 
 import { Flex, Text } from '@onda/react'
 import { staggerFrames } from '../motion.js'
+import { useTheme } from '../theme.js'
 import { FadeIn } from './FadeIn.js'
 
 export interface WordStaggerProps {
@@ -20,11 +21,11 @@ export interface WordStaggerProps {
   text?: string
   /** Font size in px (default 64). */
   fontSize?: number
-  /** Text color (default the Onda text color `#f2f2f4`). */
+  /** Text color (default: theme `text`). */
   color?: string
   /** Container width in px — the line wraps within this (default 1080). */
   width?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`). */
+  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (display default 600). */
   fontWeight?: number
@@ -39,14 +40,18 @@ export interface WordStaggerProps {
 export function WordStagger({
   text = 'motion that moves you',
   fontSize = 64,
-  color = '#f2f2f4',
+  color: colorProp,
   width = 1080,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
   justify = 'start',
   delay = 0,
   stagger,
 }: WordStaggerProps) {
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
+
   // Split on any run of whitespace; drop empties so leading/trailing spaces in
   // the prop don't create ghost words that delay the cascade.
   const words = text.split(/\s+/).filter(Boolean)

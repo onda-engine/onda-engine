@@ -35,6 +35,7 @@ import {
 } from '@onda/react'
 import { entryFade, entrySlide } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** Broadcast lower-third placement regions — the corners a name bar lives in. */
 export type LowerThirdPlacement = 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right'
@@ -77,11 +78,11 @@ export interface LowerThirdProps {
   delay?: number
   /** Show the accent rule beneath the name (default `true`). */
   accent?: boolean
-  /** Name color (default the Onda text color `#f2f2f4`). */
+  /** Name color (default: theme `text`). */
   color?: string
-  /** Role color (default the Onda dim grey `#8e8e98`). */
+  /** Role color (default: theme `textMuted`). */
   roleColor?: string
-  /** Accent rule color (default the Onda rose `#d96b82`). */
+  /** Accent rule color (default: theme `accent`). */
   accentColor?: string
   /** Name font size in px (default 48). */
   fontSize?: number
@@ -91,8 +92,10 @@ export interface LowerThirdProps {
   roleFontSize?: number
   /** Role font weight (default 500). */
   roleFontWeight?: number
-  /** Loaded font family for both lines (e.g. a `--font` passed to `onda render`). */
+  /** Loaded font family for both lines (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
+  /** Accent rule corner radius in px (capped so a thin sliver never bulges) (default: theme `radius`). */
+  cornerRadius?: number
 }
 
 export function LowerThird({
@@ -101,17 +104,24 @@ export function LowerThird({
   placement = 'bottom-left',
   delay = 0,
   accent = true,
-  color = '#f2f2f4',
-  roleColor = '#8e8e98',
-  accentColor = '#d96b82',
+  color: colorProp,
+  roleColor: roleColorProp,
+  accentColor: accentColorProp,
   fontSize = 48,
   nameFontWeight = 600,
   roleFontSize = 22,
   roleFontWeight = 500,
-  fontFamily,
+  fontFamily: fontFamilyProp,
+  cornerRadius: cornerRadiusProp,
 }: LowerThirdProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const roleColor = roleColorProp ?? theme.textMuted
+  const accentColor = accentColorProp ?? theme.accent
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
+  const cornerRadius = cornerRadiusProp ?? theme.radius
 
   const { x: ax, y: ay, side, vertical } = PLACEMENT_MAP[placement]
   const isLeft = side === 'left'
@@ -167,7 +177,7 @@ export function LowerThird({
     extrapolateRight: 'clamp',
   })
   // A full-pill radius on a thin sliver would bulge; cap at half its own size.
-  const accentRadius = Math.min(ACCENT_THICKNESS / 2, accentWidth / 2)
+  const accentRadius = Math.min(cornerRadius, ACCENT_THICKNESS / 2, accentWidth / 2)
 
   // Total assembled height — used to anchor a bottom-placed bar by its baseline.
   const blockHeight = accent ? accentY + ACCENT_THICKNESS : roleY + roleLineH

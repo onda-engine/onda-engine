@@ -24,6 +24,7 @@
 //!    blobs become flat color fills. The meaningful color is the FIRST stop.
 
 import { Group, Rect, radialGradient, random, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { useTheme } from '../theme.js'
 
 /** Default palette — drifts over the near-black canvas (matches ondajs). */
 const DEFAULT_COLORS = ['#d96b82', '#e89aab', '#26262e']
@@ -32,9 +33,9 @@ const DEFAULT_COLORS = ['#d96b82', '#e89aab', '#26262e']
 const DEFAULT_BACKGROUND = '#08080a'
 
 export interface MeshGradientProps {
-  /** Blob colors. 2–4 reads best; they drift over the `background` canvas. */
+  /** Blob colors. 2–4 reads best; they drift over the `background` canvas (default: theme `palette[0]`). */
   colors?: string[]
-  /** Base canvas color behind the blobs. */
+  /** Base canvas color behind the blobs (default: theme `background`). */
   background?: string
   /** Drift speed multiplier. Keep low — this is atmosphere, not motion. */
   speed?: number
@@ -69,14 +70,17 @@ function toTransparent(color: string): string {
 }
 
 export function MeshGradient({
-  colors = DEFAULT_COLORS,
-  background = DEFAULT_BACKGROUND,
+  colors: colorsProp,
+  background: backgroundProp,
   speed = 1,
   seed = 7,
   opacity = 0.5,
 }: MeshGradientProps) {
   const frame = useCurrentFrame()
   const { width, height } = useVideoConfig()
+  const theme = useTheme()
+  const colors = colorsProp ?? (theme.palette[0] ? [theme.palette[0]] : DEFAULT_COLORS)
+  const background = backgroundProp ?? theme.background ?? DEFAULT_BACKGROUND
 
   // Shared drift clock — slow, since this is atmosphere (ondajs: frame * 0.012).
   const w = frame * 0.012 * speed

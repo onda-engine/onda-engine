@@ -36,13 +36,14 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from '@onda/react'
+import { useTheme } from '../theme.js'
 
 export interface DynamicGridProps {
   /** Cell size in px (the lattice pitch). */
   cell?: number
   /** Ruled lines or a dot lattice. */
   variant?: 'lines' | 'dots'
-  /** Grid color (hex `#rrggbb` / `#rrggbbaa`). */
+  /** Grid color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `border`). */
   color?: string
   /** Diagonal drift speed in px/frame. Negative drifts the other way. */
   speed?: number
@@ -50,9 +51,9 @@ export interface DynamicGridProps {
   opacity?: number
   /** Add a centered accent glow over the grid. */
   glow?: boolean
-  /** Glow color (hex). The meaningful color on the CPU fallback (first stop). */
+  /** Glow color (hex). The meaningful color on the CPU fallback (first stop) (default: theme `accent`). */
   glowColor?: string
-  /** Canvas color painted behind the grid. */
+  /** Canvas color painted behind the grid (default: theme `background`). */
   background?: string
   /** Stroke thickness (lines) / dot radius in px (dots). */
   thickness?: number
@@ -83,16 +84,20 @@ function rgbHex(color: string): string {
 export function DynamicGrid({
   cell = 48,
   variant = 'lines',
-  color = '#1c1c22',
+  color: colorProp,
   speed = 0.4,
   opacity = 0.6,
   glow = true,
-  glowColor = '#d96b82',
-  background = '#08080a',
+  glowColor: glowColorProp,
+  background: backgroundProp,
   thickness = 1,
 }: DynamicGridProps) {
   const frame = useCurrentFrame()
   const { width, height } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.border
+  const glowColor = glowColorProp ?? theme.accent
+  const background = backgroundProp ?? theme.background
 
   // Guard the pitch: the schema mins `cell` at 4, but clamp defensively so a
   // zero/negative value can't divide-by-zero or invert the lattice.

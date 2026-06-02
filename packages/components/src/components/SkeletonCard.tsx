@@ -28,6 +28,7 @@
 
 import { Group, Rect, clipRect, linearGradient, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFadeRise } from '../choreography.js'
+import { useTheme } from '../theme.js'
 
 /** Deterministic bar widths as a fraction of the inner content width — a fixed
  *  repeating pattern keyed off the bar index (no PRNG; pure function of i). Reads
@@ -43,13 +44,13 @@ export interface SkeletonCardProps {
   thumbnail?: boolean
   /** Frames for one shimmer pass across the card. Lower = faster sweep. */
   shimmerSpeed?: number
-  /** The travelling highlight color — a soft sheen over the bars. */
+  /** The travelling highlight color — a soft sheen over the bars (default: theme `border`). */
   shimmerColor?: string
-  /** Resting fill of the placeholder bars / thumbnail. */
+  /** Resting fill of the placeholder bars / thumbnail (default: theme `surface`). */
   barColor?: string
-  /** Card (panel) background — the translucent glass fill. */
+  /** Card (panel) background — the translucent glass fill (default: theme `background`). */
   cardColor?: string
-  /** Card border color (the 1px-equivalent stroke). */
+  /** Card border color (the 1px-equivalent stroke) (default: theme `border`). */
   borderColor?: string
   /** Frames before the card enters. */
   delay?: number
@@ -67,10 +68,10 @@ export function SkeletonCard({
   lines = 3,
   thumbnail = true,
   shimmerSpeed = 48,
-  shimmerColor = '#26262e',
-  barColor = '#121217',
-  cardColor = '#0e0e12cc',
-  borderColor = '#26262e',
+  shimmerColor: shimmerColorProp,
+  barColor: barColorProp,
+  cardColor: cardColorProp,
+  borderColor: borderColorProp,
   delay = 0,
   width = 480,
   height,
@@ -79,6 +80,15 @@ export function SkeletonCard({
 }: SkeletonCardProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  const theme = useTheme()
+  const shimmerColor = shimmerColorProp ?? theme.border
+  const barColor = barColorProp ?? theme.surface
+  // The glass panel is the canvas background at ~80% alpha. Force `cc` onto a
+  // 6-digit hex background; otherwise take the theme value as-is.
+  const cardColor = cardColorProp ?? withGlassAlpha(theme.background)
+  const borderColor = borderColorProp ?? theme.border
+  // Shared corner radius for the card panel, thumbnail block, and clip mask.
+  const cornerRadius = theme.radius
 
   const safeLines = Math.max(1, Math.floor(lines))
   const safeBarHeight = Math.max(1, barHeight)
@@ -140,7 +150,7 @@ export function SkeletonCard({
         y={0}
         width={width}
         height={cardHeight}
-        cornerRadius={16}
+        cornerRadius={cornerRadius}
         fill={cardColor}
         stroke={borderColor}
         strokeWidth={1}
@@ -154,7 +164,7 @@ export function SkeletonCard({
             y={0}
             width={innerWidth}
             height={thumbHeight}
-            cornerRadius={12}
+            cornerRadius={cornerRadius}
             fill={barColor}
             opacity={pulse}
           />
@@ -181,7 +191,7 @@ export function SkeletonCard({
       {/* Travelling sheen — a card-sized gradient band clipped to the rounded
           card, sliding left → right. GPU/Vello-only (CPU collapses to the first,
           transparent stop). Drawn last so it reads as a highlight over the bars. */}
-      <Group clip={clipRect(width, cardHeight, 16)}>
+      <Group clip={clipRect(width, cardHeight, cornerRadius)}>
         <Rect
           x={0}
           y={0}
@@ -201,6 +211,26 @@ export function SkeletonCard({
       </Group>
     </Group>
   )
+}
+
+/** Return `color` with its alpha forced to `cc` (~80%) so the theme's opaque
+ *  `background` reads as the translucent glass panel (the original `#0e0e12cc`).
+ *  Only rewrites 6/3-digit hex; any other form (already-alpha hex, rgba, …) is
+ *  returned untouched so an author-set translucent background is respected. */
+function withGlassAlpha(color: string): string {
+  if (color.startsWith('#')) {
+    const hex = color.slice(1)
+    if (hex.length === 6) {
+      return `#${hex}cc`
+    }
+    if (hex.length === 3) {
+      const r = hex[0] ?? '0'
+      const g = hex[1] ?? '0'
+      const b = hex[2] ?? '0'
+      return `#${r}${r}${g}${g}${b}${b}cc`
+    }
+  }
+  return color
 }
 
 /** Return `color` with its alpha forced to `00` (fully transparent), preserving

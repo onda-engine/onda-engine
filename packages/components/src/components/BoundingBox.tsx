@@ -45,6 +45,7 @@ import {
 } from '@onda/react'
 import { entryFade, entryScale } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** Mean glyph advance as a fraction of font size, for a display face. Used only
  *  to size the label tag (the engine measures the real glyphs at render time). */
@@ -63,7 +64,7 @@ export interface BoundingBoxProps {
   height?: number
   /** Optional label tag pinned to the box's top-left corner. Empty hides it. */
   label?: string
-  /** Outline / tick / tag color — the earned Onda rose by default. */
+  /** Outline / tick / tag color — the earned Onda rose by default (default: theme `accent`). */
   color?: string
   /** Frames before the outline starts revealing. */
   delay?: number
@@ -80,7 +81,7 @@ export interface BoundingBoxProps {
   labelColor?: string
   /** Label font size in px. */
   fontSize?: number
-  /** Label font family (must be loaded by the renderer). */
+  /** Label font family (must be loaded by the renderer) (default: theme `headingFamily`). */
   fontFamily?: string
 }
 
@@ -90,7 +91,7 @@ export function BoundingBox({
   width = 0.4,
   height = 0.4,
   label = '',
-  color = '#d96b82',
+  color: colorProp,
   delay = 0,
   drawDuration = DURATION.slow,
   strokeWidth = 3,
@@ -98,10 +99,13 @@ export function BoundingBox({
   corners = true,
   labelColor = '#08080a',
   fontSize = 16,
-  fontFamily,
+  fontFamily: fontFamilyProp,
 }: BoundingBoxProps) {
   const frame = useCurrentFrame()
   const { fps, width: canvasW, height: canvasH } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.accent
+  const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
 
   // Box geometry in pixel space.
   const bx = x * canvasW

@@ -38,6 +38,7 @@
 
 import { Text, random, useCurrentFrame, useVideoConfig } from '@onda/react'
 import type { TextRunInput } from '@onda/react'
+import { useTheme } from '../theme.js'
 
 /** Approximate average monospace glyph advance as a fraction of font size, used
  *  only to *estimate* the line width for `align` anchoring (the engine measures
@@ -59,13 +60,13 @@ export interface MatrixDecodeProps {
   seed?: number
   /** Glyph pool drawn from while scrambling. */
   charset?: string
-  /** Settled text color (default the Onda text `#f2f2f4`). */
+  /** Settled text color (default: theme `text`). */
   color?: string
-  /** Color of still-scrambling glyphs — the earned accent (default rose `#d96b82`). */
+  /** Color of still-scrambling glyphs — the earned accent (default: theme `accent`). */
   scrambleColor?: string
   /** Font size in px (default 120). */
   fontSize?: number
-  /** Monospace stack keeps the advance steady as glyphs flicker. */
+  /** Monospace stack keeps the advance steady as glyphs flicker (default: theme `monoFamily`). */
   fontFamily?: string
   /** Font weight (default 600). */
   fontWeight?: number
@@ -87,10 +88,10 @@ export function MatrixDecode({
   scrambleSpeed = 2,
   seed = 7,
   charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+=<>/',
-  color = '#f2f2f4',
-  scrambleColor = '#d96b82',
+  color: colorProp,
+  scrambleColor: scrambleColorProp,
   fontSize = 120,
-  fontFamily = 'ui-monospace, monospace',
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
   align = 'center',
@@ -99,6 +100,10 @@ export function MatrixDecode({
 }: MatrixDecodeProps) {
   const frame = useCurrentFrame()
   const { width, height } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const scrambleColor = scrambleColorProp ?? theme.accent
+  const fontFamily = fontFamilyProp ?? theme.monoFamily
 
   const local = frame - delay
   // Guard against degenerate props (the schema clamps these to >= 1).

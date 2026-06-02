@@ -32,6 +32,7 @@ import { Group, Rect, Text, interpolate, useCurrentFrame, useVideoConfig } from 
 import { entryFadeRise } from '../choreography.js'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** Mean glyph advance as a fraction of the font size — a rough display-sans
  *  heuristic, used only to center the label (the engine measures the real text
@@ -55,22 +56,22 @@ export interface ButtonProps {
    *  border and `color`-tinted label. */
   variant?: 'primary' | 'ghost'
   /** Accent color — the primary fill and the ghost border/label tint
-   *  (default the Onda rose `#d96b82`). */
+   *  (default: theme `accent`). */
   color?: string
-  /** Label color on the primary variant (default the Onda bg `#08080a`). Ignored
+  /** Label color on the primary variant (default: theme `text`). Ignored
    *  by `'ghost'`, which tints the label with `color`. */
   textColor?: string
   /** Pill width in px (default 280). */
   width?: number
   /** Pill height in px (default 72). */
   height?: number
-  /** Corner radius in px. Defaults to a full pill (`height / 2`). */
+  /** Corner radius in px (default: theme `radius`). */
   cornerRadius?: number
   /** Border thickness in px for the `'ghost'` variant (default 2). */
   borderWidth?: number
   /** Label font size in px (default 24). */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`). */
+  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Label font weight (display default 600). */
   fontWeight?: number
@@ -94,14 +95,14 @@ export interface ButtonProps {
 export function Button({
   label = 'Get started',
   variant = 'primary',
-  color = '#d96b82',
-  textColor = '#08080a',
+  color: colorProp,
+  textColor: textColorProp,
   width = 280,
   height = 72,
-  cornerRadius,
+  cornerRadius: cornerRadiusProp,
   borderWidth = 2,
   fontSize = 24,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
   centerX = 0.5,
   centerY = 0.5,
@@ -113,6 +114,10 @@ export function Button({
 }: ButtonProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.accent
+  const textColor = textColorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   // Entrance: fade + rise on the house spring (ondajs's `useEntrance` rise).
   const enter = entrance
@@ -138,7 +143,8 @@ export function Button({
     : 1
 
   const isPrimary = variant === 'primary'
-  const radius = cornerRadius ?? height / 2
+  const cornerRadius = cornerRadiusProp ?? theme.radius
+  const radius = cornerRadius
 
   // Estimated label extent, used to center it over the pill. No author-time
   // engine text metrics exist, so derive from glyph count × size.

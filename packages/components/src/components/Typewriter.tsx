@@ -22,6 +22,7 @@
 import { Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useTextReveal } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 export interface TypewriterProps {
   /** What to type out. */
@@ -33,13 +34,13 @@ export interface TypewriterProps {
   durationInFrames?: number
   /** Show a blinking cursor at the leading edge while typing. Default `true`. */
   cursor?: boolean
-  /** Cursor color (default the Onda rose `#d96b82`). */
+  /** Cursor color (default: theme `accent`). */
   cursorColor?: string
-  /** Text color (default `#f2f2f4`). */
+  /** Text color (default: theme `text`). */
   color?: string
   /** Font size in px (default 64). */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`). */
+  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (default 500 — reads more "terminal"). */
   fontWeight?: number
@@ -56,10 +57,10 @@ export function Typewriter({
   delay = 0,
   durationInFrames = DURATION.slow,
   cursor = true,
-  cursorColor = '#d96b82',
-  color = '#f2f2f4',
+  cursorColor: cursorColorProp,
+  color: colorProp,
   fontSize = 64,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 500,
   italic = false,
   x,
@@ -67,6 +68,10 @@ export function Typewriter({
 }: TypewriterProps) {
   const frame = useCurrentFrame()
   const { width, height, fps } = useVideoConfig()
+  const theme = useTheme()
+  const cursorColor = cursorColorProp ?? theme.accent
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   // Linear char count — constant cadence (the intentional non-spring case).
   const shown = useTextReveal({ length: text.length, delay, durationInFrames })

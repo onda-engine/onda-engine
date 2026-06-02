@@ -1,6 +1,5 @@
-// Gallery registry for /components — one entry per @onda/components component
-// (category, blurb, demo props, themed flag). Generated from the component
-// sources + port manifests; safe to hand-edit.
+// Gallery registry: one entry per @onda/components component, with demo props
+// and theming flags. Regenerated from the component sources; avoid hand-edits.
 export interface GalleryItem {
   name: string
   category: string
@@ -35,12 +34,12 @@ export const GALLERY: GalleryItem[] = [
     props: {
       text: 'Onda',
       fontSize: 140,
-      color: '#f2f2f4',
       fontWeight: 600,
       durationInFrames: 24,
       placement: 'center',
     },
     child: true,
+    themed: true,
   },
   {
     name: 'FadeIn',
@@ -56,12 +55,12 @@ export const GALLERY: GalleryItem[] = [
     props: {
       text: 'Onda',
       direction: 'left',
-      color: '#f2f2f4',
       fontSize: 120,
       fontWeight: 600,
       duration: 24,
     },
     child: true,
+    themed: true,
   },
   {
     name: 'RotateIn',
@@ -125,11 +124,11 @@ export const GALLERY: GalleryItem[] = [
       decimals: 0,
       fontSize: 140,
       fontWeight: 700,
-      color: '#F2F2F4',
       x: 120,
       y: 360,
       durationInFrames: 24,
     },
+    themed: true,
   },
   {
     name: 'MatrixDecode',
@@ -138,8 +137,6 @@ export const GALLERY: GalleryItem[] = [
     props: {
       text: 'DECODE',
       fontSize: 140,
-      scrambleColor: '#d96b82',
-      color: '#f2f2f4',
       fontWeight: 700,
       scrambleDuration: 24,
       charDelay: 4,
@@ -147,6 +144,7 @@ export const GALLERY: GalleryItem[] = [
       seed: 7,
       align: 'center',
     },
+    themed: true,
   },
   {
     name: 'TextFadeReplace',
@@ -158,9 +156,9 @@ export const GALLERY: GalleryItem[] = [
       delay: 30,
       durationInFrames: 18,
       fontSize: 120,
-      color: '#F2F2F4',
       fontWeight: 600,
     },
+    themed: true,
   },
   {
     name: 'TrackingIn',
@@ -170,12 +168,12 @@ export const GALLERY: GalleryItem[] = [
       text: 'ONDA',
       fontSize: 140,
       fontWeight: 600,
-      color: '#f2f2f4',
       fromTracking: 0.55,
       tracking: -0.02,
       blur: true,
       align: 'center',
     },
+    themed: true,
   },
   {
     name: 'Typewriter',
@@ -185,11 +183,10 @@ export const GALLERY: GalleryItem[] = [
       text: 'motion graphics',
       durationInFrames: 24,
       cursor: true,
-      cursorColor: '#d96b82',
-      color: '#f2f2f4',
       fontSize: 80,
       fontWeight: 500,
     },
+    themed: true,
   },
   {
     name: 'WordRotate',
@@ -200,10 +197,10 @@ export const GALLERY: GalleryItem[] = [
       align: 'center',
       fontSize: 120,
       fontWeight: 600,
-      color: '#f2f2f4',
       holdDuration: 30,
       transitionDuration: 12,
     },
+    themed: true,
   },
   {
     name: 'WordStagger',
@@ -212,24 +209,23 @@ export const GALLERY: GalleryItem[] = [
     props: {
       text: 'motion that moves you',
       fontSize: 96,
-      color: '#f2f2f4',
       width: 1080,
       fontWeight: 600,
       justify: 'center',
       stagger: 4,
     },
+    themed: true,
   },
   {
     name: 'GradientShift',
     category: 'Text effects',
     blurb: 'a quiet, drifting two-color linear gradient background whose',
     props: {
-      from: '#2A1A4A',
-      to: '#0E2A3A',
       angle: 135,
       speed: 0.8,
       delay: 0,
     },
+    themed: true,
   },
   {
     name: 'Highlight',
@@ -255,6 +251,7 @@ export const GALLERY: GalleryItem[] = [
       intensity: 14,
       baseSplit: 3,
     },
+    themed: true,
   },
   {
     name: 'ShimmerSweep',
@@ -262,14 +259,13 @@ export const GALLERY: GalleryItem[] = [
     blurb: 'a single bright band of light sweeps across text. Ported from ondajs',
     props: {
       text: 'Shipping today',
-      shimmerColor: '#f2f2f4',
-      color: '#8e8e98',
       fontSize: 120,
       fontWeight: 600,
       duration: 36,
       x: 320,
       y: 300,
     },
+    themed: true,
   },
   {
     name: 'SlotMachineRoll',
@@ -279,11 +275,11 @@ export const GALLERY: GalleryItem[] = [
       text: '2026',
       fontSize: 180,
       fontWeight: 700,
-      color: '#f2f2f4',
       reelLength: 14,
       charDelay: 5,
       seed: 7,
     },
+    themed: true,
   },
   {
     name: 'Underline',
@@ -339,6 +335,7 @@ export const GALLERY: GalleryItem[] = [
         },
       ],
     },
+    themed: true,
   },
   {
     name: 'ChapterCard',
@@ -352,6 +349,7 @@ export const GALLERY: GalleryItem[] = [
       titleFontSize: 110,
       numberFontSize: 34,
     },
+    themed: true,
   },
   {
     name: 'EndCard',
@@ -364,10 +362,8 @@ export const GALLERY: GalleryItem[] = [
       ctaFontSize: 96,
       ctaFontWeight: 600,
       handlesFontSize: 24,
-      color: '#f2f2f4',
-      handlesColor: '#9aa4b2',
-      accentColor: '#d96b82',
     },
+    themed: true,
   },
   {
     name: 'PricingCard',
@@ -385,10 +381,10 @@ export const GALLERY: GalleryItem[] = [
       ],
       cta: 'Get started',
       recommended: true,
-      accent: '#d96b82',
       priceSize: 64,
       width: 380,
     },
+    themed: true,
   },
   {
     name: 'QuoteCard',
@@ -403,6 +399,7 @@ export const GALLERY: GalleryItem[] = [
       authorFontSize: 24,
       delay: 0,
     },
+    themed: true,
   },
   {
     name: 'SkeletonCard',
@@ -415,6 +412,7 @@ export const GALLERY: GalleryItem[] = [
       width: 520,
       barHeight: 20,
     },
+    themed: true,
   },
   {
     name: 'SpotlightCard',
@@ -424,11 +422,11 @@ export const GALLERY: GalleryItem[] = [
       eyebrow: 'FEATURE',
       title: 'Motion identity',
       body: 'One consistent feel across every component.',
-      glowColor: '#d96b82',
       width: 560,
       padding: 48,
       align: 'left',
     },
+    themed: true,
   },
   {
     name: 'StatCard',
@@ -460,7 +458,6 @@ export const GALLERY: GalleryItem[] = [
       width: 0.44,
       height: 0.4,
       label: 'Settings',
-      color: '#d96b82',
       strokeWidth: 3,
       cornerRadius: 0,
       corners: true,
@@ -469,6 +466,7 @@ export const GALLERY: GalleryItem[] = [
       delay: 0,
       drawDuration: 24,
     },
+    themed: true,
   },
   {
     name: 'Button',
@@ -477,8 +475,6 @@ export const GALLERY: GalleryItem[] = [
     props: {
       label: 'Get started',
       variant: 'primary',
-      color: '#d96b82',
-      textColor: '#08080a',
       width: 320,
       height: 80,
       fontSize: 30,
@@ -487,6 +483,7 @@ export const GALLERY: GalleryItem[] = [
       press: true,
       pressFrame: 36,
     },
+    themed: true,
   },
   {
     name: 'Callout',
@@ -502,6 +499,7 @@ export const GALLERY: GalleryItem[] = [
       duration: 18,
       lineDelay: 6,
     },
+    themed: true,
   },
   {
     name: 'Captions',
@@ -542,12 +540,11 @@ export const GALLERY: GalleryItem[] = [
       ],
       fontSize: 88,
       fontWeight: 600,
-      color: '#8e8e98',
-      accentColor: '#f2f2f4',
       align: 'center',
       placement: 'lower-third',
       maxWidth: 0.82,
     },
+    themed: true,
   },
   {
     name: 'Cursor',
@@ -562,9 +559,9 @@ export const GALLERY: GalleryItem[] = [
       travelDuration: 24,
       click: true,
       clickDelay: 6,
-      color: '#f2f2f4',
       size: 72,
     },
+    themed: true,
   },
   {
     name: 'IconPop',
@@ -573,12 +570,12 @@ export const GALLERY: GalleryItem[] = [
     props: {
       glyph: '✦',
       iconSize: 220,
-      color: '#d96b82',
       x: 640,
       y: 360,
       overshoot: 0.22,
       durationInFrames: 18,
     },
+    themed: true,
   },
   {
     name: 'InputField',
@@ -595,6 +592,7 @@ export const GALLERY: GalleryItem[] = [
       width: 640,
       fontSize: 40,
     },
+    themed: true,
   },
   {
     name: 'LowerThird',
@@ -605,27 +603,24 @@ export const GALLERY: GalleryItem[] = [
       role: 'Founder & CEO, ONDA',
       placement: 'bottom-left',
       accent: true,
-      color: '#f2f2f4',
-      roleColor: '#8e8e98',
-      accentColor: '#d96b82',
       fontSize: 54,
       roleFontSize: 24,
     },
+    themed: true,
   },
   {
     name: 'PulsingIndicator',
     category: 'Overlays & UI',
     blurb: 'a live status dot with a calm expanding-ring pulse, plus an',
     props: {
-      color: '#d96b82',
       size: 40,
       label: 'LIVE',
-      labelColor: '#8e8e98',
       fontSize: 48,
       period: 45,
       x: 760,
       y: 500,
     },
+    themed: true,
   },
   {
     name: 'BrowserFrame',
@@ -640,6 +635,7 @@ export const GALLERY: GalleryItem[] = [
       animate: true,
     },
     child: true,
+    themed: true,
   },
   {
     name: 'CodeBlock',
@@ -654,6 +650,7 @@ export const GALLERY: GalleryItem[] = [
       fontSize: 40,
       width: 980,
     },
+    themed: true,
   },
   {
     name: 'CodeDiff',
@@ -689,6 +686,7 @@ export const GALLERY: GalleryItem[] = [
       revealLines: true,
       lineDelay: 4,
     },
+    themed: true,
   },
   {
     name: 'DeviceFrame',
@@ -702,6 +700,7 @@ export const GALLERY: GalleryItem[] = [
       delay: 0,
     },
     child: true,
+    themed: true,
   },
   {
     name: 'DynamicGrid',
@@ -710,14 +709,12 @@ export const GALLERY: GalleryItem[] = [
     props: {
       variant: 'lines',
       cell: 64,
-      color: '#2a2a33',
       speed: 0.4,
       opacity: 0.7,
       glow: true,
-      glowColor: '#d96b82',
-      background: '#08080a',
       thickness: 1.5,
     },
+    themed: true,
   },
   {
     name: 'KanbanBoard',
@@ -744,6 +741,7 @@ export const GALLERY: GalleryItem[] = [
       stagger: 4,
       fontSize: 22,
     },
+    themed: true,
   },
   {
     name: 'SplitScreen',
@@ -759,6 +757,7 @@ export const GALLERY: GalleryItem[] = [
       width: 1120,
       height: 600,
     },
+    themed: true,
   },
   {
     name: 'StaggerGroup',
@@ -773,8 +772,8 @@ export const GALLERY: GalleryItem[] = [
       duration: 18,
       fontSize: 72,
       fontWeight: 600,
-      color: '#f2f2f4',
     },
+    themed: true,
   },
   {
     name: 'Terminal',
@@ -789,6 +788,7 @@ export const GALLERY: GalleryItem[] = [
       fontSize: 44,
       width: 920,
     },
+    themed: true,
   },
   {
     name: 'BarChart',
@@ -825,7 +825,6 @@ export const GALLERY: GalleryItem[] = [
     blurb: 'a polyline that draws on left-to-right on the house easing, with',
     props: {
       data: [12, 18, 15, 24, 22, 31, 28, 38, 34, 44],
-      color: '#d96b82',
       strokeWidth: 4,
       width: 980,
       height: 460,
@@ -834,6 +833,7 @@ export const GALLERY: GalleryItem[] = [
       duration: 40,
       delay: 4,
     },
+    themed: true,
   },
   {
     name: 'NodeGraph',
@@ -841,12 +841,11 @@ export const GALLERY: GalleryItem[] = [
     blurb: 'a hub-and-spoke constellation: a labeled central hub with',
     props: {
       hubLabel: 'AI',
-      accent: '#d96b82',
       glow: true,
-      background: '#08080a',
       centerX: 0.5,
       centerY: 0.5,
     },
+    themed: true,
   },
   {
     name: 'PieReveal',
@@ -877,14 +876,13 @@ export const GALLERY: GalleryItem[] = [
       ],
       radius: 200,
       innerRadius: 110,
-      holeColor: '#0a0a0f',
       showLabel: true,
       label: '4',
-      labelColor: '#f2f2f4',
       fontSize: 80,
       duration: 24,
       stagger: 5,
     },
+    themed: true,
   },
   {
     name: 'ProgressBar',
@@ -907,12 +905,10 @@ export const GALLERY: GalleryItem[] = [
       steps: ['Plan', 'Build', 'Render', 'Ship'],
       current: 2,
       width: 900,
-      accentColor: '#d96b82',
-      dimColor: '#26262e',
-      labelColor: '#8e8e98',
       fontSize: 34,
       dotSize: 30,
     },
+    themed: true,
   },
   {
     name: 'Timeline',
@@ -936,11 +932,8 @@ export const GALLERY: GalleryItem[] = [
       spacing: 130,
       dotSize: 20,
       fontSize: 30,
-      lineColor: '#26262e',
-      dotColor: '#f2f2f4',
-      accentColor: '#d96b82',
-      labelColor: '#9aa4b2',
     },
+    themed: true,
   },
   {
     name: 'AudioClip',
@@ -967,6 +960,7 @@ export const GALLERY: GalleryItem[] = [
       speed: 1,
       seed: 7,
     },
+    themed: true,
   },
   {
     name: 'ImageReveal',
@@ -980,6 +974,7 @@ export const GALLERY: GalleryItem[] = [
       srcWidth: 1280,
       srcHeight: 720,
     },
+    themed: true,
     note: 'In-browser image decoding is not wired up yet — renders from a file via `onda render`.',
   },
   {
@@ -1039,6 +1034,7 @@ export const GALLERY: GalleryItem[] = [
       letterbox: 60,
       borderRadius: 12,
     },
+    themed: true,
     note: 'Video decode is not in the engine yet — renders a poster frame via `onda render`.',
   },
   {
@@ -1072,6 +1068,7 @@ export const GALLERY: GalleryItem[] = [
       gravity: 1,
       pieceSize: 14,
     },
+    themed: true,
   },
   {
     name: 'DrawOn',
@@ -1079,10 +1076,10 @@ export const GALLERY: GalleryItem[] = [
     blurb: 'an SVG path that "draws on", the substrate for logos, icons, and',
     props: {
       d: 'M 80 360 C 240 80, 520 80, 640 360 S 1040 640, 1200 360',
-      color: '#d96b82',
       strokeWidth: 10,
       durationInFrames: 30,
     },
+    themed: true,
   },
   {
     name: 'GrainOverlay',
@@ -1094,8 +1091,8 @@ export const GALLERY: GalleryItem[] = [
       numOctaves: 3,
       seed: 7,
       count: 900,
-      color: '#f2f2f4',
     },
+    themed: true,
   },
   {
     name: 'LogoSting',
@@ -1108,13 +1105,11 @@ export const GALLERY: GalleryItem[] = [
       pathWidth: 460,
       pathHeight: 180,
       strokeWidth: 5,
-      stroke: '#f2f2f4',
-      accentColor: '#d96b82',
       titleFontSize: 104,
-      color: '#f2f2f4',
       accent: true,
       delay: 0,
     },
+    themed: true,
   },
   {
     name: 'Marquee',
@@ -1125,23 +1120,22 @@ export const GALLERY: GalleryItem[] = [
       speed: 60,
       direction: 'left',
       gap: 80,
-      color: '#9aa4b2',
       fontSize: 64,
       fontWeight: 600,
       height: 120,
     },
+    themed: true,
   },
   {
     name: 'MeshGradient',
     category: 'Backgrounds & FX',
     blurb: 'a drifting mesh-gradient backdrop. Ported from ondajs',
     props: {
-      colors: ['#d96b82', '#7b9ed9', '#e8c06b'],
-      background: '#08080a',
       speed: 1.2,
       seed: 7,
       opacity: 0.7,
     },
+    themed: true,
   },
   {
     name: 'Spotlight',
@@ -1164,7 +1158,7 @@ export const GALLERY: GalleryItem[] = [
     props: {
       intensity: 0.7,
       innerRadius: 35,
-      color: '#000000',
     },
+    themed: true,
   },
 ]
