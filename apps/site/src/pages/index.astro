@@ -315,7 +315,11 @@ const year = new Date().getFullYear()
               </p>
             </header>
             <div class="live__stage" id="live-stage">
-              <OndaShowcase client:only="react" />
+              {/* Reserve the 16:9 box up front so the client-only island can't
+                  pop in from height 0 → full (no layout shift). */}
+              <div class="live__frame">
+                <OndaShowcase client:only="react" />
+              </div>
             </div>
           </div>
         </section>
@@ -1198,6 +1202,13 @@ const year = new Date().getFullYear()
         border-radius: var(--r-card);
         padding: var(--s-6);
         box-shadow: var(--elev-card);
+      }
+      /* Reserve the player's 16:9 box before the client-only island hydrates,
+         so it can't pop in from height 0 → full (no layout shift). The player
+         (1280×720 = 16:9) fills this exactly. */
+      .live__frame {
+        aspect-ratio: 16 / 9;
+        width: 100%;
       }
 
       .cta {
