@@ -1,6 +1,6 @@
 // Gallery registry for /components — one entry per @onda/components component
-// (category, one-line blurb, demo props). Generated from the component sources +
-// port manifests; safe to hand-edit (tweak demo props, blurbs, categories).
+// (category, blurb, demo props, themed flag). Generated from the component
+// sources + port manifests; safe to hand-edit.
 export interface GalleryItem {
   name: string
   category: string
@@ -8,6 +8,8 @@ export interface GalleryItem {
   props: Record<string, unknown>
   /** Whether the component wraps children (the gallery injects a sample). */
   child?: boolean
+  /** Reads the active theme (re-skins with the gallery's theme switcher). */
+  themed?: boolean
   /** If set, the in-browser engine can't preview this yet — show this note. */
   note?: string
 }
@@ -236,13 +238,12 @@ export const GALLERY: GalleryItem[] = [
     props: {
       text: 'motion graphics',
       fontSize: 72,
-      color: '#f2f2f4',
-      accentColor: '#d96b82',
       fontWeight: 600,
       paddingX: 10,
       x: 120,
       y: 120,
     },
+    themed: true,
   },
   {
     name: 'RgbGlitch',
@@ -291,8 +292,6 @@ export const GALLERY: GalleryItem[] = [
     props: {
       text: 'motion graphics',
       fontSize: 96,
-      color: '#f2f2f4',
-      accentColor: '#d96b82',
       lineThickness: 4,
       lineOffset: 10,
       delay: 0,
@@ -300,6 +299,7 @@ export const GALLERY: GalleryItem[] = [
       lineDelay: 8,
       lineDuration: 10,
     },
+    themed: true,
   },
   {
     name: 'BentoGrid',
@@ -438,6 +438,7 @@ export const GALLERY: GalleryItem[] = [
       value: '9.3×',
       label: 'faster than Remotion',
     },
+    themed: true,
   },
   {
     name: 'TitleCard',
@@ -447,6 +448,7 @@ export const GALLERY: GalleryItem[] = [
       title: 'ONDA',
       subtitle: 'GPU-native motion graphics',
     },
+    themed: true,
   },
   {
     name: 'BoundingBox',
@@ -809,16 +811,13 @@ export const GALLERY: GalleryItem[] = [
       ],
       max: 100,
       showValues: true,
-      accentColor: '#d96b82',
-      barColor: '#8e8e98',
-      trackColor: '#1c1c22',
-      color: '#f2f2f4',
       barHeight: 40,
       gap: 24,
       fontSize: 26,
       labelWidth: 240,
       trackWidth: 760,
     },
+    themed: true,
   },
   {
     name: 'LineChart',
@@ -1156,9 +1155,9 @@ export const GALLERY: GalleryItem[] = [
       radius: 45,
       delay: 0,
       durationInFrames: 24,
-      color: '#ffe9b0',
       softness: 65,
     },
+    themed: true,
   },
   {
     name: 'Vignette',

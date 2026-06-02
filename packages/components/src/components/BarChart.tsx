@@ -22,6 +22,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 /** One bar: a label and its numeric value. */
 export interface BarChartDatum {
@@ -93,20 +94,28 @@ export function BarChart({
   labelWidth = 220,
   labelGap = 24,
   trackWidth = 760,
-  accentColor = '#d96b82',
-  barColor = '#8e8e98',
-  trackColor = '#1c1c22',
-  color = '#f2f2f4',
+  accentColor: accentColorProp,
+  barColor: barColorProp,
+  trackColor: trackColorProp,
+  color: colorProp,
   showValues = false,
   countUp = true,
   title,
   titleSize,
-  titleColor,
+  titleColor: titleColorProp,
   fontSize = 24,
-  fontFamily,
+  fontFamily: fontFamilyProp,
 }: BarChartProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  // Colors/font default to the active theme; explicit props override.
+  const theme = useTheme()
+  const accentColor = accentColorProp ?? theme.accent
+  const barColor = barColorProp ?? theme.palette[0] ?? theme.textMuted
+  const trackColor = trackColorProp ?? theme.surface
+  const color = colorProp ?? theme.text
+  const titleColor = titleColorProp ?? color
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   const rowHeight = barHeight + gap
   // Total chart footprint (no trailing gap below the last row).

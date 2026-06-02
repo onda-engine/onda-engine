@@ -17,6 +17,7 @@
 import { Rect, radialGradient, useVideoConfig } from '@onda/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 export interface SpotlightProps {
   /** Horizontal center of the spotlight as a 0–1 fraction of canvas width. */
@@ -29,7 +30,7 @@ export interface SpotlightProps {
   delay?: number
   /** Frames until the spotlight reaches its full radius. */
   durationInFrames?: number
-  /** Light color (hex `#rrggbb` / `#rrggbbaa`). */
+  /** Light color (default: theme `text`). Hex `#rrggbb` / `#rrggbbaa`. */
   color?: string
   /** Gradient softness — % of the radius given over to the fade-to-transparent
    *  tail. `0` is a hard disc; `100` fades from the very center. */
@@ -42,10 +43,12 @@ export function Spotlight({
   radius = 40,
   delay = 0,
   durationInFrames = DURATION.slow,
-  color = '#f2f2f4',
+  color: colorProp,
   softness = 60,
 }: SpotlightProps) {
   const { width, height } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
 
   // House spring (SPRING_SMOOTH, no overshoot), matching ondajs.
   const progress = useSpringValue({ delay, durationInFrames })

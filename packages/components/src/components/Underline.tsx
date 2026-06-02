@@ -23,6 +23,7 @@ import {
 } from '@onda/react'
 import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { useTheme } from '../theme.js'
 
 export interface UnderlineProps {
   /** Text to reveal. Pass `""` to draw the rule alone. */
@@ -35,9 +36,9 @@ export interface UnderlineProps {
   lineDelay?: number
   /** Rule draw duration. Fast on purpose — emphatic (default `DURATION.fast`). */
   lineDuration?: number
-  /** Text color (default the Onda text color `#f2f2f4`). */
+  /** Text color (default: theme `text`). */
   color?: string
-  /** Rule color — the earned rose (default `#d96b82`). */
+  /** Rule color (default: theme `accent`). */
   accentColor?: string
   /** Rule thickness in px. */
   lineThickness?: number
@@ -66,17 +67,21 @@ export function Underline({
   duration = DURATION.base,
   lineDelay = 8,
   lineDuration = DURATION.fast,
-  color = '#f2f2f4',
-  accentColor = '#d96b82',
+  color: colorProp,
+  accentColor: accentColorProp,
   lineThickness = 3,
   lineOffset = 6,
   fontSize = 64,
-  fontFamily,
+  fontFamily: fontFamilyProp,
   fontWeight = 600,
   align = 'left',
 }: UnderlineProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const accentColor = accentColorProp ?? theme.accent
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   // Phase 1: text fade — opacity 0 → 1 on the house spring (the `entryFade`
   // choreography, matching the ondajs original).
