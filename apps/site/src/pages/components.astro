@@ -1,0 +1,112 @@
+---
+// The ONDA component gallery — every @onda/components component, previewed live
+// by the engine (Vello/WebGPU). Standalone page (not a Starlight doc) so the
+// list + player can use a full-width two-column layout.
+import OndaGallery from '../components/OndaGallery.tsx'
+const REPO = 'https://github.com/degueba/onda-engine'
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Components — ONDA</title>
+    <meta
+      name="description"
+      content="70 motion-graphics components, each rendered live in your browser by the ONDA GPU engine — the same scene graph onda export writes to a file."
+    />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0e0e12" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="gallery-page">
+      <header class="gnav">
+        <a class="brand" href="/" aria-label="ONDA — home">
+          <img src="/onda-mark.svg" alt="" width="80" height="20" />
+          <span>ONDA</span>
+        </a>
+        <nav class="gnav__links" aria-label="Primary">
+          <a href="/">Home</a>
+          <a href="/guide/introduction">Docs</a>
+          <a href={REPO} rel="noopener">GitHub</a>
+        </nav>
+      </header>
+
+      <main class="gmain">
+        <header class="ghead">
+          <p class="eyebrow">Component library</p>
+          <h1>70 components, rendered live by the engine.</h1>
+          <p class="lede">
+            Every <code>@onda/components</code> component, playing in your browser via the GPU
+            engine (Vello over WebGPU) — the very same scene graph <code>onda export</code> writes
+            to a file. Pick one to preview it.
+          </p>
+        </header>
+        <OndaGallery client:only="react" />
+      </main>
+    </div>
+
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        background: #0e0e12;
+        color: #f2f2f4;
+        font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .gallery-page { min-height: 100vh; }
+      .gnav {
+        display: flex; align-items: center; gap: 24px;
+        padding: 16px 32px;
+        border-bottom: 1px solid #26262c;
+        position: sticky; top: 0; z-index: 10;
+        background: rgba(14, 14, 18, 0.82);
+        backdrop-filter: saturate(120%) blur(12px);
+      }
+      .brand {
+        display: inline-flex; align-items: center; gap: 12px;
+        color: #f2f2f4; text-decoration: none;
+        font-family: 'Clash Display', 'Space Grotesk', sans-serif; font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+      .brand img { display: block; height: 20px; width: auto; }
+      .gnav__links { display: flex; gap: 24px; margin-left: auto; }
+      .gnav__links a { color: #8e8e98; text-decoration: none; font-weight: 500; }
+      .gnav__links a:hover { color: #f2f2f4; }
+      .gmain { max-width: 1280px; margin: 0 auto; padding: 48px 32px 96px; }
+      .ghead { max-width: 64ch; margin-bottom: 40px; }
+      .eyebrow {
+        font-family: 'JetBrains Mono', monospace; font-size: 13px;
+        letter-spacing: 0.16em; text-transform: uppercase; color: #56565f; margin: 0 0 16px;
+      }
+      .ghead h1 {
+        font-family: 'Clash Display', 'Space Grotesk', sans-serif;
+        font-size: clamp(2rem, 5vw, 3rem); font-weight: 600; line-height: 1.05;
+        letter-spacing: -0.02em; margin: 0 0 16px;
+      }
+      .lede { color: #8e8e98; font-size: 1.125rem; margin: 0; line-height: 1.6; }
+      .lede code {
+        font-family: 'JetBrains Mono', monospace; font-size: 0.9em;
+        color: #f2f2f4; background: #18181d; padding: 1px 6px; border-radius: 5px;
+      }
+      @media (max-width: 760px) {
+        .gnav__links { display: none; }
+        .gmain { padding: 32px 20px 64px; }
+      }
+    </style>
+  </body>
+</html>
