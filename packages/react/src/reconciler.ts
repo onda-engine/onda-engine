@@ -208,7 +208,12 @@ function transformOf(props: Record<string, unknown>): Transform | undefined {
   if (typeof props.scaleX === 'number' || typeof props.scaleY === 'number') {
     transform.scale = { x: (props.scaleX as number) ?? 1, y: (props.scaleY as number) ?? 1 }
   }
-  return transform.translate || transform.scale ? transform : undefined
+  if (typeof props.rotation === 'number') {
+    transform.rotate = props.rotation
+  }
+  return transform.translate || transform.scale || transform.rotate !== undefined
+    ? transform
+    : undefined
 }
 
 function fillStroke(props: Record<string, unknown>): {

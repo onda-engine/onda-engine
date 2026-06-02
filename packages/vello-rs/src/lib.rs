@@ -243,7 +243,11 @@ fn build(
 }
 
 fn to_affine(t: &Transform) -> Affine {
+    // TRS about the local origin: scale, then rotate (degrees → radians,
+    // clockwise in screen space), then translate. Composed with the parent
+    // affine up the tree, so nested rotation works.
     Affine::translate((t.translate.x as f64, t.translate.y as f64))
+        * Affine::rotate((t.rotate as f64).to_radians())
         * Affine::scale_non_uniform(t.scale.x as f64, t.scale.y as f64)
 }
 
