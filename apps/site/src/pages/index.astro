@@ -311,19 +311,10 @@ const year = new Date().getFullYear()
                 Not a video — the ONDA promo, built entirely from <code>@onda/components</code> and
                 rendered live by the GPU engine (Vello over WebGPU). The very same scene graph
                 <code>onda export</code> writes to an MP4, playing here frame-for-frame. Press play,
-                scrub, loop.
+                scrub, loop — or go full screen.
               </p>
-              <button
-                class="btn btn--primary live__toggle"
-                type="button"
-                data-live-toggle
-                aria-expanded="false"
-                aria-controls="live-stage"
-              >
-                Show the live demo
-              </button>
             </header>
-            <div class="live__stage" id="live-stage" data-live-stage hidden>
+            <div class="live__stage" id="live-stage">
               <OndaShowcase client:only="react" />
             </div>
           </div>
@@ -400,20 +391,6 @@ const year = new Date().getFullYear()
               }, 1600)
             })
             .catch(() => {})
-        })
-      }
-
-      // Live demo toggle: reveal the player on demand. The island is
-      // client:visible, so it only hydrates (and boots WebGPU) once shown.
-      const liveToggle = document.querySelector('[data-live-toggle]')
-      const liveStage = document.querySelector('[data-live-stage]')
-      if (liveToggle && liveStage) {
-        liveToggle.addEventListener('click', () => {
-          const show = liveStage.hasAttribute('hidden')
-          liveStage.toggleAttribute('hidden', !show)
-          liveToggle.setAttribute('aria-expanded', String(show))
-          liveToggle.textContent = show ? 'Hide the live demo' : 'Show the live demo'
-          if (show) liveStage.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
         })
       }
 
