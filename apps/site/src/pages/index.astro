@@ -37,6 +37,14 @@ const year = new Date().getFullYear()
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <script is:inline>
+      // Mark the document as motion-enabled BEFORE first paint so above-the-fold
+      // elements can start hidden (no flash). Skipped under reduced-motion / no-JS,
+      // where everything stays visible.
+      if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.documentElement.classList.add('anim')
+      }
+    </script>
   </head>
   <body>
     <div class="onda-landing">
@@ -333,9 +341,12 @@ const year = new Date().getFullYear()
     </div>
 
     <script>
-      // Sticky-nav shadow, scroll-reveal (reduced-motion aware), copy buttons.
-      const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      // Motion (motion.dev — the framework-agnostic engine behind Framer Motion):
+      // a tasteful entrance + scroll-reveal pass. Plus sticky-nav shadow and the
+      // code-card copy buttons. Honors prefers-reduced-motion (skips all motion).
+      import { animate, inView, stagger } from 'motion'
 
+      // Sticky nav: hairline + tint once scrolled.
       const nav = document.getElementById('site-nav')
       if (nav) {
         const onScroll = () => nav.classList.toggle('is-scrolled', window.scrollY > 8)
@@ -343,44 +354,98 @@ const year = new Date().getFullYear()
         window.addEventListener('scroll', onScroll, { passive: true })
       }
 
-      const targets = Array.from(
-        document.querySelectorAll(
-          '.section__head, .arch__col, .arch__vs, .stat, .feature, .story > *, .cta__inner, .hero__code',
-        ),
-      )
-      for (const el of targets) el.classList.add('reveal')
-      if (prefersReduced || !('IntersectionObserver' in window)) {
-        for (const el of targets) el.classList.add('is-visible')
-      } else {
-        const io = new IntersectionObserver(
-          (entries) => {
-            for (const entry of entries) {
-              if (entry.isIntersecting) {
-                entry.target.classList.add('is-visible')
-                io.unobserve(entry.target)
-              }
-            }
-          },
-          { rootMargin: '0px 0px -10% 0px', threshold: 0.12 },
-        )
-        for (const el of targets) io.observe(el)
-      }
-
-      for (const btn of Array.from(document.querySelectorAll('.code-card__copy'))) {
+      // Copy-to-clipboard on code cards.
+      for (const btn of document.querySelectorAll('.code-card__copy')) {
         btn.addEventListener('click', () => {
           const id = btn.getAttribute('data-copy')
           const target = id ? document.getElementById(id) : null
           if (!target) return
-          const reset = (label) => {
-            btn.textContent = 'Copied'
-            btn.classList.add('is-copied')
-            window.setTimeout(() => {
-              btn.textContent = label
-              btn.classList.remove('is-copied')
-            }, 1600)
-          }
-          navigator.clipboard?.writeText(target.innerText).then(() => reset('Copy')).catch(() => {})
+          navigator.clipboard
+            ?.writeText(target.innerText)
+            .then(() => {
+              btn.textContent = 'Copied'
+              btn.classList.add('is-copied')
+              window.setTimeout(() => {
+                btn.textContent = 'Copy'
+                btn.classList.remove('is-copied')
+              }, 1600)
+            })
+            .catch(() => {})
         })
+      }
+
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      if (!reduce) {
+        const EASE = [0.22, 0.61, 0.36, 1]
+        const hide = (els) => {
+          for (const el of els) el.style.opacity = '0'
+        }
+
+        // Hero entrance: stagger the copy, slide the code card in.
+        const heroEls = Array.from(document.querySelectorAll('.hero__copy > *'))
+        hide(heroEls)
+        animate(
+          heroEls,
+          { opacity: [0, 1], y: [14, 0] },
+          { delay: stagger(0.07), duration: 0.55, ease: EASE },
+        )
+        const code = document.querySelector('.hero__code')
+        if (code) {
+          code.style.opacity = '0'
+          animate(
+            code,
+            { opacity: [0, 1], y: [22, 0], scale: [0.985, 1] },
+            { duration: 0.6, delay: 0.18, ease: EASE },
+          )
+        }
+
+        // Reveal one element when it scrolls into view.
+        const reveal = (el, keyframes, opts = {}) => {
+          if (!el) return
+          el.style.opacity = '0'
+          inView(
+            el,
+            () => {
+              animate(el, { opacity: [0, 1], ...keyframes }, { duration: 0.6, ease: EASE, ...opts })
+            },
+            { amount: 0.2 },
+          )
+        }
+
+        // Reveal a container's children with a stagger.
+        const group = (container, childSel, keyframes) => {
+          if (!container) return
+          const kids = Array.from(container.querySelectorAll(childSel))
+          hide(kids)
+          inView(
+            container,
+            () => {
+              animate(
+                kids,
+                { opacity: [0, 1], ...keyframes },
+                { delay: stagger(0.08), duration: 0.5, ease: EASE },
+              )
+            },
+            { amount: 0.15 },
+          )
+        }
+
+        for (const head of document.querySelectorAll('.section__head')) reveal(head, { y: [20, 0] })
+
+        // Architecture: columns slide in from their sides, the "vs" pops.
+        reveal(document.querySelector('.arch__col--remotion'), { x: [-24, 0] })
+        reveal(document.querySelector('.arch__col--onda'), { x: [24, 0] })
+        reveal(document.querySelector('.arch__vs'), { scale: [0.6, 1] }, { delay: 0.15, amount: 0.5 })
+
+        // Staggered groups.
+        group(document.querySelector('.features'), '.feature', { y: [20, 0] })
+        group(document.querySelector('.stats'), '.stat', { y: [20, 0] })
+        group(document.querySelector('.story'), '.code-card, .story__arrow, .story__result', {
+          y: [18, 0],
+        })
+
+        for (const el of document.querySelectorAll('.cta__inner, .stats__foot, .features__note'))
+          reveal(el, { y: [16, 0] })
       }
     </script>
 
@@ -815,6 +880,10 @@ const year = new Date().getFullYear()
         border: 1px solid var(--border);
         border-radius: var(--r-card);
         padding: var(--s-8);
+        transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease);
+      }
+      .arch__col:hover {
+        transform: translateY(-2px);
       }
       .arch__col--onda {
         border-color: rgba(217, 107, 130, 0.45);
@@ -953,10 +1022,11 @@ const year = new Date().getFullYear()
       .feature {
         padding-top: var(--s-8);
         border-top: 1px solid var(--border);
-        transition: border-color var(--dur) var(--ease);
+        transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
       }
       .feature:hover {
         border-top-color: var(--accent);
+        transform: translateY(-3px);
       }
       .feature__icon {
         display: inline-grid;
@@ -1121,15 +1191,11 @@ const year = new Date().getFullYear()
         color: var(--accent);
       }
 
-      .reveal {
+      /* Pre-hide the above-the-fold hero before paint (the head inline script
+         adds html.anim only when motion is allowed) so its entrance can't flash. */
+      :global(html.anim) .hero__copy > *,
+      :global(html.anim) .hero__code {
         opacity: 0;
-        transform: translateY(16px);
-        transition: opacity 500ms var(--ease), transform 500ms var(--ease);
-        will-change: opacity, transform;
-      }
-      .reveal.is-visible {
-        opacity: 1;
-        transform: none;
       }
 
       @media (max-width: 1024px) {
@@ -1204,13 +1270,6 @@ const year = new Date().getFullYear()
         .code-card__pre {
           font-size: 0.8rem;
           padding: var(--s-4);
-        }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .reveal {
-          opacity: 1;
-          transform: none;
-          transition: none;
         }
       }
     </style>
