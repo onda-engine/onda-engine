@@ -14,8 +14,11 @@ import {
   useRef,
   useState,
 } from 'react'
+import { CopyButton } from './CopyButton.js'
 import ThemeControls from './ThemeControls.js'
+import { COMPONENT_PROPS } from './component-props.js'
 import { GALLERY, GALLERY_CATEGORIES, type GalleryItem } from './gallery-data.js'
+import { usageSnippet } from './snippet.js'
 import { useThemeStore } from './theme-store.js'
 
 // The component gallery — every @onda/components component, rendered live by the
@@ -111,6 +114,22 @@ export default function OndaGallery(): ReactElement {
     () => (selected ? buildComposition(selected, theme) : null),
     [selected, theme],
   )
+  // The copyable usage snippet — regenerated from the live theme, so editing a
+  // color updates the emitted <ThemeProvider> object. This is the code a human
+  // pastes and ONDA Studio consumes.
+  const snippet = useMemo(
+    () =>
+      selected
+        ? usageSnippet({
+            name: selected.name,
+            props: selected.props,
+            theme,
+            child: selected.child,
+          })
+        : '',
+    [selected, theme],
+  )
+  const props = selected ? (COMPONENT_PROPS[selected.name] ?? []) : []
 
   const groups = useMemo(
     () =>
@@ -171,9 +190,38 @@ export default function OndaGallery(): ReactElement {
               {selected.themed ? <span style={styles.themedTag}>Themeable</span> : null}
             </div>
             <p style={styles.blurb}>{selected.blurb}</p>
-            <code
-              style={styles.import}
-            >{`import { ${selected.name} } from '@onda/components'`}</code>
+
+            <div style={styles.codeHead}>
+              <span style={styles.sectionLabel}>Usage</span>
+              <CopyButton text={snippet} style={styles.copyBtn} />
+            </div>
+            <pre style={styles.code}>
+              <code>{snippet}</code>
+            </pre>
+
+            {props.length ? (
+              <div style={styles.propsBlock}>
+                <span style={styles.sectionLabel}>Props</span>
+                <table style={styles.table}>
+                  <tbody>
+                    {props.map((p) => (
+                      <tr key={p.name} style={styles.tr}>
+                        <td style={styles.tdName}>
+                          {p.name}
+                          {p.required ? <span style={styles.req}>*</span> : null}
+                        </td>
+                        <td style={styles.tdType}>{p.type}</td>
+                        <td style={styles.tdDesc}>{p.description}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p style={styles.propsFoot}>
+                  <span style={styles.req}>*</span> required · others optional. Colors/fonts default
+                  to the theme above.
+                </p>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -269,15 +317,68 @@ const styles: Record<string, CSSProperties> = {
     padding: '2px 9px',
   },
   name: { fontSize: 28, fontWeight: 600, margin: 0, letterSpacing: '-0.01em' },
-  blurb: { color: '#8e8e98', fontSize: 16, margin: '0 0 14px', maxWidth: '60ch' },
-  import: {
-    display: 'inline-block',
+  blurb: { color: '#8e8e98', fontSize: 16, margin: '0 0 18px', maxWidth: '60ch' },
+  sectionLabel: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 11,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: '#56565f',
+  },
+  codeHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  copyBtn: {
+    appearance: 'none',
+    border: '1px solid #26262c',
+    background: 'transparent',
+    color: '#b8b8c0',
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 12,
+    padding: '3px 10px',
+    borderRadius: 7,
+    cursor: 'pointer',
+  },
+  code: {
+    margin: 0,
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 13,
+    lineHeight: 1.65,
+    color: '#d7d7de',
+    background: '#121217',
+    border: '1px solid #26262c',
+    borderRadius: 10,
+    padding: '14px 16px',
+    overflowX: 'auto',
+    maxHeight: 360,
+    whiteSpace: 'pre',
+  },
+  propsBlock: { marginTop: 22 },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    marginTop: 8,
+    fontSize: 14,
+  },
+  tr: { borderBottom: '1px solid #1c1c22', verticalAlign: 'top' },
+  tdName: {
     fontFamily: "'JetBrains Mono', monospace",
     fontSize: 13,
     color: '#e89aac',
-    background: '#121217',
-    border: '1px solid #26262c',
-    borderRadius: 8,
-    padding: '8px 12px',
+    padding: '7px 16px 7px 0',
+    whiteSpace: 'nowrap',
   },
+  tdType: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 12.5,
+    color: '#7fb38a',
+    padding: '7px 16px 7px 0',
+    whiteSpace: 'nowrap',
+  },
+  tdDesc: { color: '#9a9aa4', padding: '7px 0', lineHeight: 1.5 },
+  req: { color: '#d96b82', marginLeft: 1 },
+  propsFoot: { color: '#56565f', fontSize: 12.5, marginTop: 10 },
 }
