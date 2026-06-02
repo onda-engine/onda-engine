@@ -7,7 +7,7 @@
 //! frame, so it is readback-bound — a real-time swapchain present would be far
 //! faster.
 //!
-//!   cargo run --release -p onda-bench [-- frames]
+//!   cargo run --release -p onda-bench [-- frames clusters]   (clusters scales scene complexity)
 
 use std::time::{Duration, Instant};
 
@@ -24,41 +24,50 @@ fn at(x: f32, y: f32) -> Transform {
     }
 }
 
-/// A representative 1080p frame: backdrop, a few translucent discs, an accent
-/// bar, a title and a subtitle.
-fn scene() -> Scene {
-    Scene::new(Composition::new(1920, 1080, 30.0, 1)).with_root(
-        Node::group().with_children([
-            Node::shape(
-                Shape::rect(Size::new(1920.0, 1080.0)).with_fill(Color::rgb(0.04, 0.05, 0.09)),
-            ),
-            Node::shape(
-                Shape::ellipse(Size::new(520.0, 520.0))
-                    .with_fill(Color::new(0.16, 0.45, 0.95, 0.25)),
-            )
-            .with_transform(at(180.0, 120.0)),
-            Node::shape(
-                Shape::ellipse(Size::new(420.0, 420.0)).with_fill(Color::new(0.9, 0.3, 0.4, 0.22)),
-            )
-            .with_transform(at(1200.0, 420.0)),
-            Node::shape(
-                Shape::rect(Size::new(900.0, 12.0)).with_fill(Color::rgb(0.16, 0.45, 0.95)),
-            )
-            .with_transform(at(160.0, 640.0)),
-            Node::new(NodeKind::Text(
-                Text::new("ONDA Benchmark")
-                    .with_font_size(140.0)
-                    .with_color(Color::WHITE),
-            ))
-            .with_transform(at(160.0, 430.0)),
-            Node::new(NodeKind::Text(
-                Text::new("GPU-native motion graphics, no browser")
-                    .with_font_size(48.0)
-                    .with_color(Color::rgb(0.7, 0.75, 0.85)),
-            ))
-            .with_transform(at(164.0, 690.0)),
-        ]),
-    )
+/// One cluster: two translucent discs, an accent bar, a title and a subtitle —
+/// scattered by `i`. The unit of complexity, kept equivalent to the Remotion
+/// `Bench.tsx` cluster (same shapes, sizes, text, scatter) for a fair compare.
+fn cluster(i: usize) -> [Node; 5] {
+    let ox = ((i * 53) % 700) as f32;
+    let oy = ((i * 97) % 380) as f32;
+    [
+        Node::shape(
+            Shape::ellipse(Size::new(520.0, 520.0)).with_fill(Color::new(0.16, 0.45, 0.95, 0.25)),
+        )
+        .with_transform(at(180.0 + ox, 120.0 + oy)),
+        Node::shape(
+            Shape::ellipse(Size::new(420.0, 420.0)).with_fill(Color::new(0.9, 0.3, 0.4, 0.22)),
+        )
+        .with_transform(at(1200.0 - ox, 420.0 + oy)),
+        Node::shape(Shape::rect(Size::new(900.0, 12.0)).with_fill(Color::rgb(0.16, 0.45, 0.95)))
+            .with_transform(at(160.0 + ox, 640.0 + oy)),
+        Node::new(NodeKind::Text(
+            Text::new("ONDA Benchmark")
+                .with_font_size(140.0)
+                .with_color(Color::WHITE),
+        ))
+        .with_transform(at(160.0 + ox, 430.0 + oy)),
+        Node::new(NodeKind::Text(
+            Text::new("GPU-native motion graphics, no browser")
+                .with_font_size(48.0)
+                .with_color(Color::rgb(0.7, 0.75, 0.85)),
+        ))
+        .with_transform(at(164.0 + ox, 690.0 + oy)),
+    ]
+}
+
+/// A representative 1080p frame: a backdrop plus `repeats` scattered clusters.
+/// `repeats == 1` is the original trivial scene (Remotion's best case); higher
+/// values scale content, exposing the content-cost-vs-fixed-browser-cost gap.
+fn scene(repeats: usize) -> Scene {
+    let mut children = vec![Node::shape(
+        Shape::rect(Size::new(1920.0, 1080.0)).with_fill(Color::rgb(0.04, 0.05, 0.09)),
+    )];
+    for i in 0..repeats.max(1) {
+        children.extend(cluster(i));
+    }
+    Scene::new(Composition::new(1920, 1080, 30.0, 1))
+        .with_root(Node::group().with_children(children))
 }
 
 fn report(label: &str, frames: usize, elapsed: Duration) {
@@ -73,8 +82,15 @@ fn main() {
         .nth(1)
         .and_then(|a| a.parse().ok())
         .unwrap_or(120);
-    let scene = scene();
-    println!("ONDA render benchmark — 1920x1080, {frames} frames\n");
+    let repeats: usize = std::env::args()
+        .nth(2)
+        .and_then(|a| a.parse().ok())
+        .unwrap_or(1);
+    let scene = scene(repeats);
+    let nodes = 1 + repeats * 5;
+    println!(
+        "ONDA render benchmark — 1920x1080, {frames} frames, {repeats} clusters ({nodes} nodes)\n"
+    );
 
     // CPU backend, single-threaded.
     let mut cpu = Renderer::with_default_font();
