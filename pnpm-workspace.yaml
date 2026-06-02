@@ -1,5 +1,6 @@
 packages:
   - "packages/react"
+  - "packages/components"
   - "packages/player"
   - "packages/render"
   - "packages/wasm"
