@@ -19,6 +19,17 @@ export {
 // House easing
 export { HOUSE_EASE } from './easing.js'
 
+// Engine render-fidelity metadata — the capability signal for the agent contract.
+export {
+  type Backend,
+  COMPONENT_FIDELITY,
+  type ComponentFidelity,
+  ENGINE_CAPABILITIES,
+  type Fidelity,
+  FIDELITY_SUMMARY,
+  RECOMMENDED_PALETTE,
+} from './fidelity.js'
+
 // Theme (brand tokens — colors, fonts, logo) via React context
 export {
   type Theme,
