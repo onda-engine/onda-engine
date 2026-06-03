@@ -3,6 +3,7 @@ packages:
   - "packages/components"
   - "packages/player"
   - "packages/render"
+  - "packages/cinema"
   - "packages/wasm"
   - "packages/wasm-vello"
   - "apps/*"
