@@ -12,7 +12,9 @@
 use std::collections::HashMap;
 
 use onda_core::{Color, Transform};
-use onda_scene::{Gradient, GradientStop, ImageFit, Node, NodeKind, Scene, ShapeGeometry, Text};
+use onda_scene::{
+    Gradient, GradientStop, ImageData, ImageFit, Node, NodeKind, Scene, ShapeGeometry, Text,
+};
 use onda_typography::{FontContext, StyledRun};
 use vello::kurbo::{Affine, BezPath, Ellipse, Rect, RoundedRect, Shape, Stroke};
 use vello::peniko::{
@@ -207,64 +209,29 @@ fn build(
             }
         }
         NodeKind::Text(text) => draw_text(vscene, fonts, font_cache, text, affine, opacity),
+        // Image and Video draw decoded RGBA the same way (a video frame is just
+        // an image); pixels are attached by a decode pass and skipped if absent.
         NodeKind::Image(image) => {
-            if let Some(data) = &image.data {
-                if data.width > 0 && data.height > 0 {
-                    let pimg = PenikoImage::new(
-                        Blob::new(data.rgba.clone()),
-                        Format::Rgba8,
-                        data.width,
-                        data.height,
-                    );
-                    let (iw, ih) = (data.width as f64, data.height as f64);
-                    // Fit the decoded image into the optional target box. Without a
-                    // box, it draws at intrinsic size at `affine` (original path).
-                    let (img_affine, clip_box) = match (image.width, image.height) {
-                        (Some(bw), Some(bh)) if bw > 0.0 && bh > 0.0 => {
-                            let (bw, bh) = (bw as f64, bh as f64);
-                            let (sx, sy) = match image.fit {
-                                ImageFit::Fill => (bw / iw, bh / ih),
-                                ImageFit::Cover => {
-                                    let s = (bw / iw).max(bh / ih);
-                                    (s, s)
-                                }
-                                ImageFit::Contain => {
-                                    let s = (bw / iw).min(bh / ih);
-                                    (s, s)
-                                }
-                            };
-                            // Center the scaled image in the box.
-                            let dx = (bw - iw * sx) / 2.0;
-                            let dy = (bh - ih * sy) / 2.0;
-                            let a = affine
-                                * Affine::translate((dx, dy))
-                                * Affine::scale_non_uniform(sx, sy);
-                            // Cover overflows the box → clip it; fill/contain stay inside.
-                            let clip =
-                                (image.fit == ImageFit::Cover).then(|| Rect::new(0.0, 0.0, bw, bh));
-                            (a, clip)
-                        }
-                        _ => (affine, None),
-                    };
-                    // Clip cover overflow to the box (in node-local `affine` space).
-                    let did_clip = clip_box.is_some();
-                    if let Some(b) = clip_box {
-                        vscene.push_layer(Mix::Clip, 1.0, affine, &b);
-                    }
-                    // draw_image has no alpha arg; fold node opacity in via a layer.
-                    if opacity < 1.0 {
-                        let bounds = Rect::new(0.0, 0.0, iw, ih);
-                        vscene.push_layer(Mix::Normal, opacity, img_affine, &bounds);
-                        vscene.draw_image(&pimg, img_affine);
-                        vscene.pop_layer();
-                    } else {
-                        vscene.draw_image(&pimg, img_affine);
-                    }
-                    if did_clip {
-                        vscene.pop_layer();
-                    }
-                }
-            }
+            draw_image_data(
+                vscene,
+                affine,
+                opacity,
+                image.data.as_ref(),
+                image.width,
+                image.height,
+                image.fit,
+            );
+        }
+        NodeKind::Video(video) => {
+            draw_image_data(
+                vscene,
+                affine,
+                opacity,
+                video.data.as_ref(),
+                video.width,
+                video.height,
+                video.fit,
+            );
         }
         // SVG nodes are expanded to shapes before rendering (see onda-svg); an
         // unexpanded one draws nothing.
@@ -276,6 +243,75 @@ fn build(
     }
 
     if clipped {
+        vscene.pop_layer();
+    }
+}
+
+/// Draw decoded RGBA pixels into the optional `box_width`×`box_height` box per
+/// `fit` — shared by Image and Video nodes (a video frame is just an image).
+/// Without a box, the image draws at intrinsic size at `affine`.
+#[allow(clippy::too_many_arguments)]
+fn draw_image_data(
+    vscene: &mut VelloScene,
+    affine: Affine,
+    opacity: f32,
+    data: Option<&ImageData>,
+    box_width: Option<f32>,
+    box_height: Option<f32>,
+    fit: ImageFit,
+) {
+    let Some(data) = data else {
+        return;
+    };
+    if data.width == 0 || data.height == 0 {
+        return;
+    }
+    let pimg = PenikoImage::new(
+        Blob::new(data.rgba.clone()),
+        Format::Rgba8,
+        data.width,
+        data.height,
+    );
+    let (iw, ih) = (data.width as f64, data.height as f64);
+    let (img_affine, clip_box) = match (box_width, box_height) {
+        (Some(bw), Some(bh)) if bw > 0.0 && bh > 0.0 => {
+            let (bw, bh) = (bw as f64, bh as f64);
+            let (sx, sy) = match fit {
+                ImageFit::Fill => (bw / iw, bh / ih),
+                ImageFit::Cover => {
+                    let s = (bw / iw).max(bh / ih);
+                    (s, s)
+                }
+                ImageFit::Contain => {
+                    let s = (bw / iw).min(bh / ih);
+                    (s, s)
+                }
+            };
+            // Center the scaled image in the box.
+            let dx = (bw - iw * sx) / 2.0;
+            let dy = (bh - ih * sy) / 2.0;
+            let a = affine * Affine::translate((dx, dy)) * Affine::scale_non_uniform(sx, sy);
+            // Cover overflows the box → clip it; fill/contain stay inside.
+            let clip = (fit == ImageFit::Cover).then(|| Rect::new(0.0, 0.0, bw, bh));
+            (a, clip)
+        }
+        _ => (affine, None),
+    };
+    // Clip cover overflow to the box (in node-local `affine` space).
+    let did_clip = clip_box.is_some();
+    if let Some(b) = clip_box {
+        vscene.push_layer(Mix::Clip, 1.0, affine, &b);
+    }
+    // draw_image has no alpha arg; fold node opacity in via a layer.
+    if opacity < 1.0 {
+        let bounds = Rect::new(0.0, 0.0, iw, ih);
+        vscene.push_layer(Mix::Normal, opacity, img_affine, &bounds);
+        vscene.draw_image(&pimg, img_affine);
+        vscene.pop_layer();
+    } else {
+        vscene.draw_image(&pimg, img_affine);
+    }
+    if did_clip {
         vscene.pop_layer();
     }
 }

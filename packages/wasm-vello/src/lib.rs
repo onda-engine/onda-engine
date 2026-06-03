@@ -58,10 +58,13 @@ fn has_layout(scene: &Scene) -> bool {
     walk(&scene.root)
 }
 
-/// Whether any node is an image (so we skip the decode pass otherwise).
+/// Whether any node is an image or video (so we skip the decode pass otherwise).
 fn has_images(scene: &Scene) -> bool {
     fn walk(node: &onda_scene::Node) -> bool {
-        matches!(node.kind, onda_scene::NodeKind::Image(_)) || node.children.iter().any(walk)
+        matches!(
+            node.kind,
+            onda_scene::NodeKind::Image(_) | onda_scene::NodeKind::Video(_)
+        ) || node.children.iter().any(walk)
     }
     walk(&scene.root)
 }
