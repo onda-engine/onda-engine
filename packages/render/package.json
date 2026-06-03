@@ -1,0 +1,33 @@
+{
+  "name": "@onda/render",
+  "version": "0.0.0",
+  "description": "Render @onda/react compositions to a video/still file via the ONDA engine — the no-Chromium equivalent of Remotion's renderMedia.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@onda/react": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/react": "^18.3.12",
+    "react": "^18.3.1",
+    "vitest": "^2.1.8"
+  }
+}

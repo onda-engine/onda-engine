@@ -185,6 +185,25 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.19.19)(terser@5.48.0)
 
+  packages/render:
+    dependencies:
+      '@onda/react':
+        specifier: workspace:*
+        version: link:../react
+    devDependencies:
+      '@types/node':
+        specifier: ^22
+        version: 22.19.19
+      '@types/react':
+        specifier: ^18.3.12
+        version: 18.3.29
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.19.19)(terser@5.48.0)
+
   packages/wasm: {}
 
   packages/wasm-vello: {}
