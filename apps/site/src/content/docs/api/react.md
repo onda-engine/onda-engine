@@ -6,7 +6,7 @@ All components and helpers are imported from `@onda/react`. Each component is a 
 
 ```tsx
 import {
-  Composition, Group, Rect, Ellipse, Path, Text, Image, Svg,
+  Composition, Group, Rect, Ellipse, Path, Text, Image, Video, Svg,
   linearGradient, radialGradient, clipRect, clipEllipse, clipPath, parseColor,
 } from '@onda/react'
 ```
@@ -15,7 +15,7 @@ import {
 
 ### `NodeProps`
 
-Accepted by `<Group>`, `<Rect>`, `<Ellipse>`, `<Path>`, `<Text>`, `<Image>`, `<Svg>`.
+Accepted by `<Group>`, `<Rect>`, `<Ellipse>`, `<Path>`, `<Text>`, `<Image>`, `<Video>`, `<Svg>`.
 
 | Prop               | Type        | Default | Notes                                         |
 | ------------------ | ----------- | ------- | --------------------------------------------- |
@@ -102,6 +102,26 @@ Flex layout containers — position children relatively instead of by absolute `
 
 ```tsx
 <Image x={40} y={40} src="logo.png" scaleX={1.5} scaleY={1.5} />
+```
+
+`ImageProps` also accepts a `width`/`height` box with `fit` (`'cover'` default,
+`'contain'`, `'fill'`) — the renderer measures the decoded image to fit it.
+
+### `<Video>`
+
+`VideoProps extends NodeProps`. Required: `src: string` — a video path or `data:`
+URI. At composition frame *f* it shows the source frame at `startFrom + (f / fps)
+* playbackRate` seconds, fitted into the optional `width`/`height` box via `fit`
+exactly like `<Image>`. Optional: `startFrom` (seconds, default 0), `playbackRate`
+(default 1).
+
+The author layer only declares the wanted source time; decoding happens
+downstream — the browser player uses an off-screen `<video>` (so no Chromium is
+needed for *export*), and `onda export` decodes natively via ffmpeg (`--features
+video`). Renders on the GPU/Vello backend.
+
+```tsx
+<Video src="clip.webm" width={1280} height={720} fit="cover" startFrom={2} />
 ```
 
 ### `<Svg>`
