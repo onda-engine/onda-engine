@@ -11,10 +11,18 @@ export interface GalleryItem {
   themed?: boolean
   /** If set, the in-browser engine can't preview this yet — show this note. */
   note?: string
-  /** Live enum controls the gallery renders as a toggle above the preview (e.g.
-   *  a visualizer `type`). The FIRST option is the default. The chosen value is
-   *  merged into the component's props and the copyable snippet. */
-  controls?: { prop: string; label: string; options: string[] }[]
+  /** Live controls the gallery renders above the preview, merged into the
+   *  component's props (and the copyable snippet). With `options` it's a
+   *  button-group toggle (first option = default, e.g. a visualizer `type`);
+   *  without `options` it's a free-text input (e.g. a video URL) that defaults to
+   *  the demo prop value. */
+  controls?: {
+    prop: string
+    label: string
+    options?: string[]
+    placeholder?: string
+    hint?: string
+  }[]
 }
 
 export const GALLERY_CATEGORIES = [
@@ -1031,6 +1039,14 @@ export const GALLERY: GalleryItem[] = [
       letterbox: 60,
       borderRadius: 12,
     },
+    controls: [
+      {
+        prop: 'src',
+        label: 'Video URL',
+        placeholder: '/gallery-sample.webm',
+        hint: 'Paste a direct .mp4/.webm URL. Cross-origin needs CORS headers; YouTube/Vimeo page links won’t work — download the file first (e.g. yt-dlp).',
+      },
+    ],
     themed: true,
   },
   {
