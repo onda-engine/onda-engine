@@ -46,7 +46,8 @@ export interface TypewriterProps {
   fontWeight?: number
   /** Italic text. */
   italic?: boolean
-  /** Absolute x of the text's left edge. Defaults to ~8% of canvas width. */
+  /** Absolute x of the text's left edge. Defaults to a centered origin derived
+   *  from the estimated full-text width. */
   x?: number
   /** Absolute y baseline-ish top of the text. Defaults to vertical center. */
   y?: number
@@ -85,10 +86,15 @@ export function Typewriter({
   const cursorVisible = Math.floor(frame / half) % 2 === 0
   const showCursor = cursor && !done && cursorVisible
 
-  // Absolute placement (left-anchored, vertically centered) so the growing
-  // string never triggers a Flex reflow. Roughly center the single line by
-  // offsetting the top by half the cap height.
-  const px = x ?? Math.round(width * 0.08)
+  // Absolute placement so the growing string never triggers a Flex reflow.
+  // There are no author-time text metrics, so the centered left origin is
+  // derived from an ESTIMATED width of the FULL string (~0.55em per glyph for a
+  // display face). Centering on the full width — not the growing substring —
+  // keeps the origin rock-steady (the line would slide sideways otherwise)
+  // while the completed line reads centered on the canvas. The single line is
+  // vertically centered by offsetting the top by ~half the cap height.
+  const estTextWidth = text.length * fontSize * 0.55
+  const px = x ?? Math.round(width / 2 - estTextWidth / 2)
   const py = y ?? Math.round(height / 2 - fontSize * 0.6)
 
   // Append the cursor as a separate styled run so the engine measures the text

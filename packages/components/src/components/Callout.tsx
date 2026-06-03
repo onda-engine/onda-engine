@@ -38,6 +38,22 @@ import { useTheme } from '../theme.js'
  *  face. Used only to estimate the bubble width when `width` is omitted. */
 const WIDTH_RATIO = 0.56
 
+/** Default bubble surface. The theme `surface` (~`#121217`) sits barely above
+ *  the canvas (`#0a0d17`), so a speech bubble drawn with it vanishes. A callout
+ *  is an annotation that must POP off the canvas, so its default fill is an
+ *  elevated, lighter surface (a translucent white wash, `#rrggbbaa`, that lifts
+ *  whatever the background is). An explicit `bgColor` prop still wins. */
+const ELEVATED_SURFACE = '#ffffff1a' // white @ ~10%
+
+/** Default bubble border — a brighter hairline than the theme `border`
+ *  (~`#26262c`) so the bubble + pointer read a clear edge on the dark canvas. */
+const ELEVATED_BORDER = '#ffffff47' // white @ ~28%
+
+/** How far the pointer's base overlaps INTO the bubble body (px). The bubble is
+ *  drawn on top of this overlap, so the tail and body share one continuous fill
+ *  with no seam at the edge. A couple of px absorbs sub-pixel/anti-alias gaps. */
+const POINTER_OVERLAP = 2
+
 /** Which side of the bubble the pointer triangle sticks out from (and thus the
  *  rough direction the callout is aimed). */
 export type CalloutDirection = 'top' | 'bottom' | 'left' | 'right'
@@ -61,9 +77,10 @@ export interface CalloutProps {
   lineDuration?: number
   /** Label color (default: theme `text`). */
   color?: string
-  /** Bubble background fill (default: theme `surface`). */
+  /** Bubble background fill (default: an elevated translucent-white surface that
+   *  lifts the bubble off the dark canvas). */
   bgColor?: string
-  /** Bubble border color (default: theme `border`). */
+  /** Bubble border color (default: a bright translucent-white hairline). */
   borderColor?: string
   /** Bubble border width in px (default 1). */
   borderWidth?: number
@@ -114,8 +131,10 @@ export function Callout({
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
   const theme = useTheme()
   const color = colorProp ?? theme.text
-  const bgColor = bgColorProp ?? theme.surface
-  const borderColor = borderColorProp ?? theme.border
+  // Default to an elevated surface/border (not the near-black theme tokens) so
+  // the bubble + pointer separate from the dark canvas; explicit props win.
+  const bgColor = bgColorProp ?? ELEVATED_SURFACE
+  const borderColor = borderColorProp ?? ELEVATED_BORDER
   const fontFamily = fontFamilyProp ?? theme.fontFamily
   const cornerRadius = cornerRadiusProp ?? theme.radius
 
@@ -151,8 +170,13 @@ export function Callout({
   const halfH = bubbleH / 2
 
   // Pointer triangle in bubble-center-relative coordinates. Apex points outward
-  // along `direction`; base sits flush against the corresponding bubble edge.
-  const pointerPath = buildPointer(direction, halfW, halfH, pointerWidth, pointerLength)
+  // along `direction`; the base OVERLAPS into the bubble body (by `POINTER_OVERLAP`)
+  // so the bubble — drawn on top — covers the base seam and the tail fuses with
+  // the body into one continuous surface. `fill` is the closed (overlapping)
+  // triangle drawn UNDER the bubble; `outline` is just the two outer edges
+  // (apex → each base corner, no base line), drawn OVER the bubble so the border
+  // wraps the tail and meets the bubble's edge stroke flush.
+  const pointer = buildPointer(direction, halfW, halfH, pointerWidth, pointerLength)
 
   // Text top-left, centered in the bubble (relative to center). The engine's
   // line box is ~fontSize * 1.2 tall, so center on that to sit on the optical
@@ -165,15 +189,15 @@ export function Callout({
     <Group x={centerX} y={centerY}>
       {/* Scaling group: origin at bubble center, so entryScale grows about center. */}
       <Group scaleX={grow.scaleX} scaleY={grow.scaleY} opacity={fade.opacity}>
-        {/* Pointer triangle — fades/rises in slightly after the bubble. */}
+        {/* Tail fill — fades/rises in slightly after the bubble (one-thing-at-a-
+            time pacing). Drawn FIRST, with its base overlapping up into the body,
+            so the bubble (next) paints over the base and no seam shows. Same fill
+            as the body, so the tail reads as the same lifted surface. */}
         <Group opacity={pointerMotion.opacity} x={pointerMotion.x} y={pointerMotion.y}>
-          <Path d={pointerPath} fill={bgColor} />
-          {borderWidth > 0 ? (
-            <Path d={pointerPath} stroke={borderColor} strokeWidth={borderWidth} />
-          ) : null}
+          <Path d={pointer.fill} fill={bgColor} />
         </Group>
 
-        {/* Bubble body. */}
+        {/* Bubble body, drawn over the tail base to hide the overlap seam. */}
         <Rect
           x={-halfW}
           y={-halfH}
@@ -184,6 +208,15 @@ export function Callout({
           stroke={borderWidth > 0 ? borderColor : undefined}
           strokeWidth={borderWidth}
         />
+
+        {/* Tail outer edges (apex → each base corner, no base line), drawn OVER
+            the bubble — and on the same pointer motion as the fill — so the border
+            wraps the tail and joins the bubble's bottom-edge stroke flush. */}
+        {borderWidth > 0 ? (
+          <Group opacity={pointerMotion.opacity} x={pointerMotion.x} y={pointerMotion.y}>
+            <Path d={pointer.outline} stroke={borderColor} strokeWidth={borderWidth} />
+          </Group>
+        ) : null}
 
         {/* Label. */}
         <Text
@@ -201,28 +234,47 @@ export function Callout({
   )
 }
 
-/** SVG path for the pointer triangle, in bubble-center-relative space. The base
- *  sits flush along the chosen edge; the apex pokes out by `length`. */
+/** Pointer-triangle geometry in bubble-center-relative space, as two SVG paths:
+ *  - `fill`: a CLOSED triangle whose base sits `POINTER_OVERLAP` px INSIDE the
+ *    bubble edge, so the bubble (painted on top) covers the base and the tail
+ *    fuses with the body into one seamless surface.
+ *  - `outline`: an OPEN path of just the two outer edges (base corner → apex →
+ *    base corner, no base line), with the corners ON the bubble edge so the tail
+ *    border meets the bubble's edge stroke flush — no chevron, no seam.
+ *  The apex pokes out by `length` along `direction`. */
 function buildPointer(
   direction: CalloutDirection,
   halfW: number,
   halfH: number,
   base: number,
   length: number,
-): string {
+): { fill: string; outline: string } {
   const h = base / 2
+  const o = POINTER_OVERLAP
   switch (direction) {
     case 'top':
-      // Apex above the top edge.
-      return `M ${-h} ${-halfH} L ${h} ${-halfH} L 0 ${-halfH - length} Z`
+      // Apex above the top edge; base overlaps down into the body.
+      return {
+        fill: `M ${-h} ${-halfH + o} L ${h} ${-halfH + o} L 0 ${-halfH - length} Z`,
+        outline: `M ${-h} ${-halfH} L 0 ${-halfH - length} L ${h} ${-halfH}`,
+      }
     case 'left':
-      // Apex left of the left edge.
-      return `M ${-halfW} ${-h} L ${-halfW} ${h} L ${-halfW - length} 0 Z`
+      // Apex left of the left edge; base overlaps right into the body.
+      return {
+        fill: `M ${-halfW + o} ${-h} L ${-halfW + o} ${h} L ${-halfW - length} 0 Z`,
+        outline: `M ${-halfW} ${-h} L ${-halfW - length} 0 L ${-halfW} ${h}`,
+      }
     case 'right':
-      // Apex right of the right edge.
-      return `M ${halfW} ${-h} L ${halfW} ${h} L ${halfW + length} 0 Z`
+      // Apex right of the right edge; base overlaps left into the body.
+      return {
+        fill: `M ${halfW - o} ${-h} L ${halfW - o} ${h} L ${halfW + length} 0 Z`,
+        outline: `M ${halfW} ${-h} L ${halfW + length} 0 L ${halfW} ${h}`,
+      }
     default:
-      // 'bottom' — apex below the bottom edge.
-      return `M ${-h} ${halfH} L ${h} ${halfH} L 0 ${halfH + length} Z`
+      // 'bottom' — apex below the bottom edge; base overlaps up into the body.
+      return {
+        fill: `M ${-h} ${halfH - o} L ${h} ${halfH - o} L 0 ${halfH + length} Z`,
+        outline: `M ${-h} ${halfH} L 0 ${halfH + length} L ${h} ${halfH}`,
+      }
   }
 }

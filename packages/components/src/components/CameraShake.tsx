@@ -11,18 +11,20 @@
 //! content sits perfectly still. With `decay` (the default) the amplitude ramps
 //! linearly to 0 across the window, so the camera settles to rest by the end.
 //!
-//! Layout caveat: this applies a motion *translate* to its `<Group>`, which a
-//! `<Flex>`/`<AbsoluteFill>` layout pass would clobber on a direct child. Use it
-//! as an ABSOLUTE wrapper — at the top of a scene, or nested inside an outer
-//! `<Group>` that the layout positions (outer = layout, this = motion). The `x`/
-//! `y` props set the wrapper's rest position; the shake is added on top.
+//! Layout: the child is centered in the composition by an outer
+//! `<AbsoluteFill>` (justify/align center), and the shake is a SMALL ± offset
+//! applied by the inner motion `<Group>` ON TOP of that centered rest position —
+//! never a large absolute translate from the top-left origin. The motion
+//! `<Group>` is the AbsoluteFill's child, so the layout pass centers its box and
+//! the jitter rides on top (HARD RULE 2 holds: the box itself doesn't reflow).
+//! The `x`/`y` props nudge the rest position relative to that center.
 //!
 //! Engine note: `rotation` renders on the Vello/GPU backend; the CPU reference
 //! rasterizer ignores it (the x/y jitter still applies on both). Keep
 //! `rotationIntensity` small — a fraction of a degree reads as a hand-held
 //! wobble; more reads as a tumble.
 
-import { Group, random, useCurrentFrame } from '@onda/react'
+import { AbsoluteFill, Group, random, useCurrentFrame } from '@onda/react'
 import type { ReactNode } from 'react'
 import { DURATION } from '../motion.js'
 
@@ -85,9 +87,14 @@ export function CameraShake({
     rotation = (random(seed + frame * 3 + 2) - 0.5) * 2 * currentRotation
   }
 
+  // Center the child in the composition, then jitter it with the SMALL shake
+  // offset on top — the shake oscillates around the centered rest position
+  // rather than displacing from the top-left origin.
   return (
-    <Group x={x + offsetX} y={y + offsetY} rotation={rotation}>
-      {children}
-    </Group>
+    <AbsoluteFill justify="center" align="center">
+      <Group x={x + offsetX} y={y + offsetY} rotation={rotation}>
+        {children}
+      </Group>
+    </AbsoluteFill>
   )
 }

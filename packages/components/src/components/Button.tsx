@@ -19,9 +19,11 @@
 //! Approximations vs the ondajs (CSS) original:
 //! - `box-shadow` (the soft accent glow on primary, the quiet inset lift) has no
 //!   scene-graph equivalent — dropped. Depth is implied by the fill/border alone.
-//! - The primary variant's subtle light border (`1px solid rgba(255,255,255,
-//!   0.14)`) and the ghost's inset highlight are dropped — no inset-shadow/inner-
-//!   stroke primitive; the accent fill / `color` border carry the shape.
+//! - The primary variant keeps the ondajs subtle light border (`1px solid
+//!   rgba(255,255,255,0.14)` → {@link PRIMARY_BORDER}), drawn as a thin stroke so
+//!   the solid accent fill reads as a crisp, raised CTA against the dark canvas
+//!   rather than a flat wash. The ghost's inset highlight is still dropped (no
+//!   inset-shadow primitive); its `color` border carries the shape.
 //! - `letter-spacing: -0.01em` is unsupported by the text engine — dropped.
 //! - The label width/height are ESTIMATED from glyph count × font size (no
 //!   author-time text metrics), so the centering is approximate; pass `width`
@@ -48,6 +50,13 @@ const LINE_RATIO = 1.2
 const PRESS_SCALE = 0.94
 const PRESS_IN = 3
 const PRESS_OUT = 7
+
+// Subtle top-light edge on the primary pill (ondajs's `1px solid
+// rgba(255,255,255,0.14)`, as `#ffffff24` — the engine takes hex, not CSS
+// `rgba()`), drawn as a thin stroke. It crisps the solid accent fill into a
+// deliberate, raised CTA instead of a flat, washed-out wash.
+const PRIMARY_BORDER = '#ffffff24'
+const PRIMARY_BORDER_WIDTH = 1
 
 export interface ButtonProps {
   /** The button label. */
@@ -179,8 +188,8 @@ export function Button({
               height={height}
               cornerRadius={radius}
               fill={isPrimary ? color : '#00000000'}
-              stroke={isPrimary ? undefined : color}
-              strokeWidth={isPrimary ? undefined : borderWidth}
+              stroke={isPrimary ? PRIMARY_BORDER : color}
+              strokeWidth={isPrimary ? PRIMARY_BORDER_WIDTH : borderWidth}
             />
             <Text
               x={labelX}

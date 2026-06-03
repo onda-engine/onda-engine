@@ -101,17 +101,25 @@ export function TrackingIn({
   const trackPx = ls * fontSize
   // Estimated natural advance per glyph (excluding tracking).
   const charAdvance = fontSize * advanceFactor
-  // Per-glyph slot width including the current tracking.
-  const slot = charAdvance + trackPx
+  // Per-glyph slot width including the current tracking. Floor the advance so
+  // negative tracking can tighten the line but never collapse a glyph onto its
+  // neighbour: the rendered glyphs are wider than `charAdvance` at display
+  // weights, so unclamped negative tracking makes them overlap (O over N,
+  // D/A merge). Keep each step at >= MIN_ADVANCE_FRACTION of the natural
+  // advance so letters touch but stay legible.
+  const MIN_ADVANCE_FRACTION = 0.85
+  const slot = Math.max(charAdvance + trackPx, charAdvance * MIN_ADVANCE_FRACTION)
 
   // Split into characters, preserving spaces. Render every char as its own
   // <Text> so each can be positioned independently.
   const chars = [...text]
   const count = chars.length
 
-  // Total width of the line at the current tracking. Tracking sits BETWEEN
-  // glyphs, so there are (count - 1) gaps.
-  const lineWidth = count > 0 ? charAdvance * count + trackPx * Math.max(0, count - 1) : 0
+  // Total width of the line at the current tracking. Each step advances by the
+  // (clamped) `slot`; the last glyph adds its own advance, so width is
+  // `slot * (count - 1) + charAdvance`. Using the clamped `slot` keeps the
+  // centering anchor consistent with the actual glyph layout.
+  const lineWidth = count > 0 ? slot * Math.max(0, count - 1) + charAdvance : 0
 
   // Anchor x: center by default. Resolve alignment about the anchor.
   const anchorX = x ?? Math.round(width / 2)

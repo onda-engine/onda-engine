@@ -24,21 +24,27 @@
 //! origin-relative (like `SlideIn`/`Underline`): position it via a parent `x`/`y`
 //! or an `<AbsoluteFill>` rather than as a measured `<Flex>` child.
 
-import { Group, Text, clipRect } from '@onda/react'
+import { Group, Text, clipRect, useVideoConfig } from '@onda/react'
 import type { ReactNode } from 'react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
 
 /** Mean glyph advance as a fraction of font size — a rough display-sans heuristic
- *  used only to size the clip box (the engine measures the real glyphs). */
-const CHAR_WIDTH_FACTOR = 0.55
+ *  used only to size the clip box (the engine measures the real glyphs). Sized on
+ *  the generous side so the estimated box never falls short of the real glyph run
+ *  and parks the hard reveal edge over the final glyph. */
+const CHAR_WIDTH_FACTOR = 0.62
 /** Engine line-box height as a multiple of font size (matches the typography
  *  crate / the ratio `Underline` and `Highlight` use). */
 const LINE_RATIO = 1.2
 /** Extra px around the estimated text box so the hard reveal edge sweeps cleanly
  *  past the glyphs and descenders are never trimmed. */
 const BOX_PAD = 8
+/** Extra px added to each end of the reveal axis (on top of `BOX_PAD`) so the
+ *  last glyph clears the right/leading edge of the clip even at rest (p = 1) and
+ *  is never trimmed by the estimate. */
+const AXIS_PAD = 12
 
 export interface MaskRevealProps {
   /** What to reveal (single line). Ignored when `children` is supplied. */
@@ -93,13 +99,13 @@ export function MaskReveal({
 
   // Clip box. With explicit children the caller owns the box; for `text` it's
   // estimated from glyph count × size, padded so the sweep clears the glyphs.
-  const boxW = width ?? Math.max(1, text.length * fontSize * CHAR_WIDTH_FACTOR + BOX_PAD * 2)
+  const boxW = width ?? Math.max(1, text.length * fontSize * CHAR_WIDTH_FACTOR + (BOX_PAD + AXIS_PAD) * 2)
   const boxH = height ?? Math.round(fontSize * LINE_RATIO + BOX_PAD * 2)
 
   // The content rendered beneath the mask — fully painted from frame 0.
   const content: ReactNode = children ?? (
     <Text
-      x={width != null ? 0 : BOX_PAD}
+      x={width != null ? 0 : BOX_PAD + AXIS_PAD}
       y={height != null ? 0 : BOX_PAD}
       fontSize={fontSize}
       color={color}
@@ -116,40 +122,58 @@ export function MaskReveal({
   // scales with `p`. For one that grows TOWARD the origin (right/bottom) we offset
   // the whole box by the not-yet-revealed amount, clip at the origin, and offset
   // the content back so it stays put — the moving edge then sweeps from that side.
+  let inner: ReactNode
   switch (direction) {
-    case 'left': {
-      // Content comes in from the left → mask covers the right, retreats rightward.
-      const w = boxW * p
-      return <Group clip={clipRect(w, boxH)}>{content}</Group>
-    }
     case 'top': {
       // Content comes in from the top → mask covers the bottom, retreats downward.
       const h = boxH * p
-      return <Group clip={clipRect(boxW, h)}>{content}</Group>
+      inner = <Group clip={clipRect(boxW, h)}>{content}</Group>
+      break
     }
     case 'right': {
       // Content comes in from the right → mask covers the left, retreats leftward.
       const w = boxW * p
       const dx = boxW - w
-      return (
+      inner = (
         <Group x={dx}>
           <Group x={-dx} clip={clipRect(w, boxH)}>
             {content}
           </Group>
         </Group>
       )
+      break
     }
     case 'bottom': {
       // Content comes in from the bottom → mask covers the top, retreats upward.
       const h = boxH * p
       const dy = boxH - h
-      return (
+      inner = (
         <Group y={dy}>
           <Group y={-dy} clip={clipRect(boxW, h)}>
             {content}
           </Group>
         </Group>
       )
+      break
+    }
+    default: {
+      // 'left' — content comes in from the left → mask covers the right, retreats rightward.
+      const w = boxW * p
+      inner = <Group clip={clipRect(w, boxH)}>{content}</Group>
     }
   }
+
+  // Center the (origin-relative) clip box on the canvas — the assembly is laid
+  // out from its top-left, so without this it would sit in the corner (the
+  // Underline/BarChart pattern). A static centered origin avoids any per-frame
+  // reflow as the clip edge sweeps. Explicit children that overflow the estimated
+  // box still anchor to this centered top-left.
+  const { width: compWidth, height: compHeight } = useVideoConfig()
+  const originX = Math.round((compWidth - boxW) / 2)
+  const originY = Math.round((compHeight - boxH) / 2)
+  return (
+    <Group x={originX} y={originY}>
+      {inner}
+    </Group>
+  )
 }

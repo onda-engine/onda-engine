@@ -268,12 +268,16 @@ export function BentoGrid({
 
   const { cells, rows } = packCells(items, cols, colWidth, trackHeight, gap)
 
-  // Total grid footprint (no trailing gap past the last row/column).
+  // Actual packed footprint. The declared `width` is an upper bound: if the
+  // last column ends up empty (the packer left a trailing track), the real
+  // content is narrower, so center on the measured extent — not `width` — to
+  // keep the margins symmetric. Height likewise has no trailing gap.
+  const gridWidth = cells.length > 0 ? Math.max(...cells.map((c) => c.x + c.w)) : width
   const gridHeight = rows > 0 ? rows * trackHeight + (rows - 1) * gap : 0
 
   // Self-center the fixed-size grid by computing its top-left offset directly —
   // no layout container, so the per-frame entrance translate never reflows.
-  const originX = Math.round((canvasW - width) / 2)
+  const originX = Math.round((canvasW - gridWidth) / 2)
   const originY = Math.round((canvasH - gridHeight) / 2)
 
   const radius = theme.radius

@@ -102,13 +102,21 @@ export function CountUp({
   const { opacity } = entryFade({ frame, fps, delay, durationInFrames })
 
   // The numeric progress on the same family of springs, computed independently
-  // so we can map it onto the range [from, to].
-  const progress = spring({
-    frame: frame - delay,
-    fps,
-    config: snappy ? SPRING_SNAPPY : SPRING_SMOOTH,
-    durationInFrames,
-  })
+  // so we can map it onto the range [from, to]. The spring counts as "settled"
+  // within a rest threshold of 1, so it asymptotes just shy of the target; once
+  // the count duration has elapsed, snap progress to exactly 1 so the displayed
+  // value lands on `to` precisely (otherwise it rests a hair short, e.g. 12,783
+  // instead of 12,847).
+  const elapsed = frame - delay
+  const progress =
+    elapsed >= durationInFrames
+      ? 1
+      : spring({
+          frame: elapsed,
+          fps,
+          config: snappy ? SPRING_SNAPPY : SPRING_SMOOTH,
+          durationInFrames,
+        })
 
   const value = interpolate(progress, [0, 1], [from, to], {
     extrapolateLeft: 'clamp',

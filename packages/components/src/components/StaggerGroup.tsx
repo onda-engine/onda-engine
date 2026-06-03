@@ -21,7 +21,7 @@
 //! and per-item visibility is driven by the staggered local frame fed into
 //! `entryFadeRise`, so frame N is correct with zero knowledge of frame N-1.
 
-import { Flex, Group, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { AbsoluteFill, Flex, Group, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFadeRise } from '../choreography.js'
 import { DURATION, STAGGER, staggerFrames } from '../motion.js'
 import { useTheme } from '../theme.js'
@@ -71,33 +71,39 @@ export function StaggerGroup({
   const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   return (
-    <Flex direction={direction} align={align} gap={gap}>
-      {items.map((item, i) => {
-        // Per-item entrance, staggered. `entryFadeRise` clamps at both ends, so
-        // the item is correct before it starts and after it has settled.
-        const { opacity, y } = entryFadeRise({
-          frame,
-          fps,
-          delay: delay + staggerFrames(i, stagger),
-          durationInFrames: duration,
-        })
-        return (
-          // Outer group: positioned by the layout pass; carries opacity (safe).
-          // Inner group: carries the rise translate (survives layout; no reflow).
-          <Group key={i} opacity={opacity}>
-            <Group y={y}>
-              <Text
-                fontSize={fontSize}
-                color={color}
-                fontFamily={fontFamily}
-                fontWeight={fontWeight}
-              >
-                {item}
-              </Text>
+    // Center the whole cascade in the composition. `AbsoluteFill` is a
+    // full-size flex container; its center alignment positions the inner
+    // `Flex` block. The inner `Flex` keeps `align` to control how the items
+    // align relative to one another.
+    <AbsoluteFill justify="center" align="center">
+      <Flex direction={direction} align={align} gap={gap}>
+        {items.map((item, i) => {
+          // Per-item entrance, staggered. `entryFadeRise` clamps at both ends, so
+          // the item is correct before it starts and after it has settled.
+          const { opacity, y } = entryFadeRise({
+            frame,
+            fps,
+            delay: delay + staggerFrames(i, stagger),
+            durationInFrames: duration,
+          })
+          return (
+            // Outer group: positioned by the layout pass; carries opacity (safe).
+            // Inner group: carries the rise translate (survives layout; no reflow).
+            <Group key={i} opacity={opacity}>
+              <Group y={y}>
+                <Text
+                  fontSize={fontSize}
+                  color={color}
+                  fontFamily={fontFamily}
+                  fontWeight={fontWeight}
+                >
+                  {item}
+                </Text>
+              </Group>
             </Group>
-          </Group>
-        )
-      })}
-    </Flex>
+          )
+        })}
+      </Flex>
+    </AbsoluteFill>
   )
 }

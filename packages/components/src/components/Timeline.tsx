@@ -117,10 +117,19 @@ export function Timeline({
   // Pixels reserved between a dot's right edge and its label.
   const labelGap = Math.round(dotSize * 0.9) + 16
 
-  // Fixed footprint of the whole subtree. Width is a generous fixed value so the
-  // composition centers the line + labels predictably (single-line labels are
-  // engine-measured but we don't reflow around them).
-  const subtreeWidth = 520
+  // Local x where labels start (just past the dot + gap).
+  const labelX = dotSize + labelGap
+
+  // Footprint of the whole subtree. Content runs from the dot column's left edge
+  // (local x=0) to the right end of the WIDEST label. There are no author-time
+  // text metrics, so estimate label width as length * fontSize * 0.55 (display)
+  // and reserve from `labelX` outward — this is what we center on so the timeline
+  // lands on true canvas center rather than inside an over-generous fixed box.
+  const maxLabelWidth = events.reduce(
+    (max, e) => Math.max(max, Math.ceil(e.label.length * fontSize * 0.55)),
+    0,
+  )
+  const subtreeWidth = labelX + maxLabelWidth
   const subtreeHeight = dotsSpan
 
   // Center by an explicit offset — no layout container chasing the animated clip.

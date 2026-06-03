@@ -5,14 +5,15 @@
 //! function of frame (no timers): the halo ring scales 1 → 2.6 while fading
 //! 0.5 → 0, over a solid core dot.
 //!
-//! Layout note: the ring is an `<Ellipse>` whose *scale* animates each frame.
-//! Scene scale pivots on the node's local origin (0,0), so the ring must be
-//! centered on that pivot — its top-left is offset by `-size/2` inside a
-//! `<Group x={size/2} y={size/2}>` that marks the dot's center. Everything is
-//! positioned with explicit x/y (not `<Flex>`) so the per-frame size change of
-//! the ring can't make a layout container reflow/jiggle.
+//! Layout note: the ring's *scale* animates each frame. Scene scale pivots on
+//! the node's local origin (0,0), so the scale lives on a `<Group>` placed at
+//! the dot's center, with the ring `<Ellipse>` offset by `-size/2` inside it —
+//! that way the halo grows symmetrically and stays concentric with the core
+//! dot. With no explicit x/y, the dot + label assembly is centered on the
+//! composition. Everything is positioned with explicit x/y (not `<Flex>`) so the
+//! per-frame size change of the ring can't make a layout container reflow/jiggle.
 
-import { Ellipse, Group, Text, interpolate, useCurrentFrame } from '@onda/react'
+import { Ellipse, Group, Text, interpolate, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useTheme } from '../theme.js'
 
 export interface PulsingIndicatorProps {
@@ -30,7 +31,10 @@ export interface PulsingIndicatorProps {
   fontSize?: number
   /** Frames per pulse cycle. */
   period?: number
-  /** Placement of the indicator's top-left (the dot's bounding box). */
+  /**
+   * Placement of the indicator's top-left (the dot's bounding box). When
+   * omitted, the dot + label assembly is centered on the composition.
+   */
   x?: number
   y?: number
 }
@@ -43,11 +47,12 @@ export function PulsingIndicator({
   fontFamily: fontFamilyProp,
   fontSize = 28,
   period = 45,
-  x = 0,
-  y = 0,
+  x: xProp,
+  y: yProp,
 }: PulsingIndicatorProps) {
   const frame = useCurrentFrame()
   const theme = useTheme()
+  const { width, height } = useVideoConfig()
   const color = colorProp ?? theme.accent
   const labelColor = labelColorProp ?? theme.textMuted
   const fontFamily = fontFamilyProp ?? theme.fontFamily
@@ -65,21 +70,25 @@ export function PulsingIndicator({
   // text-transform, so uppercase here.
   const labelText = label ? label.toUpperCase() : ''
 
+  // No author-time text metrics: estimate the label width from its length, then
+  // size the whole assembly (dot + gap + label) so we can center it when no
+  // explicit x/y is given. The default = centered on the composition.
+  const labelWidth = labelText ? labelText.length * fontSize * 0.55 : 0
+  const assemblyWidth = size + (labelText ? labelGap + labelWidth : 0)
+  const x = xProp ?? (width - assemblyWidth) / 2
+  const y = yProp ?? (height - size) / 2
+
   return (
     <Group x={x} y={y}>
       {/* Origin at the dot's center, so the ring scales about its middle. */}
       <Group x={radius} y={radius}>
-        {/* Expanding halo ring — scales + fades, drawn under the core. */}
-        <Ellipse
-          x={-radius}
-          y={-radius}
-          width={size}
-          height={size}
-          fill={color}
-          scaleX={ringScale}
-          scaleY={ringScale}
-          opacity={ringOpacity}
-        />
+        {/* Expanding halo ring — scales + fades about the dot center. The scale
+            lives on this Group (pivoting on its local origin, the dot center),
+            with the ellipse offset by -radius so the ellipse's own bbox is
+            centered on the pivot; this keeps the halo concentric with the dot. */}
+        <Group scaleX={ringScale} scaleY={ringScale} opacity={ringOpacity}>
+          <Ellipse x={-radius} y={-radius} width={size} height={size} fill={color} />
+        </Group>
         {/* Solid core dot. */}
         <Ellipse x={-radius} y={-radius} width={size} height={size} fill={color} />
       </Group>

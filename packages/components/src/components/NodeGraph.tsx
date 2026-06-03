@@ -95,12 +95,40 @@ export interface NodeGraphProps {
   centerY?: number
 }
 
+// Five satellites on evenly-spaced spokes (`i * 2π/5`) at a uniform radius so
+// the constellation reads as a balanced, centered ring rather than a lopsided
+// cluster. The ring is rotated by half a step (`SPOKE_GAP/2`) off straight-up so
+// two spokes *straddle* the top symmetrically instead of one pointing dead-center
+// up — which otherwise leaves a wide empty wedge on either side of the top. The
+// slow signed drift keeps the orbit alive without letting spokes bunch up.
+const SPOKE_GAP = (2 * Math.PI) / 5
+const SPOKE_BASE = -Math.PI / 2 - SPOKE_GAP / 2
 const DEFAULT_SATELLITES: Satellite[] = [
-  { label: 'data', radius: 260, speed: 0.01, startAngle: 0.4 },
-  { label: 'model', radius: 340, speed: -0.007, startAngle: 1.7 },
-  { label: 'render', radius: 210, speed: 0.013, startAngle: 2.9 },
-  { label: 'audio', radius: 380, speed: -0.006, startAngle: 4.1 },
-  { label: 'scene', radius: 300, speed: 0.009, startAngle: 5.3 },
+  { label: 'data', radius: 300, speed: 0.006, startAngle: SPOKE_BASE },
+  {
+    label: 'model',
+    radius: 300,
+    speed: 0.006,
+    startAngle: SPOKE_BASE + SPOKE_GAP,
+  },
+  {
+    label: 'render',
+    radius: 300,
+    speed: 0.006,
+    startAngle: SPOKE_BASE + 2 * SPOKE_GAP,
+  },
+  {
+    label: 'audio',
+    radius: 300,
+    speed: 0.006,
+    startAngle: SPOKE_BASE + 3 * SPOKE_GAP,
+  },
+  {
+    label: 'scene',
+    radius: 300,
+    speed: 0.006,
+    startAngle: SPOKE_BASE + 4 * SPOKE_GAP,
+  },
 ]
 
 // How far off-frame a satellite starts before it flies into orbit.
@@ -156,6 +184,8 @@ export function NodeGraph({
     easing: HOUSE_EASE,
   })
 
+  const hubRadius = hubDiameter / 2
+
   // Per-satellite deterministic motion. Each draw uses a distinct sub-seed so
   // the sequence is stable every render and across renderers (§1).
   const nodes = satellites.map((sat, i) => {
@@ -197,10 +227,52 @@ export function NodeGraph({
     const flare = wave ** 4 // mostly low, brief peaks
     const lineLit = flare * p
 
-    return { sat, x, y, opacity, lineLit }
+    // Pill geometry (label width can't be measured back, so it's estimated).
+    const padX = 18
+    const labelW = sat.label.length * satelliteFontSize * AVG_CHAR_W
+    const pillW = labelW + padX * 2
+    const pillH = satelliteFontSize + 20
+
+    // Edge endpoint: stop at the pill's near edge (toward the hub), not its
+    // center, so the connection line meets the pill cleanly. Treat the pill as
+    // a rounded box and shrink the (x, y) target by the half-extent the
+    // hub→pill ray crosses on entry, plus the hub radius at the near end.
+    const dist = Math.hypot(x, y)
+    let edgeStartX = 0
+    let edgeStartY = 0
+    let edgeEndX = x
+    let edgeEndY = y
+    if (dist > 0.001) {
+      const ux = x / dist
+      const uy = y / dist
+      // Half-extent of the axis-aligned pill in the ray's direction.
+      const half =
+        Math.abs(ux) < 1e-6
+          ? pillH / 2
+          : Math.min(pillW / 2 / Math.abs(ux), pillH / 2 / Math.abs(uy))
+      const endTrim = Math.min(half, dist)
+      edgeEndX = x - ux * endTrim
+      edgeEndY = y - uy * endTrim
+      edgeStartX = ux * Math.min(hubRadius, dist)
+      edgeStartY = uy * Math.min(hubRadius, dist)
+    }
+
+    return {
+      sat,
+      x,
+      y,
+      opacity,
+      lineLit,
+      pillW,
+      pillH,
+      labelW,
+      edgeStartX,
+      edgeStartY,
+      edgeEndX,
+      edgeEndY,
+    }
   })
 
-  const hubRadius = hubDiameter / 2
   // Soft halo behind the hub, approximating ondajs's blur/box-shadow glow.
   const glowRadius = Math.min(width, height) * 0.35
   const glowColor = `${rgbHex(accent)}59` // ~0.22 alpha at center
@@ -229,16 +301,22 @@ export function NodeGraph({
           />
         ) : null}
 
-        {/* Connection lines (behind the nodes), hub center → each satellite.
-            Path/stroke is GPU-only; the CPU reference skips it. */}
-        {nodes.map(({ x, y, opacity, lineLit }, i) => {
-          const lineOpacity = opacity * interpolate(lineLit, [0, 1], [0.12, 0.85])
-          const lineWidth = interpolate(lineLit, [0, 1], [1, 2.4])
+        {/* Connection lines (behind the nodes), hub rim → each satellite's near
+            (hub-facing) pill edge — so the line meets the pill cleanly instead
+            of running through it. Path/stroke is GPU-only; CPU skips it. */}
+        {nodes.map(({ opacity, lineLit, edgeStartX, edgeStartY, edgeEndX, edgeEndY }, i) => {
+          // Every edge shares one accent stroke at a consistent opacity/width —
+          // the pulse only *adds* a brief brighten/thicken on top of that floor,
+          // so no edge ever drops to a near-invisible gray hairline regardless
+          // of its per-edge pulse phase at this frame. Gated by `opacity` so a
+          // line stays hidden until its satellite has flown in.
+          const lineOpacity = opacity * interpolate(lineLit, [0, 1], [0.6, 0.9])
+          const lineWidth = interpolate(lineLit, [0, 1], [1.6, 2.4])
           if (lineOpacity <= 0.001) return null
           return (
             <Path
               key={`edge-${i}`}
-              d={`M0 0 L${x.toFixed(2)} ${y.toFixed(2)}`}
+              d={`M${edgeStartX.toFixed(2)} ${edgeStartY.toFixed(2)} L${edgeEndX.toFixed(2)} ${edgeEndY.toFixed(2)}`}
               stroke={accent}
               strokeWidth={lineWidth}
               opacity={lineOpacity}
@@ -249,11 +327,7 @@ export function NodeGraph({
         {/* Satellite nodes — rounded pills with a centered label. The pill is
             sized from an estimated label width (engine measurement can't be
             read back here). Positioned so the pill's center sits on (x, y). */}
-        {nodes.map(({ sat, x, y, opacity }, i) => {
-          const padX = 18
-          const labelW = sat.label.length * satelliteFontSize * AVG_CHAR_W
-          const pillW = labelW + padX * 2
-          const pillH = satelliteFontSize + 20
+        {nodes.map(({ sat, x, y, opacity, pillW, pillH, labelW }, i) => {
           return (
             <Group key={`node-${i}`} x={x} y={y} opacity={opacity}>
               {/* Center the pill on the orbit point. */}

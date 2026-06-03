@@ -11,7 +11,7 @@
 //! flow; here a pure fade is the faithful, layout-safe equivalent. See
 //! `approximations` in the port notes.
 
-import { Flex, Text } from '@onda/react'
+import { AbsoluteFill, Flex, Text } from '@onda/react'
 import { staggerFrames } from '../motion.js'
 import { useTheme } from '../theme.js'
 import { FadeIn } from './FadeIn.js'
@@ -57,14 +57,16 @@ export function WordStagger({
   const words = text.split(/\s+/).filter(Boolean)
 
   return (
-    <Flex direction="row" wrap justify={justify} gap={Math.round(fontSize * 0.3)} width={width}>
-      {words.map((word, i) => (
-        <FadeIn key={`${i}-${word}`} delay={delay + staggerFrames(i, stagger)}>
-          <Text fontSize={fontSize} color={color} fontFamily={fontFamily} fontWeight={fontWeight}>
-            {word}
-          </Text>
-        </FadeIn>
-      ))}
-    </Flex>
+    <AbsoluteFill justify="center" align="center">
+      <Flex direction="row" wrap justify={justify} gap={Math.round(fontSize * 0.3)} width={width}>
+        {words.map((word, i) => (
+          <FadeIn key={`${i}-${word}`} delay={delay + staggerFrames(i, stagger)}>
+            <Text fontSize={fontSize} color={color} fontFamily={fontFamily} fontWeight={fontWeight}>
+              {word}
+            </Text>
+          </FadeIn>
+        ))}
+      </Flex>
+    </AbsoluteFill>
   )
 }

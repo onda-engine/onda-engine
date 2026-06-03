@@ -21,10 +21,15 @@
 //!   (cornerRadius = bezel-inset radius), standing in for the DOM's
 //!   `overflow:hidden` on a rounded div. The rounded screen-background `<Rect>`
 //!   shows through the same radius so the rounded-screen read holds.
-//! - When using `src` (no children), the `<Image>` is placed at the screen origin
-//!   and clipped to the screen box. The engine sizes images via scaleX/scaleY and
-//!   a frame→scene function can't read the image's intrinsic dimensions, so CSS
-//!   `object-fit: cover` is not reproduced — pass children for precise framing.
+//! - When using `src` (no children), the `<Image>` is stretch-filled to the
+//!   screen rect via independent scaleX/scaleY (from an assumed base raster
+//!   size) and clipped to the rounded screen box. A frame→scene function can't
+//!   read the image's intrinsic dimensions, so CSS `object-fit: cover` is not
+//!   reproduced — pass children for precise (aspect-correct) framing.
+//! - The bezel carries a faint lighter stroke so the dark device reads against a
+//!   dark canvas (there's no engine box-shadow rim).
+//! - The requested `width` is capped so the full device height stays within
+//!   ~92% of the composition height; an oversized request is shrunk to fit.
 
 import { Group, Image, Rect, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
 import type { ReactNode } from 'react'
@@ -41,6 +46,17 @@ import { useTheme } from '../theme.js'
 const BEZEL_LIT = '#26262e'
 const SCREEN_BG = '#08080a'
 const NOTCH = '#000000'
+/** A subtly lighter edge so the dark bezel reads against a dark canvas (no
+ *  engine box-shadow rim). Hairline stroke on the bezel body. */
+const BEZEL_EDGE = '#3a3a44'
+/** Largest fraction of the composition height the device may occupy. The
+ *  requested `width` is shrunk to honour this when the device would overflow. */
+const MAX_HEIGHT_FRACTION = 0.92
+/** Assumed source-raster width (px) for an `src` image with no intrinsic-size
+ *  read — matches the BrowserFrame convention (ondajs default frame width). */
+const ASSUMED_IMAGE_WIDTH = 1280
+/** Assumed source-raster height (px); a 16:9 frame at {@link ASSUMED_IMAGE_WIDTH}. */
+const ASSUMED_IMAGE_HEIGHT = 720
 /** Soft approximation of the ondajs `box-shadow` drop. Stays dark across themes
  *  (a drop shadow isn't a theme color), so it's not theme-driven. */
 const SHADOW = '#000000a6'
@@ -86,8 +102,12 @@ export function DeviceFrame({
   const opacity = animate ? entrance.opacity : 1
   const scale = animate ? entrance.scaleX : 1
 
+  // Shrink the requested width so the full device fits within ~92% of the
+  // composition height (the requested 2.05× phone would overflow a 720 canvas).
+  const fitWidth = fitDeviceWidth(device, width, compHeight * MAX_HEIGHT_FRACTION)
+
   // The full device bounding box (so we can center it and pivot the scale).
-  const box = deviceBox(device, width)
+  const box = deviceBox(device, fitWidth)
 
   // Center on the composition; draw the subtree around the device center so the
   // scale grows from the middle (scale pivots on this Group's local origin).
@@ -98,8 +118,8 @@ export function DeviceFrame({
     <Group x={centerX} y={centerY} scaleX={scale} scaleY={scale} opacity={opacity}>
       <Group x={-box.width / 2} y={-box.height / 2}>
         {device === 'phone'
-          ? renderPhone(width, color, src, children, { screenBg, notch, shadow })
-          : renderLaptop(width, color, src, children, { screenBg, bezelLit, shadow })}
+          ? renderPhone(fitWidth, color, src, children, { screenBg, notch, shadow })
+          : renderLaptop(fitWidth, color, src, children, { screenBg, bezelLit, shadow })}
       </Group>
     </Group>
   )
@@ -113,6 +133,18 @@ function deviceBox(device: 'phone' | 'laptop', width: number): { width: number; 
   // Laptop: screen body + hinge base stacked, base is wider than the screen.
   const screenH = width * 0.62
   return { width: width * 1.16, height: screenH + 14 + 6 }
+}
+
+/** Shrink `width` so the device's overall HEIGHT fits within `maxHeight`. The
+ *  tall phone (2.05× width) overflows a 720 canvas at the default 420 width;
+ *  here we cap it and derive width back from the device aspect. Never enlarges. */
+function fitDeviceWidth(device: 'phone' | 'laptop', width: number, maxHeight: number): number {
+  const height = deviceBox(device, width).height
+  if (height <= maxHeight) {
+    return width
+  }
+  // Height scales linearly with width, so scale width by the same factor.
+  return (width * maxHeight) / height
 }
 
 /** Phone bezel: rounded body, inset rounded screen, clipped content, top notch. */
@@ -139,8 +171,15 @@ function renderPhone(
     <Group>
       {/* Drop-shadow approximation (no engine box-shadow): offset, soft alpha. */}
       <Rect x={6} y={18} width={width} height={height} cornerRadius={radius} fill={shadow} />
-      {/* Bezel body. */}
-      <Rect width={width} height={height} cornerRadius={radius} fill={color} />
+      {/* Bezel body, with a subtly lighter edge so it reads on a dark canvas. */}
+      <Rect
+        width={width}
+        height={height}
+        cornerRadius={radius}
+        fill={color}
+        stroke={BEZEL_EDGE}
+        strokeWidth={1.5}
+      />
       {/* Screen background (rounded), inset by the bezel padding. */}
       <Rect
         x={bezel}
@@ -152,7 +191,7 @@ function renderPhone(
       />
       {/* Content, masked to the rounded screen box. */}
       <Group x={bezel} y={bezel} clip={clipRect(screenW, screenH, screenRadius)}>
-        {renderContent(src, children)}
+        {renderContent(src, children, screenW, screenH)}
       </Group>
       {/* Notch, drawn above the screen. */}
       <Rect
@@ -207,8 +246,17 @@ function renderLaptop(
         cornerRadius={radius}
         fill={shadow}
       />
-      {/* Screen body bezel. */}
-      <Rect x={bodyX} y={0} width={width} height={screenH} cornerRadius={radius} fill={color} />
+      {/* Screen body bezel, with a lighter edge so it reads on a dark canvas. */}
+      <Rect
+        x={bodyX}
+        y={0}
+        width={width}
+        height={screenH}
+        cornerRadius={radius}
+        fill={color}
+        stroke={BEZEL_EDGE}
+        strokeWidth={1.5}
+      />
       {/* Screen background (rounded), inset by the bezel padding. */}
       <Rect
         x={bodyX + bezel}
@@ -220,7 +268,7 @@ function renderLaptop(
       />
       {/* Content, masked to the rounded screen box. */}
       <Group x={bodyX + bezel} y={bezel} clip={clipRect(screenW, screenInnerH, screenRadius)}>
-        {renderContent(src, children)}
+        {renderContent(src, children, screenW, screenInnerH)}
       </Group>
       {/* Hinge base (wider, lit), then the small foot below it. */}
       <Rect
@@ -243,13 +291,29 @@ function renderLaptop(
   )
 }
 
-/** Screen contents: children take precedence, else an image src, else nothing. */
-function renderContent(src: string | undefined, children: ReactNode): ReactNode {
+/** Screen contents: children take precedence, else an image src, else nothing.
+ *  The image has no intrinsic-size read, so it's stretch-filled to the screen
+ *  rect via independent scaleX/scaleY from an assumed base raster (`object-fit`
+ *  isn't reproducible). The clip keeps it inside the rounded screen. */
+function renderContent(
+  src: string | undefined,
+  children: ReactNode,
+  screenW: number,
+  screenH: number,
+): ReactNode {
   if (children != null) {
     return children
   }
   if (src) {
-    return <Image src={src} />
+    return (
+      <Image
+        src={src}
+        x={0}
+        y={0}
+        scaleX={screenW / ASSUMED_IMAGE_WIDTH}
+        scaleY={screenH / ASSUMED_IMAGE_HEIGHT}
+      />
+    )
   }
   return null
 }

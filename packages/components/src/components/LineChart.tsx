@@ -105,10 +105,16 @@ export function LineChart({
   const color = colorProp ?? theme.accent
 
   const n = data.length
-  const padX = 24
+  // Symmetric horizontal inset: the first point sits at `padLeft` and the last
+  // at `width - padRight`, with padRight === padLeft so the polyline's terminal
+  // point and the area fill keep equal breathing room from BOTH chart edges
+  // (without it, the rising last point and the fill's vertical right wall jam
+  // hard against x=width while the left stays inset — an asymmetric crop).
+  const padLeft = 48
+  const padRight = 48
   const padTop = 24
   const padBottom = 32
-  const innerW = width - padX * 2
+  const innerW = width - padLeft - padRight
   const innerH = height - padTop - padBottom
 
   // Defensive min/max: an empty series would make spread Math.min/max return
@@ -116,7 +122,7 @@ export function LineChart({
   const min = data.reduce((m, v) => (v < m ? v : m), Number.POSITIVE_INFINITY)
   const max = data.reduce((m, v) => (v > m ? v : m), Number.NEGATIVE_INFINITY)
 
-  const xAt = (i: number) => padX + (n <= 1 ? 0 : (i / (n - 1)) * innerW)
+  const xAt = (i: number) => padLeft + (n <= 1 ? 0 : (i / (n - 1)) * innerW)
   const yAt = (v: number) =>
     padTop + (max === min ? innerH / 2 : (1 - (v - min) / (max - min)) * innerH)
 
@@ -142,10 +148,16 @@ export function LineChart({
     extrapolateRight: 'clamp',
   })
 
-  // Soft vertical fill: faint accent at the top, fading to transparent at the
-  // baseline. First stop is the meaningful color for the CPU fallback.
+  // Soft vertical fill anchored to the LINE, not the chart box: the opaque stop
+  // sits at the highest point the polyline reaches (its min y) and fades to
+  // transparent at the baseline. Anchoring at `padTop` instead made the tint a
+  // top-of-chart band that read as a detached rectangle — saturated under the
+  // peaks, invisible under the valleys; anchoring to the line's extent keeps the
+  // wash hugging just under the polyline everywhere. First stop is the
+  // meaningful color for the CPU fallback.
+  const topY = pts.reduce((m, p) => (p[1] < m ? p[1] : m), baseline)
   const areaGradient = linearGradient(
-    [0, padTop],
+    [0, topY],
     [0, baseline],
     [
       { offset: 0, color: withAlpha(color, 0.28) },

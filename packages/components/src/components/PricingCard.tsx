@@ -169,10 +169,14 @@ export function PricingCard({
   const ctaTextY = Math.round((ctaHeight - ctaSize * LINE_RATIO) / 2)
 
   // Recommended badge box (top-right) — estimated label width + horizontal padding.
+  // Uppercase caps run noticeably wider than the body advance, so size the pill
+  // with a ratio well above `WIDTH_RATIO` and generous side padding to keep the
+  // label clear of the rounded border (the trailing cap mustn't crowd the edge).
   const badgeLabel = 'RECOMMENDED'
   const badgeFontSize = 12
-  const badgePadX = 12
-  const badgeTextWidth = badgeLabel.length * badgeFontSize * WIDTH_RATIO
+  const badgePadX = 16
+  const badgeWidthRatio = 0.72
+  const badgeTextWidth = badgeLabel.length * badgeFontSize * badgeWidthRatio
   const badgeWidth = Math.round(badgeTextWidth + badgePadX * 2)
   const badgeHeight = Math.round(badgeFontSize * LINE_RATIO + 8)
 

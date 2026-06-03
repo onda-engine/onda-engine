@@ -130,10 +130,19 @@ export function SlotMachineRoll({
     align === 'left' ? anchorX : align === 'right' ? anchorX - totalWidth : anchorX - totalWidth / 2
   const originY = y ?? Math.round(height / 2 - cell / 2)
 
-  // Nudge each glyph down within its cell so it reads vertically centered (the
-  // engine measures from a top-ish origin; ~12% of the cell approximates the
-  // cap-height inset). Deterministic, no measurement.
-  const glyphInset = Math.round(cell * 0.12)
+  // Center each glyph's ink inside its `cell`-tall window so a SINGLE row shows
+  // and the rows above/below are fully masked. `<Text>` is top-anchored: its
+  // baseline sits ~`BASELINE` below the node's `y` (cosmic-text lays the line
+  // out in a 1.2× box, baseline ≈ the ascent), and a display glyph inks from
+  // `baseline - CAP_HEIGHT` up to the baseline. To land the ink centered in the
+  // window `[0, cell]`, the glyph's node-`y` must be nudged so its ink midpoint
+  // (`baseline - CAP_HEIGHT/2`) maps to `cell/2`. Because neighbouring reel rows
+  // are a full `cell` apart and a glyph inks less than one cell tall, centering
+  // the landed row guarantees the adjacent rows fall outside the band — no
+  // second row bleeds in. All estimates, no render-time measurement.
+  const BASELINE = 0.88 // baseline below the text node's top, as a fraction of cell
+  const CAP_HEIGHT = 0.7 // display-glyph ink height, as a fraction of cell
+  const glyphOffsetY = Math.round(cell * (0.5 - BASELINE + CAP_HEIGHT / 2))
 
   const local = frame - delay
 
@@ -169,6 +178,10 @@ export function SlotMachineRoll({
           extrapolateRight: 'clamp',
         })
 
+        // Window is EXACTLY one cell tall, anchored at the column origin, so the
+        // block stays vertically centered via `originY`. The reel translates
+        // inside it; `glyphOffsetY` centers each glyph's ink in the band so only
+        // the landed row is visible and its neighbours are masked out.
         return (
           <Group key={`${i}-${ch}`} x={localX} clip={clipRect(advance(ch), cell)}>
             <Group y={ty}>
@@ -176,7 +189,7 @@ export function SlotMachineRoll({
                 <Text
                   key={k}
                   x={0}
-                  y={k * cell + glyphInset}
+                  y={k * cell + glyphOffsetY}
                   fontSize={fontSize}
                   color={color}
                   fontFamily={fontFamily}
