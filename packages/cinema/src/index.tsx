@@ -16,17 +16,25 @@ import {
   Text,
   type TransitionPresentation,
   TransitionSeries,
+  blur,
+  chromaticAberration,
   clockWipe,
   crossFade,
   depthPush,
+  devicePullback,
   dipToColor,
+  expandMorph,
   fade,
   flip,
+  glassWipe,
+  gridPixelate,
   iris,
   linearTiming,
+  morph,
   none,
   push,
   slide,
+  typeMask,
   useCurrentFrame,
   useVideoConfig,
   wipe,
@@ -154,7 +162,11 @@ const SELF_ANCHORING = new Set(['LowerThird', 'Callout'])
 
 /** Centre→anchor pixel offset for an entry's `placement` prop (string slug or
  *  `{x,y}` fractions). Returns `[0,0]` for centre / unknown. */
-function placementOffset(props: Record<string, unknown> | undefined, w: number, h: number): [number, number] {
+function placementOffset(
+  props: Record<string, unknown> | undefined,
+  w: number,
+  h: number,
+): [number, number] {
   const p = props?.placement
   let fx = 0.5
   let fy = 0.5
@@ -193,7 +205,8 @@ function composeMotion(
 }
 
 /** Scene transition slugs → engine presentations (defaults). Unknown slugs fall
- *  back to cross-fade. The blur/blend-based ones await the engine filter pass. */
+ *  back to cross-fade. The effect transitions (blur/glass-wipe/chromatic/…) are
+ *  approximated in the presentation layer — no engine filter pass needed. */
 const TRANSITIONS: Record<string, () => TransitionPresentation> = {
   'cross-fade': () => crossFade(),
   fade: () => fade(),
@@ -207,6 +220,15 @@ const TRANSITIONS: Record<string, () => TransitionPresentation> = {
   'depth-push': () => depthPush(),
   'dip-to-color': () => dipToColor(),
   none: () => none(),
+  // Effect transitions — approximated in the presentation layer (no engine blur).
+  blur: () => blur(),
+  'chromatic-aberration': () => chromaticAberration(),
+  'device-pullback': () => devicePullback(),
+  'expand-morph': () => expandMorph(),
+  'glass-wipe': () => glassWipe(),
+  'grid-pixelate': () => gridPixelate(),
+  morph: () => morph(),
+  'type-mask': () => typeMask(),
 }
 const presentationFor = (type: string): TransitionPresentation => (TRANSITIONS[type] ?? crossFade)()
 
