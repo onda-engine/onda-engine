@@ -736,12 +736,17 @@ fn frames_scenes(json: &str, base_dir: &Path) -> Result<(Vec<Scene>, f32)> {
     };
     let fps = first.composition.fps;
     let mut scenes = Vec::with_capacity(raw.len());
+    // One persistent, sequential video decoder across all frames: each `src`
+    // streams from a single ffmpeg pipe (frame-accurate, ~no per-frame spawn)
+    // since export walks frames in increasing time. Native-only, opt-in feature.
+    #[cfg(feature = "video")]
+    let mut video = onda_video::VideoDecoder::new();
     for scene in &raw {
         let expanded = onda_svg::expand_svg(scene, base_dir).context("expanding <svg> nodes")?;
-        // Decode each frame's <Video> nodes (native ffmpeg) before images, so the
-        // image pass skips the now-resolved video. Native-only, opt-in feature.
         #[cfg(feature = "video")]
-        let expanded = onda_video::load_video_frames(&expanded).context("decoding video frames")?;
+        let expanded = video
+            .resolve_scene(&expanded)
+            .context("decoding video frames")?;
         scenes.push(onda_image::load_images(&expanded, base_dir).context("loading images")?);
     }
     Ok((scenes, fps))
