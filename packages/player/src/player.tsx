@@ -27,6 +27,7 @@ import {
 } from 'react'
 import { type FrameDrawer, drawScene } from './canvas-renderer.js'
 import { type RenderEngine, engineDrawer } from './engine-drawer.js'
+import { applyResolvedImages, collectImageUrls, resolveImageUrl } from './images.js'
 
 /** An async, GPU renderer — structurally `@onda/wasm-vello`'s `VelloEngine`.
  *  This is the pixel-exact, full-feature path (paths/gradients/clips/AA), so the
@@ -182,6 +183,26 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   const [frame, setFrame] = useState(() =>
     Math.min(lastFrame, Math.max(0, Math.floor(initialFrame))),
   )
+
+  // Resolve image src URLs to data: URIs (the wasm engine can't fetch). Sample a
+  // few frames so srcs that only appear later are covered; bumping `imagesReady`
+  // re-renders once they're cached so the now-decodable images appear.
+  const [imagesReady, setImagesReady] = useState(0)
+  useEffect(() => {
+    const urls = new Set<string>()
+    for (const f of new Set([0, Math.floor(lastFrame / 2), lastFrame])) {
+      collectImageUrls(renderFrame(composition, f).root as never, urls)
+    }
+    if (urls.size === 0) return
+    let cancelled = false
+    Promise.all([...urls].map(resolveImageUrl)).then(() => {
+      if (!cancelled) setImagesReady((v) => v + 1)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [composition, lastFrame])
+
   const [playing, setPlaying] = useState(autoPlay)
   const [loop, setLoop] = useState(initialLoop)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -218,7 +239,9 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
           const { composition: c, frame: f } = targetRef.current
           if (done && done.c === c && done.f === f) break // caught up
           done = { c, f }
-          const out = await gpu.render(JSON.stringify(renderFrame(c, f)))
+          const scene = renderFrame(c, f)
+          applyResolvedImages(scene.root as never)
+          const out = await gpu.render(JSON.stringify(scene))
           const canvas = canvasRef.current
           const ctx = canvas?.getContext('2d')
           if (canvas && ctx) {
@@ -245,9 +268,14 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
       paintGpu(mode.engine)
     } else {
       const ctx = canvasRef.current?.getContext('2d')
-      if (ctx) mode.draw(ctx, renderFrame(composition, frame))
+      if (ctx) {
+        const scene = renderFrame(composition, frame)
+        applyResolvedImages(scene.root as never)
+        mode.draw(ctx, scene)
+      }
     }
-  }, [composition, frame, mode, paintGpu])
+    // `imagesReady` is a dep so the frame repaints once images resolve.
+  }, [composition, frame, mode, paintGpu, imagesReady])
 
   // Playback paced to the composition's fps via requestAnimationFrame.
   useEffect(() => {
