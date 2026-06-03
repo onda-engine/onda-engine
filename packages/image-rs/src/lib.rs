@@ -83,9 +83,19 @@ fn decode_src(src: &str, base_dir: &Path) -> Result<Option<ImageData>, ImageErro
         Ok(None)
     } else {
         let path = base_dir.join(src);
-        let bytes =
-            std::fs::read(&path).map_err(|e| ImageError::Io(path.display().to_string(), e))?;
-        Ok(Some(decode_bytes(&bytes)?))
+        match std::fs::read(&path) {
+            Ok(bytes) => Ok(Some(decode_bytes(&bytes)?)),
+            // No filesystem in the browser, so a path `src` can't be loaded by the
+            // offline pass — skip it (like a remote URL) instead of failing the
+            // whole render. The Player resolves loadable images to `data:` URIs;
+            // a still-unresolved path is simply not available yet, and a hard
+            // error here would tear down the entire GPU preview. Native keeps the
+            // error so a genuinely missing file in `onda export` is still reported.
+            #[cfg(target_arch = "wasm32")]
+            Err(_) => Ok(None),
+            #[cfg(not(target_arch = "wasm32"))]
+            Err(e) => Err(ImageError::Io(path.display().to_string(), e)),
+        }
     }
 }
 
@@ -170,6 +180,10 @@ mod tests {
         assert!(img.data.is_none());
     }
 
+    // Native only: with a real filesystem, a missing file is a hard error so a
+    // bad path in `onda export` is reported. In the browser (wasm) there's no
+    // filesystem, so an unreadable path `src` is skipped instead (see `decode_src`).
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn a_missing_file_is_a_clear_error() {
         let scene = Scene {
