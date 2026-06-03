@@ -98,7 +98,16 @@ Done:
   engine** (centred-circle reveal, angular sweep, centre-pivot collapse, hard
   cut) via a throwaway probe page. Not yet a formal pixel-diff against Remotion's
   own output (a stricter bar, if exactness matters).
+- **Render bridge (the Chromium-removal payoff):** `onda-cli` mp4 export now
+  (a) pipes raw RGBA frames to ffmpeg (no PNG/disk round-trip), (b) picks a
+  hardware H.264 encoder via a probe with libx264 fallback (`--encoder`), and
+  (c) emits per-frame `[onda-progress]` JSON (`--progress`). New **`@onda/render`**
+  package exposes `renderToFile()` / `renderStillToFile()` — runs `renderFramesJSON`
+  in-process, spawns the CLI, streams `onProgress`. Verified end-to-end (composition
+  → h264 mp4 + 15× onProgress + still PNG). This is the drop-in Studio's render.ts
+  swaps `renderMedia`/`renderStill` for.
 
-Next: the Node render bridge (#3) is the highest-value remaining unblock (the
-actual Chromium-removal payoff). The remaining transition customs (#4) and the
-audio path (#5) are self-contained parallel tracks.
+Next on the bridge: ffmpeg **bundling** (build.rs, feature-gated) + GPL licensing
+artifacts so it works with no install step; the **Studio swap** (flag-gated, in
+the Studio repo); and the **Remotion-vs-ONDA benchmark**. The transition customs
+and audio path remain self-contained parallel tracks.
