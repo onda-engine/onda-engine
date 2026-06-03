@@ -11,6 +11,10 @@ export interface GalleryItem {
   themed?: boolean
   /** If set, the in-browser engine can't preview this yet — show this note. */
   note?: string
+  /** Live enum controls the gallery renders as a toggle above the preview (e.g.
+   *  a visualizer `type`). The FIRST option is the default. The chosen value is
+   *  merged into the component's props and the copyable snippet. */
+  controls?: { prop: string; label: string; options: string[] }[]
 }
 
 export const GALLERY_CATEGORIES = [
@@ -944,7 +948,7 @@ export const GALLERY: GalleryItem[] = [
   {
     name: 'AudioVisualizer',
     category: 'Media',
-    blurb: 'a frequency-bar spectrum visualizer. Ported from ondajs',
+    blurb: 'an audio-spectrum visualizer with selectable styles. Ported from ondajs',
     props: {
       barCount: 56,
       color: ['#d96b82', '#7c5ce5'],
@@ -955,6 +959,9 @@ export const GALLERY: GalleryItem[] = [
       speed: 1,
       seed: 7,
     },
+    controls: [
+      { prop: 'type', label: 'Style', options: ['bars', 'mirrored', 'waveform', 'radial', 'dots'] },
+    ],
     themed: true,
   },
   {
