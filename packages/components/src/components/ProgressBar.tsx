@@ -20,12 +20,8 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
-
-/** Estimated label width per glyph as a fraction of `fontSize`, for a
- *  proportional display font — used only to reserve space so the whole assembly
- *  (track + label) centers, approximating ondajs's `4ch` tabular reservation. */
-const AVG_CHAR_W = 0.6
 
 export interface ProgressBarProps {
   /** Target fill, 0–100. The bar grows from 0 to this value. */
@@ -101,9 +97,11 @@ export function ProgressBar({
   const labelGap = 24
   // Settled label text (does not count up — matches ondajs).
   const labelText = `${Math.round(targetPct)}%`
-  // Estimated label width so the whole assembly centers (no engine text metric
-  // at author time; this only positions the centered origin, not the glyphs).
-  const labelWidth = showValue ? labelGap + labelText.length * fontSize * AVG_CHAR_W : 0
+  // Real shaped label width so the whole assembly centers. The engine measures
+  // it (proportional — exact); this only positions the centered origin, not the
+  // glyphs. Hook is called unconditionally; `showValue` only gates inclusion.
+  const measuredLabel = useTextMetrics(labelText, fontSize, { fontFamily, fontWeight: 500 })
+  const labelWidth = showValue ? labelGap + measuredLabel.width : 0
 
   // Center the fixed-size assembly by computing its top-left offset directly —
   // no layout container, so the per-frame fill-width growth never reflows and

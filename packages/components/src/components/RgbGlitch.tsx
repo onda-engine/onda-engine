@@ -23,19 +23,15 @@
 //! but on the dark Onda canvas the chromatic-edge read is faithful.
 //!
 //! LAYOUT: self-positioning. `<Text>` is single-line and LEFT-anchored, so to
-//! centre/right-align the line we estimate its width (length * fontSize *
-//! AVG_CHAR_W — the engine can't be measured back from a pure frame function) and
+//! centre/right-align the line we measure its width (via `useTextMetrics`) and
 //! offset x accordingly. The three copies share that base x/y so they stack, and
 //! the whole effect is wrapped in a single `<Group>` so it composes as one node.
 //!
 //! letter-spacing (ondajs `-0.02em`) has no scene-graph equivalent and is dropped.
 
 import { Group, Text, random, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
-
-/** Approximate average glyph advance as a fraction of font size, for
- *  proportional display fonts (used only to centre/right-align the line). */
-const AVG_CHAR_W = 0.6
 
 export interface RgbGlitchProps {
   /** The text to glitch. */
@@ -104,6 +100,7 @@ export function RgbGlitch({
   const redColor = redColorProp ?? theme.accent
   const cyanColor = cyanColorProp ?? theme.palette[1] ?? '#4de2ff'
   const fontFamily = fontFamilyProp ?? theme.fontFamily
+  const measured = useTextMetrics(text, fontSize, { fontFamily, fontWeight })
 
   const local = Math.max(0, frame - delay)
 
@@ -118,9 +115,8 @@ export function RgbGlitch({
   const dx = baseSplit + burst * intensity
   const dy = inBurst ? (ry * 2 - 1) * intensity * 0.4 : 0
 
-  // Single-line width estimate (no measurement available in a pure frame fn) for
-  // centre/right alignment. Slightly rough, but only shifts the anchor point.
-  const lineWidth = text.length * fontSize * AVG_CHAR_W
+  // Measured single-line width for centre/right alignment (shifts the anchor point).
+  const lineWidth = measured.width
   const anchorX = x ?? Math.round(width / 2)
   const anchorY = y ?? Math.round(height / 2 - fontSize * 0.6)
   const baseX =

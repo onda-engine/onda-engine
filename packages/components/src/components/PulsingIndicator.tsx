@@ -14,6 +14,7 @@
 //! per-frame size change of the ring can't make a layout container reflow/jiggle.
 
 import { Ellipse, Group, Text, interpolate, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
 export interface PulsingIndicatorProps {
@@ -70,10 +71,13 @@ export function PulsingIndicator({
   // text-transform, so uppercase here.
   const labelText = label ? label.toUpperCase() : ''
 
-  // No author-time text metrics: estimate the label width from its length, then
-  // size the whole assembly (dot + gap + label) so we can center it when no
-  // explicit x/y is given. The default = centered on the composition.
-  const labelWidth = labelText ? labelText.length * fontSize * 0.55 : 0
+  // Real shaped label width (the engine measures it — proportional, exact;
+  // falls back to a glyph-count estimate until the wasm engine warms in the
+  // browser). The width sizes the whole assembly (dot + gap + label) so we can
+  // center it when no explicit x/y is given. The default = centered on the
+  // composition.
+  const measuredLabel = useTextMetrics(labelText, fontSize, { fontFamily })
+  const labelWidth = labelText ? measuredLabel.width : 0
   const assemblyWidth = size + (labelText ? labelGap + labelWidth : 0)
   const x = xProp ?? (width - assemblyWidth) / 2
   const y = yProp ?? (height - size) / 2

@@ -7,18 +7,14 @@
 //! one-content-width head start, so the wrap is seamless. An outer `<Group clip>`
 //! masks everything to the viewport, hiding the seam and the off-screen tail.
 //!
-//! Caveat: the engine measures text at render time, but a pure frame→scene
-//! function can't read those measurements back. Like ondajs, item widths (and
-//! thus `contentWidth`) are *estimated* from `length * fontSize * AVG_CHAR_W`.
-//! The estimate only needs to be roughly proportional; the copy count is derived
-//! from it so coverage holds even when one set is narrower than the viewport.
+//! Item widths (and thus `contentWidth`, which sets the repeat count for a
+//! seamless wrap) are the REAL shaped text widths via `measureText` — exact and
+//! proportional — falling back to a glyph-count estimate only until the engine
+//! warms in the browser.
 
 import { Group, Text, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { measureText, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
-
-/** Approximate average glyph advance as a fraction of font size, for
- *  proportional display fonts. Matches the ondajs estimate. */
-const AVG_CHAR_W = 0.6
 
 export interface MarqueeProps {
   /** Items to scroll. The list is repeated as needed for a seamless wrap. */
@@ -64,9 +60,13 @@ export function Marquee({
   const viewportWidth = width ?? compWidth
   const viewportHeight = height ?? compHeight
 
-  // Estimated x-advance for each item, plus the trailing gap. Deterministic:
-  // no DOM measurement, so the result is identical across frames/renderers.
-  const itemWidths = items.map((item) => item.length * fontSize * AVG_CHAR_W + gap)
+  // Real shaped x-advance for each item, plus the trailing gap (proportional +
+  // exact). `useTextMetricsReady` loads the engine in the browser and re-renders
+  // when warm; `measureText` is the sync per-item read (a hook can't run in a map).
+  useTextMetricsReady()
+  const itemWidths = items.map(
+    (item) => measureText(item, fontSize, { fontFamily, fontWeight }).width + gap,
+  )
   const contentWidth = itemWidths.reduce((sum, w) => sum + w, 0)
 
   // Linear translation by design (see header). Pixels travelled so far.

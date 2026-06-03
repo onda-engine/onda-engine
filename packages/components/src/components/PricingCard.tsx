@@ -20,9 +20,10 @@
 //!   tier label and badge — the engine has no letter-spacing, so the tier name is
 //!   uppercased in JS and tracking is dropped. The recommended GLOW is a scene
 //!   `radialGradient` (ondajs blurs a `Glow`); gradients render only on the
-//!   Vello/GPU backend (CPU reference collapses to the first stop). The CTA / badge
-//!   text is horizontally centered via a glyph-count width estimate (no text
-//!   measurement); pass nothing to accept the estimate. The checkmark is a `<Path>`
+//!   Vello/GPU backend (CPU reference collapses to the first stop). The CTA label
+//!   and the billing-period offset are centered/placed via real shaped text
+//!   measurement (`useTextMetrics`); only the recommended badge pill still uses a
+//!   glyph-count width estimate. The checkmark is a `<Path>`
 //!   (GPU only) — on the CPU reference it simply won't paint.
 
 import {
@@ -36,13 +37,11 @@ import {
 } from '@onda/react'
 import { entryFade, entryFadeRise } from '../choreography.js'
 import { DURATION, staggerFrames } from '../motion.js'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
 /** Engine line-box height as a multiple of font size (matches typography crate). */
 const LINE_RATIO = 1.2
-/** Empirical glyph advance ÷ font size for the body face — used only to center
- *  the CTA / badge label horizontally (no JS-side text measurement). */
-const WIDTH_RATIO = 0.55
 
 export interface PricingCardProps {
   /** Tier name above the price (e.g. `'Pro'`). Rendered uppercase. */
@@ -139,6 +138,12 @@ export function PricingCard({
   const ctaHeight = 48
   const contentWidth = width - padding * 2
 
+  // Real shaped text widths (proportional — exact) used to center the CTA label
+  // and to offset the billing period after the price. The engine measures these;
+  // they fall back to a glyph-count estimate until the wasm engine warms.
+  const ctaMetrics = useTextMetrics(cta, ctaSize, { fontFamily: bodyFontFamily, fontWeight: 600 })
+  const priceMetrics = useTextMetrics(price, priceSize, { fontFamily, fontWeight: 600 })
+
   // Vertical cursor through the card body, accumulating each section's height.
   const tierY = padding
   const priceY = tierY + tierSize * LINE_RATIO + sectionGap
@@ -163,14 +168,14 @@ export function PricingCard({
 
   const panelBorder = recommended ? accent : borderColor
 
-  // CTA label centered via a glyph-count width estimate (no text measurement).
-  const ctaTextWidth = Math.max(0, cta.length) * ctaSize * WIDTH_RATIO
+  // CTA label centered via real shaped text measurement.
+  const ctaTextWidth = ctaMetrics.width
   const ctaTextX = Math.round((contentWidth - ctaTextWidth) / 2)
   const ctaTextY = Math.round((ctaHeight - ctaSize * LINE_RATIO) / 2)
 
   // Recommended badge box (top-right) — estimated label width + horizontal padding.
   // Uppercase caps run noticeably wider than the body advance, so size the pill
-  // with a ratio well above `WIDTH_RATIO` and generous side padding to keep the
+  // with a deliberately wide glyph ratio and generous side padding to keep the
   // label clear of the rounded border (the trailing cap mustn't crowd the edge).
   const badgeLabel = 'RECOMMENDED'
   const badgeFontSize = 12
@@ -262,7 +267,7 @@ export function PricingCard({
           </Text>
           {period ? (
             <Text
-              x={Math.round(price.length * priceSize * WIDTH_RATIO + 8)}
+              x={Math.round(priceMetrics.width + 8)}
               y={Math.round(priceY + (priceSize - periodSize) * 0.9)}
               fontSize={periodSize}
               color={faintColor}

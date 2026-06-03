@@ -9,8 +9,8 @@
 //! `<Group>` (the ProgressBar pattern): the rule is positioned ABSOLUTELY at an
 //! explicit `y` below the text and its width animates every frame. An animated
 //! width inside a `<Flex>` would reflow/jiggle, so we avoid layout entirely for
-//! the rule. The full rule width is ESTIMATED from `text.length`, `fontSize`,
-//! and a per-glyph width factor — see `approximations`.
+//! the rule. The full rule width is MEASURED from the shaped text via
+//! `useTextMetrics` (the engine's real metrics; estimate fallback until warm).
 
 import {
   Group,
@@ -23,6 +23,7 @@ import {
 } from '@onda/react'
 import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
 export interface UnderlineProps {
@@ -54,9 +55,6 @@ export interface UnderlineProps {
   align?: 'left' | 'center' | 'right'
 }
 
-/** Mean glyph advance as a fraction of the font size. A rough display-sans
- *  heuristic used only to size the rule (the engine measures the real text). */
-const CHAR_WIDTH_FACTOR = 0.52
 /** Engine line-box height as a multiple of font size (matches the typography
  *  crate; the same ratio `Highlight` uses to place its accent below the text). */
 const LINE_RATIO = 1.2
@@ -83,6 +81,10 @@ export function Underline({
   const accentColor = accentColorProp ?? theme.accent
   const fontFamily = fontFamilyProp ?? theme.fontFamily
 
+  // Real shaped text width — the engine measures it (proportional, exact),
+  // falling back to a glyph-count estimate until the wasm engine warms.
+  const measured = useTextMetrics(text, fontSize, { fontFamily, fontWeight })
+
   // Phase 1: text fade — opacity 0 → 1 on the house spring (the `entryFade`
   // choreography, matching the ondajs original).
   const { opacity } = entryFade({ frame, fps, delay, durationInFrames: duration })
@@ -95,9 +97,8 @@ export function Underline({
     durationInFrames: lineDuration,
   })
 
-  // Estimated full rule width = the estimated text box width. No author-time
-  // engine text metrics exist, so derive it from glyph count × size.
-  const fullWidth = text.length * fontSize * CHAR_WIDTH_FACTOR
+  // Full rule width = the measured text box width.
+  const fullWidth = measured.width
 
   const lineWidth = interpolate(lineProgress, [0, 1], [0, fullWidth], {
     extrapolateLeft: 'clamp',
@@ -111,14 +112,14 @@ export function Underline({
   // A full-pill radius on a thin sliver would bulge; cap at half its own size.
   const lineRadius = Math.min(lineThickness / 2, lineWidth / 2)
   // align: the rule grows from its left origin; shift it so it tracks the
-  // chosen edge of the (estimated) text box.
+  // chosen edge of the (measured) text box.
   const lineX =
     align === 'center' ? (fullWidth - lineWidth) / 2 : align === 'right' ? fullWidth - lineWidth : 0
 
   // Center the whole assembly. The rule's width animates every frame, so a
   // layout container would reflow/jiggle (ProgressBar pattern) — instead we
   // compute a static centered origin from the composition size and the block's
-  // ESTIMATED extent: `fullWidth` wide; from the text's top to the rule's
+  // MEASURED extent: `fullWidth` wide; from the text's top to the rule's
   // bottom tall (`lineY + lineThickness`).
   const blockHeight = lineY + lineThickness
   const originX = (canvasWidth - fullWidth) / 2

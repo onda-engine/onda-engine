@@ -18,11 +18,11 @@
 //! slides in from the left and aligns flush-left, a right-half one mirrors.
 //!
 //! Approximations: ondajs sizes the accent rule as a % of the DOM-measured name
-//! width and uses CSS letter-spacing / line-height. `@onda/react` exposes no
-//! author-time text metrics and no letter-spacing, so the rule width and the
-//! line stack are ESTIMATED from `text.length`, `fontSize`, and a per-glyph
-//! width factor (the `Underline`/`Marquee` heuristic). letter-spacing /
-//! line-height props are accepted but not applied.
+//! width and uses CSS letter-spacing / line-height. The rule width and the line
+//! stack are now sized from REAL shaped text metrics (`useTextMetrics`, which the
+//! engine measures exactly — falling back to a glyph-count estimate until the
+//! wasm engine warms). letter-spacing / line-height props are accepted but not
+//! applied.
 
 import {
   Group,
@@ -35,6 +35,7 @@ import {
 } from '@onda/react'
 import { entryFade, entrySlide } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
 /** Broadcast lower-third placement regions — the corners a name bar lives in. */
@@ -53,11 +54,6 @@ const PLACEMENT_MAP: Record<
   'top-right': { x: 0.9, y: 0.1, side: 'right', vertical: 'top' },
 }
 
-/** Mean glyph advance as a fraction of font size — a rough display-sans
- *  heuristic, used only to estimate text box / accent rule widths (the engine
- *  measures the real text at render time, but a pure frame→scene function can't
- *  read that back). Matches `Underline`'s `CHAR_WIDTH_FACTOR`. */
-const CHAR_WIDTH_FACTOR = 0.52
 /** Engine line-box height as a multiple of font size (matches the typography
  *  crate, the same ratio `Underline` uses). */
 const LINE_RATIO = 1.2
@@ -123,6 +119,11 @@ export function LowerThird({
   const fontFamily = fontFamilyProp ?? theme.fontFamily
   const cornerRadius = cornerRadiusProp ?? theme.radius
 
+  // Real shaped line-box widths (the engine measures them exactly; falls back to
+  // a glyph-count estimate until the wasm engine warms). One hook per fixed line.
+  const nameMetrics = useTextMetrics(name, fontSize, { fontFamily, fontWeight: nameFontWeight })
+  const roleMetrics = useTextMetrics(role, roleFontSize, { fontFamily, fontWeight: roleFontWeight })
+
   // A lower-third only lives in a corner; a caller (or the agent) may pass a
   // general placement like `center` — fall back to the house corner rather than
   // crashing on an unmapped key.
@@ -158,10 +159,10 @@ export function LowerThird({
     durationInFrames: DURATION.fast,
   })
 
-  // Estimated line-box widths (no author-time metrics — see header). The block
-  // width is the wider of the two lines so the assembly anchors as one box.
-  const nameWidth = name.length * fontSize * CHAR_WIDTH_FACTOR
-  const roleWidth = role.length * roleFontSize * CHAR_WIDTH_FACTOR
+  // Measured line-box widths (see header). The block width is the wider of the
+  // two lines so the assembly anchors as one box.
+  const nameWidth = nameMetrics.width
+  const roleWidth = roleMetrics.width
   const blockWidth = Math.max(nameWidth, roleWidth)
 
   // Vertical stack: name line box, a 4px gap (ondajs), the role line box, an

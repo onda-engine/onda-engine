@@ -31,6 +31,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
 /** One pie slice: a numeric weight and its color. */
@@ -170,6 +171,11 @@ export function PieReveal({
 
   const centerText = label ?? `${data.length}`
 
+  // Real shaped width of the center label, used to center it on the disc (the
+  // engine draws from the text origin and has no centering). Falls back to a
+  // glyph-count estimate until the wasm engine warms in the browser.
+  const centerMetrics = useTextMetrics(centerText, fontSize, { fontFamily })
+
   // Per-slice labels sit just outside the ring, sized relative to the center
   // label. The engine has no text metrics, so width ≈ len * fontSize * 0.6.
   const sliceFontSize = Math.max(12, Math.round(fontSize * 0.32))
@@ -212,12 +218,11 @@ export function PieReveal({
         />
       ) : null}
 
-      {/* Center label (donut). Single-line; the engine measures from the text
-          origin and has no centering, so offset by a rough half-extent
-          (width ≈ len * fontSize * 0.6). */}
+      {/* Center label (donut). Single-line; the engine draws from the text
+          origin and has no centering, so offset by half the measured width. */}
       {showLabel && holeRadius > 0 ? (
         <Text
-          x={cx - centerText.length * fontSize * 0.3}
+          x={cx - centerMetrics.width / 2}
           y={cy - fontSize / 2}
           fontSize={fontSize}
           color={labelColor}

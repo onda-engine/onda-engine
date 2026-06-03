@@ -20,9 +20,9 @@
 //! Geometry follows the ondajs schema: `x`/`y`/`width`/`height` are `0..1`
 //! fractions of the composition, resolved against `useVideoConfig()`. Corner
 //! ticks are `<Path>` L-marks (GPU/Vello backend only, like all paths). The
-//! label tag's width is ESTIMATED from glyph count — the engine measures text at
-//! render time but a pure frame→scene function can't read that back (the
-//! `Highlight`/`Underline` pattern).
+//! label tag's width is MEASURED from the shaped glyphs via `useTextMetrics`
+//! (proportional — exact); it falls back to a glyph-count estimate until the
+//! wasm engine warms in the browser (the `Highlight`/`Underline` pattern).
 //!
 //! Corners are SHARP by default (`cornerRadius = 0`), matching ondajs's
 //! selection-marquee look — the L-shaped corner ticks pin to the sharp corners.
@@ -37,11 +37,9 @@ import { Group, Rect, Text, interpolate, useCurrentFrame, useVideoConfig } from 
 import { entryFade, entryScale } from '../choreography.js'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION } from '../motion.js'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
-/** Mean glyph advance as a fraction of font size, for a display face. Used only
- *  to size the label tag (the engine measures the real glyphs at render time). */
-const CHAR_WIDTH_FACTOR = 0.56
 /** Engine line-box height as a multiple of font size (matches typography crate). */
 const LINE_RATIO = 1.2
 
@@ -95,6 +93,11 @@ export function BoundingBox({
   const color = colorProp ?? theme.accent
   const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
 
+  // Real shaped label width — the engine measures the glyphs (proportional —
+  // exact); falls back to a glyph-count estimate until the wasm engine warms in
+  // the browser.
+  const measured = useTextMetrics(label, fontSize, { fontFamily })
+
   // Box geometry in pixel space.
   const bx = x * canvasW
   const by = y * canvasH
@@ -116,8 +119,7 @@ export function BoundingBox({
   const perim = 2 * (bw + bh)
   const drawn = drawProgress * perim
   // Length of the edge that begins at perimeter offset `start` and runs `len`.
-  const seg = (start: number, len: number): number =>
-    Math.max(0, Math.min(len, drawn - start))
+  const seg = (start: number, len: number): number => Math.max(0, Math.min(len, drawn - start))
   const topLen = seg(0, bw) // top: left → right
   const rightLen = seg(bw, bh) // right: top → bottom
   const botLen = seg(bw + bh, bw) // bottom: right → left
@@ -128,15 +130,14 @@ export function BoundingBox({
   const tagFade = entryFade({ frame, fps, delay: phaseTwoDelay, durationInFrames: DURATION.base })
   const tagScale = entryScale({ frame, fps, delay: phaseTwoDelay, durationInFrames: DURATION.base })
 
-  // Label tag geometry — pinned just above the top-left corner. Width estimated
-  // from glyph count (no author-time text metrics). The tag is a rounded filled
-  // Rect with the label drawn on top.
+  // Label tag geometry — pinned just above the top-left corner. Width measured
+  // from the shaped glyphs (see `useTextMetrics` above). The tag is a rounded
+  // filled Rect with the label drawn on top.
   const showTag = label !== ''
   const tagPadX = 10
   const tagPadY = 4
   const tagGap = 6
-  const estTextWidth = label.length * fontSize * CHAR_WIDTH_FACTOR
-  const tagWidth = estTextWidth + tagPadX * 2
+  const tagWidth = measured.width + tagPadX * 2
   const tagHeight = fontSize * LINE_RATIO + tagPadY * 2
   const tagRadius = 6
   // Center the cap-height of the text within the tag box.
@@ -149,14 +150,18 @@ export function BoundingBox({
           (top L→R, right T→B, bottom R→L, left B→T), so the box draws from zero.
           `cornerRadius` rounding isn't traced by this pen — corners stay sharp,
           matching the default selection-marquee look. */}
-      {topLen > 0.5 ? (
-        <Rect x={0} y={0} width={topLen} height={strokeWidth} fill={color} />
-      ) : null}
+      {topLen > 0.5 ? <Rect x={0} y={0} width={topLen} height={strokeWidth} fill={color} /> : null}
       {rightLen > 0.5 ? (
         <Rect x={bw - strokeWidth} y={0} width={strokeWidth} height={rightLen} fill={color} />
       ) : null}
       {botLen > 0.5 ? (
-        <Rect x={bw - botLen} y={bh - strokeWidth} width={botLen} height={strokeWidth} fill={color} />
+        <Rect
+          x={bw - botLen}
+          y={bh - strokeWidth}
+          width={botLen}
+          height={strokeWidth}
+          fill={color}
+        />
       ) : null}
       {leftLen > 0.5 ? (
         <Rect x={0} y={bh - leftLen} width={strokeWidth} height={leftLen} fill={color} />

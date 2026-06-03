@@ -16,11 +16,11 @@
 //! `SlideIn`): the mask sits on the OPPOSITE side and retreats toward `direction`,
 //! so the reveal edge sweeps in from that side.
 //!
-//! Sizing caveat: the clip box must cover the content, but a pure frame→scene
-//! function has no author-time text metrics. With a `text` prop the box is
-//! ESTIMATED from `text.length × fontSize` (see `CHAR_WIDTH_FACTOR` / `LINE_RATIO`),
-//! padded so the sweep clears glyph edges and descenders. To reveal arbitrary
-//! `children`, pass explicit `width`/`height` for the clip box. The assembly is
+//! Sizing caveat: the clip box must cover the content. With a `text` prop the box
+//! width comes from the engine's MEASURED glyph run (`useTextMetrics`, with a
+//! glyph-count fallback until the wasm engine warms) and its height from
+//! `LINE_RATIO`, padded so the sweep clears glyph edges and descenders. To reveal
+//! arbitrary `children`, pass explicit `width`/`height` for the clip box. The assembly is
 //! origin-relative (like `SlideIn`/`Underline`): position it via a parent `x`/`y`
 //! or an `<AbsoluteFill>` rather than as a measured `<Flex>` child.
 
@@ -28,13 +28,9 @@ import { Group, Text, clipRect, useVideoConfig } from '@onda/react'
 import type { ReactNode } from 'react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
-/** Mean glyph advance as a fraction of font size — a rough display-sans heuristic
- *  used only to size the clip box (the engine measures the real glyphs). Sized on
- *  the generous side so the estimated box never falls short of the real glyph run
- *  and parks the hard reveal edge over the final glyph. */
-const CHAR_WIDTH_FACTOR = 0.62
 /** Engine line-box height as a multiple of font size (matches the typography
  *  crate / the ratio `Underline` and `Highlight` use). */
 const LINE_RATIO = 1.2
@@ -94,12 +90,15 @@ export function MaskReveal({
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
+  // Real shaped text width — the engine measures the glyphs (proportional, exact);
+  // falls back to a glyph-count estimate until the wasm engine warms in the browser.
+  const measured = useTextMetrics(text, fontSize, { fontFamily, fontWeight })
   // Revealed fraction 0 → 1 (ondajs animates `cover` 100 → 0; this is `1 - cover`).
   const p = Math.min(1, Math.max(0, progress))
 
   // Clip box. With explicit children the caller owns the box; for `text` it's
-  // estimated from glyph count × size, padded so the sweep clears the glyphs.
-  const boxW = width ?? Math.max(1, text.length * fontSize * CHAR_WIDTH_FACTOR + (BOX_PAD + AXIS_PAD) * 2)
+  // sized from the measured glyph run, padded so the sweep clears the glyphs.
+  const boxW = width ?? Math.max(1, measured.width + (BOX_PAD + AXIS_PAD) * 2)
   const boxH = height ?? Math.round(fontSize * LINE_RATIO + BOX_PAD * 2)
 
   // The content rendered beneath the mask — fully painted from frame 0.
