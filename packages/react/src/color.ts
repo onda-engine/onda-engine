@@ -8,6 +8,21 @@ export type ColorInput = string | Color
 /** Normalize a {@link ColorInput} into the engine's 0..1 sRGB {@link Color}. */
 export function parseColor(input: ColorInput): Color {
   if (typeof input !== 'string') {
+    // Object form: must be a real {r,g,b} color. A non-color value (boolean,
+    // null, array, partial object) would otherwise produce a scene node missing
+    // channels and fail deep in the Rust deserializer with a cryptic
+    // `missing field r` — fail fast here with an actionable message instead.
+    if (
+      input == null ||
+      typeof input !== 'object' ||
+      typeof (input as Color).r !== 'number' ||
+      typeof (input as Color).g !== 'number' ||
+      typeof (input as Color).b !== 'number'
+    ) {
+      throw new Error(
+        `invalid color ${JSON.stringify(input)}: expected a hex string or a {r,g,b} object with numeric 0..1 channels`,
+      )
+    }
     return { r: input.r, g: input.g, b: input.b, ...(input.a !== undefined ? { a: input.a } : {}) }
   }
 

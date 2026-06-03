@@ -127,6 +127,47 @@ const CHOREOGRAPHY: Record<string, PatternFn> = {
 
 const REST: Motion = { opacity: 1, x: 0, y: 0, scaleX: 1, scaleY: 1 }
 
+// Placement → fraction of the canvas the element's centre is moved to. Components
+// self-centre (their own `<AbsoluteFill justify="center">`), so without this every
+// entry stacks dead-centre — a regression vs the Remotion path, which anchored by
+// `placement`. Shifting the centred element by the centre→target delta restores
+// regions; centre/thirds are exact, corners are approximate (true corner-anchoring
+// needs the laid-out element size — a follow-up once the bridge can measure).
+const PLACEMENT_COORDS: Record<string, [number, number]> = {
+  center: [0.5, 0.5],
+  top: [0.5, 0.1],
+  bottom: [0.5, 0.9],
+  left: [0.1, 0.5],
+  right: [0.9, 0.5],
+  'top-left': [0.1, 0.1],
+  'top-right': [0.9, 0.1],
+  'bottom-left': [0.1, 0.9],
+  'bottom-right': [0.9, 0.9],
+  'upper-third': [0.5, 0.28],
+  'lower-third': [0.5, 0.72],
+}
+
+// Components that consume `placement` THEMSELVES (anchoring their own assembly to
+// a canvas corner) — the bridge must NOT also shift them, or placement applies
+// twice and they fly off-canvas.
+const SELF_ANCHORING = new Set(['LowerThird', 'Callout'])
+
+/** Centre→anchor pixel offset for an entry's `placement` prop (string slug or
+ *  `{x,y}` fractions). Returns `[0,0]` for centre / unknown. */
+function placementOffset(props: Record<string, unknown> | undefined, w: number, h: number): [number, number] {
+  const p = props?.placement
+  let fx = 0.5
+  let fy = 0.5
+  const coords = typeof p === 'string' ? PLACEMENT_COORDS[p] : undefined
+  if (coords) [fx, fy] = coords
+  else if (p && typeof p === 'object') {
+    const o = p as { x?: unknown; y?: unknown }
+    if (typeof o.x === 'number') fx = o.x
+    if (typeof o.y === 'number') fy = o.y
+  }
+  return [(fx - 0.5) * w, (fy - 0.5) * h]
+}
+
 /** Compose every `animate` pattern into one Motion (opacity/scale multiply,
  *  translate sums) at the entry-relative `frame`. */
 function composeMotion(
@@ -176,13 +217,24 @@ export type Registry = Record<string, ComponentType<Record<string, unknown>>>
 const isComponent = (v: unknown): v is ComponentType<Record<string, unknown>> =>
   typeof v === 'function'
 
-/** Default registry: every PascalCase `@onda/components` export (the components). */
+// Slug-derived names (PascalCase of the ondajs/Studio slug) that differ from the
+// `@onda/components` export name. The bridge accepts the slug name so existing
+// agent payloads resolve; the canonical `@onda` name also works.
+const NAME_ALIASES: Record<string, string> = {
+  RgbGlitchText: 'RgbGlitch', // ondajs `rgb-glitch-text` → @onda `RgbGlitch`
+}
+
+/** Default registry: every PascalCase `@onda/components` export (the components),
+ *  plus slug-name aliases for the few that were renamed in the port. */
 function defaultRegistry(): Registry {
   const reg: Registry = {}
   for (const [name, value] of Object.entries(Components)) {
     if (/^[A-Z]/.test(name) && isComponent(value)) {
       reg[name] = value as ComponentType<Record<string, unknown>>
     }
+  }
+  for (const [alias, target] of Object.entries(NAME_ALIASES)) {
+    if (reg[target] && !reg[alias]) reg[alias] = reg[target]
   }
   return reg
 }
@@ -226,9 +278,10 @@ function AnimatedEntry({
   const child = Comp ? createElement(Comp, props ?? {}) : errorPlaceholder(component)
   const cx = width / 2
   const cy = height / 2
+  const [px, py] = SELF_ANCHORING.has(component) ? [0, 0] : placementOffset(props, width, height)
   return createElement(
     Group,
-    { x: m.x, y: m.y, opacity: m.opacity },
+    { x: m.x + px, y: m.y + py, opacity: m.opacity },
     createElement(
       Group,
       { x: cx, y: cy },
@@ -259,13 +312,21 @@ function EntrySlot({
   )
 }
 
+// Overlay containers MUST be plain <Group>s, not <AbsoluteFill>s. `@onda/react`'s
+// AbsoluteFill is a flex column (it lays children out top-to-bottom), not a
+// Remotion-style absolutely-positioned overlay — so sibling tracks/entries would
+// STACK and consume each other's space instead of overlapping. A plain Group
+// applies no layout, so its children all render at (0,0) and overlay; each leaf
+// component fills the canvas via its own AbsoluteFill. (See buildComposition root
+// for the same fix — a full-frame bg Rect as a flex sibling otherwise eats all
+// the height and the content collapses to nothing → a blank frame.)
 function SceneTracks({ scene, registry }: { scene: Scene; registry: Registry }): ReactElement {
   return createElement(
-    AbsoluteFill,
+    Group,
     null,
     ...scene.tracks.map((track, ti) =>
       createElement(
-        AbsoluteFill,
+        Group,
         { key: track.id ?? `track-${ti}` },
         ...track.entries.map((entry, ei) =>
           createElement(EntrySlot, { key: entry.id ?? `entry-${ei}`, entry, registry }),
@@ -351,8 +412,11 @@ export function buildComposition(
         }),
       )
 
+  // Plain Group, NOT AbsoluteFill: the bg Rect, layers and TransitionSeries must
+  // OVERLAY (z-stack at 0,0). AbsoluteFill's flex column would lay the full-height
+  // bg Rect first and squeeze everything after it to zero height → blank render.
   const root = createElement(
-    AbsoluteFill,
+    Group,
     null,
     createElement(Rect, { width, height, fill: brand?.bg ?? '#08080a' }),
     ...layerEls(true),
