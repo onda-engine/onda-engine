@@ -13,7 +13,7 @@ import type { ClipInput } from './clip.js'
 import type { ColorInput } from './color.js'
 import { useVideoConfig } from './frame.js'
 import type { GradientInput } from './gradient.js'
-import type { Layout } from './scene.js'
+import type { ImageFit, Layout } from './scene.js'
 
 /** Properties shared by every scene node: identity, placement, opacity, clip. */
 export interface NodeProps {
@@ -149,6 +149,13 @@ export function Text(props: TextProps) {
 
 export interface ImageProps extends NodeProps {
   src: string
+  /** Target box width in px. With `height`, the decoded image is fitted into this
+   *  box per `fit` — the renderer measures the image, so the component doesn't
+   *  need its intrinsic size. Omit both for the image's intrinsic pixel size. */
+  width?: number
+  height?: number
+  /** How to fit the image into the `width`×`height` box (default `'cover'`). */
+  fit?: ImageFit
 }
 
 export function Image(props: ImageProps) {

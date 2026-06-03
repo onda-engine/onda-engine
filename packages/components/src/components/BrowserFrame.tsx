@@ -182,11 +182,6 @@ export function BrowserFrame({
   const placeholderX = Math.round((cardWidth - placeholderTextWidth) / 2)
   const placeholderY = Math.round((height - PLACEHOLDER_FONT) / 2)
 
-  // Image: uniform scale to fill the content width from its top-left (no
-  // object-fit). The clip hides vertical overflow. The base raster is assumed
-  // ~1280px wide (the ondajs default frame width).
-  const imageScale = cardWidth / 1280
-
   return (
     <Group
       x={centerX}
@@ -260,7 +255,7 @@ export function BrowserFrame({
               {children}
             </Group>
           ) : src ? (
-            <Image src={src} x={0} y={0} scaleX={imageScale} scaleY={imageScale} />
+            <Image src={src} width={cardWidth} height={height} fit="cover" />
           ) : (
             <Text x={placeholderX} y={placeholderY} fontSize={PLACEHOLDER_FONT} color={FAINT}>
               {url}

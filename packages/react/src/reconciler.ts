@@ -178,7 +178,15 @@ function toNode(node: HostNode): SceneNode {
     case 'onda-image':
       return {
         ...base,
-        kind: { type: 'image', src: stringProp(props, 'src', 'Image') },
+        kind: {
+          type: 'image',
+          src: stringProp(props, 'src', 'Image'),
+          ...(typeof props.width === 'number' ? { width: props.width } : {}),
+          ...(typeof props.height === 'number' ? { height: props.height } : {}),
+          ...(props.fit === 'fill' || props.fit === 'cover' || props.fit === 'contain'
+            ? { fit: props.fit }
+            : {}),
+        },
         ...withChildren,
       }
 

@@ -17,7 +17,7 @@
 //! the node's (composed) transform places it on the canvas.
 
 use onda_core::{Color, Transform, Vec2};
-use onda_scene::{Gradient, Image, Node, NodeKind, Scene, Shape, ShapeGeometry, Text};
+use onda_scene::{Gradient, Image, ImageFit, Node, NodeKind, Scene, Shape, ShapeGeometry, Text};
 pub use onda_typography::{FontContext, TextRaster};
 
 /// An RGBA8 image: `width * height * 4` bytes, row-major, top-left origin.
@@ -438,10 +438,11 @@ fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, op
     }
 }
 
-/// Blit a decoded [`Image`] into the framebuffer. The image's natural pixel box
-/// `[0,0]..[w,h]` is mapped through `transform` to an axis-aligned canvas box
-/// (translate + scale; no rotation), nearest-neighbor sampled, and composited
-/// straight-alpha over the destination with `opacity` folded in.
+/// Blit a decoded [`Image`] into the framebuffer. The image's box (its
+/// `width`×`height` if set, else its natural pixel size) is mapped through
+/// `transform` to an axis-aligned canvas box (translate + scale; no rotation);
+/// each destination pixel samples the source per [`Image::fit`] (cover/contain/
+/// fill), nearest-neighbor, composited straight-alpha with `opacity` folded in.
 fn rasterize_image(fb: &mut Framebuffer, image: &Image, transform: Transform, opacity: f32) {
     let Some(data) = &image.data else {
         return; // unresolved (no pixels) — nothing to draw
@@ -450,8 +451,31 @@ fn rasterize_image(fb: &mut Framebuffer, image: &Image, transform: Transform, op
         return;
     }
 
+    let (iw, ih) = (data.width as f32, data.height as f32);
+    // The layout box the image fills (default: its intrinsic size).
+    let (box_w, box_h) = match (image.width, image.height) {
+        (Some(w), Some(h)) if w > 0.0 && h > 0.0 => (w, h),
+        _ => (iw, ih),
+    };
+    // Source→box scale per fit mode, plus the centering offset of the scaled
+    // image within the box (negative for cover, which overflows + crops).
+    let (fsx, fsy) = match image.fit {
+        ImageFit::Fill => (box_w / iw, box_h / ih),
+        ImageFit::Cover => {
+            let s = (box_w / iw).max(box_h / ih);
+            (s, s)
+        }
+        ImageFit::Contain => {
+            let s = (box_w / iw).min(box_h / ih);
+            (s, s)
+        }
+    };
+    let off_x = (box_w - iw * fsx) / 2.0;
+    let off_y = (box_h - ih * fsy) / 2.0;
+
+    // Destination box = the layout box mapped through the transform.
     let a = transform.apply(Vec2::ZERO);
-    let b = transform.apply(Vec2::new(data.width as f32, data.height as f32));
+    let b = transform.apply(Vec2::new(box_w, box_h));
     let (x0, x1) = (a.x.min(b.x), a.x.max(b.x));
     let (y0, y1) = (a.y.min(b.y), a.y.max(b.y));
     let (bw, bh) = ((x1 - x0).max(f32::EPSILON), (y1 - y0).max(f32::EPSILON));
@@ -467,9 +491,18 @@ fn rasterize_image(fb: &mut Framebuffer, image: &Image, transform: Transform, op
             if sx < x0 || sx >= x1 || sy < y0 || sy >= y1 {
                 continue;
             }
-            let ix = (((sx - x0) / bw * data.width as f32) as i64).clamp(0, data.width as i64 - 1);
-            let iy =
-                (((sy - y0) / bh * data.height as f32) as i64).clamp(0, data.height as i64 - 1);
+            // Map the destination pixel back into box space, then into the source
+            // via the fit scale/offset. Samples outside the source (contain's
+            // letterbox) are skipped → the backing shows through.
+            let u = (sx - x0) / bw * box_w;
+            let v = (sy - y0) / bh * box_h;
+            let src_x = (u - off_x) / fsx;
+            let src_y = (v - off_y) / fsy;
+            if src_x < 0.0 || src_x >= iw || src_y < 0.0 || src_y >= ih {
+                continue;
+            }
+            let ix = (src_x as i64).clamp(0, data.width as i64 - 1);
+            let iy = (src_y as i64).clamp(0, data.height as i64 - 1);
             let i = (iy as usize * data.width as usize + ix as usize) * 4;
             let Some(texel) = data.rgba.get(i..i + 4) else {
                 continue;
@@ -744,6 +777,50 @@ mod tests {
             .flat_map(|y| (120..fb.width()).map(move |x| (x, y)))
             .any(|(x, y)| fb.pixel(x, y)[3] > 0);
         assert!(right_ink, "glyph should appear in the translated region");
+    }
+
+    #[test]
+    fn image_cover_fills_the_box_and_contain_letterboxes() {
+        use onda_scene::{Image, ImageData, ImageFit};
+        use std::sync::Arc;
+        // A 2×1 source (left red, right blue) into a 4×4 box — aspect mismatch.
+        let data = ImageData {
+            width: 2,
+            height: 1,
+            rgba: Arc::new(vec![255, 0, 0, 255, 0, 0, 255, 255]),
+        };
+        let img = |fit: ImageFit| {
+            Node::new(NodeKind::Image(
+                Image::new("x")
+                    .with_data(data.clone())
+                    .with_box(4.0, 4.0, fit),
+            ))
+        };
+
+        // Cover overflows + crops, so every pixel of the box is opaque (no gaps).
+        let fb = render(
+            &Scene::new(comp(4, 4)).with_root(Node::group().with_child(img(ImageFit::Cover))),
+        );
+        for y in 0..4 {
+            for x in 0..4 {
+                assert_eq!(fb.pixel(x, y)[3], 255, "cover should fill ({x},{y})");
+            }
+        }
+
+        // Contain centers a 4×2 image, so the top and bottom rows letterbox.
+        let fb = render(
+            &Scene::new(comp(4, 4)).with_root(Node::group().with_child(img(ImageFit::Contain))),
+        );
+        assert_eq!(fb.pixel(0, 0)[3], 0, "contain should letterbox the top row");
+        assert_eq!(
+            fb.pixel(0, 3)[3],
+            0,
+            "contain should letterbox the bottom row"
+        );
+        assert!(
+            (0..4).all(|x| fb.pixel(x, 1)[3] == 255),
+            "contain fills the middle band"
+        );
     }
 
     #[cfg(feature = "parallel")]

@@ -79,9 +79,13 @@ export type NodeKind =
       italic?: boolean
       runs?: SceneTextRun[]
     }
-  | { type: 'image'; src: string }
+  | { type: 'image'; src: string; width?: number; height?: number; fit?: ImageFit }
   | { type: 'shape'; geometry: ShapeGeometry; fill?: Color; gradient?: Gradient; stroke?: Stroke }
   | { type: 'svg'; src?: string; markup?: string }
+
+/** How a bitmap is fitted into its `width`×`height` box (mirrors onda-scene's
+ *  `ImageFit`). The renderer measures the decoded image to compute the scale. */
+export type ImageFit = 'fill' | 'cover' | 'contain'
 
 /** Flex layout for a node's direct children (mirrors onda-scene's `Layout`).
  *  Resolved to absolute child transforms by the engine's layout pass. */
