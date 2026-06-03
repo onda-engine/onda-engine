@@ -175,6 +175,8 @@ fn intrinsic_size(
             .map(|d| Size::new(d.width as f32, d.height as f32))
             .unwrap_or(Size::ZERO),
         NodeKind::Text(text) => measure(text),
+        // Audio is non-visual — no layout box.
+        NodeKind::Audio(_) => Size::ZERO,
         // A plain container's box is the extent of its (already-positioned)
         // children — the bounding box from the local origin.
         NodeKind::Group | NodeKind::Svg(_) => {

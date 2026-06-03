@@ -97,6 +97,10 @@ pub enum NodeKind {
     /// player; native: ffmpeg) and attached as [`Video::data`], which renderers
     /// draw exactly like an image.
     Video(Video),
+    /// A non-visual audio clip on the timeline. Renderers ignore it; the player
+    /// plays it for preview, and (in future) export muxes it. Carried in the
+    /// scene graph so it travels with the composition.
+    Audio(Audio),
     Shape(Shape),
     /// A reference to an SVG document, expanded into vector nodes by a
     /// vector-capable layer (see the `onda-svg` crate). Renderers that haven't
@@ -141,6 +145,11 @@ impl Node {
     /// A video node referencing `src` (decoding lives elsewhere — see [`Video`]).
     pub fn video(src: impl Into<String>) -> Self {
         Node::new(NodeKind::Video(Video::new(src)))
+    }
+
+    /// A non-visual audio node referencing `src` (see [`Audio`]).
+    pub fn audio(src: impl Into<String>) -> Self {
+        Node::new(NodeKind::Audio(Audio::new(src)))
     }
 
     /// A shape node.
@@ -523,6 +532,42 @@ impl Video {
     pub fn with_data(mut self, data: ImageData) -> Self {
         self.data = Some(data);
         self
+    }
+}
+
+/// A non-visual audio clip on the timeline. Renderers ignore it; it rides in the
+/// scene graph so audio travels with the composition — the player plays it for
+/// preview, and export can mux it. `start` is when the clip begins in the
+/// composition (seconds); `start_at` trims into the source; `volume` is a 0..1
+/// gain.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Audio {
+    pub src: String,
+    /// Composition time (seconds) at which the clip begins playing.
+    #[serde(default)]
+    pub start: f32,
+    /// Seconds into the source to begin from (trim the head).
+    #[serde(default)]
+    pub start_at: f32,
+    /// Linear gain, 0..1.
+    #[serde(default = "Audio::default_volume")]
+    pub volume: f32,
+}
+
+impl Audio {
+    fn default_volume() -> f32 {
+        1.0
+    }
+
+    /// Construct from a path, URL, or `data:` URI, starting at composition time 0,
+    /// from the source's beginning, at full volume.
+    pub fn new(src: impl Into<String>) -> Self {
+        Audio {
+            src: src.into(),
+            start: 0.0,
+            start_at: 0.0,
+            volume: 1.0,
+        }
     }
 }
 
@@ -1013,6 +1058,32 @@ mod tests {
                 assert_eq!(v.fit, ImageFit::Cover);
             }
             _ => panic!("expected video"),
+        }
+    }
+
+    #[test]
+    fn audio_round_trips_with_volume_default() {
+        let mut audio = Audio::new("track.mp3");
+        audio.start = 1.5;
+        audio.volume = 0.5;
+        let scene =
+            Scene::new(hd()).with_root(Node::group().with_child(Node::new(NodeKind::Audio(audio))));
+        let json = serde_json::to_string(&scene).unwrap();
+        assert!(json.contains(r#""type":"audio""#));
+        assert!(json.contains(r#""start":1.5"#));
+        let back: Scene = serde_json::from_str(&json).unwrap();
+        assert_eq!(scene, back);
+
+        // Minimal audio JSON: no start/volume → start 0, volume 1 (default).
+        let json = r#"{ "composition": { "width": 1280, "height": 720, "fps": 30.0, "duration_in_frames": 1 },
+            "root": { "kind": { "type": "group" }, "children": [ { "kind": { "type": "audio", "src": "a.mp3" } } ] } }"#;
+        let scene: Scene = serde_json::from_str(json).unwrap();
+        match &scene.root.children[0].kind {
+            NodeKind::Audio(a) => {
+                assert_eq!(a.start, 0.0);
+                assert_eq!(a.volume, 1.0);
+            }
+            _ => panic!("expected audio"),
         }
     }
 

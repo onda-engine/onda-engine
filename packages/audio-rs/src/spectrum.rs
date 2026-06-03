@@ -102,7 +102,10 @@ pub fn spectrogram(
             let k_lo = ((lo / bin_hz).floor().max(1.0) as usize).min(half_bins.saturating_sub(1));
             let k_hi = ((hi / bin_hz).ceil() as usize).min(half_bins.saturating_sub(1));
             let mag = if k_hi >= k_lo {
-                let sum: f32 = buf[k_lo..=k_hi].iter().map(|c| c.norm() * 2.0 / win_sum).sum();
+                let sum: f32 = buf[k_lo..=k_hi]
+                    .iter()
+                    .map(|c| c.norm() * 2.0 / win_sum)
+                    .sum();
                 sum / (k_hi - k_lo + 1) as f32
             } else {
                 // Band narrower than the bin spacing → use the nearest bin.

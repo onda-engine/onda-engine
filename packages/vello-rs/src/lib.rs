@@ -233,6 +233,8 @@ fn build(
                 video.fit,
             );
         }
+        // Audio is non-visual — the player plays it; the renderer skips it.
+        NodeKind::Audio(_) => {}
         // SVG nodes are expanded to shapes before rendering (see onda-svg); an
         // unexpanded one draws nothing.
         NodeKind::Svg(_) => {}

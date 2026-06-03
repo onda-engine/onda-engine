@@ -282,6 +282,8 @@ impl Renderer {
                 transform,
                 opacity,
             ),
+            // Audio is non-visual — the player plays it; the renderer skips it.
+            NodeKind::Audio(_) => {}
             // SVG nodes are expanded to shapes (onda-svg) before rendering; the
             // CPU backend can't draw paths anyway, so an unexpanded one is a no-op.
             NodeKind::Svg(_) => {}
