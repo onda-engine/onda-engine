@@ -299,6 +299,220 @@ export function dipToColor({ color = '#08080a' }: { color?: string } = {}): Tran
   }
 }
 
+// ---------------------------------------------------------------------------
+// Effect transitions — approximated in the presentation layer (no engine blur).
+// `blur`/`glassWipe` use a multi-tap smear (`blurStack`); the rest are
+// transform/clip tricks. Crude vs a true Gaussian, but convincing at transition
+// speed and zero engine cost.
+// ---------------------------------------------------------------------------
+
+// Ring of unit offsets; a tap is drawn at each, scaled by the blur radius, so the
+// copies smear into a soft blur. (A true Gaussian would need an engine pass.)
+const BLUR_RING: ReadonlyArray<readonly [number, number]> = [
+  [0, 0],
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [0.7, 0.7],
+  [-0.7, 0.7],
+  [0.7, -0.7],
+  [-0.7, -0.7],
+]
+
+/** Draw `children` at each ring offset (scaled by `radius`) at equal opacity so
+ *  the copies sum to a soft blur. `radius` ≤ ~0.5px → a single sharp draw. */
+function blurStack(children: ReactNode, radius: number): ReactElement {
+  if (radius <= 0.5) return createElement(Group, {}, children)
+  const op = 1 / BLUR_RING.length
+  return createElement(
+    Group,
+    {},
+    ...BLUR_RING.map(([dx, dy], i) =>
+      createElement(Group, { key: i, x: dx * radius, y: dy * radius, opacity: op }, children),
+    ),
+  )
+}
+
+/** Blur cross: each scene blurs toward the midpoint and sharpens at rest, with an
+ *  opacity cross. (Multi-tap approximation — see {@link blurStack}.) */
+export function blur({ maxBlur = 24 }: { maxBlur?: number } = {}): TransitionPresentation {
+  return (children, { progress, entering }) => {
+    const sharp = entering ? progress : 1 - progress // 1 at rest
+    return createElement(
+      Group,
+      { opacity: entering ? progress : 1 - progress },
+      blurStack(children, (1 - sharp) * maxBlur),
+    )
+  }
+}
+
+/** Chromatic split: the scene tears into horizontally offset ghosts that spread
+ *  at the midpoint and converge at rest (an RGB-fringe feel — the engine has no
+ *  per-channel tint, so the copies are uncoloured). */
+export function chromaticAberration({
+  maxShift = 22,
+}: { maxShift?: number } = {}): TransitionPresentation {
+  return (children, { progress, entering }) => {
+    const sharp = entering ? progress : 1 - progress
+    const d = (1 - sharp) * maxShift
+    const opacity = entering ? progress : 1 - progress
+    if (d <= 0.5) return createElement(Group, { opacity }, children)
+    return createElement(
+      Group,
+      { opacity },
+      createElement(Group, { x: -d, opacity: 0.5 }, children),
+      createElement(Group, { x: d, opacity: 0.5 }, children),
+      createElement(Group, {}, children),
+    )
+  }
+}
+
+/** Device pullback: the outgoing scene shrinks back (and lifts) as if pulled into
+ *  the distance, uncovering the incoming scene that settles forward into place. */
+export function devicePullback(): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    if (entering) {
+      const scale = 1.12 - 0.12 * progress
+      return createElement(
+        Group,
+        { opacity: progress },
+        scaleAbout(children, scale, scale, width / 2, height / 2),
+      )
+    }
+    const scale = 1 - 0.45 * progress
+    return createElement(
+      Group,
+      { opacity: 1 - progress, y: -progress * height * 0.06 },
+      scaleAbout(children, scale, scale, width / 2, height / 2),
+    )
+  }
+}
+
+/** Expand morph: the incoming scene bursts open from the centre while the
+ *  outgoing one balloons out and dissolves — a quick morph-expand. */
+export function expandMorph(): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    if (entering) {
+      const scale = 0.3 + 0.7 * progress
+      return createElement(
+        Group,
+        { opacity: Math.min(1, progress * 1.5) },
+        scaleAbout(children, scale, scale, width / 2, height / 2),
+      )
+    }
+    const scale = 1 + 0.5 * progress
+    return createElement(
+      Group,
+      { opacity: 1 - progress },
+      scaleAbout(children, scale, scale, width / 2, height / 2),
+    )
+  }
+}
+
+/** Morph: a soft scale-and-fade blend — the scenes ease through each other with a
+ *  gentle breathing scale. */
+export function morph(): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    const scale = entering ? 0.94 + 0.06 * progress : 1 + 0.06 * progress
+    return createElement(
+      Group,
+      { opacity: entering ? progress : 1 - progress },
+      scaleAbout(children, scale, scale, width / 2, height / 2),
+    )
+  }
+}
+
+/** Glass wipe: the incoming scene reveals behind a sweeping edge and blurs sharp
+ *  as the "frosted panel" passes (blur is the {@link blurStack} approximation). */
+export function glassWipe({
+  direction = 'from-left',
+}: { direction?: SlideDirection } = {}): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    if (!entering)
+      return createElement(Group, { opacity: Math.max(0, 1 - progress / 0.7) }, children)
+    const p = Math.min(1, Math.max(0, progress))
+    const frosted = blurStack(children, (1 - p) * 18)
+    switch (direction) {
+      case 'from-top':
+        return createElement(Group, { clip: clipRect(width, height * p) }, frosted)
+      case 'from-right': {
+        const w = width * p
+        return createElement(
+          Group,
+          { x: width - w },
+          createElement(Group, { x: -(width - w), clip: clipRect(w, height) }, frosted),
+        )
+      }
+      case 'from-bottom': {
+        const h = height * p
+        return createElement(
+          Group,
+          { y: height - h },
+          createElement(Group, { y: -(height - h), clip: clipRect(width, h) }, frosted),
+        )
+      }
+      default:
+        return createElement(Group, { clip: clipRect(width * p, height) }, frosted)
+    }
+  }
+}
+
+// Deterministic per-cell phase for the grid scatter (a hashed fract, stable
+// across renders — no Math.random, so the reveal is identical every frame).
+function cellPhase(i: number, j: number): number {
+  const n = Math.sin(i * 12.9898 + j * 78.233) * 43758.5453
+  return n - Math.floor(n)
+}
+
+/** Grid pixelate: the incoming scene fills in as a grid of blocks, each popping
+ *  on in a deterministic scatter (a blocky reveal — true pixelation needs an
+ *  engine sampling pass). */
+export function gridPixelate({
+  cols = 16,
+  rows = 9,
+}: { cols?: number; rows?: number } = {}): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    if (!entering)
+      return createElement(Group, { opacity: Math.max(0, 1 - progress / 0.7) }, children)
+    if (progress >= 1) return createElement(Group, {}, children)
+    if (progress <= 0) return createElement(Group, { opacity: 0 }, children)
+    const cw = width / cols
+    const ch = height / rows
+    let d = ''
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        if (cellPhase(i, j) < progress) {
+          const x = round(i * cw)
+          const y = round(j * ch)
+          d += `M ${x} ${y} L ${round(x + cw)} ${y} L ${round(x + cw)} ${round(y + ch)} L ${x} ${round(y + ch)} Z `
+        }
+      }
+    }
+    if (d === '') return createElement(Group, { opacity: 0 }, children)
+    return createElement(Group, { clip: clipPath(d) }, children)
+  }
+}
+
+/** Type mask: the incoming scene reveals through a row of vertical bars that
+ *  widen into place — a typographic blinds reveal. */
+export function typeMask({ bars = 12 }: { bars?: number } = {}): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    if (!entering)
+      return createElement(Group, { opacity: Math.max(0, 1 - progress / 0.7) }, children)
+    if (progress >= 1) return createElement(Group, {}, children)
+    if (progress <= 0) return createElement(Group, { opacity: 0 }, children)
+    const slot = width / bars
+    const w = round(slot * Math.min(1, progress))
+    let d = ''
+    for (let i = 0; i < bars; i++) {
+      const x = round(i * slot)
+      d += `M ${x} 0 L ${round(x + w)} 0 L ${round(x + w)} ${round(height)} L ${x} ${round(height)} Z `
+    }
+    return createElement(Group, { clip: clipPath(d) }, children)
+  }
+}
+
 /** Alias of {@link fade} — Studio's "cross-fade" slug. */
 export const crossFade = fade
 
