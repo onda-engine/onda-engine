@@ -24,14 +24,10 @@
 //!    engine primitive; the label renders without extra tracking and the focus
 //!    ring is approximated by a low-alpha accent stroke just outside the border.
 
-import { Group, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Flex, Group, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useTextReveal } from '../hooks.js'
 import { useTheme } from '../theme.js'
 
-/** Approximate average glyph advance as a fraction of font size, for a
- *  proportional display face. Matches the Marquee/Highlight estimate; used only
- *  to place the caret after the visible value (no DOM measurement available). */
-const AVG_CHAR_W = 0.6
 /** Engine line-box height as a multiple of font size (typography crate). */
 const LINE_RATIO = 1.2
 
@@ -150,13 +146,11 @@ export function InputField({
   const textY = labelBlock + padY
   const textX = padX
 
-  // Estimated width of the visible value, to place the caret right after it.
-  const valueWidth = visible.length * fontSize * AVG_CHAR_W
+  // The caret sits right after the value via a Flex row (the engine measures the
+  // text), so no glyph-width estimate is needed — a hair of gap separates it from
+  // the last glyph.
   const caretWidth = Math.max(2, Math.round(fontSize * 0.06))
-  const caretX = textX + valueWidth + 2
-  // Caret is shorter than the line box; center it within the box to match the
-  // ondajs `verticalAlign: middle` (the caret height is `fontSize`).
-  const caretY = textY + (lineHeight - fontSize) / 2
+  const caretGap = Math.max(6, Math.round(fontSize * 0.22))
 
   // Focus-ring glow: a low-alpha accent stroke just outside the field border,
   // standing in for the ondajs CSS box-shadow (see approximations).
@@ -205,21 +199,7 @@ export function InputField({
         strokeWidth={2}
       />
 
-      {/* Value text (or placeholder while empty). Positioned absolutely so its
-          per-frame growing width never triggers a Flex reflow (HARD RULE 2). */}
-      {visible.length > 0 ? (
-        <Text
-          x={textX}
-          y={textY}
-          fontSize={fontSize}
-          color={textColor}
-          fontFamily={fontFamily}
-          fontWeight={400}
-        >
-          {visible}
-        </Text>
-      ) : null}
-
+      {/* Placeholder while the field is empty (steady, before typing begins). */}
       {showPlaceholder ? (
         <Text
           x={textX}
@@ -233,16 +213,21 @@ export function InputField({
         </Text>
       ) : null}
 
-      {/* Thin blinking caret at the estimated typing edge. */}
-      {showCaret ? (
-        <Rect
-          x={caretX}
-          y={caretY}
-          width={caretWidth}
-          height={fontSize}
-          cornerRadius={1}
-          fill={accentColor}
-        />
+      {/* Value + caret in a row so the ENGINE measures the typed text and the
+          caret lands right after the last glyph (no width estimate). The row is
+          left-pinned at the text origin and only grows rightward as it types — the
+          fixed field Rect never reflows. */}
+      {visible.length > 0 || showCaret ? (
+        <Flex direction="row" align="center" gap={caretGap} x={textX} y={textY} height={lineHeight}>
+          {visible.length > 0 ? (
+            <Text fontSize={fontSize} color={textColor} fontFamily={fontFamily} fontWeight={400}>
+              {visible}
+            </Text>
+          ) : null}
+          {showCaret ? (
+            <Rect width={caretWidth} height={fontSize} cornerRadius={1} fill={accentColor} />
+          ) : null}
+        </Flex>
       ) : null}
     </Group>
   )
