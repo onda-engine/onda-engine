@@ -8,8 +8,8 @@ import { useTheme } from '../theme.js'
 import { FadeIn } from './FadeIn.js'
 
 export interface StatCardProps {
-  /** The headline metric, e.g. "26.8 fps" or "100×". */
-  value: string
+  /** The headline metric, e.g. "26.8 fps" or "100×" (number is stringified). */
+  value: string | number
   /** The label beneath, e.g. "faster than Remotion". */
   label: string
   valueSize?: number
@@ -18,8 +18,12 @@ export interface StatCardProps {
   valueColor?: string
   /** Label color (default: theme `textMuted`). */
   labelColor?: string
-  /** Accent color for the underline bar (default: theme `accent`). */
-  accent?: string
+  /** Show the accent rule beneath the value. `true`/undefined → show (theme
+   *  accent); `false` → hide; a string → show in that color. Matches the
+   *  ondajs/Studio `accent: boolean` contract (a color goes via `accentColor`). */
+  accent?: boolean | string
+  /** Accent rule color (default: theme `accent`). */
+  accentColor?: string
   /** Loaded font family (default: theme body family). */
   fontFamily?: string
   delay?: number
@@ -32,14 +36,18 @@ export function StatCard({
   labelSize = 34,
   valueColor,
   labelColor,
-  accent,
+  accent = true,
+  accentColor,
   fontFamily,
   delay = 0,
 }: StatCardProps) {
   const theme = useTheme()
   const valueCol = valueColor ?? theme.text
   const labelCol = labelColor ?? theme.textMuted
-  const accentCol = accent ?? theme.accent
+  // `accent` is a boolean flag in the Studio contract; a string is accepted as
+  // a color shorthand. `accentColor` (explicit color) wins.
+  const showAccent = accent !== false
+  const accentCol = accentColor ?? (typeof accent === 'string' ? accent : theme.accent)
   const family = fontFamily ?? theme.fontFamily
 
   return (
@@ -47,12 +55,19 @@ export function StatCard({
       <Flex direction="column" align="center" gap={Math.round(labelSize * 0.7)}>
         <FadeIn delay={delay} durationInFrames={DURATION.slow}>
           <Text fontSize={valueSize} color={valueCol} fontFamily={family} fontWeight={700}>
-            {value}
+            {String(value)}
           </Text>
         </FadeIn>
-        <FadeIn delay={delay + staggerFrames(2)}>
-          <Rect width={Math.round(valueSize * 0.6)} height={6} cornerRadius={3} fill={accentCol} />
-        </FadeIn>
+        {showAccent ? (
+          <FadeIn delay={delay + staggerFrames(2)}>
+            <Rect
+              width={Math.round(valueSize * 0.6)}
+              height={6}
+              cornerRadius={3}
+              fill={accentCol}
+            />
+          </FadeIn>
+        ) : null}
         <FadeIn delay={delay + staggerFrames(4)}>
           <Text fontSize={labelSize} color={labelCol} fontFamily={family}>
             {label}

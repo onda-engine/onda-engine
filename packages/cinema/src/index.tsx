@@ -180,6 +180,91 @@ function placementOffset(
   return [(fx - 0.5) * w, (fy - 0.5) * h]
 }
 
+// ── Studio prop vocabulary → @onda/components prop API ────────────────────────
+// ondajs/Studio components take a semantic SIZE ROLE (a fraction of the SMALLER
+// canvas dimension, resolved canvas-aware) under prop names like `size` /
+// `titleSize` / `numberSize`, with a px companion (`fontSize` / `titleFontSize`,
+// which wins when both are passed). The `@onda/components` ports instead take
+// raw px under their own names (`fontSize`, `titleSize`, `valueSize`). Without a
+// translation, a real Studio payload's `size: "hero"` is either dropped (default
+// size) or — worse — fed into a component's arithmetic, yielding `NaN` → a `null`
+// in the scene JSON that the Rust f32 parser rejects (hard render failure).
+//
+// SIZE_ROLES + the resolve formula MUST match Studio's `resolveSize` exactly
+// (frontend/src/lib/onda/canvas.tsx) so bridged sizes equal Studio's pixels.
+const SIZE_ROLES: Record<string, number> = {
+  hero: 0.15,
+  heading: 0.09,
+  subheading: 0.052,
+  body: 0.03,
+  caption: 0.02,
+}
+const roleToPx = (role: string, w: number, h: number): number =>
+  Math.round((SIZE_ROLES[role] ?? 0) * Math.min(w, h))
+
+// Per-component prop map: Studio prop name → `@onda/components` prop name. Role
+// sources (`…Size`/`size`) resolve through SIZE_ROLES; px sources
+// (`…FontSize`/`fontSize`) pass numbers through and WIN over a role for the same
+// target (matching Studio's "px wins" rule).
+const isPxSource = (name: string): boolean => name === 'fontSize' || name.endsWith('FontSize')
+const PROP_ALIASES: Record<string, Record<string, string>> = {
+  TitleCard: {
+    titleSize: 'titleSize',
+    titleFontSize: 'titleSize',
+    subtitleSize: 'subtitleSize',
+    subtitleFontSize: 'subtitleSize',
+  },
+  Highlight: { size: 'fontSize', fontSize: 'fontSize' },
+  WordStagger: { size: 'fontSize', fontSize: 'fontSize' },
+  Captions: { size: 'fontSize', fontSize: 'fontSize' },
+  StatCard: {
+    numberSize: 'valueSize',
+    numberFontSize: 'valueSize',
+    labelSize: 'labelSize',
+    labelFontSize: 'labelSize',
+  },
+}
+
+/** Translate a Studio entry's props to the `@onda/components` prop API: resolve
+ *  size-role tokens to canvas-aware px, alias the differing prop names, and (as a
+ *  safety net) resolve any leftover role-token value in place so a stray token
+ *  can never reach a component's arithmetic and produce a NaN→null scene node. */
+function adaptProps(
+  component: string,
+  props: Record<string, unknown> | undefined,
+  w: number,
+  h: number,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...(props ?? {}) }
+  const aliases = PROP_ALIASES[component]
+  if (aliases) {
+    // For each target prop, a px source wins over a role source.
+    const pxValue: Record<string, number> = {}
+    const roleValue: Record<string, number> = {}
+    for (const [src, target] of Object.entries(aliases)) {
+      if (!(src in out)) continue
+      const v = out[src]
+      if (isPxSource(src)) {
+        if (typeof v === 'number') pxValue[target] = v
+      } else if (typeof v === 'string' && v in SIZE_ROLES) {
+        roleValue[target] = roleToPx(v, w, h)
+      } else if (typeof v === 'number') {
+        roleValue[target] = v // already px under a role-named prop
+      }
+      if (src !== target) delete out[src] // drop the Studio-only name
+    }
+    for (const target of new Set([...Object.keys(roleValue), ...Object.keys(pxValue)])) {
+      out[target] = pxValue[target] ?? roleValue[target]
+    }
+  }
+  // Generic safety net: any remaining prop whose value is a bare role token.
+  for (const k of Object.keys(out)) {
+    const v = out[k]
+    if (typeof v === 'string' && v in SIZE_ROLES) out[k] = roleToPx(v, w, h)
+  }
+  return out
+}
+
 /** Compose every `animate` pattern into one Motion (opacity/scale multiply,
  *  translate sums) at the entry-relative `frame`. */
 function composeMotion(
@@ -297,7 +382,9 @@ function AnimatedEntry({
   const { fps, width, height } = useVideoConfig()
   const m = composeMotion(animate, frame, fps, durationInFrames)
   const Comp = registry[component]
-  const child = Comp ? createElement(Comp, props ?? {}) : errorPlaceholder(component)
+  const child = Comp
+    ? createElement(Comp, adaptProps(component, props, width, height))
+    : errorPlaceholder(component)
   const cx = width / 2
   const cy = height / 2
   const [px, py] = SELF_ANCHORING.has(component) ? [0, 0] : placementOffset(props, width, height)
