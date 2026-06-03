@@ -545,53 +545,65 @@ fn write_gif(frames: &[Framebuffer], fps: f32, out: &Path) -> Result<()> {
 /// temp dir, then invokes the encoder). If `audio_wav` is given, it's muxed in
 /// as an AAC stream and the output is trimmed to the shorter of the two.
 fn write_mp4(frames: &[Framebuffer], fps: f32, out: &Path, audio_wav: Option<&Path>) -> Result<()> {
-    let dir = std::env::temp_dir().join(format!("onda-export-{}", std::process::id()));
-    std::fs::create_dir_all(&dir)
-        .with_context(|| format!("creating temp dir '{}'", dir.display()))?;
+    use std::io::Write;
+    // Pipe raw RGBA8 frames straight to ffmpeg's stdin — no per-frame PNG encode
+    // and no disk round-trip (the old path wrote a PNG per frame, then ffmpeg
+    // re-decoded them). ffmpeg color-converts to yuv420p and encodes with
+    // libx264. `Framebuffer::as_bytes` is straight-alpha RGBA8, row-major,
+    // matching `-pixel_format rgba`; all frames share the composition size.
+    let (w, h) = (frames[0].width(), frames[0].height());
 
-    let result = (|| -> Result<()> {
+    let mut cmd = std::process::Command::new("ffmpeg");
+    cmd.args([
+        "-y",
+        "-loglevel",
+        "error",
+        "-f",
+        "rawvideo",
+        "-pixel_format",
+        "rgba",
+        "-video_size",
+        &format!("{w}x{h}"),
+        "-framerate",
+        &fps.to_string(),
+        "-i",
+        "-",
+    ]);
+    if let Some(wav) = audio_wav {
+        cmd.arg("-i").arg(wav);
+    }
+    // Even dimensions are required by yuv420p/libx264.
+    cmd.args([
+        "-vf",
+        "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+    ]);
+    if audio_wav.is_some() {
+        // Encode the audio and stop at the shorter stream (video length).
+        cmd.args(["-c:a", "aac", "-b:a", "192k", "-shortest"]);
+    }
+    cmd.arg(out).stdin(std::process::Stdio::piped());
+
+    let mut child = cmd
+        .spawn()
+        .context("failed to launch ffmpeg — is it installed and on PATH? (.gif needs no tools)")?;
+    {
+        let mut stdin = child.stdin.take().context("ffmpeg stdin was unavailable")?;
         for (i, frame) in frames.iter().enumerate() {
-            frame
-                .write_png(dir.join(format!("frame_{i:05}.png")))
-                .with_context(|| format!("writing frame {i}"))?;
+            stdin
+                .write_all(frame.as_bytes())
+                .with_context(|| format!("piping frame {i} to ffmpeg"))?;
         }
-        let mut cmd = std::process::Command::new("ffmpeg");
-        cmd.args([
-            "-y",
-            "-loglevel",
-            "error",
-            "-framerate",
-            &fps.to_string(),
-            "-i",
-        ])
-        .arg(dir.join("frame_%05d.png"));
-        if let Some(wav) = audio_wav {
-            cmd.arg("-i").arg(wav);
-        }
-        // Even dimensions are required by yuv420p/libx264.
-        cmd.args([
-            "-vf",
-            "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-            "-c:v",
-            "libx264",
-            "-pix_fmt",
-            "yuv420p",
-        ]);
-        if audio_wav.is_some() {
-            // Encode the audio and stop at the shorter stream (video length).
-            cmd.args(["-c:a", "aac", "-b:a", "192k", "-shortest"]);
-        }
-        let status = cmd.arg(out).status().context(
-            "failed to launch ffmpeg — is it installed and on PATH? (.gif needs no tools)",
-        )?;
-        if !status.success() {
-            bail!("ffmpeg exited unsuccessfully ({status})");
-        }
-        Ok(())
-    })();
-
-    let _ = std::fs::remove_dir_all(&dir);
-    result
+        // `stdin` drops here → EOF, so ffmpeg finalizes the output.
+    }
+    let status = child.wait().context("waiting for ffmpeg")?;
+    if !status.success() {
+        bail!("ffmpeg exited unsuccessfully ({status})");
+    }
+    Ok(())
 }
 
 /// Read a scene-graph JSON document, render it through `backend`, and write the
