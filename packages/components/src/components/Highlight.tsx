@@ -25,11 +25,9 @@ import {
 } from '@onda/react'
 import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
-/** Empirical advance ratio: average glyph advance ÷ font size for a display
- *  face. Used only to estimate the accent bar width when `width` is omitted. */
-const WIDTH_RATIO = 0.56
 /** Engine line-box height as a multiple of font size (matches typography crate). */
 const LINE_RATIO = 1.2
 
@@ -98,8 +96,11 @@ export function Highlight({
     durationInFrames: lineDuration,
   })
 
-  // Estimated text extent (overridable). The bar grows from 0 → full width.
-  const textWidth = width ?? Math.max(0, text.length) * fontSize * WIDTH_RATIO
+  // Real shaped text width (overridable via `width`). The engine measures it
+  // (proportional — exact); falls back to a glyph-count estimate until the wasm
+  // engine warms in the browser, or if `width` is passed.
+  const measured = useTextMetrics(text, fontSize, { fontFamily, fontWeight })
+  const textWidth = width ?? measured.width
   const fullBarWidth = textWidth + paddingX * 2
   const barWidth = interpolate(barProgress, [0, 1], [0, fullBarWidth], {
     extrapolateLeft: 'clamp',
