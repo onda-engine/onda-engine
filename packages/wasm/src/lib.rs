@@ -12,7 +12,7 @@ use std::cell::RefCell;
 use std::path::Path;
 
 use onda_core::Size;
-use onda_renderer::{FontContext, Renderer};
+use onda_renderer::{FontContext, Renderer, TextMetrics};
 use onda_scene::{Scene, Text};
 use onda_typography::StyledRun;
 use wasm_bindgen::prelude::*;
@@ -87,6 +87,43 @@ impl RenderedFrame {
     }
 }
 
+/// Rendered text dimensions ([`onda_renderer::TextMetrics`]) for JS — what a
+/// component needs to size things to the *actual* text (proportional advance,
+/// ascent/descent) instead of a glyph-count guess. Pixels at the measured size.
+#[wasm_bindgen]
+pub struct TextMetricsJs {
+    inner: TextMetrics,
+}
+
+#[wasm_bindgen]
+impl TextMetricsJs {
+    /// Shaped advance width — the true rendered width of the string.
+    #[wasm_bindgen(getter)]
+    pub fn width(&self) -> f32 {
+        self.inner.width
+    }
+    /// Total laid-out height (line height × line count).
+    #[wasm_bindgen(getter)]
+    pub fn height(&self) -> f32 {
+        self.inner.height
+    }
+    /// Top of the line box to the baseline.
+    #[wasm_bindgen(getter)]
+    pub fn ascent(&self) -> f32 {
+        self.inner.ascent
+    }
+    /// Baseline to the bottom of the line box.
+    #[wasm_bindgen(getter)]
+    pub fn descent(&self) -> f32 {
+        self.inner.descent
+    }
+    /// Baseline-to-baseline line height.
+    #[wasm_bindgen(getter, js_name = lineHeight)]
+    pub fn line_height(&self) -> f32 {
+        self.inner.line_height
+    }
+}
+
 /// The engine: holds a renderer (with the bundled default font) and rasterizes
 /// scene-graph JSON to frames. Construct once and reuse across frames.
 #[wasm_bindgen]
@@ -129,5 +166,28 @@ impl OndaEngine {
             height: framebuffer.height(),
             pixels: framebuffer.as_bytes().to_vec(),
         })
+    }
+
+    /// Measure `content` at `font_size` (px) with optional family / weight /
+    /// italic, returning its [`TextMetricsJs`]. The same shaping the engine draws,
+    /// so a component can size underlines/pills/carets to the real text — in both
+    /// the browser preview and (warmed once) the Node export path.
+    #[wasm_bindgen(js_name = measureText)]
+    pub fn measure_text(
+        &self,
+        content: &str,
+        font_size: f32,
+        family: Option<String>,
+        weight: Option<u16>,
+        italic: Option<bool>,
+    ) -> TextMetricsJs {
+        let inner = self.fonts.borrow_mut().measure_with(
+            content,
+            font_size,
+            family.as_deref(),
+            weight.unwrap_or(400),
+            italic.unwrap_or(false),
+        );
+        TextMetricsJs { inner }
     }
 }
