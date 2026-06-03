@@ -22,6 +22,7 @@
 //! `radial` (rotation) are GPU-only niceties.
 
 import {
+  Audio,
   Ellipse,
   Group,
   Path,
@@ -55,7 +56,8 @@ export interface AudioVisualizerProps {
    * Audio file URL to drive the bars with REAL frequency data (decoded + FFT'd by
    * `@onda/wasm-audio` — identical spectra in preview and export). Omit for the
    * built-in procedural animation. For the browser preview the source must be
-   * same-origin or CORS-enabled; `onda export` accepts any direct URL.
+   * same-origin or CORS-enabled; `onda export` accepts any direct URL. When set,
+   * the player also PLAYS the audio (use the volume/mute control to silence it).
    */
   src?: string
   /** Number of frequency bands. */
@@ -198,9 +200,13 @@ export function AudioVisualizer({
             : renderBars(ctx)
 
   return (
-    <Group x={originX} y={originY} opacity={entrance}>
-      {children}
-    </Group>
+    <>
+      <Group x={originX} y={originY} opacity={entrance}>
+        {children}
+      </Group>
+      {/* Play the audio it's visualizing (the player's volume/mute controls it). */}
+      {src ? <Audio src={src} /> : null}
+    </>
   )
 }
 
