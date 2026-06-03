@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { renderFrame, renderFramesJSON } from '@onda/react'
+import { renderFrame, renderFramesJSON, runEngineWarmers } from '@onda/react'
 import type { ReactElement } from 'react'
 
 export type Backend = 'auto' | 'vello' | 'cpu'
@@ -51,6 +51,9 @@ export async function renderToFile(
   options: RenderToFileOptions,
 ): Promise<void> {
   const { output, backend = 'auto', encoder = 'auto', onProgress, ondaBin } = options
+  // Warm async engine assets (e.g. wasm text measurement) before the sync render,
+  // so components bake real values into the frames instead of estimates.
+  await runEngineWarmers()
   const framesJson = renderFramesJSON(composition)
   const dir = await mkdtemp(join(tmpdir(), 'onda-render-'))
   const framesPath = join(dir, 'frames.json')
@@ -81,6 +84,7 @@ export async function renderStillToFile(
   options: RenderStillOptions,
 ): Promise<void> {
   const { output, frame = 0, backend = 'auto', ondaBin } = options
+  await runEngineWarmers()
   const sceneJson = JSON.stringify(renderFrame(composition, frame))
   const dir = await mkdtemp(join(tmpdir(), 'onda-still-'))
   const scenePath = join(dir, 'scene.json')

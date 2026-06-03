@@ -16,6 +16,7 @@
 //! `measureText` is always synchronous and never throws: real metrics when the
 //! engine is warm, the estimate otherwise — so a composition never blocks.
 
+import { registerEngineWarmer } from '@onda/react'
 import { useEffect, useState } from 'react'
 
 export interface TextMetrics {
@@ -142,3 +143,8 @@ export function useTextMetrics(
   }, [])
   return measureText(content, fontSize, opts)
 }
+
+// Register with @onda/react so `@onda/render` warms the engine before a (sync)
+// export render — components bake real metrics into exported frames, not the
+// estimate. Importing @onda/components is enough; no caller setup.
+registerEngineWarmer(preloadTextMetrics)
