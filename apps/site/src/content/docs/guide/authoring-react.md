@@ -164,10 +164,39 @@ decoding happens downstream:
   `--features video`).
 
 Props: `src`, `startFrom` (seconds trimmed off the head, default 0),
-`playbackRate` (default 1), and the same `width`/`height`/`fit` box as `<Image>`.
-Pair with `<Sequence>` to place a clip on the timeline. The higher-level
-`<VideoClip>` (in `@onda/components`) wraps this with a fade-in/out envelope and
-optional cinematic letterbox.
+`playbackRate` (default 1), the same `width`/`height`/`fit` box as `<Image>`, and
+`previewFallback` (see below). Pair with `<Sequence>` to place a clip on the
+timeline. The higher-level `<VideoClip>` (in `@onda/components`) wraps this with a
+fade-in/out envelope and optional cinematic letterbox.
+
+#### Sources & CORS — preview vs. export
+
+`onda export` decodes **any direct media URL** with ffmpeg (it fetches the URL
+server-side, so CORS is irrelevant) — local files, your CDN, even a no-CORS host.
+The render is never the constraint.
+
+The **browser preview** is different: to composite a video it must read its
+pixels, and the browser only allows that for a video that's **same-origin or
+served with CORS** (`Access-Control-Allow-Origin`). So:
+
+- **Local file** (`/public/clip.mp4`) or **CORS-enabled CDN** → composited in
+  preview with full engine effects, and rendered identically on export. This is
+  the recommended path — if you control the host (e.g. your own CDN), enable CORS
+  once and you get the best of both.
+- **A cross-origin URL without CORS** → can't be composited in preview. By default
+  (`previewFallback="skip"`) it's blank in preview with a console hint; it still
+  **renders correctly on export**. Set `previewFallback="element"` to overlay a
+  plain `<video>` so it at least *plays* in preview (display-only — no engine
+  effects, and it sits above the canvas, so z-order can differ from the export).
+- **A YouTube/Vimeo *page* URL** is not a media file and works nowhere — in
+  preview or export. Download it to a file first (e.g. `yt-dlp`).
+
+`previewFallback` only affects the preview; it never changes the exported video.
+
+> This is the same boundary Remotion hits — its `<OffthreadVideo>` also needs a
+> downloaded media file and renders with ffmpeg; its *preview* sidesteps CORS only
+> because it shows a DOM `<video>` rather than compositing pixels (which is exactly
+> what `previewFallback="element"` does here).
 
 ### `<Svg>`
 

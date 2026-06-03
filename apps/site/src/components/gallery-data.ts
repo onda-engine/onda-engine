@@ -1046,6 +1046,11 @@ export const GALLERY: GalleryItem[] = [
         placeholder: '/gallery-sample.webm',
         hint: 'Paste a direct .mp4/.webm URL. Cross-origin needs CORS headers; YouTube/Vimeo page links won’t work — download the file first (e.g. yt-dlp).',
       },
+      {
+        prop: 'previewFallback',
+        label: 'Preview fallback',
+        options: ['skip', 'element'],
+      },
     ],
     themed: true,
   },

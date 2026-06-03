@@ -17,8 +17,29 @@ const BUCKET_FPS = 30
 
 /** The minimal scene-node shape these walkers touch (a subset of `Scene`). */
 interface VideoNode {
-  kind?: { type?: string; src?: string; time?: number }
+  transform?: { translate?: { x?: number; y?: number }; scale?: { x?: number; y?: number } }
+  kind?: {
+    type?: string
+    src?: string
+    time?: number
+    width?: number
+    height?: number
+    fit?: 'fill' | 'cover' | 'contain'
+    previewFallback?: 'skip' | 'element'
+  }
   children?: VideoNode[]
+}
+
+/** A `previewFallback: 'element'` video to display via a DOM `<video>` overlay,
+ *  positioned in COMPOSITION coordinates (the player scales it to the canvas). */
+export interface VideoOverlay {
+  key: string
+  src: string
+  x: number
+  y: number
+  w: number
+  h: number
+  fit: 'fill' | 'cover' | 'contain'
 }
 
 // One <video> per source URL — heavy, so created lazily and shared module-level.
@@ -39,16 +60,16 @@ function warnUnresolved(src: string): void {
   warned.add(src)
   let crossOrigin = false
   try {
-    crossOrigin = typeof location !== 'undefined' && new URL(src, location.href).origin !== location.origin
+    crossOrigin =
+      typeof location !== 'undefined' && new URL(src, location.href).origin !== location.origin
   } catch {
     /* relative/odd src — treat as same-origin */
   }
+  const reason = crossOrigin
+    ? '  • Cross-origin: the browser only reads frames from a same-origin file or one served with CORS (Access-Control-Allow-Origin). Host it with CORS or copy it into your project. YouTube/Vimeo page links are not media files and never work. Or set previewFallback="element" to play it in preview without compositing.'
+    : '  • The source failed to load (wrong path / not a video file?).'
   console.warn(
-    `[onda] couldn't decode video for PREVIEW: ${src}\n` +
-      (crossOrigin
-        ? '  • Cross-origin: the browser only lets us read frames from a same-origin file or one served with CORS (Access-Control-Allow-Origin). Proxy it through your dev server, or host it with CORS. YouTube/Vimeo page links are not media files and never work.\n'
-        : '  • The source failed to load (wrong path / not a video file?).\n') +
-      '  • This is a preview-only limit — `onda export` (ffmpeg) decodes any direct URL regardless of CORS.',
+    `[onda] couldn't decode video for PREVIEW: ${src}\n${reason}\n  • This is a preview-only limit — \`onda export\` (ffmpeg) decodes any direct URL regardless of CORS.`,
   )
 }
 
@@ -174,7 +195,16 @@ export async function resolveVideoFrames(root: VideoNode | undefined): Promise<v
   const collect = (n: VideoNode | undefined) => {
     if (!n) return
     const src = n.kind?.type === 'video' ? n.kind.src : undefined
-    if (typeof src === 'string' && src.length > 0 && !src.startsWith('data:')) nodes.push(n)
+    // `previewFallback: 'element'` videos are shown via a DOM overlay instead of
+    // composited — skip them here (don't decode, don't warn).
+    if (
+      typeof src === 'string' &&
+      src.length > 0 &&
+      !src.startsWith('data:') &&
+      n.kind?.previewFallback !== 'element'
+    ) {
+      nodes.push(n)
+    }
     for (const child of n.children ?? []) collect(child)
   }
   collect(root)
@@ -188,4 +218,47 @@ export async function resolveVideoFrames(root: VideoNode | undefined): Promise<v
     if (uri && n.kind) n.kind.src = uri
     else if (!uri) warnUnresolved(src)
   }
+}
+
+/** Collect `previewFallback: 'element'` video nodes as positioned overlays (in
+ *  composition coordinates — translate + scale accumulated from the root). The
+ *  player renders a plain `<video>` at each box: a display-only preview for
+ *  sources it can't composite (cross-origin without CORS). Box/position only —
+ *  rotation, clip, and engine effects are not reflected (export still is). */
+export function collectVideoOverlays(
+  root: VideoNode | undefined,
+  compWidth: number,
+  compHeight: number,
+): VideoOverlay[] {
+  const out: VideoOverlay[] = []
+  if (!root) return out
+  let idx = 0
+  const walk = (node: VideoNode, ax: number, ay: number, asx: number, asy: number): void => {
+    const t = node.transform?.translate
+    const s = node.transform?.scale
+    const nx = ax + asx * (t?.x ?? 0)
+    const ny = ay + asy * (t?.y ?? 0)
+    const nsx = asx * (s?.x ?? 1)
+    const nsy = asy * (s?.y ?? 1)
+    const k = node.kind
+    if (
+      k?.type === 'video' &&
+      k.previewFallback === 'element' &&
+      typeof k.src === 'string' &&
+      k.src.length > 0
+    ) {
+      out.push({
+        key: `${k.src}#${idx++}`,
+        src: k.src,
+        x: nx,
+        y: ny,
+        w: (typeof k.width === 'number' ? k.width : compWidth) * nsx,
+        h: (typeof k.height === 'number' ? k.height : compHeight) * nsy,
+        fit: k.fit ?? 'cover',
+      })
+    }
+    for (const child of node.children ?? []) walk(child, nx, ny, nsx, nsy)
+  }
+  walk(root, 0, 0, 1, 1)
+  return out
 }

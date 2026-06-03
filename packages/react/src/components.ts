@@ -179,6 +179,17 @@ export interface VideoProps extends NodeProps {
   height?: number
   /** How to fit the frame into the `width`×`height` box (default `'cover'`). */
   fit?: ImageFit
+  /**
+   * Preview-only behaviour when the browser can't composite this source — i.e. a
+   * cross-origin video without CORS headers. **Never affects `onda export`**,
+   * which always composites via ffmpeg.
+   *  - `'skip'` (default): leave it blank in preview + log a one-time hint.
+   *  - `'element'`: overlay a plain `<video>` so it still *plays* in preview
+   *    (display-only — no engine effects, and it sits above the canvas). Useful
+   *    for prototyping with a third-party URL you can't add CORS to. For your own
+   *    assets, serving them same-origin or with CORS is better (full compositing).
+   */
+  previewFallback?: 'skip' | 'element'
 }
 
 /** A video clip. At composition frame *f* it shows the source frame at

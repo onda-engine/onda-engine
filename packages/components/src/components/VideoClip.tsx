@@ -26,6 +26,11 @@ export interface VideoClipProps {
   startAt?: number
   /** Source seconds advanced per composition second (1 = realtime). Default 1. */
   playbackRate?: number
+  /** Preview-only: how the player previews a source it can't composite (a
+   *  cross-origin URL without CORS). `'skip'` (default) blanks it + warns;
+   *  `'element'` overlays a plain `<video>` so it still plays in preview. Never
+   *  affects `onda export`. See {@link VideoProps.previewFallback}. */
+  previewFallback?: 'skip' | 'element'
   /** Frames the clip waits before its fade-in begins (default 0). */
   delay?: number
   /** Frames the fade-in takes (default `DURATION.base` = 18). `0` = hard cut in. */
@@ -60,6 +65,7 @@ export function VideoClip({
   src,
   startAt = 0,
   playbackRate = 1,
+  previewFallback,
   delay = 0,
   fadeIn = DURATION.base,
   fadeOut = DURATION.base,
@@ -115,6 +121,7 @@ export function VideoClip({
         src={src}
         startFrom={startAt}
         playbackRate={playbackRate}
+        previewFallback={previewFallback}
         width={boxW}
         height={boxH}
         fit={fit}
