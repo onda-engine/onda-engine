@@ -7,13 +7,17 @@ import {
   Text,
   TransitionSeries,
   clockWipe,
+  depthPush,
+  dipToColor,
   fade,
   flip,
   iris,
   linearTiming,
   none,
+  push,
   slide,
   wipe,
+  zoom,
 } from '@onda/react'
 import velloWasmUrl from '@onda/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
 import cpuWasmUrl from '@onda/wasm/pkg/onda_wasm_bg.wasm?url'
@@ -74,6 +78,30 @@ const TRANSITIONS: TransitionDef[] = [
     make: () => iris(),
     call: 'iris()',
     blurb: 'A circular reveal expanding from the centre.',
+  },
+  {
+    name: 'push',
+    make: () => push({ direction: 'left' }),
+    call: "push({ direction: 'left' })",
+    blurb: 'Both scenes translate together, like a camera pan.',
+  },
+  {
+    name: 'zoom',
+    make: () => zoom(),
+    call: 'zoom()',
+    blurb: 'A scale-and-fade punch toward (or away from) the viewer.',
+  },
+  {
+    name: 'depthPush',
+    make: () => depthPush({ direction: 'left' }),
+    call: "depthPush({ direction: 'left' })",
+    blurb: 'A push with parallax depth — a camera dolly between scenes.',
+  },
+  {
+    name: 'dipToColor',
+    make: () => dipToColor(),
+    call: 'dipToColor()',
+    blurb: 'Outgoing fades to a colour, incoming fades up from it.',
   },
   {
     name: 'none',

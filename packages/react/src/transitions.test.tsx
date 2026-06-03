@@ -5,12 +5,16 @@ import {
   type TransitionPresentation,
   TransitionSeries,
   clockWipe,
+  depthPush,
+  dipToColor,
   fade,
   flip,
   iris,
   linearTiming,
   none,
+  push,
   renderFrame,
+  zoom,
 } from './index.js'
 import type { SceneNode } from './scene.js'
 
@@ -148,5 +152,42 @@ describe('transition presentations', () => {
   it('clockWipe clips the incoming scene with a swept path', () => {
     const c = collect(renderFrame(movieWith(clockWipe()), 25).root)
     expect(c.clips).toContain('path')
+  })
+})
+
+describe('custom transition presentations (push / zoom / depthPush / dipToColor)', () => {
+  it.each([
+    ['push', push()],
+    ['zoom', zoom()],
+    ['depthPush', depthPush()],
+    ['dipToColor', dipToColor()],
+  ])('%s overlaps both scenes only during the transition', (_name, presentation) => {
+    const m = movieWith(presentation)
+    expect(sortedIds(renderFrame(m, 5).root)).toEqual([1])
+    expect(sortedIds(renderFrame(m, 25).root)).toEqual([1, 2])
+    expect(sortedIds(renderFrame(m, 45).root)).toEqual([2])
+  })
+
+  it('push translates the scenes', () => {
+    const xs: number[] = []
+    const walk = (n: SceneNode) => {
+      const tx = n.transform?.translate?.x
+      if (typeof tx === 'number') xs.push(tx)
+      for (const c of n.children ?? []) walk(c)
+    }
+    walk(renderFrame(movieWith(push({ direction: 'left' })), 25).root)
+    expect(xs.some((x) => x !== 0)).toBe(true)
+  })
+
+  it('zoom scales and fades the scenes', () => {
+    const c = collect(renderFrame(movieWith(zoom()), 25).root)
+    expect(c.scaleX.some((x) => x !== 1)).toBe(true)
+    expect(c.opacities.length).toBeGreaterThan(0)
+  })
+
+  it('dipToColor overlays a fading colour', () => {
+    // Mid-dip both scenes are faded and the colour overlay is visible.
+    const c = collect(renderFrame(movieWith(dipToColor({ color: '#000000' })), 25).root)
+    expect(c.opacities.length).toBeGreaterThan(0)
   })
 })

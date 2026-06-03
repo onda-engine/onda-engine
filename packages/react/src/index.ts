@@ -64,6 +64,7 @@ export {
 export { noise2D, noise3D, random } from './random.js'
 export {
   type PresentationState,
+  type PushDirection,
   type SlideDirection,
   TransitionSeries,
   type TransitionSeriesSequenceProps,
@@ -71,14 +72,19 @@ export {
   type TransitionPresentation,
   type TransitionTiming,
   clockWipe,
+  crossFade,
+  depthPush,
+  dipToColor,
   fade,
   flip,
   iris,
   linearTiming,
   none,
+  push,
   slide,
   springTiming,
   wipe,
+  zoom,
 } from './transitions.js'
 export {
   renderFrame,
