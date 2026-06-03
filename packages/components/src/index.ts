@@ -19,6 +19,16 @@ export {
 // House easing
 export { HOUSE_EASE } from './easing.js'
 
+// Real text measurement (the engine's cosmic-text shaping) for components that
+// size to actual text; `preloadTextMetrics` warms it before a Node export.
+export {
+  measureText,
+  type MeasureOpts,
+  preloadTextMetrics,
+  type TextMetrics,
+  useTextMetrics,
+} from './text-metrics.js'
+
 // Engine render-fidelity metadata — the capability signal for the agent contract.
 export {
   type Backend,
