@@ -26,6 +26,12 @@ export interface VideoClipProps {
   startAt?: number
   /** Source seconds advanced per composition second (1 = realtime). Default 1. */
   playbackRate?: number
+  /** Seconds into the source to stop at (trim the tail). Past it the clip holds
+   *  its last frame unless `loop` is set. Omit to play to the source's end. */
+  endAt?: number
+  /** Loop the trimmed span `[startAt, endAt)` (requires `endAt`) for as long as
+   *  the clip is visible. */
+  loop?: boolean
   /** Preview-only: how the player previews a source it can't composite (a
    *  cross-origin URL without CORS). `'skip'` (default) blanks it + warns;
    *  `'element'` overlays a plain `<video>` so it still plays in preview. Never
@@ -65,6 +71,8 @@ export function VideoClip({
   src,
   startAt = 0,
   playbackRate = 1,
+  endAt,
+  loop,
   previewFallback,
   delay = 0,
   fadeIn = DURATION.base,
@@ -121,6 +129,8 @@ export function VideoClip({
         src={src}
         startFrom={startAt}
         playbackRate={playbackRate}
+        endAt={endAt}
+        loop={loop}
         previewFallback={previewFallback}
         width={boxW}
         height={boxH}
