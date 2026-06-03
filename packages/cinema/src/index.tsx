@@ -41,8 +41,14 @@ import {
   zoom,
 } from '@onda/react'
 import { type ComponentType, type ReactElement, createElement } from 'react'
-import { sceneDurationFrames, toFrames, totalFrames, transitionOverlapFrames } from './timing.js'
-import type { Brand, CompositionPayload, EntryAnimation, Scene, Track } from './types.js'
+import {
+  sceneDurationFrames,
+  timeSpecToSeconds,
+  toFrames,
+  totalFrames,
+  transitionOverlapFrames,
+} from './timing.js'
+import type { Brand, CompositionPayload, EntryAnimation, Scene, TimeSpec, Track } from './types.js'
 
 export * from './types.js'
 export { timeSpecToSeconds, toFrames, totalFrames } from './timing.js'
@@ -542,18 +548,79 @@ export function buildComposition(
 // ── Validation ──────────────────────────────────────────────────────────────
 
 export interface Diagnostic {
-  level: 'error' | 'warning'
+  /** `error` = won't render correctly (fix it); `warning` = renders, but off or
+   *  fragile; `info` = an FYI an agent should weigh (e.g. a degraded component). */
+  level: 'error' | 'warning' | 'info'
   path: string
   message: string
 }
 
-/** Check a payload before rendering — unknown components/patterns/transitions +
- *  structural issues. The tight feedback loop an agent self-corrects against. */
+/** Levenshtein edit distance — for "did you mean?" on a misspelled component. */
+function editDistance(a: string, b: string): number {
+  let prev: number[] = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    const cur: number[] = [i]
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      cur[j] = Math.min((prev[j] ?? 0) + 1, (cur[j - 1] ?? 0) + 1, (prev[j - 1] ?? 0) + cost)
+    }
+    prev = cur
+  }
+  return prev[b.length] ?? 0
+}
+
+/** The closest registry name to `name` within a typo-level distance, else null. */
+function closestComponent(name: string, registry: Registry): string | null {
+  let best: string | null = null
+  let bestD = Number.POSITIVE_INFINITY
+  for (const k of Object.keys(registry)) {
+    const d = editDistance(name.toLowerCase(), k.toLowerCase())
+    if (d < bestD) {
+      bestD = d
+      best = k
+    }
+  }
+  return best && bestD <= Math.max(2, Math.floor(name.length / 3)) ? best : null
+}
+
+/** Whether `v` is a well-formed TimeSpec. `timeSpecToSeconds` is lenient (garbage
+ *  → 0), so the validator checks the shape strictly: a finite number, or a string
+ *  that's `M:SS` / `<n>ms` / `<n>f` / `<n>s` / a bare number — each numeric part
+ *  finite. (`isValidTimeSpec("soon")` is false.) */
+function isValidTimeSpec(v: TimeSpec): boolean {
+  if (typeof v === 'number') return Number.isFinite(v)
+  const s = v.trim()
+  if (s === '') return false
+  const numOk = (x: string): boolean => x.trim() !== '' && Number.isFinite(Number(x))
+  if (s.includes(':')) {
+    const [m, sec] = s.split(':')
+    return numOk(m ?? '') && numOk(sec ?? '')
+  }
+  if (s.endsWith('ms')) return numOk(s.slice(0, -2))
+  if (s.endsWith('f')) return numOk(s.slice(0, -1))
+  if (s.endsWith('s')) return numOk(s.slice(0, -1))
+  return numOk(s)
+}
+
+/**
+ * Check a payload before rendering — the tight feedback loop an agent (ONDA
+ * Studio's MCP) self-corrects against. Flags structural issues, unknown
+ * components (with a did-you-mean), unknown patterns/transitions, malformed
+ * timing, and — from the fidelity contract — components that are GPU-only,
+ * degraded, or imitate a browser feature, so the agent picks engine-native
+ * components and avoids surprises. Returns `[]` when the composition is clean.
+ */
 export function validateComposition(
   payload: CompositionPayload,
   opts: BuildOptions = {},
 ): Diagnostic[] {
   const registry = opts.registry ?? defaultRegistry()
+  const fidelity = Components.COMPONENT_FIDELITY as
+    | Record<
+        string,
+        { fidelity: string; engineNative: boolean; needsFeature: string | null; backend: string }
+      >
+    | undefined
   const diags: Diagnostic[] = []
   if (!(payload.fps > 0)) diags.push({ level: 'error', path: 'fps', message: 'fps must be > 0' })
   if (!(payload.width > 0 && payload.height > 0))
@@ -561,13 +628,61 @@ export function validateComposition(
   if (!payload.scenes?.length)
     diags.push({ level: 'error', path: 'scenes', message: 'composition has no scenes' })
 
-  const checkEntry = (e: { component: string; animate?: EntryAnimation[] }, path: string): void => {
-    if (!registry[e.component])
+  const fps = payload.fps > 0 ? payload.fps : 30
+  const checkTime = (v: TimeSpec | undefined, path: string, required: boolean): void => {
+    if (v === undefined) {
+      if (required) diags.push({ level: 'error', path, message: 'missing required time' })
+      return
+    }
+    if (!isValidTimeSpec(v)) {
+      diags.push({
+        level: 'error',
+        path,
+        message: `invalid time ${JSON.stringify(v)} — use seconds (e.g. 2) or a spec string ("2s", "500ms", "0:02", "90f")`,
+      })
+      return
+    }
+    const secs = typeof v === 'number' ? v : timeSpecToSeconds(v, fps)
+    if (secs < 0)
+      diags.push({ level: 'error', path, message: `time ${JSON.stringify(v)} is negative` })
+  }
+
+  const checkEntry = (
+    e: { component: string; at?: TimeSpec; for?: TimeSpec; animate?: EntryAnimation[] },
+    path: string,
+    timed: boolean,
+  ): void => {
+    if (!registry[e.component]) {
+      const guess = closestComponent(e.component, registry)
       diags.push({
         level: 'error',
         path: `${path}.component`,
-        message: `unknown component "${e.component}"`,
+        message: `unknown component "${e.component}"${guess ? ` — did you mean "${guess}"?` : ''}`,
       })
+    } else {
+      const f = fidelity?.[e.component]
+      if (f?.fidelity === 'apes_remotion')
+        diags.push({
+          level: 'warning',
+          path: `${path}.component`,
+          message: `"${e.component}" imitates a browser-only effect the engine doesn't do natively — it renders a stylized approximation; avoid for hero moments.`,
+        })
+      else if (f?.fidelity === 'degraded')
+        diags.push({
+          level: 'info',
+          path: `${path}.component`,
+          message: `"${e.component}" renders an approximation until the engine gains "${f.needsFeature}".`,
+        })
+      if (f?.backend === 'gpu_only')
+        diags.push({
+          level: 'warning',
+          path: `${path}.component`,
+          message: `"${e.component}" needs the GPU (Vello) backend — it won't render correctly on the CPU reference (e.g. a CPU-verified or no-GPU export).`,
+        })
+    }
+    // Entries are timed (at/for required); layer entries may omit them.
+    checkTime(e.at, `${path}.at`, timed)
+    checkTime(e.for, `${path}.for`, timed)
     ;(e.animate ?? []).forEach((a, i) => {
       if (!CHOREOGRAPHY[a.pattern])
         diags.push({
@@ -585,12 +700,16 @@ export function validateComposition(
         path: `scenes[${si}].transition`,
         message: `transition "${scene.transition.type}" not in the engine yet — falls back to cross-fade`,
       })
-    scene.tracks.forEach((track, ti) =>
-      track.entries.forEach((e, ei) => checkEntry(e, `scenes[${si}].tracks[${ti}].entries[${ei}]`)),
+    if (!scene.tracks?.length)
+      diags.push({ level: 'warning', path: `scenes[${si}].tracks`, message: 'scene has no tracks' })
+    scene.tracks?.forEach((track, ti) =>
+      track.entries.forEach((e, ei) =>
+        checkEntry(e, `scenes[${si}].tracks[${ti}].entries[${ei}]`, true),
+      ),
     )
   })
   payload.layers?.forEach((layer, li) =>
-    layer.entries.forEach((e, ei) => checkEntry(e, `layers[${li}].entries[${ei}]`)),
+    layer.entries.forEach((e, ei) => checkEntry(e, `layers[${li}].entries[${ei}]`, false)),
   )
   return diags
 }
