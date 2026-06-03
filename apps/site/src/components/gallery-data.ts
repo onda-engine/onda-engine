@@ -243,7 +243,7 @@ export const GALLERY: GalleryItem[] = [
     category: 'Text effects',
     blurb: 'marker-style background reveal. Ported from ondajs',
     props: {
-      text: 'WWW iii',
+      text: 'motion graphics',
       fontSize: 72,
       fontWeight: 600,
       paddingX: 10,
@@ -254,8 +254,8 @@ export const GALLERY: GalleryItem[] = [
       {
         prop: 'text',
         label: 'Text',
-        placeholder: 'WWW iii',
-        hint: 'The accent bar is sized to the REAL shaped width (cosmic-text), not a glyph-count guess — type wide (W/M) vs narrow (i/l) glyphs and watch the bar track the actual text.',
+        placeholder: 'motion graphics',
+        hint: 'The accent bar is sized to the real shaped text width (cosmic-text), not a glyph-count guess — try wide (W/M) vs narrow (i/l) glyphs.',
       },
     ],
     themed: true,
