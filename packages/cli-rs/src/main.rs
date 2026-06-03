@@ -17,7 +17,7 @@ use anyhow::{bail, Context, Result};
 use onda_animation::{AnimatedScene, AudioTrack};
 use onda_core::Size;
 use onda_renderer::{encode_gif, Framebuffer, Renderer};
-use onda_scene::{Scene, Text};
+use onda_scene::{Node, NodeKind, Scene, Text};
 use onda_typography::{FontContext, StyledRun};
 use onda_vello::VelloRenderer;
 
@@ -402,17 +402,56 @@ fn export_frames_command(args: &[String]) -> Result<()> {
         .with_context(|| format!("reading frames '{input}'"))?;
     let (frames, used) = render_scenes(&scenes, backend, font, &fonts)
         .with_context(|| format!("rendering frames '{input}'"))?;
-    // A pre-evaluated frame sequence carries no soundtrack.
-    encode_movie(
-        &frames,
-        fps,
-        out,
-        &output,
-        &input,
-        used,
-        encoder,
-        AudioMux::none(),
-    )
+    // Mux any <Audio> nodes carried in the scene (the soundtrack).
+    let audio_tracks = collect_audio_tracks(&scenes, fps);
+    let base_dir = base_dir_of(&input);
+    let duration_secs = frames.len() as f32 / fps.max(1.0);
+    let audio = if audio_tracks.is_empty() {
+        AudioMux::none()
+    } else {
+        AudioMux {
+            tracks: &audio_tracks,
+            base_dir,
+            duration_secs,
+        }
+    };
+    encode_movie(&frames, fps, out, &output, &input, used, encoder, audio)
+}
+
+/// Collect the soundtrack from a pre-evaluated frame sequence: every
+/// `NodeKind::Audio` node in the first frame (audio nodes are static across
+/// frames). Skips non-file srcs (http/data URIs) — the native mux decodes from
+/// disk, so URL audio is a follow-up. `start_at` (source trim) isn't applied yet.
+fn collect_audio_tracks(scenes: &[Scene], fps: f32) -> Vec<AudioTrack> {
+    let mut tracks = Vec::new();
+    let Some(first) = scenes.first() else {
+        return tracks;
+    };
+    fn walk(node: &Node, fps: f32, out: &mut Vec<AudioTrack>) {
+        if let NodeKind::Audio(a) = &node.kind {
+            let is_file = !(a.src.starts_with("http://")
+                || a.src.starts_with("https://")
+                || a.src.starts_with("data:"));
+            if a.src.is_empty() {
+            } else if is_file {
+                out.push(AudioTrack {
+                    src: a.src.clone(),
+                    start_frame: (a.start * fps).round().max(0.0) as u32,
+                    volume: a.volume,
+                });
+            } else {
+                eprintln!(
+                    "note: skipping non-file audio in export mux (URL/data not yet muxed): {}",
+                    a.src
+                );
+            }
+        }
+        for child in &node.children {
+            walk(child, fps, out);
+        }
+    }
+    walk(&first.root, fps, &mut tracks);
+    tracks
 }
 
 /// The soundtrack to mux into a video: the clips, where their `src`s resolve,
