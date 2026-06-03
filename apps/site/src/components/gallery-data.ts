@@ -623,7 +623,7 @@ export const GALLERY: GalleryItem[] = [
     blurb: 'a browser-window chrome that wraps arbitrary content. A top',
     props: {
       url: 'onda.video/render',
-      src: 'DEMO_IMAGE',
+      src: '/gallery-sample.jpg',
       width: 1024,
       height: 560,
       delay: 0,
@@ -689,7 +689,7 @@ export const GALLERY: GalleryItem[] = [
     blurb: 'a phone or laptop bezel wrapping arbitrary content. Ported from ondajs',
     props: {
       device: 'phone',
-      src: 'DEMO_IMAGE',
+      src: '/gallery-sample.jpg',
       width: 360,
       animate: true,
       delay: 0,
@@ -962,24 +962,19 @@ export const GALLERY: GalleryItem[] = [
     category: 'Media',
     blurb: "an image that enters with one of Onda's signature motion",
     props: {
-      src: '/gallery-sample.png',
+      src: '/gallery-sample.jpg',
       motion: 'wipe',
       fit: 'cover',
       durationInFrames: 24,
-      srcWidth: 1280,
-      srcHeight: 720,
     },
     themed: true,
-    note: 'In-browser image decoding is not wired up yet — renders from a file via `onda render`.',
   },
   {
     name: 'KenBurns',
     category: 'Media',
     blurb: 'a slow cinematic zoom + pan over a photo (the iconic documentary',
     props: {
-      src: '/gallery-sample.png',
-      imageWidth: 1920,
-      imageHeight: 1080,
+      src: '/gallery-sample.jpg',
       duration: 150,
       fromScale: 1,
       toScale: 1.15,
@@ -988,7 +983,7 @@ export const GALLERY: GalleryItem[] = [
       toX: 0.7,
       toY: 0.6,
     },
-    note: 'Needs a source image; in-browser image decoding is not wired up yet (renders via `onda render`).',
+    themed: true,
   },
   {
     name: 'Parallax',
@@ -997,13 +992,13 @@ export const GALLERY: GalleryItem[] = [
     props: {
       layers: [
         {
-          src: 'DEMO_IMAGE',
+          src: '/gallery-sample.jpg',
           speed: 0.4,
           scale: 1.08,
           opacity: 0.55,
         },
         {
-          src: 'DEMO_IMAGE',
+          src: '/gallery-sample.jpg',
           speed: 1,
           scale: 1.05,
         },
@@ -1012,16 +1007,16 @@ export const GALLERY: GalleryItem[] = [
       distance: 80,
       duration: 180,
       delay: 0,
-      src: '/gallery-sample.png',
+      src: '/gallery-sample.jpg',
     },
-    note: 'Needs source image layers; in-browser image decoding is not wired up yet.',
+    themed: true,
   },
   {
     name: 'VideoClip',
     category: 'Media',
     blurb: 'a trimmed video clip with the Onda fade envelope. Ported from ondajs',
     props: {
-      src: '/gallery-sample.png',
+      src: '/gallery-sample.jpg',
       fadeIn: 18,
       fadeOut: 18,
       durationInFrames: 90,
@@ -1030,7 +1025,7 @@ export const GALLERY: GalleryItem[] = [
       borderRadius: 12,
     },
     themed: true,
-    note: 'Video decode is not in the engine yet — renders a poster frame via `onda render`.',
+    note: 'Shows the poster frame — in-engine video decode is on the roadmap.',
   },
   {
     name: 'CameraShake',
