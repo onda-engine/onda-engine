@@ -65,7 +65,10 @@ export interface NodeGraphProps {
   satellites?: Satellite[]
   /** The earned accent — hub fill tint, the connection lines, and the glow (default: theme `accent`). */
   accent?: string
-  /** Vertical squash of every orbit (1 = circular, <1 = elliptical). */
+  /** Vertical squash of every orbit (1 = circular, <1 = elliptical). A strong
+   *  squash makes the even-angled spokes *read* as lopsided (nodes bunch toward
+   *  the 3/9-o'clock sides and gaps open top/bottom), so the default keeps the
+   *  ring near-circular. */
   ellipse?: number
   /** Seed for the deterministic fly-in directions and connection-pulse phases. */
   seed?: number
@@ -142,7 +145,7 @@ export function NodeGraph({
   hubLabel = 'AI',
   satellites = DEFAULT_SATELLITES,
   accent: accentProp,
-  ellipse = 0.62,
+  ellipse = 0.92,
   seed = 7,
   delay = 0,
   glow = true,
