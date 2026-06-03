@@ -1,0 +1,15 @@
+[package]
+name = "onda-video"
+description = "Decode the video frames referenced by an ONDA scene's Video nodes (native export), via the ffmpeg CLI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[dependencies]
+onda-scene = { workspace = true }
+# Decode the PNG frames piped out of ffmpeg. PNG-only keeps the dep tree minimal.
+image = { version = "0.25", default-features = false, features = ["png"] }
