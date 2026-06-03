@@ -94,6 +94,17 @@ export type NodeKind =
        *  `<video>`. Never affects `onda export`. */
       previewFallback?: 'skip' | 'element'
     }
+  | {
+      /** A non-visual audio clip (renderers skip it; the player plays it). */
+      type: 'audio'
+      src: string
+      /** Composition time (seconds) the clip begins at. */
+      start?: number
+      /** Seconds into the source to begin from (trim the head). */
+      start_at?: number
+      /** Linear gain 0..1. */
+      volume?: number
+    }
   | { type: 'shape'; geometry: ShapeGeometry; fill?: Color; gradient?: Gradient; stroke?: Stroke }
   | { type: 'svg'; src?: string; markup?: string }
 

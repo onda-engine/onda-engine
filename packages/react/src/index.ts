@@ -41,6 +41,8 @@ export {
   type TextRunInput,
   Video,
   type VideoProps,
+  Audio,
+  type AudioProps,
   type NodeProps,
 } from './components.js'
 // `Img` is an alias of `Image` for Remotion-migration compatibility (Remotion

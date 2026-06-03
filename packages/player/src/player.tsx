@@ -27,6 +27,7 @@ import {
 } from 'react'
 import { type FrameDrawer, drawScene } from './canvas-renderer.js'
 import { type RenderEngine, engineDrawer } from './engine-drawer.js'
+import { type AudioClip, collectAudioClips } from './audio.js'
 import { applyResolvedImages, collectImageUrls, resolveImageUrl } from './images.js'
 import { collectVideoOverlays, resolveVideoFrames } from './video.js'
 
@@ -190,6 +191,16 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   )
   const videoOverlayRef = useRef<HTMLDivElement>(null)
 
+  // Non-visual <Audio> clips to play for preview (frame-independent, so derive
+  // once per composition). One <audio> element each, synced below.
+  const audioClips: AudioClip[] = useMemo(
+    () => collectAudioClips(renderFrame(composition, 0).root as never),
+    [composition],
+  )
+  const audioRefs = useRef<(HTMLAudioElement | null)[]>([])
+  const [volume, setVolume] = useState(1)
+  const [muted, setMuted] = useState(false)
+
   const [frame, setFrame] = useState(() =>
     Math.min(lastFrame, Math.max(0, Math.floor(initialFrame))),
   )
@@ -305,6 +316,41 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
       else v.pause()
     }
   }, [playing, videoOverlays])
+
+  // Audio gain = master volume × per-clip volume, muted → 0.
+  useEffect(() => {
+    audioClips.forEach((clip, i) => {
+      const el = audioRefs.current[i]
+      if (el) el.volume = Math.max(0, Math.min(1, (muted ? 0 : volume) * clip.volume))
+    })
+  }, [volume, muted, audioClips])
+
+  // Play/pause + seek each audio clip in lockstep with the timeline. During
+  // playback we let the <audio> run and only correct large drift; while paused
+  // (scrubbing) we seek it to the playhead. Clips before their `start` stay paused.
+  useEffect(() => {
+    const tc = frame / Math.max(1, config.fps)
+    audioClips.forEach((clip, i) => {
+      const el = audioRefs.current[i]
+      if (!el) return
+      if (tc < clip.start) {
+        el.pause()
+        return
+      }
+      const desired = clip.startAt + (tc - clip.start)
+      if (playing) {
+        if (el.paused) {
+          seekAudio(el, desired)
+          void el.play().catch(() => {})
+        } else if (Math.abs(el.currentTime - desired) > 0.3) {
+          seekAudio(el, desired) // resync drift
+        }
+      } else {
+        el.pause()
+        if (Math.abs(el.currentTime - desired) > 0.05) seekAudio(el, desired)
+      }
+    })
+  }, [frame, playing, audioClips, config.fps])
 
   // Playback paced to the composition's fps via requestAnimationFrame.
   useEffect(() => {
@@ -607,6 +653,35 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
 
             <span className="onda-player__spacer" />
 
+            {audioClips.length > 0 && (
+              <div className="onda-player__volume">
+                <button
+                  type="button"
+                  className="onda-player__icon"
+                  onClick={() => setMuted((v) => !v)}
+                  aria-label={muted ? 'Unmute' : 'Mute'}
+                  aria-pressed={muted}
+                  title={muted ? 'Unmute' : 'Mute'}
+                >
+                  {muted || volume === 0 ? <VolumeMuteIcon /> : <VolumeIcon />}
+                </button>
+                <input
+                  type="range"
+                  className="onda-player__volume-slider"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={muted ? 0 : volume}
+                  onChange={(event) => {
+                    const v = Number(event.target.value)
+                    setVolume(v)
+                    setMuted(v === 0)
+                  }}
+                  aria-label="Volume"
+                />
+              </div>
+            )}
+
             <button
               type="button"
               className={`onda-player__icon${loop ? ' is-active' : ''}`}
@@ -619,10 +694,33 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
             </button>
           </div>
         </div>
+
+        {/* Non-visual audio clips, played for preview (synced + volume above). */}
+        {audioClips.map((clip, i) => (
+          // biome-ignore lint/a11y/useMediaCaption: timeline audio track, not media content
+          <audio
+            key={`${clip.src}#${i}`}
+            ref={(el) => {
+              audioRefs.current[i] = el
+            }}
+            src={clip.src}
+            preload="auto"
+          />
+        ))}
       </div>
     </div>
   )
 })
+
+/** Seek an `<audio>` element, swallowing the throw if it isn't seekable yet
+ *  (currentTime before metadata loads). */
+function seekAudio(el: HTMLAudioElement, time: number): void {
+  try {
+    el.currentTime = time
+  } catch {
+    // not seekable yet (metadata still loading) — the next sync tick will retry
+  }
+}
 
 function PlayIcon(): ReactElement {
   return (
@@ -658,6 +756,46 @@ function LoopIcon(): ReactElement {
       <path d="M3 11V9a4 4 0 0 1 4-4h14" />
       <path d="M7 22.5 3 18.5 7 14.5" />
       <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+    </svg>
+  )
+}
+
+function VolumeIcon(): ReactElement {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 9v6h4l5 4V5L8 9H4Z" />
+      <path d="M16.5 8.5a4 4 0 0 1 0 7" />
+      <path d="M19 6a7 7 0 0 1 0 12" />
+    </svg>
+  )
+}
+
+function VolumeMuteIcon(): ReactElement {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 9v6h4l5 4V5L8 9H4Z" />
+      <path d="M22 9.5 16.5 15" />
+      <path d="M16.5 9.5 22 15" />
     </svg>
   )
 }
@@ -871,6 +1009,29 @@ const PLAYER_CSS = `
   background: color-mix(in srgb, var(--onda-accent) 16%, transparent);
 }
 .onda-player__icon svg { display: block; }
+/* Volume: a mute toggle + a slider that expands on hover/focus (compact). */
+.onda-player__volume { display: inline-flex; align-items: center; gap: 4px; }
+.onda-player__volume-slider {
+  width: 0; opacity: 0; min-width: 0;
+  height: 5px; cursor: pointer; margin: 0;
+  -webkit-appearance: none; appearance: none; background: transparent;
+  transition: width 160ms ease-out, opacity 160ms ease-out;
+}
+.onda-player__volume:hover .onda-player__volume-slider,
+.onda-player__volume:focus-within .onda-player__volume-slider { width: 72px; opacity: 1; }
+.onda-player__volume-slider::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 999px; background: rgba(255,255,255,.32);
+}
+.onda-player__volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 11px; height: 11px; margin-top: -3.5px;
+  border-radius: 999px; background: #fff;
+}
+.onda-player__volume-slider::-moz-range-track {
+  height: 4px; border-radius: 999px; background: rgba(255,255,255,.32);
+}
+.onda-player__volume-slider::-moz-range-thumb {
+  width: 11px; height: 11px; border: 0; border-radius: 999px; background: #fff;
+}
 /* Visible focus rings on every interactive control + the player region. */
 .onda-player:focus-visible,
 .onda-player__play:focus-visible,
