@@ -2,14 +2,13 @@
 //! Ported from ondajs (`audio-visualizer`) and expanded with multiple render
 //! styles via the `type` prop: `bars`, `mirrored`, `waveform`, `radial`, `dots`.
 //!
-//! IMPORTANT: this is NOT driven by real audio. A pure frame→scene function has
-//! no FFT / decode, so the spectrum is FAKED: each band's amplitude comes from
-//! deterministic value noise (`noise2D`) plus a couple of sines, shaped by a
-//! low-bin tilt so it reads like a real music spectrum (bass-heavy left, quieter
-//! highs). It "looks live" but carries no information about any audio file. Every
-//! style renders from the SAME amplitude array (`barAmplitude`), so when real
-//! audio (rustfft → wasm) lands, only that one function is replaced and all
-//! styles light up for free. See `approximations`.
+//! Pass `src` to drive the bars with REAL audio: `@onda/wasm-audio` decodes the
+//! file and computes a per-frame FFT spectrum — the same analysis the native
+//! `onda export` runs, so preview and export match. Without `src` (or while the
+//! audio loads) it falls back to a deterministic PROCEDURAL spectrum: value noise
+//! (`noise2D`) plus sines with a low-bin tilt so it reads like music (bass-heavy
+//! left). Both paths feed the SAME amplitude array (`amps`), so all five styles
+//! render from one seam.
 //!
 //! Layout: the visualizer has FIXED dimensions and is centered by computing its
 //! top-left offset from the composition size — NOT a `<Flex>`. Each band animates
