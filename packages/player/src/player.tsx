@@ -208,9 +208,10 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   // The frame/composition the canvas should show. Updated synchronously each
-  // render so the async GPU loop can always pull the latest target.
-  const targetRef = useRef({ composition, frame })
-  targetRef.current = { composition, frame }
+  // render so the async GPU loop can always pull the latest target. `images` is
+  // the resolved-image version so a fetch that lands mid-paint forces a repaint.
+  const targetRef = useRef({ composition, frame, images: imagesReady })
+  targetRef.current = { composition, frame, images: imagesReady }
 
   // Latest values for the imperative handle + event callbacks, read from refs so
   // the handle/effects don't re-subscribe on every frame.
@@ -234,11 +235,14 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
     enginesRendering.add(gpu)
     ;(async () => {
       try {
-        let done: { c: ReactElement; f: number } | null = null
+        let done: { c: ReactElement; f: number; v: number } | null = null
         while (true) {
-          const { composition: c, frame: f } = targetRef.current
-          if (done && done.c === c && done.f === f) break // caught up
-          done = { c, f }
+          const { composition: c, frame: f, images: v } = targetRef.current
+          // Caught up only if the frame/composition AND the resolved-image
+          // version are unchanged — so an image that finishes fetching mid-paint
+          // repaints even though the composition + frame are the same.
+          if (done && done.c === c && done.f === f && done.v === v) break
+          done = { c, f, v }
           const scene = renderFrame(c, f)
           applyResolvedImages(scene.root as never)
           const out = await gpu.render(JSON.stringify(scene))
