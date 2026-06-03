@@ -80,6 +80,15 @@ export type NodeKind =
       runs?: SceneTextRun[]
     }
   | { type: 'image'; src: string; width?: number; height?: number; fit?: ImageFit }
+  | {
+      type: 'video'
+      src: string
+      /** Source position in seconds of the frame to display. */
+      time?: number
+      width?: number
+      height?: number
+      fit?: ImageFit
+    }
   | { type: 'shape'; geometry: ShapeGeometry; fill?: Color; gradient?: Gradient; stroke?: Stroke }
   | { type: 'svg'; src?: string; markup?: string }
 

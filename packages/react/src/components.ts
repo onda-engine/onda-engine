@@ -11,7 +11,7 @@
 import { type ReactNode, createElement } from 'react'
 import type { ClipInput } from './clip.js'
 import type { ColorInput } from './color.js'
-import { useVideoConfig } from './frame.js'
+import { useCurrentFrame, useVideoConfig } from './frame.js'
 import type { GradientInput } from './gradient.js'
 import type { ImageFit, Layout } from './scene.js'
 
@@ -160,6 +160,37 @@ export interface ImageProps extends NodeProps {
 
 export function Image(props: ImageProps) {
   return createElement('onda-image', props)
+}
+
+export interface VideoProps extends NodeProps {
+  /** Path, URL, or `data:` URI of the video. The frame at the current time is
+   *  decoded by the player (browser: an off-screen `<video>`/WebCodecs) or by
+   *  `onda export` (native ffmpeg) — the author layer never decodes. */
+  src: string
+  /** Seconds into the SOURCE shown at this clip's frame 0 (trim the head).
+   *  Default `0`. */
+  startFrom?: number
+  /** Source seconds advanced per composition second (1 = realtime, 2 = 2× fast,
+   *  0.5 = slow-mo). Default `1`. */
+  playbackRate?: number
+  /** Target box width in px. With `height`, the frame is fitted into this box
+   *  per `fit`. Omit both for the video's intrinsic pixel size. */
+  width?: number
+  height?: number
+  /** How to fit the frame into the `width`×`height` box (default `'cover'`). */
+  fit?: ImageFit
+}
+
+/** A video clip. At composition frame *f* it shows the source frame at
+ *  `startFrom + (f / fps) * playbackRate` seconds; the player/engine decodes that
+ *  exact frame (browser: `<video>`/WebCodecs; native export: ffmpeg) and the
+ *  renderer draws it like an image. Place/scale it like any node; combine with a
+ *  `<Sequence>` to position it on the timeline. */
+export function Video({ startFrom = 0, playbackRate = 1, ...rest }: VideoProps) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const time = Math.max(0, startFrom + (frame / Math.max(1, fps)) * playbackRate)
+  return createElement('onda-video', { ...rest, time })
 }
 
 export interface SvgProps extends NodeProps {

@@ -39,6 +39,8 @@ export {
   Text,
   type TextProps,
   type TextRunInput,
+  Video,
+  type VideoProps,
   type NodeProps,
 } from './components.js'
 // `Img` is an alias of `Image` for Remotion-migration compatibility (Remotion
