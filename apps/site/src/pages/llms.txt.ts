@@ -1,3 +1,4 @@
+import { FIDELITY_SUMMARY } from '@onda/components'
 import type { APIRoute } from 'astro'
 import { GALLERY } from '../components/gallery-data.js'
 
@@ -18,9 +19,13 @@ export const GET: APIRoute = () => {
 
 The scene graph is the universal language; the renderer is the platform. Components are pure React that emit scene nodes — no DOM, no browser at render time.
 
+**Engine capabilities (author for these):** GPU vector fills/strokes/paths, linear+radial gradients, per-glyph vector text, taffy flexbox layout, 2D affine transforms, clipping, images/video, audio decode+FFT, deterministic CPU==GPU export. **NOT supported — do NOT author for:** blur / backdrop-blur / drop-shadow, blend modes beyond src-over, transform-origin / 3D / perspective, letter-spacing, SVG filters. See \`capabilities\` in the JSON.
+
+**Choosing components:** of ${total}, ${FIDELITY_SUMMARY.firstClass} are \`first_class\` (faithful, engine-native), ${FIDELITY_SUMMARY.degraded} \`degraded\` (work but visibly off until a named engine feature lands), ${FIDELITY_SUMMARY.apesRemotion} \`apes_remotion\` (imitates a browser feature — avoid). **Default to the \`recommendedPalette\` (the first-class set); reach for degraded only when the design demands it; never pick a \`backend:"gpu_only"\` component for a CPU-verified render.** A stray size-role token ("hero"/"subheading") belongs only on a documented size prop — see \`authoring.sizeRoles\`.
+
 ## Components
 
-- [Component API (JSON)](${SITE}/api/components.json): machine-readable spec for all ${total} components — props (name, type, required, description with the theme-token default), a canonical usage snippet, and the theme token shape. Start here to generate compositions.
+- [Component API (JSON)](${SITE}/api/components.json): machine-readable spec for all ${total} components — per-component \`fidelity\`/\`engineNative\`/\`needsFeature\`/\`backend\`, props, a usage snippet, the theme tokens, the engine \`capabilities\`, the \`recommendedPalette\`, and an \`authoring\` guide (scene/track/entry model, timing, placement, size-roles, choreography, transitions, brand). Start here to generate compositions.
 - [Component gallery](${SITE}/components): every component rendered live in the browser, with an editable theme/brand-kit configurator and copyable code.
 - [Theming & brand kit](${SITE}/guide/theming): the Theme tokens and how \`<ThemeProvider>\` flows through the scene graph.
 
