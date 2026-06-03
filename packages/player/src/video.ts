@@ -29,6 +29,28 @@ const frameCache = new Map<string, string>()
 const inflight = new Map<string, Promise<string | null>>()
 // Per-source serialization: a <video> can only seek to one time at a time.
 const seekChain = new Map<string, Promise<unknown>>()
+// Sources we've already warned about (so the console isn't spammed per frame).
+const warned = new Set<string>()
+
+/** Warn once, with actionable guidance, when a video can't be decoded for preview
+ *  (almost always a cross-origin source the browser won't let us read pixels from). */
+function warnUnresolved(src: string): void {
+  if (warned.has(src) || typeof console === 'undefined') return
+  warned.add(src)
+  let crossOrigin = false
+  try {
+    crossOrigin = typeof location !== 'undefined' && new URL(src, location.href).origin !== location.origin
+  } catch {
+    /* relative/odd src — treat as same-origin */
+  }
+  console.warn(
+    `[onda] couldn't decode video for PREVIEW: ${src}\n` +
+      (crossOrigin
+        ? '  • Cross-origin: the browser only lets us read frames from a same-origin file or one served with CORS (Access-Control-Allow-Origin). Proxy it through your dev server, or host it with CORS. YouTube/Vimeo page links are not media files and never work.\n'
+        : '  • The source failed to load (wrong path / not a video file?).\n') +
+      '  • This is a preview-only limit — `onda export` (ffmpeg) decodes any direct URL regardless of CORS.',
+  )
+}
 
 let scratch: HTMLCanvasElement | null = null
 
@@ -164,5 +186,6 @@ export async function resolveVideoFrames(root: VideoNode | undefined): Promise<v
     const time = typeof n.kind?.time === 'number' ? n.kind.time : 0
     const uri = await decodeFrame(src, time)
     if (uri && n.kind) n.kind.src = uri
+    else if (!uri) warnUnresolved(src)
   }
 }
