@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@onda/react": "workspace:*",
+    "@onda/wasm-audio": "workspace:*",
     "react": "^18.3.1"
   },
   "devDependencies": {

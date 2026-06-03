@@ -128,7 +128,7 @@ export default defineConfig({
     // @onda/player isn't reliably picked up (a stale optimized copy lingers), so
     // engine/player fixes silently don't appear in the dev preview.
     optimizeDeps: {
-      exclude: ['@onda/player', '@onda/react', '@onda/cinema', '@onda/components', '@onda/wasm', '@onda/wasm-vello'],
+      exclude: ['@onda/player', '@onda/react', '@onda/cinema', '@onda/components', '@onda/wasm', '@onda/wasm-vello', '@onda/wasm-audio'],
     },
   },
 })
