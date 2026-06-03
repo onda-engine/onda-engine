@@ -19,6 +19,7 @@ members = [
     "packages/layout-rs",
     "packages/audio-rs",
     "packages/video-rs",
+    "packages/wasm-audio",
 ]
 
 [workspace.package]
@@ -41,7 +42,9 @@ onda-vello = { path = "packages/vello-rs", version = "0.0.0" }
 onda-svg = { path = "packages/svg-rs", version = "0.0.0" }
 onda-image = { path = "packages/image-rs", version = "0.0.0" }
 onda-layout = { path = "packages/layout-rs", version = "0.0.0" }
-onda-audio = { path = "packages/audio-rs", version = "0.0.0" }
+# default-features off (no native-io / std::fs) so the wasm build is clean;
+# the native CLI opts back in with `features = ["native-io"]`.
+onda-audio = { path = "packages/audio-rs", version = "0.0.0", default-features = false }
 onda-video = { path = "packages/video-rs", version = "0.0.0" }
 
 serde = { version = "1", features = ["derive"] }
