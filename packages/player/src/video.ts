@@ -122,7 +122,10 @@ function decodeFrame(src: string, time: number): Promise<string | null> {
       frameCache.set(key, uri)
       return uri
     } catch {
-      return null // unreadable (load/seek/CORS) — caller leaves the node unresolved
+      // Unreadable: failed to load (bad URL / 404), or a cross-origin source
+      // without CORS headers (the canvas is tainted, so toDataURL throws). The
+      // node is left unresolved and the renderer skips it.
+      return null
     } finally {
       inflight.delete(key)
     }

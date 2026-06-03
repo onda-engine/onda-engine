@@ -62,39 +62,98 @@ function buildComposition(
   )
 }
 
-/** A small button-group toggle for a component's live enum controls (see
- *  {@link GalleryItem.controls}). The first option is treated as the default. */
+/** A component's live controls (see {@link GalleryItem.controls}): a button-group
+ *  toggle when the control has `options`, else a free-text input (e.g. a video
+ *  URL). `defaults` supplies a text control's starting value (the demo prop). */
 function ControlBar({
   controls,
   values,
+  defaults,
   onChange,
 }: {
   controls: NonNullable<GalleryItem['controls']>
   values: Record<string, string>
+  defaults: Record<string, unknown>
   onChange: (prop: string, value: string) => void
 }): ReactElement {
   return (
     <div style={styles.controls}>
-      {controls.map((c) => (
-        <div key={c.prop} style={styles.controlGroup}>
-          <span style={styles.controlLabel}>{c.label}</span>
-          <div style={styles.seg}>
-            {c.options.map((opt) => {
-              const active = (values[c.prop] ?? c.options[0]) === opt
-              return (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => onChange(c.prop, opt)}
-                  style={active ? { ...styles.segBtn, ...styles.segBtnOn } : styles.segBtn}
-                >
-                  {opt}
-                </button>
-              )
-            })}
+      {controls.map((c) =>
+        c.options ? (
+          <div key={c.prop} style={styles.controlGroup}>
+            <span style={styles.controlLabel}>{c.label}</span>
+            <div style={styles.seg}>
+              {c.options.map((opt) => {
+                const active = (values[c.prop] ?? c.options?.[0]) === opt
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => onChange(c.prop, opt)}
+                    style={active ? { ...styles.segBtn, ...styles.segBtnOn } : styles.segBtn}
+                  >
+                    {opt}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        ) : (
+          <TextControl
+            key={c.prop}
+            label={c.label}
+            placeholder={c.placeholder}
+            hint={c.hint}
+            value={values[c.prop] ?? (defaults[c.prop] != null ? String(defaults[c.prop]) : '')}
+            onCommit={(v) => onChange(c.prop, v)}
+          />
+        ),
+      )}
+    </div>
+  )
+}
+
+/** A free-text control (e.g. a video URL). Commits on Enter or blur, so the heavy
+ *  preview doesn't re-render — or re-fetch a half-typed URL — on every keystroke. */
+function TextControl({
+  label,
+  placeholder,
+  hint,
+  value,
+  onCommit,
+}: {
+  label: string
+  placeholder?: string
+  hint?: string
+  value: string
+  onCommit: (value: string) => void
+}): ReactElement {
+  const [draft, setDraft] = useState(value)
+  // Re-sync when the committed value changes externally (e.g. switching components).
+  useEffect(() => setDraft(value), [value])
+  const commit = () => {
+    if (draft !== value) onCommit(draft)
+  }
+  return (
+    <div style={styles.textGroup}>
+      <span style={styles.controlLabel}>{label}</span>
+      <input
+        type="text"
+        value={draft}
+        placeholder={placeholder}
+        spellCheck={false}
+        aria-label={label}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            commit()
+            ;(e.target as HTMLInputElement).blur()
+          }
+        }}
+        style={styles.textInput}
+      />
+      {hint ? <span style={styles.controlHint}>{hint}</span> : null}
     </div>
   )
 }
@@ -163,7 +222,13 @@ export default function OndaGallery(): ReactElement {
   // preview and the copyable snippet, so the code matches what's on screen.
   const effectiveProps = useMemo(() => {
     const base: Record<string, unknown> = { ...(selected?.props ?? {}) }
-    for (const c of selected?.controls ?? []) base[c.prop] = ctrl[c.prop] ?? c.options[0] ?? ''
+    for (const c of selected?.controls ?? []) {
+      // Enum control → chosen option (or the first as default). Text control →
+      // typed value, falling back to the demo prop value.
+      base[c.prop] = c.options
+        ? (ctrl[c.prop] ?? c.options[0] ?? '')
+        : (ctrl[c.prop] ?? (base[c.prop] != null ? String(base[c.prop]) : ''))
+    }
     return base
   }, [selected, ctrl])
   const composition = useMemo(
@@ -223,6 +288,7 @@ export default function OndaGallery(): ReactElement {
           <ControlBar
             controls={selected.controls}
             values={ctrl}
+            defaults={selected.props}
             onChange={(prop, value) => setCtrl((s) => ({ ...s, [prop]: value }))}
           />
         ) : null}
@@ -345,6 +411,20 @@ const styles: Record<string, CSSProperties> = {
     margin: '0 0 12px',
   },
   controlGroup: { display: 'flex', alignItems: 'center', gap: 8 },
+  textGroup: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, flex: '1 1 100%' },
+  textInput: {
+    flex: '1 1 320px',
+    minWidth: 240,
+    maxWidth: 560,
+    background: '#121217',
+    border: '1px solid #26262c',
+    borderRadius: 8,
+    color: '#e8e8ec',
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 13,
+    padding: '6px 10px',
+  },
+  controlHint: { flexBasis: '100%', color: '#56565f', fontSize: 11.5, marginTop: 2 },
   controlLabel: {
     fontFamily: "'JetBrains Mono', monospace",
     fontSize: 11,
