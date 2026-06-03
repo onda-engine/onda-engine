@@ -83,10 +83,17 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
   ],
   AudioVisualizer: [
     {
+      name: 'type',
+      required: false,
+      type: "'bars' | 'mirrored' | 'waveform' | 'radial' | 'dots'",
+      description:
+        'Render style (default `bars`). All styles draw from the same amplitude data — use the toggle above the preview to compare. `waveform` (path) and `radial` (rotation) are GPU-only.',
+    },
+    {
       name: 'barCount',
       required: false,
       type: 'number',
-      description: 'Number of frequency bars.',
+      description: 'Number of frequency bands.',
     },
     {
       name: 'color',

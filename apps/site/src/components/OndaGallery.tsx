@@ -38,13 +38,18 @@ function sampleChild(theme: Partial<Theme>): ReactElement {
   )
 }
 
-function buildComposition(item: GalleryItem, theme: Partial<Theme>): ReactElement | null {
+function buildComposition(
+  item: GalleryItem,
+  theme: Partial<Theme>,
+  props: Record<string, unknown>,
+): ReactElement | null {
   const Comp = (Lib as Record<string, unknown>)[item.name] as
     | FunctionComponent<Record<string, unknown>>
     | undefined
   if (!Comp) return null
   // Wrap the scene in a ThemeProvider so themed components pick up the brand
-  // kit; the background uses the theme too.
+  // kit; the background uses the theme too. `props` are the demo props merged
+  // with any live control overrides (e.g. the visualizer `type` toggle).
   return createElement(
     Composition,
     { width: W, height: H, fps: 30, durationInFrames: 120 },
@@ -52,8 +57,45 @@ function buildComposition(item: GalleryItem, theme: Partial<Theme>): ReactElemen
       Lib.ThemeProvider,
       { theme },
       createElement(Rect, { width: W, height: H, fill: theme.background ?? '#0a0d17' }),
-      createElement(Comp, item.props, item.child ? sampleChild(theme) : undefined),
+      createElement(Comp, props, item.child ? sampleChild(theme) : undefined),
     ),
+  )
+}
+
+/** A small button-group toggle for a component's live enum controls (see
+ *  {@link GalleryItem.controls}). The first option is treated as the default. */
+function ControlBar({
+  controls,
+  values,
+  onChange,
+}: {
+  controls: NonNullable<GalleryItem['controls']>
+  values: Record<string, string>
+  onChange: (prop: string, value: string) => void
+}): ReactElement {
+  return (
+    <div style={styles.controls}>
+      {controls.map((c) => (
+        <div key={c.prop} style={styles.controlGroup}>
+          <span style={styles.controlLabel}>{c.label}</span>
+          <div style={styles.seg}>
+            {c.options.map((opt) => {
+              const active = (values[c.prop] ?? c.options[0]) === opt
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => onChange(c.prop, opt)}
+                  style={active ? { ...styles.segBtn, ...styles.segBtnOn } : styles.segBtn}
+                >
+                  {opt}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -110,9 +152,23 @@ export default function OndaGallery(): ReactElement {
   const [name, setName] = useState('TitleCard')
   const theme = useThemeStore((s) => s.theme)
   const selected = useMemo(() => GALLERY.find((g) => g.name === name) ?? GALLERY[0], [name])
+  // Per-component live control overrides (e.g. the AudioVisualizer `type`).
+  // Reset when switching components so one component's choice can't leak.
+  const [ctrl, setCtrl] = useState<Record<string, string>>({})
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset only on name change.
+  useEffect(() => {
+    setCtrl({})
+  }, [name])
+  // Demo props merged with the live control overrides — feeds both the live
+  // preview and the copyable snippet, so the code matches what's on screen.
+  const effectiveProps = useMemo(() => {
+    const base: Record<string, unknown> = { ...(selected?.props ?? {}) }
+    for (const c of selected?.controls ?? []) base[c.prop] = ctrl[c.prop] ?? c.options[0] ?? ''
+    return base
+  }, [selected, ctrl])
   const composition = useMemo(
-    () => (selected ? buildComposition(selected, theme) : null),
-    [selected, theme],
+    () => (selected ? buildComposition(selected, theme, effectiveProps) : null),
+    [selected, theme, effectiveProps],
   )
   // The copyable usage snippet — regenerated from the live theme, so editing a
   // color updates the emitted <ThemeProvider> object. This is the code a human
@@ -122,12 +178,12 @@ export default function OndaGallery(): ReactElement {
       selected
         ? usageSnippet({
             name: selected.name,
-            props: selected.props,
+            props: effectiveProps,
             theme,
             child: selected.child,
           })
         : '',
-    [selected, theme],
+    [selected, theme, effectiveProps],
   )
   const props = selected ? (COMPONENT_PROPS[selected.name] ?? []) : []
 
@@ -163,6 +219,13 @@ export default function OndaGallery(): ReactElement {
 
       <div style={styles.main}>
         <ThemeControls />
+        {selected?.controls?.length ? (
+          <ControlBar
+            controls={selected.controls}
+            values={ctrl}
+            onChange={(prop, value) => setCtrl((s) => ({ ...s, [prop]: value }))}
+          />
+        ) : null}
         <div style={styles.stage}>
           {selected?.note ? (
             <div style={styles.note}>
@@ -274,6 +337,42 @@ const styles: Record<string, CSSProperties> = {
   },
   itemOn: { background: '#d96b82', color: '#0e0e12', fontWeight: 600 },
   main: { minWidth: 0 },
+  controls: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 14,
+    margin: '0 0 12px',
+  },
+  controlGroup: { display: 'flex', alignItems: 'center', gap: 8 },
+  controlLabel: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 11,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: '#8e8e98',
+  },
+  seg: {
+    display: 'inline-flex',
+    gap: 2,
+    padding: 2,
+    borderRadius: 9,
+    background: '#121217',
+    border: '1px solid #26262c',
+  },
+  segBtn: {
+    appearance: 'none',
+    border: 0,
+    background: 'transparent',
+    color: '#b8b8c0',
+    fontFamily: 'inherit',
+    fontSize: 13,
+    padding: '4px 11px',
+    borderRadius: 7,
+    cursor: 'pointer',
+    textTransform: 'capitalize',
+  },
+  segBtnOn: { background: '#d96b82', color: '#0e0e12', fontWeight: 600 },
   stage: {
     borderRadius: 14,
     overflow: 'hidden',
