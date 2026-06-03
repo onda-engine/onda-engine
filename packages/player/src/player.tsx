@@ -28,6 +28,7 @@ import {
 import { type FrameDrawer, drawScene } from './canvas-renderer.js'
 import { type RenderEngine, engineDrawer } from './engine-drawer.js'
 import { applyResolvedImages, collectImageUrls, resolveImageUrl } from './images.js'
+import { resolveVideoFrames } from './video.js'
 
 /** An async, GPU renderer — structurally `@onda/wasm-vello`'s `VelloEngine`.
  *  This is the pixel-exact, full-feature path (paths/gradients/clips/AA), so the
@@ -245,6 +246,9 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
           done = { c, f, v }
           const scene = renderFrame(c, f)
           applyResolvedImages(scene.root as never)
+          // Decode the current frame of any <Video> node (browser-side) and
+          // attach it before rendering — a video's pixels change every frame.
+          await resolveVideoFrames(scene.root as never)
           const out = await gpu.render(JSON.stringify(scene))
           const canvas = canvasRef.current
           const ctx = canvas?.getContext('2d')
