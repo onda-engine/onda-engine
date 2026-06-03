@@ -42,6 +42,10 @@ OPTIONS:
                       rasterizer (bit-identical across machines; no AA, no
                       strokes/paths/gradients/clips). 'auto' (default) uses
                       Vello when a GPU is available, else falls back to CPU.
+    --encoder <auto|videotoolbox|nvenc|qsv|libx264>
+                      H.264 encoder for .mp4 output. 'auto' (default) uses a
+                      hardware encoder if one works on this machine, else
+                      libx264 — the portable, deterministic baseline.
     --system-fonts    Use the host's installed fonts instead of the bundled
                       default font (CPU backend only; output then depends on
                       the machine).
@@ -71,6 +75,137 @@ enum BackendChoice {
     Vello,
     /// Force the CPU reference rasterizer.
     Cpu,
+}
+
+/// The H.264 encoder the user asked for. `Auto` probes for a working hardware
+/// encoder and falls back to libx264 (always available in the bundled ffmpeg).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EncoderChoice {
+    Auto,
+    Videotoolbox,
+    Nvenc,
+    Qsv,
+    Libx264,
+}
+
+/// A concrete encoder, resolved from an [`EncoderChoice`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Encoder {
+    Videotoolbox,
+    Nvenc,
+    Qsv,
+    Libx264,
+}
+
+impl Encoder {
+    fn name(self) -> &'static str {
+        match self {
+            Encoder::Videotoolbox => "h264_videotoolbox",
+            Encoder::Nvenc => "h264_nvenc",
+            Encoder::Qsv => "h264_qsv",
+            Encoder::Libx264 => "libx264",
+        }
+    }
+
+    /// ffmpeg `-c:v` flags for an offline, quality-targeted export. Each maps to
+    /// a CRF-like constant-quality mode (~visually lossless for motion graphics).
+    fn video_args(self) -> Vec<&'static str> {
+        match self {
+            Encoder::Libx264 => {
+                vec![
+                    "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+                ]
+            }
+            // `-allow_sw 1` lets VideoToolbox use its software path on Macs with
+            // no H.264 hardware block, so it always produces a file.
+            Encoder::Videotoolbox => vec![
+                "-c:v",
+                "h264_videotoolbox",
+                "-q:v",
+                "55",
+                "-allow_sw",
+                "1",
+                "-pix_fmt",
+                "yuv420p",
+            ],
+            Encoder::Nvenc => vec![
+                "-c:v",
+                "h264_nvenc",
+                "-preset",
+                "p7",
+                "-rc",
+                "vbr",
+                "-cq",
+                "19",
+                "-b:v",
+                "0",
+                "-pix_fmt",
+                "yuv420p",
+            ],
+            Encoder::Qsv => vec![
+                "-c:v",
+                "h264_qsv",
+                "-preset",
+                "veryslow",
+                "-global_quality",
+                "21",
+                "-pix_fmt",
+                "nv12",
+            ],
+        }
+    }
+}
+
+/// Resolve a user choice to a concrete encoder (probing for hardware on `Auto`).
+fn resolve_encoder(choice: EncoderChoice) -> Encoder {
+    match choice {
+        EncoderChoice::Auto => select_encoder(),
+        EncoderChoice::Videotoolbox => Encoder::Videotoolbox,
+        EncoderChoice::Nvenc => Encoder::Nvenc,
+        EncoderChoice::Qsv => Encoder::Qsv,
+        EncoderChoice::Libx264 => Encoder::Libx264,
+    }
+}
+
+/// The best available encoder: a platform hardware encoder that passes a
+/// one-frame trial, else libx264. Cached — the probe runs at most once.
+fn select_encoder() -> Encoder {
+    static CACHED: std::sync::OnceLock<Encoder> = std::sync::OnceLock::new();
+    *CACHED.get_or_init(|| {
+        let candidates: &[Encoder] = if cfg!(target_os = "macos") {
+            &[Encoder::Videotoolbox]
+        } else {
+            &[Encoder::Nvenc, Encoder::Qsv]
+        };
+        candidates
+            .iter()
+            .copied()
+            .find(|&enc| probe_encoder(enc))
+            .unwrap_or(Encoder::Libx264)
+    })
+}
+
+/// `ffmpeg -encoders` lists *compiled-in*, not *usable*, encoders — so actually
+/// try a one-frame encode with the real flags. Exit 0 ⇒ the encoder works here.
+fn probe_encoder(enc: Encoder) -> bool {
+    let mut cmd = std::process::Command::new("ffmpeg");
+    cmd.args([
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=black:s=64x64:r=1",
+        "-frames:v",
+        "1",
+    ]);
+    cmd.args(enc.video_args());
+    cmd.args(["-f", "null", "-"]);
+    cmd.stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    matches!(cmd.status(), Ok(s) if s.success())
 }
 
 fn main() {
@@ -109,6 +244,8 @@ struct Options {
     output: String,
     font: FontMode,
     backend: BackendChoice,
+    /// The H.264 encoder for mp4 output (`auto` probes for hardware).
+    encoder: EncoderChoice,
     /// Paths from `--font`, loaded and selectable by family on a `Text` run.
     fonts: Vec<PathBuf>,
 }
@@ -119,11 +256,27 @@ fn parse_io(args: &[String], verb: &str) -> Result<Options> {
     let mut positionals: Vec<&str> = Vec::new();
     let mut font = FontMode::Bundled;
     let mut backend = BackendChoice::Auto;
+    let mut encoder = EncoderChoice::Auto;
     let mut fonts: Vec<PathBuf> = Vec::new();
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
             "--system-fonts" => font = FontMode::System,
+            "--encoder" => {
+                let value = iter
+                    .next()
+                    .with_context(|| format!("--encoder needs a value\n\n{USAGE}"))?;
+                encoder = match value.as_str() {
+                    "auto" => EncoderChoice::Auto,
+                    "videotoolbox" => EncoderChoice::Videotoolbox,
+                    "nvenc" => EncoderChoice::Nvenc,
+                    "qsv" => EncoderChoice::Qsv,
+                    "libx264" => EncoderChoice::Libx264,
+                    other => bail!(
+                        "unknown encoder '{other}' — use auto, videotoolbox, nvenc, qsv, or libx264\n\n{USAGE}"
+                    ),
+                };
+            }
             "--font" => {
                 let value = iter
                     .next()
@@ -155,6 +308,7 @@ fn parse_io(args: &[String], verb: &str) -> Result<Options> {
         output: output.to_string(),
         font,
         backend,
+        encoder,
         fonts,
     })
 }
@@ -173,6 +327,7 @@ fn render_command(args: &[String]) -> Result<()> {
         output,
         font,
         backend,
+        encoder: _,
         fonts,
     } = parse_io(args, "render")?;
     let fonts = load_font_bytes(&fonts)?;
@@ -188,6 +343,7 @@ fn export_command(args: &[String]) -> Result<()> {
         output,
         font,
         backend,
+        encoder,
         fonts,
     } = parse_io(args, "export")?;
     let fonts = load_font_bytes(&fonts)?;
@@ -204,7 +360,9 @@ fn export_command(args: &[String]) -> Result<()> {
         base_dir: base_dir_of(&input),
         duration_secs: movie.duration_secs,
     };
-    encode_movie(&frames, movie.fps, out, &output, &input, used, audio)
+    encode_movie(
+        &frames, movie.fps, out, &output, &input, used, encoder, audio,
+    )
 }
 
 /// Encode pre-rendered, per-frame scenes (e.g. emitted by @onda/react's
@@ -215,6 +373,7 @@ fn export_frames_command(args: &[String]) -> Result<()> {
         output,
         font,
         backend,
+        encoder,
         fonts,
     } = parse_io(args, "export-frames")?;
     let fonts = load_font_bytes(&fonts)?;
@@ -227,7 +386,16 @@ fn export_frames_command(args: &[String]) -> Result<()> {
     let (frames, used) = render_scenes(&scenes, backend, font, &fonts)
         .with_context(|| format!("rendering frames '{input}'"))?;
     // A pre-evaluated frame sequence carries no soundtrack.
-    encode_movie(&frames, fps, out, &output, &input, used, AudioMux::none())
+    encode_movie(
+        &frames,
+        fps,
+        out,
+        &output,
+        &input,
+        used,
+        encoder,
+        AudioMux::none(),
+    )
 }
 
 /// The soundtrack to mux into a video: the clips, where their `src`s resolve,
@@ -258,6 +426,7 @@ fn encode_movie(
     output: &str,
     input: &str,
     backend: &str,
+    encoder: EncoderChoice,
     audio: AudioMux,
 ) -> Result<()> {
     if frames.is_empty() {
@@ -268,6 +437,7 @@ fn encode_movie(
         .and_then(|e| e.to_str())
         .map(str::to_ascii_lowercase);
     let mut muxed_audio = false;
+    let mut video_encoder: Option<Encoder> = None;
     match ext.as_deref() {
         Some("gif") => {
             if !audio.tracks.is_empty() {
@@ -279,28 +449,33 @@ fn encode_movie(
             write_gif(frames, fps, out)?;
         }
         Some("mp4") => {
-            if audio.tracks.is_empty() {
-                write_mp4(frames, fps, out, None)?;
+            let used = if audio.tracks.is_empty() {
+                write_mp4(frames, fps, out, None, encoder)?
             } else {
                 let wav = build_audio_wav(&audio, fps).context("building the audio track")?;
-                let result = write_mp4(frames, fps, out, Some(&wav));
+                let result = write_mp4(frames, fps, out, Some(&wav), encoder);
                 if let Some(dir) = wav.parent() {
                     let _ = std::fs::remove_dir_all(dir);
                 }
-                result?;
+                let used = result?;
                 muxed_audio = true;
-            }
+                used
+            };
+            video_encoder = Some(used);
         }
         _ => bail!("unsupported output '{output}' — use a .gif or .mp4 extension"),
     }
     let (w, h) = (frames[0].width(), frames[0].height());
+    let codec = video_encoder
+        .map(|e| format!(", {} encoder", e.name()))
+        .unwrap_or_default();
     let sound = if muxed_audio {
         format!(", {} audio clip(s)", audio.tracks.len())
     } else {
         String::new()
     };
     println!(
-        "exported {input} -> {output} ({} frames, {w}x{h} @ {fps} fps, {backend} backend{sound})",
+        "exported {input} -> {output} ({} frames, {w}x{h} @ {fps} fps, {backend} backend{codec}{sound})",
         frames.len()
     );
     Ok(())
@@ -541,16 +716,44 @@ fn write_gif(frames: &[Framebuffer], fps: f32, out: &Path) -> Result<()> {
     encode_gif(frames, fps, file).with_context(|| format!("encoding GIF '{}'", out.display()))
 }
 
-/// Encode frames as an MP4 by shelling out to ffmpeg (writes PNG frames to a
-/// temp dir, then invokes the encoder). If `audio_wav` is given, it's muxed in
-/// as an AAC stream and the output is trimmed to the shorter of the two.
-fn write_mp4(frames: &[Framebuffer], fps: f32, out: &Path, audio_wav: Option<&Path>) -> Result<()> {
+/// Encode frames as an MP4 via ffmpeg with `choice` (resolving `Auto` to a probed
+/// hardware encoder, else libx264). If a hardware encoder fails the actual run, it
+/// falls back to libx264 once. Returns the encoder actually used. `audio_wav`, if
+/// given, is muxed as an AAC stream trimmed to the shorter of the two.
+fn write_mp4(
+    frames: &[Framebuffer],
+    fps: f32,
+    out: &Path,
+    audio_wav: Option<&Path>,
+    choice: EncoderChoice,
+) -> Result<Encoder> {
+    let enc = resolve_encoder(choice);
+    match pipe_encode(frames, fps, out, audio_wav, enc) {
+        Ok(()) => Ok(enc),
+        Err(err) if enc != Encoder::Libx264 => {
+            eprintln!(
+                "note: {} encode failed ({err:#}); falling back to libx264",
+                enc.name()
+            );
+            pipe_encode(frames, fps, out, audio_wav, Encoder::Libx264)?;
+            Ok(Encoder::Libx264)
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// Pipe raw RGBA8 frames straight to ffmpeg's stdin (no per-frame PNG encode or
+/// disk round-trip) and encode with `enc`. `Framebuffer::as_bytes` is
+/// straight-alpha RGBA8, row-major — matching `-pixel_format rgba`. yuv420p has
+/// no alpha, so transparent regions composite over black.
+fn pipe_encode(
+    frames: &[Framebuffer],
+    fps: f32,
+    out: &Path,
+    audio_wav: Option<&Path>,
+    enc: Encoder,
+) -> Result<()> {
     use std::io::Write;
-    // Pipe raw RGBA8 frames straight to ffmpeg's stdin — no per-frame PNG encode
-    // and no disk round-trip (the old path wrote a PNG per frame, then ffmpeg
-    // re-decoded them). ffmpeg color-converts to yuv420p and encodes with
-    // libx264. `Framebuffer::as_bytes` is straight-alpha RGBA8, row-major,
-    // matching `-pixel_format rgba`; all frames share the composition size.
     let (w, h) = (frames[0].width(), frames[0].height());
 
     let mut cmd = std::process::Command::new("ffmpeg");
@@ -572,14 +775,19 @@ fn write_mp4(frames: &[Framebuffer], fps: f32, out: &Path, audio_wav: Option<&Pa
     if let Some(wav) = audio_wav {
         cmd.arg("-i").arg(wav);
     }
-    // Even dimensions are required by yuv420p/libx264.
+    // Even dimensions are required by yuv420p / 4:2:0 subsampling.
+    cmd.args(["-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2"]);
+    cmd.args(enc.video_args());
+    // Tag bt709 limited-range so players read the colors consistently.
     cmd.args([
-        "-vf",
-        "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-        "-c:v",
-        "libx264",
-        "-pix_fmt",
-        "yuv420p",
+        "-color_range",
+        "tv",
+        "-colorspace",
+        "bt709",
+        "-color_primaries",
+        "bt709",
+        "-color_trc",
+        "bt709",
     ]);
     if audio_wav.is_some() {
         // Encode the audio and stop at the shorter stream (video length).
