@@ -122,4 +122,13 @@ export default defineConfig({
     // MDX — lets doc pages embed React islands (e.g. the live player demo).
     mdx(),
   ],
+  vite: {
+    // Serve the workspace @onda/* packages straight from source — don't let Vite
+    // pre-bundle them into node_modules/.vite. Otherwise a rebuild of e.g.
+    // @onda/player isn't reliably picked up (a stale optimized copy lingers), so
+    // engine/player fixes silently don't appear in the dev preview.
+    optimizeDeps: {
+      exclude: ['@onda/player', '@onda/react', '@onda/cinema', '@onda/components', '@onda/wasm', '@onda/wasm-vello'],
+    },
+  },
 })
