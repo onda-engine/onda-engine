@@ -30,6 +30,7 @@
 
 import {
   Ellipse,
+  Flex,
   Group,
   Path,
   Rect,
@@ -362,6 +363,14 @@ export function NodeGraph({
             about its center: the Group marks the center, the Ellipse is offset
             by -radius so the local-origin scale reads centered (§3). */}
         <Group scaleX={hubScale} scaleY={hubScale} opacity={hubOpacity}>
+          {/* Radial fill CONCENTRIC with the ellipse (and its stroke ring): the
+              gradient is centred on the disc and its radius equals the disc
+              radius, so the orb fills the ring symmetrically and fades at the rim
+              exactly where the stroke sits. (A previous up-offset centre with too
+              small a radius left the bottom of the disc transparent, so the orb
+              bunched up-top and the ring hung below it.) A faint specular
+              highlight just above centre keeps a hint of 3-D without breaking the
+              concentric read. */}
           <Ellipse
             x={-hubRadius}
             y={-hubRadius}
@@ -369,22 +378,40 @@ export function NodeGraph({
             height={hubDiameter}
             stroke={accent}
             strokeWidth={1}
-            gradient={radialGradient([hubRadius, hubRadius * 0.7], hubRadius, [
+            gradient={radialGradient([hubRadius, hubRadius], hubRadius, [
               { offset: 0, color: rgbHex(accent) },
-              { offset: 0.78, color: surface },
+              { offset: 0.72, color: surface },
               { offset: 1, color: transparent },
             ])}
           />
-          <Text
-            x={-(hubLabel.length * hubFontSize * AVG_CHAR_W) / 2}
-            y={-hubFontSize / 2}
-            fontSize={hubFontSize}
-            color={textColor}
-            fontFamily={fontFamily}
-            fontWeight={600}
-          >
-            {hubLabel}
-          </Text>
+          <Ellipse
+            x={-hubRadius * 0.62}
+            y={-hubRadius * 0.78}
+            width={hubRadius * 1.24}
+            height={hubRadius * 1.0}
+            opacity={0.5}
+            gradient={radialGradient([hubRadius * 0.62, hubRadius * 0.5], hubRadius * 0.62, [
+              { offset: 0, color: `${rgbHex(accent)}cc` },
+              { offset: 1, color: transparent },
+            ])}
+          />
+          {/* Center the hub label with a fixed-size Flex box over the disc so
+              the ENGINE measures the glyphs and centers both axes (the explicit
+              x/y estimate over/under-shoots narrow letters like "I" and ignores
+              the text baseline, drifting the label off the orb). The box is a
+              fixed hubDiameter square, so it never reflows as the hub scales. */}
+          <Group x={-hubRadius} y={-hubRadius}>
+            <Flex width={hubDiameter} height={hubDiameter} justify="center" align="center">
+              <Text
+                fontSize={hubFontSize}
+                color={textColor}
+                fontFamily={fontFamily}
+                fontWeight={600}
+              >
+                {hubLabel}
+              </Text>
+            </Flex>
+          </Group>
         </Group>
       </Group>
     </Group>
