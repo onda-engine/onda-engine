@@ -15,10 +15,11 @@
 //! captions arrive constantly and a per-caption accent flash would burn.
 //!
 //! Scene-graph notes vs the ondajs (CSS) original:
-//! - There are no author-time text metrics, so the centered origin is derived
-//!   from an ESTIMATED caption width (~0.55em per glyph for a display face). The
-//!   active caption is a single `<Text>`; its origin is recomputed per frame, but
-//!   because only one caption shows at a time there is no row to reflow.
+//! - The centered origin is derived from the caption's MEASURED width (the
+//!   engine shapes the text — proportional, exact; a glyph-count estimate is the
+//!   fallback until the wasm engine warms in the browser). The active caption is
+//!   a single `<Text>`; its origin is recomputed per frame, but because only one
+//!   caption shows at a time there is no row to reflow.
 //! - The pulse scales about the caption's CENTRE: the `<Text>` is offset to
 //!   `(-estW/2, -lineHeight/2)` inside a `<Group>` placed at the band anchor, so
 //!   scene scale (which pivots on the group's LOCAL ORIGIN) grows the caption in
@@ -30,6 +31,7 @@
 
 import { Group, Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { SPRING_SMOOTH } from '../motion.js'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
 /** One transcript entry: a word and its `[startMs, endMs)` activation window. */
@@ -121,6 +123,12 @@ export function Captions({
   // contains the current time. Captions replace one another in place; nothing
   // renders in the gaps between windows. Pure function of the current frame.
   const active = captions.find((c) => currentMs >= c.startMs && currentMs < c.endMs)
+
+  // Real shaped width of the active caption. Measured unconditionally (the hook
+  // must run every render) with an empty string in the gaps; the result is only
+  // read once an active caption exists.
+  const measured = useTextMetrics(active?.text ?? '', fontSize, { fontFamily, fontWeight })
+
   if (!active) return null
 
   // Activation pulse — a 0→1 SPRING_SMOOTH ramp over the caption's first 4
@@ -138,9 +146,10 @@ export function Captions({
   })
   const scale = 1 + 0.04 * pulseClamped
 
-  // No author-time text metrics: estimate the caption box from its glyph count
-  // (~0.55em per glyph for a display face) and a fixed 1.2em line box.
-  const estWidth = active.text.length * fontSize * 0.55
+  // Caption box: the engine measures the real shaped width (proportional —
+  // exact; falls back to a glyph-count estimate until the wasm engine warms in
+  // the browser) and a fixed 1.2em line box.
+  const estWidth = measured.width
   const lineHeight = fontSize * 1.2
 
   // Horizontal anchor for the caption's CENTRE, kept inside the `maxWidth`

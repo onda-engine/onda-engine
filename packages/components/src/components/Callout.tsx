@@ -19,9 +19,10 @@
 //! center), resolved to pixels via the composition size, exactly like ondajs.
 //!
 //! Scene-graph notes:
-//! - No JS-side text measurement, so the bubble width is ESTIMATED from glyph
-//!   count (`fontSize * label.length * WIDTH_RATIO` + horizontal padding). Pass
-//!   `width` to override when the exact text extent is known.
+//! - The bubble width is sized to the MEASURED text extent (`useTextMetrics`,
+//!   proportional/exact; falls back to a glyph-count estimate until the wasm
+//!   engine warms) plus horizontal padding. Pass `width` to override when the
+//!   exact text extent is known.
 //! - Scene scale pivots on a node's LOCAL ORIGIN (0,0), not its center. To make
 //!   the bubble grow about its own center, the scaling `<Group>` is placed at the
 //!   bubble center and the body/label/pointer are drawn relative to that center.
@@ -32,11 +33,8 @@
 import { Group, Path, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFade, entryFadeRise, entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
-
-/** Empirical advance ratio: average glyph advance ÷ font size for a display
- *  face. Used only to estimate the bubble width when `width` is omitted. */
-const WIDTH_RATIO = 0.56
 
 /** Default bubble surface. The theme `surface` (~`#121217`) sits barely above
  *  the canvas (`#0a0d17`), so a speech bubble drawn with it vanishes. A callout
@@ -100,7 +98,7 @@ export interface CalloutProps {
   pointerWidth?: number
   /** Pointer triangle length (how far it pokes out) in px (default 12). */
   pointerLength?: number
-  /** Explicit bubble width in px. Overrides the glyph-count estimate. */
+  /** Explicit bubble width in px. Overrides the measured text extent. */
   width?: number
 }
 
@@ -138,6 +136,11 @@ export function Callout({
   const fontFamily = fontFamilyProp ?? theme.fontFamily
   const cornerRadius = cornerRadiusProp ?? theme.radius
 
+  // Real shaped label width (overridable via `width`). The engine measures it
+  // (proportional — exact); falls back to a glyph-count estimate until the wasm
+  // engine warms in the browser, or if `width` is passed.
+  const measured = useTextMetrics(label, fontSize, { fontFamily, fontWeight })
+
   // Bubble center in pixels. x/y are 0..1 canvas fractions (ondajs semantics),
   // so the default 0.5/0.5 centers the bubble regardless of resolution.
   const centerX = x * compWidth
@@ -158,9 +161,9 @@ export function Callout({
     travelPx: 6,
   })
 
-  // Bubble box. Estimate the text extent from glyph count unless given.
-  const estTextWidth = label.length * fontSize * WIDTH_RATIO
-  const bubbleW = width ?? Math.round(estTextWidth + paddingX * 2)
+  // Bubble box, sized to the measured text extent unless `width` is given.
+  const textWidth = measured.width
+  const bubbleW = width ?? Math.round(textWidth + paddingX * 2)
   // Engine line box height ≈ fontSize * 1.2; add vertical padding.
   const bubbleH = Math.round(fontSize * 1.2 + paddingY * 2)
 
@@ -181,7 +184,7 @@ export function Callout({
   // Text top-left, centered in the bubble (relative to center). The engine's
   // line box is ~fontSize * 1.2 tall, so center on that to sit on the optical
   // baseline band.
-  const textX = -estTextWidth / 2
+  const textX = -textWidth / 2
   const textY = -(fontSize * 1.2) / 2
 
   return (

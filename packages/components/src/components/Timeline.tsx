@@ -36,6 +36,7 @@ import {
 } from '@onda/react'
 import { entryFade, entryScale } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
+import { measureText, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
 /** One anchor on the timeline. */
@@ -121,12 +122,17 @@ export function Timeline({
   const labelX = dotSize + labelGap
 
   // Footprint of the whole subtree. Content runs from the dot column's left edge
-  // (local x=0) to the right end of the WIDEST label. There are no author-time
-  // text metrics, so estimate label width as length * fontSize * 0.55 (display)
-  // and reserve from `labelX` outward — this is what we center on so the timeline
-  // lands on true canvas center rather than inside an over-generous fixed box.
+  // (local x=0) to the right end of the WIDEST label — measured exactly (real
+  // shaped width) and reserved from `labelX` outward, so the timeline centers on
+  // true canvas center. `useTextMetricsReady` warms the engine in the browser;
+  // `measureText` is the per-label sync read (a hook can't run in a reduce).
+  useTextMetricsReady()
   const maxLabelWidth = events.reduce(
-    (max, e) => Math.max(max, Math.ceil(e.label.length * fontSize * 0.55)),
+    (max, e) =>
+      Math.max(
+        max,
+        Math.ceil(measureText(e.label, fontSize, { fontFamily, fontWeight: 500 }).width),
+      ),
     0,
   )
   const subtreeWidth = labelX + maxLabelWidth

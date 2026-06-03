@@ -27,6 +27,7 @@ export {
   preloadTextMetrics,
   type TextMetrics,
   useTextMetrics,
+  useTextMetricsReady,
 } from './text-metrics.js'
 
 // Engine render-fidelity metadata — the capability signal for the agent contract.

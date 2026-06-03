@@ -22,6 +22,7 @@
 import { Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useTextReveal } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
 export interface TypewriterProps {
@@ -47,7 +48,7 @@ export interface TypewriterProps {
   /** Italic text. */
   italic?: boolean
   /** Absolute x of the text's left edge. Defaults to a centered origin derived
-   *  from the estimated full-text width. */
+   *  from the measured full-text width. */
   x?: number
   /** Absolute y baseline-ish top of the text. Defaults to vertical center. */
   y?: number
@@ -74,6 +75,10 @@ export function Typewriter({
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
 
+  // Real shaped width of the FULL string (proportional — exact); falls back to
+  // a glyph-count estimate until the wasm engine warms in the browser.
+  const measured = useTextMetrics(text, fontSize, { fontFamily, fontWeight })
+
   // Linear char count — constant cadence (the intentional non-spring case).
   const shown = useTextReveal({ length: text.length, delay, durationInFrames })
   const revealed = text.slice(0, Math.max(0, shown))
@@ -87,14 +92,12 @@ export function Typewriter({
   const showCursor = cursor && !done && cursorVisible
 
   // Absolute placement so the growing string never triggers a Flex reflow.
-  // There are no author-time text metrics, so the centered left origin is
-  // derived from an ESTIMATED width of the FULL string (~0.55em per glyph for a
-  // display face). Centering on the full width — not the growing substring —
-  // keeps the origin rock-steady (the line would slide sideways otherwise)
-  // while the completed line reads centered on the canvas. The single line is
-  // vertically centered by offsetting the top by ~half the cap height.
-  const estTextWidth = text.length * fontSize * 0.55
-  const px = x ?? Math.round(width / 2 - estTextWidth / 2)
+  // The centered left origin is derived from the MEASURED width of the FULL
+  // string. Centering on the full width — not the growing substring — keeps the
+  // origin rock-steady (the line would slide sideways otherwise) while the
+  // completed line reads centered on the canvas. The single line is vertically
+  // centered by offsetting the top by ~half the cap height.
+  const px = x ?? Math.round(width / 2 - measured.width / 2)
   const py = y ?? Math.round(height / 2 - fontSize * 0.6)
 
   // Append the cursor as a separate styled run so the engine measures the text

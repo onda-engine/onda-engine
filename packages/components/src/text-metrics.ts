@@ -144,6 +144,28 @@ export function useTextMetrics(
   return measureText(content, fontSize, opts)
 }
 
+/** Loader-only companion to {@link measureText} for components that measure a
+ *  VARIABLE number of strings (a `.map`/loop), where the {@link useTextMetrics}
+ *  hook can't be called per item without breaking the rules of hooks. Call this
+ *  ONCE at the top of the component, then `measureText(...)` synchronously in the
+ *  loop. It loads the engine in the browser and re-renders when ready; returns
+ *  `true` once measurements are real. In Node it reflects whether the engine is
+ *  warm (the export path warms it via `preloadTextMetrics`). */
+export function useTextMetricsReady(): boolean {
+  const [, bump] = useState(0)
+  useEffect(() => {
+    if (engine || loadFailed || typeof window === 'undefined') return
+    let cancelled = false
+    preloadTextMetrics().then(() => {
+      if (!cancelled) bump((v) => v + 1)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  return engine !== null
+}
+
 // Register with @onda/react so `@onda/render` warms the engine before a (sync)
 // export render — components bake real metrics into exported frames, not the
 // estimate. Importing @onda/components is enough; no caller setup.

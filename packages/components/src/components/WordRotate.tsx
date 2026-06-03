@@ -20,12 +20,9 @@
 //!    clobbered, HARD RULE 2). Each phrase nests an inner `<Group y={...}>` for
 //!    the rise so the absolute placement (outer) and the motion translate (inner)
 //!    don't fight.
-//!  - Horizontal alignment (`align`) is approximated: with no synchronous text
-//!    measurement we estimate each phrase's width as `chars * fontSize * CHAR_W`
-//!    and shift the anchor left/center/right. This is an APPROXIMATION — the
-//!    glyph advance of a proportional display font varies per character; the
-//!    estimate is close enough for centering a short headline word but won't be
-//!    pixel-exact. `'left'` (the default) needs no estimate and is exact.
+//!  - Horizontal alignment (`align`) uses the REAL shaped phrase width
+//!    (`measureText`) to shift the anchor left/center/right — exact, falling back
+//!    to a glyph-count estimate only until the engine warms in the browser.
 //!  - `letterSpacing` and `lineHeight` from the ondajs schema are dropped: the
 //!    scene `<Text>` exposes neither. Phrases are single words/short phrases, so
 //!    line-height is moot; letter-spacing has no engine primitive.
@@ -37,14 +34,10 @@
 import { Group, Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { HOUSE_EASE } from '../easing.js'
 import { SPRING_SMOOTH } from '../motion.js'
+import { measureText, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
-
-/** Rough average glyph-advance fraction of the font size, used only to estimate
- *  a phrase's width for `center`/`right` anchoring (no synchronous measurement
- *  in the scene API). Display fonts run a touch tighter than 0.5. */
-const CHAR_W = 0.55
 
 export interface WordRotateProps {
   /** Phrases cycled in place, in order. One is visible at a time. */
@@ -95,6 +88,9 @@ export function WordRotate({
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
+  // Warm real text measurement (browser re-renders when ready); per-phrase widths
+  // are read with the sync `measureText` inside the map below.
+  useTextMetricsReady()
 
   // Each phrase's slot overlaps its neighbor's by `transitionDuration` — the
   // outgoing fade and the incoming fade share frames, so the swap reads as one
@@ -127,9 +123,9 @@ export function WordRotate({
           { ...CLAMP, easing: HOUSE_EASE },
         )
 
-        // Anchor offset: 'left' is exact; 'center'/'right' use the width
-        // estimate (no synchronous text measurement in the scene API).
-        const estWidth = phrase.length * fontSize * CHAR_W
+        // Anchor offset: 'left' is exact; 'center'/'right' use the real shaped
+        // width (measured) so alignment hugs the actual phrase.
+        const estWidth = measureText(phrase, fontSize, { fontFamily, fontWeight }).width
         const offsetX = align === 'center' ? -estWidth / 2 : align === 'right' ? -estWidth : 0
 
         return (

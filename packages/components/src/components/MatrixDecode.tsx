@@ -29,21 +29,17 @@
 //!    defaults are resolved to their literal hex fallbacks.
 //!  - No `text-align`/`placement` region system: `align` is approximated by
 //!    anchoring the (single) line — `'left'` puts the left edge at `x`,
-//!    `'center'`/`'right'` shift left by an ESTIMATED text width (we can't read
-//!    the engine's measured box back inside a pure frame→scene function), so
-//!    centering is approximate. Pass explicit `x`/`y` for exact placement.
+//!    `'center'`/`'right'` shift left by the MEASURED text width (via
+//!    `useTextMetrics`; falls back to a glyph-count estimate until the wasm
+//!    engine warms). Pass explicit `x`/`y` for exact placement.
 //!  - Per-run colors render on the GPU (Vello) path; the CPU reference draws the
 //!    concatenated text in the node's base `color`, so there the scramble accent
 //!    is lost. GPU is the primary path.
 
 import { Text, random, useCurrentFrame, useVideoConfig } from '@onda/react'
 import type { TextRunInput } from '@onda/react'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
-
-/** Approximate average monospace glyph advance as a fraction of font size, used
- *  only to *estimate* the line width for `align` anchoring (the engine measures
- *  the real box at render time, but we can't read it back here). */
-const AVG_CHAR_W = 0.6
 
 export interface MatrixDecodeProps {
   /** The text that decodes into place. */
@@ -136,12 +132,16 @@ export function MatrixDecode({
   })
 
   // The plain concatenated string — used as the base child (CPU-reference draw)
-  // and to estimate width for `align` anchoring.
+  // and to measure width for `align` anchoring.
   const plain = runs.map((run) => run.text).join('')
 
+  // Real shaped line width (the engine measures it — proportional, exact; falls
+  // back to a glyph-count estimate until the wasm engine warms in the browser).
+  const measured = useTextMetrics(plain, fontSize, { fontFamily, fontWeight })
+
   // Absolute placement so the (potentially width-varying) line never triggers a
-  // Flex reflow. Estimate the line width to anchor non-left alignments.
-  const estWidth = plain.length * fontSize * AVG_CHAR_W
+  // Flex reflow. Use the measured line width to anchor non-left alignments.
+  const estWidth = measured.width
   let px: number
   if (x !== undefined) {
     px = x
