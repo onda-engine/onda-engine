@@ -945,13 +945,12 @@ export const GALLERY: GalleryItem[] = [
   {
     name: 'AudioClip',
     category: 'Media',
-    blurb: 'audio scheduling primitive. Ported from ondajs',
+    blurb: 'schedules an audio track (no visual) — the player plays it; use the volume control',
     props: {
-      src: 'https://www.w3schools.com/html/horse.mp3',
+      src: '/gallery-audio.mp3',
       startAt: 0,
       volume: 1,
     },
-    note: "Audio is non-visual — it schedules a track through the engine's audio pipeline.",
   },
   {
     name: 'AudioVisualizer',

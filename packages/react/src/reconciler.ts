@@ -209,6 +209,19 @@ function toNode(node: HostNode): SceneNode {
         ...withChildren,
       }
 
+    case 'onda-audio':
+      return {
+        ...base,
+        kind: {
+          type: 'audio',
+          src: stringProp(props, 'src', 'Audio'),
+          ...(typeof props.start === 'number' ? { start: props.start } : {}),
+          ...(typeof props.startAt === 'number' ? { start_at: props.startAt } : {}),
+          ...(typeof props.volume === 'number' ? { volume: props.volume } : {}),
+        },
+        ...withChildren,
+      }
+
     case 'onda-svg': {
       if (typeof props.src !== 'string' && typeof props.markup !== 'string') {
         throw new Error("<Svg> requires a 'src' or 'markup' prop")

@@ -204,6 +204,26 @@ export function Video({ startFrom = 0, playbackRate = 1, ...rest }: VideoProps) 
   return createElement('onda-video', { ...rest, time })
 }
 
+export interface AudioProps {
+  /** Path, URL, or `data:` URI of the audio. */
+  src: string
+  /** Composition time (seconds) at which the clip begins playing. Default 0. */
+  start?: number
+  /** Seconds into the source to begin from (trim the head). Default 0. */
+  startAt?: number
+  /** Linear gain, 0..1. Default 1. */
+  volume?: number
+}
+
+/** A non-visual audio clip on the timeline. It draws nothing — the player plays
+ *  it during preview (and export muxes it). Place it anywhere in the tree; `start`
+ *  sets when it begins (seconds), `startAt` trims into the source, `volume`
+ *  scales its gain. The higher-level `<AudioClip>` (`@onda/components`) wraps this
+ *  with a fade envelope. */
+export function Audio(props: AudioProps) {
+  return createElement('onda-audio', props)
+}
+
 export interface SvgProps extends NodeProps {
   /** A file path/URL to the SVG (resolved at render time by `onda render`). */
   src?: string
