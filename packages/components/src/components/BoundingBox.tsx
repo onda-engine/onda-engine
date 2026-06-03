@@ -33,18 +33,10 @@
 //! outline color still reads as the earned accent. ondajs's `letter-spacing`
 //! `0.02em` on the label is unsupported and omitted.
 
-import {
-  Group,
-  Path,
-  Rect,
-  Text,
-  interpolate,
-  spring,
-  useCurrentFrame,
-  useVideoConfig,
-} from '@onda/react'
+import { Group, Path, Rect, Text, interpolate, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFade, entryScale } from '../choreography.js'
-import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { HOUSE_EASE } from '../easing.js'
+import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
 
 /** Mean glyph advance as a fraction of font size, for a display face. Used only
@@ -72,8 +64,8 @@ export interface BoundingBoxProps {
   drawDuration?: number
   /** Outline stroke width in px. */
   strokeWidth?: number
-  /** Corner radius of the outline in px. Defaults to `0` (sharp corners, like the
-   *  ondajs selection marquee); set > 0 to round the outline. */
+  /** Reserved (kept for API compatibility). The perimeter draw-on traces sharp
+   *  corners (the selection-marquee look), so outline rounding is not applied. */
   cornerRadius?: number
   /** Draw small L-shaped tick marks at each corner after the outline lands. */
   corners?: boolean
@@ -95,7 +87,6 @@ export function BoundingBox({
   delay = 0,
   drawDuration = DURATION.slow,
   strokeWidth = 3,
-  cornerRadius = 0,
   corners = true,
   labelColor = '#08080a',
   fontSize = 16,
@@ -113,24 +104,27 @@ export function BoundingBox({
   const bw = width * canvasW
   const bh = height * canvasH
 
-  // Phase 1 — outline reveal on the house spring. ondajs strokes the perimeter
-  // on (dash); with no stroke-dash here we reveal via a centered fade + scale.
-  const drawProgress = spring({
-    frame: Math.max(0, frame - delay),
-    fps,
-    config: SPRING_SMOOTH,
-    durationInFrames: Math.max(1, drawDuration),
-  })
-  // Match ondajs: a calm scale settle, no overshoot, and opacity easing 0.4 → 1
-  // so the line gains presence as it lands rather than popping in at full.
-  const outlineScale = interpolate(drawProgress, [0, 1], [0.92, 1], {
+  // Phase 1 — the outline draws on. A smooth eased ramp (not a spring) gives the
+  // pen an even pace across the whole perimeter rather than snapping most edges
+  // in the first few frames.
+  const drawProgress = interpolate(frame, [delay, delay + Math.max(1, drawDuration)], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
+    easing: HOUSE_EASE,
   })
-  const outlineOpacity = interpolate(drawProgress, [0, 1], [0.4, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  })
+  // Real draw-on: the stroke "travels" clockwise around the perimeter from the
+  // top-left, so the outline draws from zero like a pen. The engine has no
+  // stroke-dash, so each edge is a thin <Rect> whose length animates with the
+  // travelling pen position — Rects render on BOTH backends (unlike <Path>).
+  const perim = 2 * (bw + bh)
+  const drawn = drawProgress * perim
+  // Length of the edge that begins at perimeter offset `start` and runs `len`.
+  const seg = (start: number, len: number): number =>
+    Math.max(0, Math.min(len, drawn - start))
+  const topLen = seg(0, bw) // top: left → right
+  const rightLen = seg(bw, bh) // right: top → bottom
+  const botLen = seg(bw + bh, bw) // bottom: right → left
+  const leftLen = seg(2 * bw + bh, bh) // left: bottom → top
 
   // Phase 2 — ticks + tag come in once the outline has essentially landed.
   const phaseTwoDelay = delay + drawDuration
@@ -170,49 +164,33 @@ export function BoundingBox({
 
   return (
     <Group x={bx} y={by}>
-      {/* Outline subtree, origin at the box center so the reveal scale grows
-          from the middle (scene scale pivots on the local origin). */}
-      <Group x={bw / 2} y={bh / 2}>
-        <Group scaleX={outlineScale} scaleY={outlineScale} opacity={outlineOpacity}>
-          {/* The stroked outline (no fill) — placed back at the box's top-left
-              relative to the centered origin. */}
-          <Rect
-            x={-bw / 2}
-            y={-bh / 2}
-            width={bw}
-            height={bh}
-            cornerRadius={cornerRadius}
-            stroke={color}
-            strokeWidth={strokeWidth}
-          />
-          {corners && tickLen > 0 ? (
-            <Group opacity={tickOpacity}>
-              {/* Corner ticks in the centered local space (box spans
-                  [-bw/2, -bh/2] .. [bw/2, bh/2]). */}
-              <Path
-                d={cornerTick(-bw / 2, -bh / 2, 1, 1)}
-                stroke={color}
-                strokeWidth={tickStroke}
-              />
-              <Path
-                d={cornerTick(bw / 2, -bh / 2, -1, 1)}
-                stroke={color}
-                strokeWidth={tickStroke}
-              />
-              <Path
-                d={cornerTick(bw / 2, bh / 2, -1, -1)}
-                stroke={color}
-                strokeWidth={tickStroke}
-              />
-              <Path
-                d={cornerTick(-bw / 2, bh / 2, 1, -1)}
-                stroke={color}
-                strokeWidth={tickStroke}
-              />
-            </Group>
-          ) : null}
+      {/* The outline, drawn on edge-by-edge around the perimeter. Each edge is a
+          thin filled <Rect> grown from its start corner toward the travelling pen
+          (top L→R, right T→B, bottom R→L, left B→T), so the box draws from zero.
+          `cornerRadius` rounding isn't traced by this pen — corners stay sharp,
+          matching the default selection-marquee look. */}
+      {topLen > 0.5 ? (
+        <Rect x={0} y={0} width={topLen} height={strokeWidth} fill={color} />
+      ) : null}
+      {rightLen > 0.5 ? (
+        <Rect x={bw - strokeWidth} y={0} width={strokeWidth} height={rightLen} fill={color} />
+      ) : null}
+      {botLen > 0.5 ? (
+        <Rect x={bw - botLen} y={bh - strokeWidth} width={botLen} height={strokeWidth} fill={color} />
+      ) : null}
+      {leftLen > 0.5 ? (
+        <Rect x={0} y={bh - leftLen} width={strokeWidth} height={leftLen} fill={color} />
+      ) : null}
+      {/* Corner ticks fade in once the outline has landed (centered local space:
+          the box spans [-bw/2,-bh/2]..[bw/2,bh/2]). */}
+      {corners && tickLen > 0 ? (
+        <Group x={bw / 2} y={bh / 2} opacity={tickOpacity}>
+          <Path d={cornerTick(-bw / 2, -bh / 2, 1, 1)} stroke={color} strokeWidth={tickStroke} />
+          <Path d={cornerTick(bw / 2, -bh / 2, -1, 1)} stroke={color} strokeWidth={tickStroke} />
+          <Path d={cornerTick(bw / 2, bh / 2, -1, -1)} stroke={color} strokeWidth={tickStroke} />
+          <Path d={cornerTick(-bw / 2, bh / 2, 1, -1)} stroke={color} strokeWidth={tickStroke} />
         </Group>
-      </Group>
+      ) : null}
       {/* Label tag pinned above the top-left corner. Fades + scales in alongside
           the ticks. Scale pivots on the tag's bottom-left (its local origin sits
           there) so it grows up-and-out from the corner, matching ondajs's
