@@ -109,7 +109,7 @@ export function Parallax({
             scaleY={layerScale}
             opacity={layerOpacity}
           >
-            <Image src={layer.src} />
+            <Image src={layer.src} width={width} height={height} fit="cover" />
           </Group>
         )
       })}

@@ -396,6 +396,33 @@ pub struct Image {
     /// the scene-graph JSON stays portable, carrying only `src`.
     #[serde(skip)]
     pub data: Option<ImageData>,
+    /// Target box width in px. With `height`, the renderer fits the decoded image
+    /// into this box per [`Image::fit`]. When either is `None` the image draws at
+    /// its intrinsic pixel size (the original behavior).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<f32>,
+    /// How the decoded image is fitted into the `width`×`height` box. Ignored
+    /// without a box. Defaults to [`ImageFit::Cover`].
+    #[serde(default)]
+    pub fit: ImageFit,
+}
+
+/// How a bitmap is fitted into its `width`×`height` box. The renderer — which
+/// knows the decoded intrinsic dimensions — computes the scale/crop; a pure
+/// frame→scene function can't read those dimensions back.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ImageFit {
+    /// Stretch to exactly fill the box, ignoring aspect ratio.
+    Fill,
+    /// Scale to cover the box (preserve aspect; crop the overflow) — the common
+    /// "photo fills the frame" behavior, and the default.
+    #[default]
+    Cover,
+    /// Scale to fit inside the box (preserve aspect; letterbox the remainder).
+    Contain,
 }
 
 impl Image {
@@ -404,7 +431,18 @@ impl Image {
         Image {
             src: src.into(),
             data: None,
+            width: None,
+            height: None,
+            fit: ImageFit::default(),
         }
+    }
+
+    /// Set the target box the decoded image is fitted into (see [`Image::fit`]).
+    pub fn with_box(mut self, width: f32, height: f32, fit: ImageFit) -> Self {
+        self.width = Some(width);
+        self.height = Some(height);
+        self.fit = fit;
+        self
     }
 
     /// Attach decoded pixels (used by the `onda-image` loading pass).
@@ -846,6 +884,31 @@ mod tests {
         assert!(json.contains(r#""markup":"<svg/>""#));
         let back: Scene = serde_json::from_str(&json).unwrap();
         assert_eq!(scene, back);
+    }
+
+    #[test]
+    fn image_box_and_fit_round_trip_and_default() {
+        // A boxed, contained image round-trips with its fit.
+        let scene = Scene::new(hd()).with_root(Node::group().with_child(Node::new(
+            NodeKind::Image(Image::new("a.png").with_box(120.0, 80.0, ImageFit::Contain)),
+        )));
+        let json = serde_json::to_string(&scene).unwrap();
+        assert!(json.contains(r#""fit":"contain""#));
+        assert!(json.contains(r#""width":120.0"#));
+        let back: Scene = serde_json::from_str(&json).unwrap();
+        assert_eq!(scene, back);
+
+        // Hand-written JSON with no box / no fit → None box, Cover default.
+        let json = r#"{ "composition": { "width": 1280, "height": 720, "fps": 30.0, "duration_in_frames": 1 },
+            "root": { "kind": { "type": "group" }, "children": [ { "kind": { "type": "image", "src": "b.png" } } ] } }"#;
+        let scene: Scene = serde_json::from_str(json).unwrap();
+        match &scene.root.children[0].kind {
+            NodeKind::Image(img) => {
+                assert_eq!((img.width, img.height), (None, None));
+                assert_eq!(img.fit, ImageFit::Cover);
+            }
+            _ => panic!("expected image"),
+        }
     }
 
     #[test]

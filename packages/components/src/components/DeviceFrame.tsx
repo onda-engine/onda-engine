@@ -52,11 +52,6 @@ const BEZEL_EDGE = '#3a3a44'
 /** Largest fraction of the composition height the device may occupy. The
  *  requested `width` is shrunk to honour this when the device would overflow. */
 const MAX_HEIGHT_FRACTION = 0.92
-/** Assumed source-raster width (px) for an `src` image with no intrinsic-size
- *  read — matches the BrowserFrame convention (ondajs default frame width). */
-const ASSUMED_IMAGE_WIDTH = 1280
-/** Assumed source-raster height (px); a 16:9 frame at {@link ASSUMED_IMAGE_WIDTH}. */
-const ASSUMED_IMAGE_HEIGHT = 720
 /** Soft approximation of the ondajs `box-shadow` drop. Stays dark across themes
  *  (a drop shadow isn't a theme color), so it's not theme-driven. */
 const SHADOW = '#000000a6'
@@ -292,9 +287,9 @@ function renderLaptop(
 }
 
 /** Screen contents: children take precedence, else an image src, else nothing.
- *  The image has no intrinsic-size read, so it's stretch-filled to the screen
- *  rect via independent scaleX/scaleY from an assumed base raster (`object-fit`
- *  isn't reproducible). The clip keeps it inside the rounded screen. */
+ *  The image is fitted to the screen rect with `fit="cover"` — the renderer
+ *  measures the decoded image, so the photo fills the screen without distortion
+ *  for any source aspect. The parent clip keeps it inside the rounded screen. */
 function renderContent(
   src: string | undefined,
   children: ReactNode,
@@ -305,15 +300,7 @@ function renderContent(
     return children
   }
   if (src) {
-    return (
-      <Image
-        src={src}
-        x={0}
-        y={0}
-        scaleX={screenW / ASSUMED_IMAGE_WIDTH}
-        scaleY={screenH / ASSUMED_IMAGE_HEIGHT}
-      />
-    )
+    return <Image src={src} width={screenW} height={screenH} fit="cover" />
   }
   return null
 }

@@ -48,11 +48,6 @@ export interface VideoClipProps {
   x?: number
   /** Top-left y of the box in px (default 0 — canvas-filling). */
   y?: number
-  /** Intrinsic poster width in px, used to compute the fit scale. Defaults to the
-   *  composition width (a poster rendered at comp resolution scales 1:1). */
-  sourceWidth?: number
-  /** Intrinsic poster height in px. Defaults to the composition height. */
-  sourceHeight?: number
   /** Rounded corner radius of the box in px (default: theme `radius`). */
   borderRadius?: number
   /** Draw cinematic black letterbox bars top & bottom, each this many px tall
@@ -73,8 +68,6 @@ export function VideoClip({
   height,
   x = 0,
   y = 0,
-  sourceWidth,
-  sourceHeight,
   borderRadius: borderRadiusProp,
   letterbox = 0,
   backgroundColor: backgroundColorProp,
@@ -88,10 +81,6 @@ export function VideoClip({
   // Box the clip fills — default is the whole composition (ondajs's fill default).
   const boxW = width ?? compWidth
   const boxH = height ?? compHeight
-
-  // Poster intrinsic size; assume a comp-resolution poster when unknown (scale 1).
-  const srcW = sourceWidth && sourceWidth > 0 ? sourceWidth : boxW
-  const srcH = sourceHeight && sourceHeight > 0 ? sourceHeight : boxH
 
   // Fade envelope: fade-in via entryFade, fade-out via exitFade landing on the
   // last `fadeOut` frames of the visible hold. Skipping fade-out when the hold is
@@ -113,26 +102,15 @@ export function VideoClip({
     opacity = Math.min(opacity, fadeOutOpacity)
   }
 
-  // Cover fills the box (crop overflow); contain fits inside (letterbox). The
-  // Image scales from its intrinsic pixels, so derive a per-axis scale factor.
-  const scaleCover = Math.max(boxW / srcW, boxH / srcH)
-  const scaleContain = Math.min(boxW / srcW, boxH / srcH)
-  const scale = fit === 'cover' ? scaleCover : scaleContain
-
-  // Center the scaled poster within the box (top-left offset in box-local space).
-  const drawnW = srcW * scale
-  const drawnH = srcH * scale
-  const offsetX = (boxW - drawnW) / 2
-  const offsetY = (boxH - drawnH) / 2
-
   return (
     // Outer Group positions + fades the whole clip; clip masks to the box so
     // 'cover' crops and 'contain' letterboxes cleanly within rounded corners.
     <Group x={x} y={y} opacity={opacity} clip={clipRect(boxW, boxH, borderRadius)}>
       {/* Black backing so any uncovered area (contain) reads as letterbox. */}
       <Rect width={boxW} height={boxH} cornerRadius={borderRadius} fill={backgroundColor} />
-      {/* The poster, centered and scaled to the chosen fit. */}
-      <Image src={src} x={offsetX} y={offsetY} scaleX={scale} scaleY={scale} />
+      {/* The poster, fitted to the box by the renderer (cover crops, contain
+          letterboxes against the backing). */}
+      <Image src={src} width={boxW} height={boxH} fit={fit} />
       {/* Optional cinematic letterbox bars, top & bottom, inside the box. */}
       {letterbox > 0 ? (
         <Group>

@@ -12,7 +12,7 @@
 use std::collections::HashMap;
 
 use onda_core::{Color, Transform};
-use onda_scene::{Gradient, GradientStop, Node, NodeKind, Scene, ShapeGeometry, Text};
+use onda_scene::{Gradient, GradientStop, ImageFit, Node, NodeKind, Scene, ShapeGeometry, Text};
 use onda_typography::{FontContext, StyledRun};
 use vello::kurbo::{Affine, BezPath, Ellipse, Rect, RoundedRect, Shape, Stroke};
 use vello::peniko::{
@@ -216,14 +216,52 @@ fn build(
                         data.width,
                         data.height,
                     );
+                    let (iw, ih) = (data.width as f64, data.height as f64);
+                    // Fit the decoded image into the optional target box. Without a
+                    // box, it draws at intrinsic size at `affine` (original path).
+                    let (img_affine, clip_box) = match (image.width, image.height) {
+                        (Some(bw), Some(bh)) if bw > 0.0 && bh > 0.0 => {
+                            let (bw, bh) = (bw as f64, bh as f64);
+                            let (sx, sy) = match image.fit {
+                                ImageFit::Fill => (bw / iw, bh / ih),
+                                ImageFit::Cover => {
+                                    let s = (bw / iw).max(bh / ih);
+                                    (s, s)
+                                }
+                                ImageFit::Contain => {
+                                    let s = (bw / iw).min(bh / ih);
+                                    (s, s)
+                                }
+                            };
+                            // Center the scaled image in the box.
+                            let dx = (bw - iw * sx) / 2.0;
+                            let dy = (bh - ih * sy) / 2.0;
+                            let a = affine
+                                * Affine::translate((dx, dy))
+                                * Affine::scale_non_uniform(sx, sy);
+                            // Cover overflows the box → clip it; fill/contain stay inside.
+                            let clip =
+                                (image.fit == ImageFit::Cover).then(|| Rect::new(0.0, 0.0, bw, bh));
+                            (a, clip)
+                        }
+                        _ => (affine, None),
+                    };
+                    // Clip cover overflow to the box (in node-local `affine` space).
+                    let did_clip = clip_box.is_some();
+                    if let Some(b) = clip_box {
+                        vscene.push_layer(Mix::Clip, 1.0, affine, &b);
+                    }
                     // draw_image has no alpha arg; fold node opacity in via a layer.
                     if opacity < 1.0 {
-                        let bounds = Rect::new(0.0, 0.0, data.width as f64, data.height as f64);
-                        vscene.push_layer(Mix::Normal, opacity, affine, &bounds);
-                        vscene.draw_image(&pimg, affine);
+                        let bounds = Rect::new(0.0, 0.0, iw, ih);
+                        vscene.push_layer(Mix::Normal, opacity, img_affine, &bounds);
+                        vscene.draw_image(&pimg, img_affine);
                         vscene.pop_layer();
                     } else {
-                        vscene.draw_image(&pimg, affine);
+                        vscene.draw_image(&pimg, img_affine);
+                    }
+                    if did_clip {
+                        vscene.pop_layer();
                     }
                 }
             }

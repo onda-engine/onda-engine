@@ -58,13 +58,6 @@ export interface ImageRevealProps {
   width?: number
   /** Box height in px. Defaults to the full composition height (fill mode). */
   height?: number
-  /**
-   * Intrinsic source pixel width, used for `fit` math. Defaults to the box
-   * width (a plain stretch). Supply the real source size for true cover/contain.
-   */
-  srcWidth?: number
-  /** Intrinsic source pixel height (see {@link srcWidth}). */
-  srcHeight?: number
   /** Corner radius of the box (clips the image to a rounded rect) (default: theme `radius`). */
   cornerRadius?: number
 }
@@ -79,8 +72,6 @@ export function ImageReveal({
   y = 0,
   width,
   height,
-  srcWidth,
-  srcHeight,
   cornerRadius: cornerRadiusProp,
 }: ImageRevealProps) {
   const frame = useCurrentFrame()
@@ -92,27 +83,6 @@ export function ImageReveal({
   const boxW = width ?? compWidth
   const boxH = height ?? compHeight
 
-  // Intrinsic source size for fit math. Without it, fall back to the box size
-  // (a plain stretch — see the doc comment).
-  const intrinsicW = srcWidth ?? boxW
-  const intrinsicH = srcHeight ?? boxH
-  const safeSrcW = intrinsicW > 0 ? intrinsicW : boxW
-  const safeSrcH = intrinsicH > 0 ? intrinsicH : boxH
-
-  // Per-axis scale to exactly fill the box, then pick the uniform factor:
-  // `cover` uses the larger (fills + overflows → cropped by the clip),
-  // `contain` uses the smaller (whole image fits, letterboxed).
-  const fillScaleX = boxW / safeSrcW
-  const fillScaleY = boxH / safeSrcH
-  const uniform =
-    fit === 'cover' ? Math.max(fillScaleX, fillScaleY) : Math.min(fillScaleX, fillScaleY)
-
-  // Drawn image size after scaling, and the offset that centers it in the box.
-  const drawnW = safeSrcW * uniform
-  const drawnH = safeSrcH * uniform
-  const imgX = (boxW - drawnW) / 2
-  const imgY = (boxH - drawnH) / 2
-
   // Entrance motion (shared SPRING_SMOOTH fingerprints via the choreography
   // vocabulary). `wipe` drives a clip width; `fade`/`scale` drive the group.
   const fade = entryFade({ frame, fps, delay, durationInFrames })
@@ -122,8 +92,9 @@ export function ImageReveal({
   // fade progress as a 0→1 ramp). A tiny opacity lead-in avoids a hard pop.
   const wipeWidth = Math.max(0, fade.opacity * boxW)
 
-  // The image element, drawn centered in the box at the fit scale.
-  const image = <Image src={src} x={imgX} y={imgY} scaleX={uniform} scaleY={uniform} />
+  // The image, fitted into the box by the renderer (it measures the decoded
+  // pixels). The wrapping group's clip crops `cover`; `contain` letterboxes.
+  const image = <Image src={src} width={boxW} height={boxH} fit={fit} />
 
   if (motion === 'fade') {
     return (
@@ -146,13 +117,7 @@ export function ImageReveal({
           scaleY={scaleMotion.scaleY}
           opacity={scaleMotion.opacity}
         >
-          <Image
-            src={src}
-            x={imgX - boxW / 2}
-            y={imgY - boxH / 2}
-            scaleX={uniform}
-            scaleY={uniform}
-          />
+          <Image src={src} x={-boxW / 2} y={-boxH / 2} width={boxW} height={boxH} fit={fit} />
         </Group>
       </Group>
     )
