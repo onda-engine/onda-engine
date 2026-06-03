@@ -11,6 +11,7 @@
 
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{bail, Context, Result};
 use onda_animation::{AnimatedScene, AudioTrack};
@@ -19,6 +20,10 @@ use onda_renderer::{encode_gif, Framebuffer, Renderer};
 use onda_scene::{Scene, Text};
 use onda_typography::{FontContext, StyledRun};
 use onda_vello::VelloRenderer;
+
+/// Set by `--progress`: when true, the Vello render emits a `[onda-progress]{…}`
+/// JSON line per frame on stdout (parsed by the @onda/node bridge for onProgress).
+static EMIT_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 const USAGE: &str = "\
 onda — render a scene-graph document to an image or video
@@ -46,6 +51,8 @@ OPTIONS:
                       H.264 encoder for .mp4 output. 'auto' (default) uses a
                       hardware encoder if one works on this machine, else
                       libx264 — the portable, deterministic baseline.
+    --progress        Emit a `[onda-progress]{...}` JSON line per rendered frame
+                      on stdout (for tools driving the CLI, e.g. @onda/node).
     --system-fonts    Use the host's installed fonts instead of the bundled
                       default font (CPU backend only; output then depends on
                       the machine).
@@ -246,6 +253,8 @@ struct Options {
     backend: BackendChoice,
     /// The H.264 encoder for mp4 output (`auto` probes for hardware).
     encoder: EncoderChoice,
+    /// Emit per-frame `[onda-progress]` JSON lines (for the Node bridge).
+    progress: bool,
     /// Paths from `--font`, loaded and selectable by family on a `Text` run.
     fonts: Vec<PathBuf>,
 }
@@ -257,11 +266,13 @@ fn parse_io(args: &[String], verb: &str) -> Result<Options> {
     let mut font = FontMode::Bundled;
     let mut backend = BackendChoice::Auto;
     let mut encoder = EncoderChoice::Auto;
+    let mut progress = false;
     let mut fonts: Vec<PathBuf> = Vec::new();
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
             "--system-fonts" => font = FontMode::System,
+            "--progress" => progress = true,
             "--encoder" => {
                 let value = iter
                     .next()
@@ -309,6 +320,7 @@ fn parse_io(args: &[String], verb: &str) -> Result<Options> {
         font,
         backend,
         encoder,
+        progress,
         fonts,
     })
 }
@@ -328,6 +340,7 @@ fn render_command(args: &[String]) -> Result<()> {
         font,
         backend,
         encoder: _,
+        progress: _,
         fonts,
     } = parse_io(args, "render")?;
     let fonts = load_font_bytes(&fonts)?;
@@ -344,9 +357,11 @@ fn export_command(args: &[String]) -> Result<()> {
         font,
         backend,
         encoder,
+        progress,
         fonts,
     } = parse_io(args, "export")?;
     let fonts = load_font_bytes(&fonts)?;
+    EMIT_PROGRESS.store(progress, Ordering::Relaxed);
     let out = Path::new(&output);
 
     let json =
@@ -374,9 +389,11 @@ fn export_frames_command(args: &[String]) -> Result<()> {
         font,
         backend,
         encoder,
+        progress,
         fonts,
     } = parse_io(args, "export-frames")?;
     let fonts = load_font_bytes(&fonts)?;
+    EMIT_PROGRESS.store(progress, Ordering::Relaxed);
     let out = Path::new(&output);
 
     let json = std::fs::read_to_string(&input)
@@ -581,10 +598,17 @@ fn load_into_vello(renderer: &mut VelloRenderer, extra_fonts: &[Vec<u8>]) {
 /// Vello backend: render each scene on the GPU (offscreen + readback) and bridge
 /// each frame into a `Framebuffer` so the existing encoders apply unchanged.
 fn render_scenes_vello(scenes: &[Scene], renderer: &mut VelloRenderer) -> Vec<Framebuffer> {
+    let total = scenes.len();
+    let progress = EMIT_PROGRESS.load(Ordering::Relaxed);
     scenes
         .iter()
-        .map(|scene| {
+        .enumerate()
+        .map(|(i, scene)| {
             let frame = renderer.render(scene);
+            if progress {
+                // One JSON line per frame for the Node bridge's onProgress.
+                println!("[onda-progress]{{\"frame\":{},\"total\":{}}}", i + 1, total);
+            }
             Framebuffer::from_rgba(frame.width, frame.height, frame.pixels)
         })
         .collect()
