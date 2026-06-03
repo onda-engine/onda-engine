@@ -27,6 +27,9 @@ pkg
 !docs/**/*.png
 !apps/site/**/*.png
 !assets/**/*.png
+# Golden-frame test references must be tracked (the test diffs against them).
+!packages/*/tests/golden/*.png
+packages/*/tests/golden/*.actual.png
 *.gif
 *.mp4
 !docs/**/*.gif
