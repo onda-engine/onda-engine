@@ -173,6 +173,12 @@ export interface VideoProps extends NodeProps {
   /** Source seconds advanced per composition second (1 = realtime, 2 = 2× fast,
    *  0.5 = slow-mo). Default `1`. */
   playbackRate?: number
+  /** Seconds into the SOURCE to stop at (trim the tail). Past it the clip holds
+   *  its last frame, unless `loop` is set. Omit to play to the source's end. */
+  endAt?: number
+  /** Loop the trimmed span `[startFrom, endAt)` (requires `endAt`). The source
+   *  time wraps so the clip repeats for as long as the `<Sequence>` shows it. */
+  loop?: boolean
   /** Target box width in px. With `height`, the frame is fitted into this box
    *  per `fit`. Omit both for the video's intrinsic pixel size. */
   width?: number
@@ -197,11 +203,19 @@ export interface VideoProps extends NodeProps {
  *  exact frame (browser: `<video>`/WebCodecs; native export: ffmpeg) and the
  *  renderer draws it like an image. Place/scale it like any node; combine with a
  *  `<Sequence>` to position it on the timeline. */
-export function Video({ startFrom = 0, playbackRate = 1, ...rest }: VideoProps) {
+export function Video({ startFrom = 0, playbackRate = 1, endAt, loop, ...rest }: VideoProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
-  const time = Math.max(0, startFrom + (frame / Math.max(1, fps)) * playbackRate)
-  return createElement('onda-video', { ...rest, time })
+  // Resolve the source time IN THE AUTHOR LAYER (the engine just gets a number):
+  // advance from the trim-head at playbackRate, then trim-tail / loop the span.
+  let time = startFrom + (frame / Math.max(1, fps)) * playbackRate
+  if (endAt != null && endAt > startFrom) {
+    const span = endAt - startFrom
+    time = loop
+      ? startFrom + ((((time - startFrom) % span) + span) % span) // wrap to repeat
+      : Math.min(time, endAt) // hold the last frame past the tail
+  }
+  return createElement('onda-video', { ...rest, time: Math.max(0, time) })
 }
 
 export interface AudioProps {
