@@ -105,6 +105,7 @@ export {
   renderToScene,
   renderToSceneJSON,
 } from './reconciler.js'
+export { registerEngineWarmer, runEngineWarmers } from './warmers.js'
 export type {
   Color,
   Composition as CompositionData,
