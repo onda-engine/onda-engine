@@ -969,6 +969,12 @@ export const GALLERY: GalleryItem[] = [
       seed: 7,
     },
     controls: [
+      {
+        prop: 'src',
+        label: 'Audio URL',
+        placeholder: '/gallery-audio.mp3',
+        hint: 'Paste a direct .mp3/.wav/etc URL (same-origin or CORS). Drives the bars with its real FFT spectrum — identical in preview and export.',
+      },
       { prop: 'type', label: 'Style', options: ['bars', 'mirrored', 'waveform', 'radial', 'dots'] },
     ],
     themed: true,
