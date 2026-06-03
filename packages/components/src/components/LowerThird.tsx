@@ -123,7 +123,10 @@ export function LowerThird({
   const fontFamily = fontFamilyProp ?? theme.fontFamily
   const cornerRadius = cornerRadiusProp ?? theme.radius
 
-  const { x: ax, y: ay, side, vertical } = PLACEMENT_MAP[placement]
+  // A lower-third only lives in a corner; a caller (or the agent) may pass a
+  // general placement like `center` — fall back to the house corner rather than
+  // crashing on an unmapped key.
+  const { x: ax, y: ay, side, vertical } = PLACEMENT_MAP[placement] ?? PLACEMENT_MAP['bottom-left']
   const isLeft = side === 'left'
 
   // Name slides in from the bar's side — subtle horizontal travel reinforces

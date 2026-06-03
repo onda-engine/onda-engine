@@ -218,12 +218,30 @@ function transformOf(props: Record<string, unknown>): Transform | undefined {
     : undefined
 }
 
+// Tolerate CSS flexbox spellings on justify/align. The engine's layout enum is
+// `start | center | end` (+ `space-*` for justify), but components ported from
+// the browser — and agent payloads written against CSS — use `flex-start` /
+// `flex-end` / edge words. Normalize here, at the single layout→scene boundary,
+// so every node is forgiving rather than failing scene-graph deserialization.
+const ALIGN_ALIASES: Record<string, string> = {
+  'flex-start': 'start',
+  'flex-end': 'end',
+  left: 'start',
+  top: 'start',
+  right: 'end',
+  bottom: 'end',
+  middle: 'center',
+  'space-evenly': 'space-around',
+}
+const normAlign = (v: unknown): unknown =>
+  typeof v === 'string' && v in ALIGN_ALIASES ? ALIGN_ALIASES[v] : v
+
 /** Copy the defined layout fields (names/values already match the scene JSON). */
 function parseLayout(layout: Layout): Layout {
   const out: Layout = {}
   if (layout.direction !== undefined) out.direction = layout.direction
-  if (layout.justify !== undefined) out.justify = layout.justify
-  if (layout.align !== undefined) out.align = layout.align
+  if (layout.justify !== undefined) out.justify = normAlign(layout.justify) as Layout['justify']
+  if (layout.align !== undefined) out.align = normAlign(layout.align) as Layout['align']
   if (typeof layout.gap === 'number') out.gap = layout.gap
   if (typeof layout.padding === 'number') out.padding = layout.padding
   if (layout.wrap === true) out.wrap = true
