@@ -88,6 +88,11 @@ export type NodeKind =
       width?: number
       height?: number
       fit?: ImageFit
+      /** Preview-only hint (ignored by renderers + export): how the player should
+       *  preview a source it can't composite (cross-origin without CORS).
+       *  `'skip'` (default) leaves it blank + warns; `'element'` overlays a plain
+       *  `<video>`. Never affects `onda export`. */
+      previewFallback?: 'skip' | 'element'
     }
   | { type: 'shape'; geometry: ShapeGeometry; fill?: Color; gradient?: Gradient; stroke?: Stroke }
   | { type: 'svg'; src?: string; markup?: string }

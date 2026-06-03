@@ -5007,6 +5007,13 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
         'Source seconds advanced per composition second (1 = realtime, 2 = 2×, 0.5 = slow-mo). Default 1.',
     },
     {
+      name: 'previewFallback',
+      required: false,
+      type: "'skip' | 'element'",
+      description:
+        'Preview-only: how to preview a source the browser can’t composite (cross-origin without CORS). `skip` (default) blanks it + warns; `element` overlays a plain <video> so it still plays. Never affects `onda export` (ffmpeg composites any direct URL). For your own assets, serving them with CORS gives full compositing instead.',
+    },
+    {
       name: 'delay',
       required: false,
       type: 'number',

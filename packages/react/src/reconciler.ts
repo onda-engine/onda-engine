@@ -202,6 +202,9 @@ function toNode(node: HostNode): SceneNode {
           ...(props.fit === 'fill' || props.fit === 'cover' || props.fit === 'contain'
             ? { fit: props.fit }
             : {}),
+          ...(props.previewFallback === 'element' || props.previewFallback === 'skip'
+            ? { previewFallback: props.previewFallback }
+            : {}),
         },
         ...withChildren,
       }

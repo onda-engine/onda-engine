@@ -28,7 +28,7 @@ import {
 import { type FrameDrawer, drawScene } from './canvas-renderer.js'
 import { type RenderEngine, engineDrawer } from './engine-drawer.js'
 import { applyResolvedImages, collectImageUrls, resolveImageUrl } from './images.js'
-import { resolveVideoFrames } from './video.js'
+import { collectVideoOverlays, resolveVideoFrames } from './video.js'
 
 /** An async, GPU renderer — structurally `@onda/wasm-vello`'s `VelloEngine`.
  *  This is the pixel-exact, full-feature path (paths/gradients/clips/AA), so the
@@ -181,6 +181,15 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   const totalFrames = Math.max(1, config.duration_in_frames)
   const lastFrame = totalFrames - 1
 
+  // `previewFallback: 'element'` video nodes shown as DOM <video> overlays
+  // (display-only preview for sources we can't composite, e.g. cross-origin
+  // without CORS). Boxes are frame-independent, so derive once per composition.
+  const videoOverlays = useMemo(
+    () => collectVideoOverlays(renderFrame(composition, 0).root as never, config.width, config.height),
+    [composition, config.width, config.height],
+  )
+  const videoOverlayRef = useRef<HTMLDivElement>(null)
+
   const [frame, setFrame] = useState(() =>
     Math.min(lastFrame, Math.max(0, Math.floor(initialFrame))),
   )
@@ -284,6 +293,18 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
     }
     // `imagesReady` is a dep so the frame repaints once images resolve.
   }, [composition, frame, mode, paintGpu, imagesReady])
+
+  // Keep the `previewFallback: 'element'` overlay <video>s in lockstep with the
+  // player's play/pause. (They aren't frame-locked to the timeline — a display-
+  // only preview — but at least they pause when the composition pauses.)
+  useEffect(() => {
+    const vids = videoOverlayRef.current?.querySelectorAll('video')
+    if (!vids) return
+    for (const v of vids) {
+      if (playing) void v.play().catch(() => {})
+      else v.pause()
+    }
+  }, [playing, videoOverlays])
 
   // Playback paced to the composition's fps via requestAnimationFrame.
   useEffect(() => {
@@ -493,6 +514,32 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
           aria-label={`composition preview, ${config.width}×${config.height} at ${config.fps}fps — click to ${playing ? 'pause' : 'play'}`}
         />
 
+        {/* Display-only <video> overlay for `previewFallback: 'element'` sources
+            (cross-origin without CORS). Above the canvas, click-through. */}
+        {videoOverlays.length > 0 && (
+          <div ref={videoOverlayRef} style={styles.videoOverlay} aria-hidden="true">
+            {videoOverlays.map((o) => (
+              // biome-ignore lint/a11y/useMediaCaption: decorative preview surrogate, not content
+              <video
+                key={o.key}
+                src={o.src}
+                muted
+                autoPlay
+                loop
+                playsInline
+                style={{
+                  position: 'absolute',
+                  left: `${(o.x / config.width) * 100}%`,
+                  top: `${(o.y / config.height) * 100}%`,
+                  width: `${(o.w / config.width) * 100}%`,
+                  height: `${(o.h / config.height) * 100}%`,
+                  objectFit: o.fit,
+                }}
+              />
+            ))}
+          </div>
+        )}
+
         {showStatus && (
           <div className="onda-player__badge" title={statusText}>
             <span
@@ -683,6 +730,7 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--onda-border, #26262c)',
   },
   canvas: { width: '100%', height: '100%', display: 'block', cursor: 'pointer' },
+  videoOverlay: { position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' },
   readout: {
     display: 'flex',
     alignItems: 'baseline',
