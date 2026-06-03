@@ -33,7 +33,7 @@
 //! outline color still reads as the earned accent. ondajs's `letter-spacing`
 //! `0.02em` on the label is unsupported and omitted.
 
-import { Group, Path, Rect, Text, interpolate, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Rect, Text, interpolate, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFade, entryScale } from '../choreography.js'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION } from '../motion.js'
@@ -67,8 +67,6 @@ export interface BoundingBoxProps {
   /** Reserved (kept for API compatibility). The perimeter draw-on traces sharp
    *  corners (the selection-marquee look), so outline rounding is not applied. */
   cornerRadius?: number
-  /** Draw small L-shaped tick marks at each corner after the outline lands. */
-  corners?: boolean
   /** Label text color — a dark for contrast on the accent tag by default. */
   labelColor?: string
   /** Label font size in px. */
@@ -87,7 +85,6 @@ export function BoundingBox({
   delay = 0,
   drawDuration = DURATION.slow,
   strokeWidth = 3,
-  corners = true,
   labelColor = '#08080a',
   fontSize = 16,
   fontFamily: fontFamilyProp,
@@ -126,27 +123,10 @@ export function BoundingBox({
   const botLen = seg(bw + bh, bw) // bottom: right → left
   const leftLen = seg(2 * bw + bh, bh) // left: bottom → top
 
-  // Phase 2 — ticks + tag come in once the outline has essentially landed.
+  // Phase 2 — the label tag comes in once the outline has essentially landed.
   const phaseTwoDelay = delay + drawDuration
-  const { opacity: tickOpacity } = entryFade({
-    frame,
-    fps,
-    delay: phaseTwoDelay,
-    durationInFrames: DURATION.fast,
-  })
   const tagFade = entryFade({ frame, fps, delay: phaseTwoDelay, durationInFrames: DURATION.base })
   const tagScale = entryScale({ frame, fps, delay: phaseTwoDelay, durationInFrames: DURATION.base })
-
-  // L-shaped tick length — a short mark hugging each corner just inside the box.
-  const tickLen = Math.min(bw, bh) * 0.14
-  // Corner ticks use a slightly heavier stroke than the outline (ondajs +1).
-  const tickStroke = strokeWidth + 1
-
-  // L-shaped tick at corner (cx, cy). `sx`/`sy` are the directions (±1) the two
-  // legs extend inward from the corner. Coordinates are in the outline subtree's
-  // local space (origin at the box center — see the centered `<Group>` below).
-  const cornerTick = (cx: number, cy: number, sx: number, sy: number) =>
-    `M ${cx + sx * tickLen} ${cy} L ${cx} ${cy} L ${cx} ${cy + sy * tickLen}`
 
   // Label tag geometry — pinned just above the top-left corner. Width estimated
   // from glyph count (no author-time text metrics). The tag is a rounded filled
@@ -181,19 +161,9 @@ export function BoundingBox({
       {leftLen > 0.5 ? (
         <Rect x={0} y={bh - leftLen} width={strokeWidth} height={leftLen} fill={color} />
       ) : null}
-      {/* Corner ticks fade in once the outline has landed (centered local space:
-          the box spans [-bw/2,-bh/2]..[bw/2,bh/2]). */}
-      {corners && tickLen > 0 ? (
-        <Group x={bw / 2} y={bh / 2} opacity={tickOpacity}>
-          <Path d={cornerTick(-bw / 2, -bh / 2, 1, 1)} stroke={color} strokeWidth={tickStroke} />
-          <Path d={cornerTick(bw / 2, -bh / 2, -1, 1)} stroke={color} strokeWidth={tickStroke} />
-          <Path d={cornerTick(bw / 2, bh / 2, -1, -1)} stroke={color} strokeWidth={tickStroke} />
-          <Path d={cornerTick(-bw / 2, bh / 2, 1, -1)} stroke={color} strokeWidth={tickStroke} />
-        </Group>
-      ) : null}
-      {/* Label tag pinned above the top-left corner. Fades + scales in alongside
-          the ticks. Scale pivots on the tag's bottom-left (its local origin sits
-          there) so it grows up-and-out from the corner, matching ondajs's
+      {/* Label tag pinned above the top-left corner. Fades + scales in once the
+          outline lands. Scale pivots on the tag's bottom-left (its local origin
+          sits there) so it grows up-and-out from the corner, matching ondajs's
           `transform-origin: bottom left`. */}
       {showTag ? (
         <Group y={-(tagHeight + tagGap)} opacity={tagFade.opacity}>

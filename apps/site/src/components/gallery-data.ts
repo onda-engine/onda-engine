@@ -458,8 +458,6 @@ export const GALLERY: GalleryItem[] = [
       height: 0.4,
       label: 'Settings',
       strokeWidth: 3,
-      cornerRadius: 0,
-      corners: true,
       labelColor: '#08080a',
       fontSize: 18,
       delay: 0,
