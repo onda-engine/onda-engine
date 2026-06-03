@@ -13,6 +13,10 @@ authors.workspace = true
 onda-core = { workspace = true }
 onda-scene = { workspace = true }
 onda-typography = { workspace = true }
+# CPU rasterizer: tiny-skia (Skia raster pipeline) for shape fills/gradients/
+# strokes/AA; kurbo parses SVG path data. Both build on wasm32.
+tiny-skia = { workspace = true }
+kurbo = { workspace = true }
 png = { version = "0.18.1", optional = true }
 gif = { version = "0.14", optional = true }
 # Optional so the renderer still builds for wasm32 (no threads there); native

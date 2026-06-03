@@ -51,6 +51,12 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
 thiserror = "2"
+# CPU rasterization for the reference backend (native headless + browser-without-
+# WebGPU fallback). tiny-skia is the pure-Rust Skia raster pipeline behind resvg
+# (gradients/paths/strokes/AA/clipping); kurbo parses SVG path data. Both build on
+# wasm32. tiny-skia 0.11 aligns with the in-tree tiny-skia-path (via usvg).
+tiny-skia = "0.11"
+kurbo = "0.11"
 
 [profile.release]
 opt-level = 3

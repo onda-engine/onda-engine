@@ -1036,12 +1036,14 @@ name = "onda-renderer"
 version = "0.0.0"
 dependencies = [
  "gif",
+ "kurbo",
  "onda-animation",
  "onda-core",
  "onda-scene",
  "onda-typography",
  "png 0.18.1",
  "rayon",
+ "tiny-skia",
 ]
 
 [[package]]
@@ -1841,6 +1843,21 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "tiny-skia"
+version = "0.11.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83d13394d44dae3207b52a326c0c85a8bf87f1541f23b0d143811088497b09ab"
+dependencies = [
+ "arrayref",
+ "arrayvec",
+ "bytemuck",
+ "cfg-if",
+ "log",
+ "png 0.17.16",
+ "tiny-skia-path",
 ]
 
 [[package]]

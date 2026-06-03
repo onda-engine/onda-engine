@@ -1,26 +1,30 @@
 //! ONDA renderer — CPU reference rasterizer.
 //!
-//! This is the v0 backend: it walks a [`Scene`] and produces an in-memory RGBA8
-//! [`Framebuffer`]. It is deliberately CPU-only and dependency-light so the
-//! scene-graph → pixels *contract* (transform/opacity inheritance, src-over
-//! compositing, coordinate conventions) can be pinned down and tested
-//! deterministically without a GPU. The forthcoming wgpu backend must match this
-//! reference output, which doubles as a correctness oracle for it.
+//! It walks a [`Scene`] and produces an in-memory RGBA8 [`Framebuffer`] on the
+//! CPU — no GPU — so it renders anywhere (headless servers, CI, browsers without
+//! WebGPU via `@onda/wasm`) and pins down the scene-graph → pixels *contract*
+//! (transform/opacity inheritance, src-over compositing, coordinate conventions)
+//! deterministically.
 //!
-//! v0 scope: filled rectangles and ellipses, plus text (when the [`Renderer`]
-//! has a [`FontContext`]) composited from `onda-typography` coverage masks. Hard
-//! (non-antialiased) shape edges. Deferred to their subsystems: images (decoding),
-//! strokes, rounded-corner rasterization, scaled/rotated text, and shape AA.
+//! Shapes — rects, rounded rects, ellipses and arbitrary SVG paths, with solid or
+//! linear/radial gradient fills and strokes, anti-aliased — are rasterized by
+//! [`tiny_skia`] (the pure-Rust Skia raster pipeline behind resvg) into a temp
+//! pixmap and composited into the framebuffer. Images blit per [`ImageFit`]; text
+//! composites `onda-typography` coverage masks when the [`Renderer`] has a
+//! [`FontContext`]. Deferred (Vello/GPU only): rotation ([`Transform::then`]
+//! drops it on the CPU path), clipping, blend modes, and blur/filter passes.
 //!
 //! Coordinate convention: pixel space, origin top-left, +x right, +y down. A
 //! shape's geometry is authored in its own local space with origin at top-left;
 //! the node's (composed) transform places it on the canvas.
 
+use kurbo::{BezPath, PathEl, Shape as _};
 use onda_core::{Color, Transform, Vec2};
 use onda_scene::{
-    Gradient, ImageData, ImageFit, Node, NodeKind, Scene, Shape, ShapeGeometry, Text,
+    Gradient, GradientStop, ImageData, ImageFit, Node, NodeKind, Scene, Shape, ShapeGeometry, Text,
 };
 pub use onda_typography::{FontContext, TextRaster};
+use tiny_skia as tsk;
 
 /// An RGBA8 image: `width * height * 4` bytes, row-major, top-left origin.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -384,78 +388,202 @@ where
         .collect()
 }
 
-/// The first stop's color of a gradient (the CPU backend's gradient fallback).
-fn first_stop_color(gradient: &Gradient) -> Option<Color> {
-    let stops = match gradient {
-        Gradient::Linear { stops, .. } | Gradient::Radial { stops, .. } => stops,
-    };
-    stops.first().map(|s| s.color)
+/// onda `Color` (straight-alpha, 0..1) → tiny-skia color.
+fn skia_color(c: Color) -> tsk::Color {
+    tsk::Color::from_rgba(
+        c.r.clamp(0.0, 1.0),
+        c.g.clamp(0.0, 1.0),
+        c.b.clamp(0.0, 1.0),
+        c.a.clamp(0.0, 1.0),
+    )
+    .unwrap_or(tsk::Color::TRANSPARENT)
 }
 
-fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, opacity: f32) {
-    // The CPU backend has no gradient rasterizer, so a gradient fill collapses to
-    // its first stop's color (the Vello backend renders the true gradient).
-    let fill = shape
-        .gradient
-        .as_ref()
-        .and_then(first_stop_color)
-        .or(shape.fill);
-    let Some(fill) = fill else {
-        return; // stroke-only shapes deferred to v1
+/// Composed onda transform → tiny-skia. Translate + scale only: `Transform::then`
+/// drops rotation, so the CPU path never carries it (Vello rotates on the GPU).
+fn skia_transform(t: Transform) -> tsk::Transform {
+    tsk::Transform::from_row(t.scale.x, 0.0, 0.0, t.scale.y, t.translate.x, t.translate.y)
+}
+
+/// A kurbo Bézier path → tiny-skia path (used for rounded rects + SVG path data).
+fn kurbo_to_skia(bez: &BezPath) -> Option<tsk::Path> {
+    let mut pb = tsk::PathBuilder::new();
+    for el in bez.elements() {
+        match el {
+            PathEl::MoveTo(p) => pb.move_to(p.x as f32, p.y as f32),
+            PathEl::LineTo(p) => pb.line_to(p.x as f32, p.y as f32),
+            PathEl::QuadTo(c, p) => pb.quad_to(c.x as f32, c.y as f32, p.x as f32, p.y as f32),
+            PathEl::CurveTo(a, b, p) => pb.cubic_to(
+                a.x as f32, a.y as f32, b.x as f32, b.y as f32, p.x as f32, p.y as f32,
+            ),
+            PathEl::ClosePath => pb.close(),
+        }
+    }
+    pb.finish()
+}
+
+/// Build the tiny-skia path for a geometry, in the shape's LOCAL space (origin
+/// top-left). Rounded rects + SVG paths route through kurbo; plain rects/ellipses
+/// use tiny-skia builders directly.
+fn build_path(geometry: &ShapeGeometry) -> Option<tsk::Path> {
+    match geometry {
+        ShapeGeometry::Rect {
+            size,
+            corner_radius,
+        } => {
+            let (w, h) = (size.width, size.height);
+            if !(w > 0.0 && h > 0.0) {
+                return None;
+            }
+            let r = corner_radius.clamp(0.0, w.min(h) / 2.0);
+            if r <= 0.0 {
+                let mut pb = tsk::PathBuilder::new();
+                pb.push_rect(tsk::Rect::from_xywh(0.0, 0.0, w, h)?);
+                pb.finish()
+            } else {
+                let rr = kurbo::RoundedRect::new(0.0, 0.0, w as f64, h as f64, r as f64);
+                kurbo_to_skia(&rr.to_path(0.1))
+            }
+        }
+        ShapeGeometry::Ellipse { size } => {
+            let (w, h) = (size.width, size.height);
+            if !(w > 0.0 && h > 0.0) {
+                return None;
+            }
+            let mut pb = tsk::PathBuilder::new();
+            pb.push_oval(tsk::Rect::from_xywh(0.0, 0.0, w, h)?);
+            pb.finish()
+        }
+        // Arbitrary SVG path data, parsed by kurbo (handles abs/rel + arcs).
+        ShapeGeometry::Path { data } => kurbo_to_skia(&BezPath::from_svg(data).ok()?),
+    }
+}
+
+/// A gradient → tiny-skia shader. The gradient's points are in the shape's LOCAL
+/// space; the shader transform is identity because `fill_path`'s transform (the
+/// canvas matrix) already maps both the path AND the shader local→device — the
+/// analog of Vello filling with `brush_transform: None`.
+fn gradient_shader(gradient: &Gradient) -> Option<tsk::Shader<'static>> {
+    let to_stops = |stops: &[GradientStop]| -> Vec<tsk::GradientStop> {
+        stops
+            .iter()
+            .map(|s| tsk::GradientStop::new(s.offset, skia_color(s.color)))
+            .collect()
     };
-    let fill = fill.with_alpha(fill.a * opacity);
-    if fill.a <= 0.0 {
+    match gradient {
+        Gradient::Linear { start, end, stops } => tsk::LinearGradient::new(
+            tsk::Point::from_xy(start.x, start.y),
+            tsk::Point::from_xy(end.x, end.y),
+            to_stops(stops),
+            tsk::SpreadMode::Pad,
+            tsk::Transform::identity(),
+        ),
+        Gradient::Radial {
+            center,
+            radius,
+            stops,
+        } => tsk::RadialGradient::new(
+            tsk::Point::from_xy(center.x, center.y),
+            tsk::Point::from_xy(center.x, center.y),
+            *radius,
+            to_stops(stops),
+            tsk::SpreadMode::Pad,
+            tsk::Transform::identity(),
+        ),
+    }
+}
+
+/// Rasterize a shape via tiny-skia (the Skia raster pipeline behind resvg):
+/// anti-aliased fills, linear/radial gradients, strokes, rounded rects and SVG
+/// paths. The shape is drawn into a temporary pixmap sized to its transformed
+/// bounds, then composited (straight-alpha src-over, `opacity` folded in) into
+/// the framebuffer — so text/image compositing is unchanged.
+fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, opacity: f32) {
+    if opacity <= 0.0
+        || (shape.fill.is_none() && shape.gradient.is_none() && shape.stroke.is_none())
+    {
         return;
     }
-
-    // `corner_radius` on rects is ignored here (square corners); rounded-corner
-    // and arbitrary-path rasterization are vector-backend (Vello) features.
-    let size = match &shape.geometry {
-        ShapeGeometry::Rect { size, .. } => *size,
-        ShapeGeometry::Ellipse { size } => *size,
-        // The CPU scanline path only knows AABB rects/ellipses; arbitrary
-        // Bézier paths render on the Vello backend.
-        ShapeGeometry::Path { .. } => return,
+    let Some(path) = build_path(&shape.geometry) else {
+        return; // empty/invalid geometry, or unparseable path data
+    };
+    let ts = skia_transform(transform); // local → canvas
+    let Some(dev_path) = path.clone().transform(ts) else {
+        return;
     };
 
-    // The shape's local AABB is [0,0]..[w,h]; transform maps it to an
-    // axis-aligned canvas box (only translate + scale, so no rotation).
-    let a = transform.apply(Vec2::ZERO);
-    let b = transform.apply(Vec2::new(size.width, size.height));
-    let (x0, x1) = (a.x.min(b.x), a.x.max(b.x));
-    let (y0, y1) = (a.y.min(b.y), a.y.max(b.y));
+    // Canvas bounds of the transformed path, inflated by half the (scaled) stroke
+    // width plus 1px for the AA fringe, then clamped to the framebuffer.
+    let bounds = dev_path.bounds();
+    let max_scale = transform.scale.x.abs().max(transform.scale.y.abs());
+    let inflate = shape.stroke.as_ref().map_or(0.0, |s| s.width.max(0.0)) * max_scale * 0.5 + 1.0;
+    let x0 = (bounds.left() - inflate).floor().max(0.0);
+    let y0 = (bounds.top() - inflate).floor().max(0.0);
+    let x1 = (bounds.right() + inflate).ceil().min(fb.width() as f32);
+    let y1 = (bounds.bottom() + inflate).ceil().min(fb.height() as f32);
+    if x1 <= x0 || y1 <= y0 {
+        return; // fully off-canvas
+    }
+    let (ox, oy) = (x0 as u32, y0 as u32);
+    let (pw, ph) = ((x1 - x0) as u32, (y1 - y0) as u32);
+    if pw == 0 || ph == 0 {
+        return;
+    }
+    let Some(mut pixmap) = tsk::Pixmap::new(pw, ph) else {
+        return;
+    };
+    // local → temp-pixmap space (canvas, shifted by the pixmap's origin).
+    let into_temp = tsk::Transform::from_translate(-x0, -y0).pre_concat(ts);
 
-    let px_min = x0.floor().max(0.0) as u32;
-    let py_min = y0.floor().max(0.0) as u32;
-    let px_max = (x1.ceil() as i64).clamp(0, fb.width() as i64) as u32;
-    let py_max = (y1.ceil() as i64).clamp(0, fb.height() as i64) as u32;
-
-    let center = Vec2::new((x0 + x1) * 0.5, (y0 + y1) * 0.5);
-    let rx = (x1 - x0) * 0.5;
-    let ry = (y1 - y0) * 0.5;
-
-    for py in py_min..py_max {
-        for px in px_min..px_max {
-            let sample = Vec2::new(px as f32 + 0.5, py as f32 + 0.5);
-            let inside = match &shape.geometry {
-                ShapeGeometry::Rect { .. } => {
-                    sample.x >= x0 && sample.x < x1 && sample.y >= y0 && sample.y < y1
-                }
-                ShapeGeometry::Ellipse { .. } => {
-                    if rx <= 0.0 || ry <= 0.0 {
-                        false
-                    } else {
-                        let nx = (sample.x - center.x) / rx;
-                        let ny = (sample.y - center.y) / ry;
-                        nx * nx + ny * ny <= 1.0
-                    }
-                }
-                // Unreachable: paths return early above.
-                ShapeGeometry::Path { .. } => false,
+    // Fill (gradient wins over solid, matching the scene contract).
+    if shape.gradient.is_some() || shape.fill.is_some() {
+        let shader = match &shape.gradient {
+            Some(g) => gradient_shader(g),
+            None => shape.fill.map(|c| tsk::Shader::SolidColor(skia_color(c))),
+        };
+        if let Some(shader) = shader {
+            let paint = tsk::Paint {
+                shader,
+                anti_alias: true,
+                ..Default::default()
             };
-            if inside {
-                fb.blend(px, py, fill);
+            pixmap.fill_path(&path, &paint, tsk::FillRule::Winding, into_temp, None);
+        }
+    }
+    // Stroke (solid; the scene `Stroke` is color + width).
+    if let Some(stroke) = &shape.stroke {
+        if stroke.width > 0.0 && stroke.color.a > 0.0 {
+            let paint = tsk::Paint {
+                shader: tsk::Shader::SolidColor(skia_color(stroke.color)),
+                anti_alias: true,
+                ..Default::default()
+            };
+            let sk_stroke = tsk::Stroke {
+                width: stroke.width,
+                ..Default::default()
+            };
+            pixmap.stroke_path(&path, &paint, &sk_stroke, into_temp, None);
+        }
+    }
+
+    // Composite the temp pixmap (premultiplied) into the framebuffer (straight),
+    // folding node opacity into each pixel's alpha.
+    for ty in 0..ph {
+        for tx in 0..pw {
+            let Some(p) = pixmap.pixel(tx, ty) else {
+                continue;
+            };
+            if p.alpha() == 0 {
+                continue;
             }
+            let c = p.demultiply();
+            let color = Color::new(
+                c.red() as f32 / 255.0,
+                c.green() as f32 / 255.0,
+                c.blue() as f32 / 255.0,
+                (c.alpha() as f32 / 255.0) * opacity,
+            );
+            fb.blend(ox + tx, oy + ty, color);
         }
     }
 }
