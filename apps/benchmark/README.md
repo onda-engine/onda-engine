@@ -17,6 +17,10 @@ cargo run --release -p onda-bench -- 120 40    # complex
 # Remotion (React → headless Chromium → screenshot → encode) — arg: <clusters>
 pnpm --filter benchmark bench 1                # downloads Chrome Headless Shell on first run
 pnpm --filter benchmark bench 40
+
+# ONDA full export (Vello raster + readback + encode → mp4, via @onda/render)
+pnpm --filter benchmark bench:onda 120 1       # args: <frames> <clusters>; needs a release `onda` build
+pnpm --filter benchmark bench:onda 120 40
 ```
 
 ## Result (Apple M4 Pro, 1920×1080, 120 frames; one warm-up, ~run-to-run variance)
@@ -40,6 +44,40 @@ pnpm --filter benchmark bench 40
 | ONDA — CPU (1 thread)              |   11.7 |    85.32 |
 | ONDA — CPU (all cores, rayon)      |  116.3 |     8.60 |
 | ONDA — GPU (offscreen + readback)  |  217.4 |     4.60 |
+
+## Full-pipeline export (render + encode → mp4)
+
+The tables above are *raster* throughput. End-to-end — the number a Studio export
+actually costs — adds the GPU→CPU readback **and** the ffmpeg encode (the same
+libx264 both engines use). Measured the same way on the same machine, 120 frames
+@ 1080p, via `@onda/render` (`pnpm --filter benchmark bench:onda`):
+
+**Trivial — 1 cluster:**
+
+| Engine (full export → mp4)         |    fps | ms/frame |
+| ---------------------------------- | -----: | -------: |
+| Remotion (Chromium, 1 worker)      |   26.9 |    37.24 |
+| Remotion (Chromium, default pool)  |   83.9 |    11.93 |
+| ONDA — Vello + libx264             |  145.8 |     6.86 |
+| ONDA — Vello + hardware encode     |   98.7 |    10.13 |
+
+**Complex — 40 clusters:**
+
+| Engine (full export → mp4)         |    fps | ms/frame |
+| ---------------------------------- | -----: | -------: |
+| Remotion (Chromium, 1 worker)      |   26.1 |    38.24 |
+| Remotion (Chromium, default pool)  |   58.9 |    16.98 |
+| ONDA — Vello + libx264             |  107.6 |     9.29 |
+| ONDA — Vello + hardware encode     |   80.5 |    12.42 |
+
+With **libx264 on both** (an apples-to-apples encoder), one ONDA process exports
+**~5.4× faster than a Remotion worker** on the trivial scene and **~4.1×** on the
+complex one — and still **~1.7–1.8× faster than Remotion's whole multi-worker
+pool**, single-threaded, before ONDA parallelizes anything. Two honest caveats:
+the encode is shared (libx264), so the win is the no-browser raster + no
+per-frame screenshot; and **hardware encode is *slower* here** — VideoToolbox's
+per-call overhead loses to libx264's fast path on short, simple clips (it pays off
+at 4K / long / sustained renders), so libx264 stays the portable default.
 
 ## What this shows
 

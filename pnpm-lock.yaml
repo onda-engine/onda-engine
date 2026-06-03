@@ -17,6 +17,12 @@ importers:
 
   apps/benchmark:
     dependencies:
+      '@onda/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      '@onda/render':
+        specifier: workspace:*
+        version: link:../../packages/render
       '@remotion/bundler':
         specifier: ^4.0.0
         version: 4.0.470(postcss@8.5.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
