@@ -1,32 +1,31 @@
 //! VideoClip — a trimmed video clip with the Onda fade envelope. Ported from ondajs.
 //!
-//! The engine has NO video decode pipeline, so this is a faithful *approximation*:
-//! it renders a single POSTER frame as an `<Image>` and applies the same
-//! fade-in/out envelope ondajs gives `<OffthreadVideo>`. Real frame-accurate
-//! playback (`startAt`/`endAt` trim, `loop`, `muted`/`volume`) needs the engine's
-//! video pipeline; until that exists, treat `src` as a still poster.
+//! Real playback: a `<Video>` node draws the source frame at the current time
+//! (decoded by the player in-browser via `<video>`/WebCodecs, or by `onda export`
+//! via ffmpeg), wrapped in the same fade-in/out envelope ondajs gives
+//! `<OffthreadVideo>`. `startAt` trims the head; `playbackRate` re-times it.
 //!
-//! Sizing: an `<Image>` draws from its decoded top-left at the node's local
-//! origin, scaled only by the node transform — there is no `objectFit`. So `fit`
-//! ('cover' / 'contain') is computed here from the poster's intrinsic size
-//! (`sourceWidth`/`sourceHeight`, defaulting to the composition size so a
-//! comp-resolution poster renders 1:1). The scaled poster is centered in the box
-//! over a black backing `<Rect>`, with the whole thing clipped to the box so
-//! 'cover' crops cleanly and 'contain' letterboxes against black. Optional
-//! cinematic `letterbox` bars overlay top & bottom.
+//! Sizing: the frame is fitted into the box per `fit` ('cover' crops, 'contain'
+//! letterboxes) by the renderer, centered over a black backing `<Rect>`, with the
+//! whole thing clipped to the box (rounded corners supported). Optional cinematic
+//! `letterbox` bars overlay top & bottom.
 //!
-//! Backend caveat: scale/rotation and image opacity render on the Vello/GPU
-//! backend; the CPU reference rasterizer draws the poster unscaled at the origin.
+//! Backend caveat: video decode + scale/opacity render on the Vello/GPU backend
+//! (the player's default); the CPU reference rasterizer skips video frames.
 
-import { Group, Image, Rect, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Rect, Video, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFade, exitFade } from '../choreography.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
 
 export interface VideoClipProps {
-  /** URL or path to the POSTER image (the video pipeline is not yet implemented,
-   *  so a still frame stands in for playback). Resolved at render time. */
+  /** URL or path to the video. The current frame is decoded per composition
+   *  frame by the player (browser) or `onda export` (native ffmpeg). */
   src: string
+  /** Seconds into the source shown at the clip's frame 0 (trim the head). Default 0. */
+  startAt?: number
+  /** Source seconds advanced per composition second (1 = realtime). Default 1. */
+  playbackRate?: number
   /** Frames the clip waits before its fade-in begins (default 0). */
   delay?: number
   /** Frames the fade-in takes (default `DURATION.base` = 18). `0` = hard cut in. */
@@ -59,6 +58,8 @@ export interface VideoClipProps {
 
 export function VideoClip({
   src,
+  startAt = 0,
+  playbackRate = 1,
   delay = 0,
   fadeIn = DURATION.base,
   fadeOut = DURATION.base,
@@ -108,9 +109,16 @@ export function VideoClip({
     <Group x={x} y={y} opacity={opacity} clip={clipRect(boxW, boxH, borderRadius)}>
       {/* Black backing so any uncovered area (contain) reads as letterbox. */}
       <Rect width={boxW} height={boxH} cornerRadius={borderRadius} fill={backgroundColor} />
-      {/* The poster, fitted to the box by the renderer (cover crops, contain
-          letterboxes against the backing). */}
-      <Image src={src} width={boxW} height={boxH} fit={fit} />
+      {/* The current video frame, fitted to the box by the renderer (cover
+          crops, contain letterboxes against the backing). */}
+      <Video
+        src={src}
+        startFrom={startAt}
+        playbackRate={playbackRate}
+        width={boxW}
+        height={boxH}
+        fit={fit}
+      />
       {/* Optional cinematic letterbox bars, top & bottom, inside the box. */}
       {letterbox > 0 ? (
         <Group>

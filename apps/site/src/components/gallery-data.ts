@@ -1023,7 +1023,7 @@ export const GALLERY: GalleryItem[] = [
     category: 'Media',
     blurb: 'a trimmed video clip with the Onda fade envelope. Ported from ondajs',
     props: {
-      src: '/gallery-sample.jpg',
+      src: '/gallery-sample.webm',
       fadeIn: 18,
       fadeOut: 18,
       durationInFrames: 90,
@@ -1032,7 +1032,6 @@ export const GALLERY: GalleryItem[] = [
       borderRadius: 12,
     },
     themed: true,
-    note: 'Shows the poster frame — in-engine video decode is on the roadmap.',
   },
   {
     name: 'CameraShake',
