@@ -131,6 +131,25 @@ importers:
         specifier: ^18
         version: 18.3.7(@types/react@18.3.29)
 
+  packages/cinema:
+    dependencies:
+      '@onda/components':
+        specifier: workspace:*
+        version: link:../components
+      '@onda/react':
+        specifier: workspace:*
+        version: link:../react
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.12
+        version: 18.3.29
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@24.12.4)(terser@5.48.0)
+
   packages/components:
     dependencies:
       '@onda/react':
