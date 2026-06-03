@@ -26,7 +26,8 @@ impl AudioAnalyzer {
     #[wasm_bindgen(constructor)]
     pub fn new(bytes: &[u8], ext_hint: &str) -> Result<AudioAnalyzer, JsError> {
         console_error_panic_hook::set_once();
-        let buffer = decode_from_bytes(bytes, ext_hint).map_err(|e| JsError::new(&e.to_string()))?;
+        let buffer =
+            decode_from_bytes(bytes, ext_hint).map_err(|e| JsError::new(&e.to_string()))?;
         Ok(AudioAnalyzer { buffer })
     }
 
