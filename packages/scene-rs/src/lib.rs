@@ -92,6 +92,11 @@ pub enum NodeKind {
     Group,
     Text(Text),
     Image(Image),
+    /// A video clip. Structurally an [`Image`] plus a source `time` — the frame
+    /// at that time is decoded by a pre-pass (browser: `<video>`/WebCodecs in the
+    /// player; native: ffmpeg) and attached as [`Video::data`], which renderers
+    /// draw exactly like an image.
+    Video(Video),
     Shape(Shape),
     /// A reference to an SVG document, expanded into vector nodes by a
     /// vector-capable layer (see the `onda-svg` crate). Renderers that haven't
@@ -131,6 +136,11 @@ impl Node {
     /// An image node referencing `src` (path or URL; loading lives elsewhere).
     pub fn image(src: impl Into<String>) -> Self {
         Node::new(NodeKind::Image(Image::new(src)))
+    }
+
+    /// A video node referencing `src` (decoding lives elsewhere — see [`Video`]).
+    pub fn video(src: impl Into<String>) -> Self {
+        Node::new(NodeKind::Video(Video::new(src)))
     }
 
     /// A shape node.
@@ -446,6 +456,70 @@ impl Image {
     }
 
     /// Attach decoded pixels (used by the `onda-image` loading pass).
+    pub fn with_data(mut self, data: ImageData) -> Self {
+        self.data = Some(data);
+        self
+    }
+}
+
+/// A video clip. Mirrors [`Image`] (a `src` + an optional `width`×`height` box
+/// fitted per [`ImageFit`]) and adds a source `time` (seconds): the frame to
+/// show. Decoding is a pre-pass — the browser player seeks a `<video>`/WebCodecs
+/// decoder, native export uses ffmpeg — that attaches the frame's pixels as
+/// [`Video::data`]; renderers then draw that exactly like an image. A video whose
+/// pixels aren't resolved yet draws nothing.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Video {
+    pub src: String,
+    /// Source position in seconds of the frame to display. The decoder picks the
+    /// nearest frame; `0.0` is the first frame.
+    #[serde(default)]
+    pub time: f32,
+    /// Decoded pixels for the current frame, attached by a decode pass. Never
+    /// serialized — the JSON stays portable, carrying only `src` + `time`.
+    #[serde(skip)]
+    pub data: Option<ImageData>,
+    /// Target box width in px. With `height`, the renderer fits the frame into
+    /// this box per [`Video::fit`]. When either is `None` the frame draws at its
+    /// intrinsic pixel size.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<f32>,
+    /// How the frame is fitted into the `width`×`height` box. Defaults to
+    /// [`ImageFit::Cover`].
+    #[serde(default)]
+    pub fit: ImageFit,
+}
+
+impl Video {
+    /// Construct from a path, URL, or `data:` URI (no pixels yet), at time 0.
+    pub fn new(src: impl Into<String>) -> Self {
+        Video {
+            src: src.into(),
+            time: 0.0,
+            data: None,
+            width: None,
+            height: None,
+            fit: ImageFit::default(),
+        }
+    }
+
+    /// Set the source time (seconds) of the frame to display.
+    pub fn at(mut self, time: f32) -> Self {
+        self.time = time;
+        self
+    }
+
+    /// Set the target box the frame is fitted into (see [`Video::fit`]).
+    pub fn with_box(mut self, width: f32, height: f32, fit: ImageFit) -> Self {
+        self.width = Some(width);
+        self.height = Some(height);
+        self.fit = fit;
+        self
+    }
+
+    /// Attach decoded pixels for the current frame (used by a decode pass).
     pub fn with_data(mut self, data: ImageData) -> Self {
         self.data = Some(data);
         self
@@ -908,6 +982,37 @@ mod tests {
                 assert_eq!(img.fit, ImageFit::Cover);
             }
             _ => panic!("expected image"),
+        }
+    }
+
+    #[test]
+    fn video_box_time_round_trip_and_default() {
+        // A boxed video at a source time round-trips with its time + fit.
+        let scene = Scene::new(hd()).with_root(Node::group().with_child(Node::new(
+            NodeKind::Video(Video::new("clip.mp4").at(1.5).with_box(
+                640.0,
+                360.0,
+                ImageFit::Contain,
+            )),
+        )));
+        let json = serde_json::to_string(&scene).unwrap();
+        assert!(json.contains(r#""type":"video""#));
+        assert!(json.contains(r#""time":1.5"#));
+        assert!(json.contains(r#""fit":"contain""#));
+        let back: Scene = serde_json::from_str(&json).unwrap();
+        assert_eq!(scene, back);
+
+        // Minimal video JSON: no time / box → time 0, None box, Cover default.
+        let json = r#"{ "composition": { "width": 1280, "height": 720, "fps": 30.0, "duration_in_frames": 1 },
+            "root": { "kind": { "type": "group" }, "children": [ { "kind": { "type": "video", "src": "v.mp4" } } ] } }"#;
+        let scene: Scene = serde_json::from_str(json).unwrap();
+        match &scene.root.children[0].kind {
+            NodeKind::Video(v) => {
+                assert_eq!(v.time, 0.0);
+                assert_eq!((v.width, v.height), (None, None));
+                assert_eq!(v.fit, ImageFit::Cover);
+            }
+            _ => panic!("expected video"),
         }
     }
 

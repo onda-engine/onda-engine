@@ -17,7 +17,9 @@
 //! the node's (composed) transform places it on the canvas.
 
 use onda_core::{Color, Transform, Vec2};
-use onda_scene::{Gradient, Image, ImageFit, Node, NodeKind, Scene, Shape, ShapeGeometry, Text};
+use onda_scene::{
+    Gradient, ImageData, ImageFit, Node, NodeKind, Scene, Shape, ShapeGeometry, Text,
+};
 pub use onda_typography::{FontContext, TextRaster};
 
 /// An RGBA8 image: `width * height * 4` bytes, row-major, top-left origin.
@@ -260,8 +262,26 @@ impl Renderer {
             NodeKind::Shape(shape) => rasterize_shape(fb, shape, transform, opacity),
             NodeKind::Text(text) => self.rasterize_text(fb, text, transform, opacity),
             // Draws the decoded pixels (attached by the onda-image pass); an
-            // unresolved image (no pixels) is skipped.
-            NodeKind::Image(image) => rasterize_image(fb, image, transform, opacity),
+            // unresolved image (no pixels) is skipped. A Video draws its current
+            // frame the same way — pixels attached by a decode pass.
+            NodeKind::Image(image) => rasterize_image(
+                fb,
+                image.data.as_ref(),
+                image.width,
+                image.height,
+                image.fit,
+                transform,
+                opacity,
+            ),
+            NodeKind::Video(video) => rasterize_image(
+                fb,
+                video.data.as_ref(),
+                video.width,
+                video.height,
+                video.fit,
+                transform,
+                opacity,
+            ),
             // SVG nodes are expanded to shapes (onda-svg) before rendering; the
             // CPU backend can't draw paths anyway, so an unexpanded one is a no-op.
             NodeKind::Svg(_) => {}
@@ -443,8 +463,18 @@ fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, op
 /// `transform` to an axis-aligned canvas box (translate + scale; no rotation);
 /// each destination pixel samples the source per [`Image::fit`] (cover/contain/
 /// fill), nearest-neighbor, composited straight-alpha with `opacity` folded in.
-fn rasterize_image(fb: &mut Framebuffer, image: &Image, transform: Transform, opacity: f32) {
-    let Some(data) = &image.data else {
+/// Rasterize decoded RGBA pixels into the optional `box_width`×`box_height` box
+/// per `fit` — shared by Image and Video nodes (a video frame is just an image).
+fn rasterize_image(
+    fb: &mut Framebuffer,
+    data: Option<&ImageData>,
+    box_width: Option<f32>,
+    box_height: Option<f32>,
+    fit: ImageFit,
+    transform: Transform,
+    opacity: f32,
+) {
+    let Some(data) = data else {
         return; // unresolved (no pixels) — nothing to draw
     };
     if data.width == 0 || data.height == 0 || opacity <= 0.0 {
@@ -453,13 +483,13 @@ fn rasterize_image(fb: &mut Framebuffer, image: &Image, transform: Transform, op
 
     let (iw, ih) = (data.width as f32, data.height as f32);
     // The layout box the image fills (default: its intrinsic size).
-    let (box_w, box_h) = match (image.width, image.height) {
+    let (box_w, box_h) = match (box_width, box_height) {
         (Some(w), Some(h)) if w > 0.0 && h > 0.0 => (w, h),
         _ => (iw, ih),
     };
     // Source→box scale per fit mode, plus the centering offset of the scaled
     // image within the box (negative for cover, which overflows + crops).
-    let (fsx, fsy) = match image.fit {
+    let (fsx, fsy) = match fit {
         ImageFit::Fill => (box_w / iw, box_h / ih),
         ImageFit::Cover => {
             let s = (box_w / iw).max(box_h / ih);

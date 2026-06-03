@@ -19,7 +19,7 @@
 use onda_core::{Size, Vec2};
 use onda_scene::{Align, Direction, Justify, Layout, Node, NodeKind, Scene, ShapeGeometry, Text};
 use taffy::geometry::{Rect as TaffyRect, Size as TaffySize};
-use taffy::prelude::{TaffyTree, auto, length};
+use taffy::prelude::{auto, length, TaffyTree};
 use taffy::style::{
     AlignItems, AvailableSpace, Display, FlexDirection, FlexWrap, JustifyContent, Style,
 };
@@ -124,7 +124,9 @@ fn arrange(layout: &Layout, children: &mut [Node], sizes: &[Size]) -> Size {
         },
         ..Default::default()
     };
-    let root = tree.new_with_children(style, &leaves).expect("taffy container");
+    let root = tree
+        .new_with_children(style, &leaves)
+        .expect("taffy container");
 
     let avail = TaffySize {
         width: layout
@@ -163,6 +165,11 @@ fn intrinsic_size(
             ShapeGeometry::Path { .. } => Size::ZERO,
         },
         NodeKind::Image(image) => image
+            .data
+            .as_ref()
+            .map(|d| Size::new(d.width as f32, d.height as f32))
+            .unwrap_or(Size::ZERO),
+        NodeKind::Video(video) => video
             .data
             .as_ref()
             .map(|d| Size::new(d.width as f32, d.height as f32))

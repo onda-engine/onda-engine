@@ -68,6 +68,21 @@ fn load_node(node: &Node, base_dir: &Path) -> Result<Node, ImageError> {
         }
     }
 
+    // A Video node carries the CURRENT frame's `src` (the browser player rewrites
+    // it to a `data:` URI per frame; native export sets it from ffmpeg). Decode it
+    // the same way as an image so the renderer can draw it.
+    if let NodeKind::Video(video) = &node.kind {
+        if video.data.is_none() {
+            if let Some(data) = decode_src(&video.src, base_dir)? {
+                return Ok(Node {
+                    kind: NodeKind::Video(video.clone().with_data(data)),
+                    children,
+                    ..node.clone()
+                });
+            }
+        }
+    }
+
     Ok(Node {
         children,
         ..node.clone()
