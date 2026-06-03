@@ -190,6 +190,22 @@ function toNode(node: HostNode): SceneNode {
         ...withChildren,
       }
 
+    case 'onda-video':
+      return {
+        ...base,
+        kind: {
+          type: 'video',
+          src: stringProp(props, 'src', 'Video'),
+          ...(typeof props.time === 'number' ? { time: props.time } : {}),
+          ...(typeof props.width === 'number' ? { width: props.width } : {}),
+          ...(typeof props.height === 'number' ? { height: props.height } : {}),
+          ...(props.fit === 'fill' || props.fit === 'cover' || props.fit === 'contain'
+            ? { fit: props.fit }
+            : {}),
+        },
+        ...withChildren,
+      }
+
     case 'onda-svg': {
       if (typeof props.src !== 'string' && typeof props.markup !== 'string') {
         throw new Error("<Svg> requires a 'src' or 'markup' prop")
