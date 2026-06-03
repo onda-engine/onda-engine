@@ -23,7 +23,7 @@ use onda_core::{Color, Transform, Vec2};
 use onda_scene::{
     Gradient, GradientStop, ImageData, ImageFit, Node, NodeKind, Scene, Shape, ShapeGeometry, Text,
 };
-pub use onda_typography::{FontContext, TextRaster};
+pub use onda_typography::{FontContext, TextMetrics, TextRaster};
 use tiny_skia as tsk;
 
 /// An RGBA8 image: `width * height * 4` bytes, row-major, top-left origin.

@@ -206,6 +206,81 @@ impl FontContext {
         glyphs
     }
 
+    /// Measure `content` at `font_size` in the default family — its rendered
+    /// [`TextMetrics`] (advance width, height, ascent/descent, line height)
+    /// without rasterizing. The width is the true shaped advance (proportional —
+    /// `"WWW"` ≫ `"iii"`), so callers size underlines/pills/carets to the real
+    /// text instead of a glyph-count estimate.
+    pub fn measure(&mut self, content: &str, font_size: f32) -> TextMetrics {
+        self.measure_with(content, font_size, None, 400, false)
+    }
+
+    /// Measure with explicit font selection (family / weight / italic), matching
+    /// what [`FontContext::rasterize_with`] would draw — so measurement and
+    /// drawing agree.
+    pub fn measure_with(
+        &mut self,
+        content: &str,
+        font_size: f32,
+        family: Option<&str>,
+        weight: u16,
+        italic: bool,
+    ) -> TextMetrics {
+        let line_height = font_size * 1.2;
+        if content.is_empty() || font_size <= 0.0 {
+            return TextMetrics {
+                width: 0.0,
+                height: 0.0,
+                ascent: 0.0,
+                descent: 0.0,
+                line_height: line_height.max(0.0),
+            };
+        }
+        let metrics = Metrics::new(font_size, line_height);
+        let mut buffer = Buffer::new(&mut self.font_system, metrics);
+        buffer.set_size(&mut self.font_system, None, None);
+        let mut attrs = Attrs::new().weight(Weight(weight)).style(if italic {
+            Style::Italic
+        } else {
+            Style::Normal
+        });
+        if let Some(family) = family {
+            attrs = attrs.family(Family::Name(family));
+        }
+        buffer.set_text(
+            &mut self.font_system,
+            content,
+            &attrs,
+            Shaping::Advanced,
+            None,
+        );
+        buffer.shape_until_scroll(&mut self.font_system, false);
+
+        let mut width = 0.0_f32;
+        let mut bottom = 0.0_f32;
+        let mut ascent = 0.0_f32;
+        let mut descent = 0.0_f32;
+        let mut first = true;
+        for run in buffer.layout_runs() {
+            width = width.max(run.line_w);
+            bottom = bottom.max(run.line_top + run.line_height);
+            // The first (often only) line sets ascent/descent: the baseline
+            // (`line_y`) splits the line box into above/below.
+            if first {
+                ascent = run.line_y - run.line_top;
+                descent = (run.line_top + run.line_height) - run.line_y;
+                first = false;
+            }
+        }
+        TextMetrics {
+            width,
+            height: if first { line_height } else { bottom },
+            ascent,
+            descent,
+            line_height,
+        }
+    }
+
     /// Shape + lay out styled runs ([`StyledRun`]) into positioned glyphs, each
     /// carrying its run's pixel size and straight-alpha RGBA color — for rich
     /// (multi-style) text. Outline renderers (Vello) group glyphs by size+color
@@ -413,6 +488,23 @@ pub struct GlyphPosition {
     pub y: f32,
 }
 
+/// Rendered text dimensions from [`FontContext::measure`] — what a component
+/// needs to size and place things against the *actual* text (proportional
+/// advance, not a glyph-count guess). All in pixels at the measured font size.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TextMetrics {
+    /// Shaped advance width — the true rendered width of the string.
+    pub width: f32,
+    /// Total laid-out height (line height × line count).
+    pub height: f32,
+    /// Top of the line box to the baseline.
+    pub ascent: f32,
+    /// Baseline to the bottom of the line box.
+    pub descent: f32,
+    /// Baseline-to-baseline line height.
+    pub line_height: f32,
+}
+
 /// One styled input span for [`FontContext::layout_rich`]: text plus its pixel
 /// size, color, and font selection (family/weight/style).
 #[derive(Debug, Clone, PartialEq)]
@@ -499,6 +591,31 @@ mod tests {
         let mut ctx = FontContext::with_system_fonts();
         assert!(ctx.rasterize("", 32.0).is_none());
         assert!(ctx.rasterize("Hello", 0.0).is_none());
+    }
+
+    #[test]
+    fn measure_is_proportional_and_deterministic() {
+        // Bundled font => stable, machine-independent metrics.
+        let mut ctx = FontContext::with_default_font();
+        let wide = ctx.measure("WWWWW", 48.0);
+        let narrow = ctx.measure("iiiii", 48.0);
+        // Proportional: five W's are far wider than five i's (a glyph-count
+        // estimate would call them equal — the bug this replaces).
+        assert!(
+            wide.width > narrow.width * 1.5,
+            "W run ({}) should dominate i run ({})",
+            wide.width,
+            narrow.width
+        );
+        // Vertical metrics are populated and consistent.
+        assert!(wide.ascent > 0.0 && wide.descent > 0.0);
+        assert!((wide.line_height - 48.0 * 1.2).abs() < 0.01);
+        assert!((wide.ascent + wide.descent - wide.line_height).abs() < 1.0);
+        // Width scales with font size; empty string is zero-width.
+        assert!(ctx.measure("WWWWW", 96.0).width > wide.width);
+        assert_eq!(ctx.measure("", 48.0).width, 0.0);
+        // Deterministic across calls.
+        assert_eq!(ctx.measure("Onda", 64.0), ctx.measure("Onda", 64.0));
     }
 
     #[test]
