@@ -67,10 +67,15 @@ A tagged union on `type`:
 type NodeKind =
   | { type: 'group' }
   | { type: 'text'; content: string; font_size?: number; color?: Color }
-  | { type: 'image'; src: string }
+  | { type: 'image'; src: string; width?: number; height?: number; fit?: ImageFit }
+  | { type: 'video'; src: string; time?: number; width?: number; height?: number; fit?: ImageFit }
   | { type: 'shape'; geometry: ShapeGeometry; fill?: Color; gradient?: Gradient; stroke?: Stroke }
   | { type: 'svg'; src?: string; markup?: string }
 ```
+
+`ImageFit` is `'fill' | 'cover' | 'contain'` (default `'cover'`). A `video` node's
+`time` is the source position in seconds to display; the frame is decoded by the
+player (browser) or `onda export` (native ffmpeg) and drawn like an image.
 
 Defaults: `text.font_size` → 48, `text.color` → white. `shape.gradient` takes precedence over `shape.fill`.
 

@@ -62,7 +62,7 @@ The root of every tree. Carries resolution and timing (like Remotion's `<Composi
 
 ### Shared node props
 
-`<Group>`, `<Rect>`, `<Ellipse>`, `<Path>`, `<Text>`, `<Image>`, and `<Svg>` all accept these:
+`<Group>`, `<Rect>`, `<Ellipse>`, `<Path>`, `<Text>`, `<Image>`, `<Video>`, and `<Svg>` all accept these:
 
 | Prop              | Type        | Notes                                                          |
 | ----------------- | ----------- | -------------------------------------------------------------- |
@@ -138,10 +138,36 @@ The text content is the element's children. The bundled default font is used for
 ### `<Image>`
 
 ```tsx
-<Image src="assets/logo.png" />
+<Image src="assets/photo.jpg" width={640} height={360} fit="cover" />
 ```
 
-Carries a `src`. **Note:** the scene graph models image nodes, but the current renderers do not yet draw them — `<Image>` is a placeholder for a forthcoming subsystem.
+Carries a `src` (path, URL, or `data:` URI). With a `width`×`height` box, the
+decoded image is fitted per `fit` — `'cover'` (default, crops to fill),
+`'contain'` (letterboxes), or `'fill'` (stretch). Omit the box to draw at the
+image's intrinsic pixel size. The renderer measures the decoded image, so you
+don't supply its dimensions.
+
+### `<Video>`
+
+```tsx
+<Video src="assets/clip.webm" width={1280} height={720} fit="cover" startFrom={2} playbackRate={1} />
+```
+
+A video clip. At composition frame *f* it shows the source frame at
+`startFrom + (f / fps) * playbackRate` seconds, fitted into the box exactly like
+`<Image>`. The author layer only declares which source frame each frame wants —
+decoding happens downstream:
+
+- **Browser preview** (`@onda/player`) decodes the frame with an off-screen
+  `<video>` (WebCodecs-class), so no Chromium is needed to *export*.
+- **`onda export`** decodes natively via ffmpeg (build the CLI with
+  `--features video`).
+
+Props: `src`, `startFrom` (seconds trimmed off the head, default 0),
+`playbackRate` (default 1), and the same `width`/`height`/`fit` box as `<Image>`.
+Pair with `<Sequence>` to place a clip on the timeline. The higher-level
+`<VideoClip>` (in `@onda/components`) wraps this with a fade-in/out envelope and
+optional cinematic letterbox.
 
 ### `<Svg>`
 

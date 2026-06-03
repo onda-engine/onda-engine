@@ -4990,7 +4990,21 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       required: true,
       type: 'string',
       description:
-        'URL or path to the POSTER image (the video pipeline is not yet implemented, so a still frame stands in for playback). Resolved at render time.',
+        'URL or path to the video. The current frame is decoded per composition frame by the player (browser: <video>/WebCodecs) or `onda export` (native ffmpeg).',
+    },
+    {
+      name: 'startAt',
+      required: false,
+      type: 'number',
+      description:
+        'Seconds into the source shown at the clip’s frame 0 (trim the head). Default 0.',
+    },
+    {
+      name: 'playbackRate',
+      required: false,
+      type: 'number',
+      description:
+        'Source seconds advanced per composition second (1 = realtime, 2 = 2×, 0.5 = slow-mo). Default 1.',
     },
     {
       name: 'delay',
