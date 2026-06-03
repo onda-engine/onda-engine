@@ -24,5 +24,13 @@ onda-image = { workspace = true }
 onda-layout = { workspace = true }
 onda-typography = { workspace = true }
 onda-audio = { workspace = true }
+# Native video-frame decode for export (shells out to ffmpeg). Behind the `video`
+# feature so the default build needs no ffmpeg at build time and stays lean.
+onda-video = { workspace = true, optional = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
+
+[features]
+# Decode <Video> frames during `onda export` (requires the ffmpeg binary at run
+# time — the same one the .mp4 encoder uses). Build with `--features video`.
+video = ["dep:onda-video"]

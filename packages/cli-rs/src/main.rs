@@ -699,6 +699,10 @@ fn frames_scenes(json: &str, base_dir: &Path) -> Result<(Vec<Scene>, f32)> {
     let mut scenes = Vec::with_capacity(raw.len());
     for scene in &raw {
         let expanded = onda_svg::expand_svg(scene, base_dir).context("expanding <svg> nodes")?;
+        // Decode each frame's <Video> nodes (native ffmpeg) before images, so the
+        // image pass skips the now-resolved video. Native-only, opt-in feature.
+        #[cfg(feature = "video")]
+        let expanded = onda_video::load_video_frames(&expanded).context("decoding video frames")?;
         scenes.push(onda_image::load_images(&expanded, base_dir).context("loading images")?);
     }
     Ok((scenes, fps))
@@ -853,6 +857,10 @@ fn render_scene_file(
         serde_json::from_str(&json).context("scene JSON is not a valid scene graph")?;
     let base_dir = input.parent().unwrap_or(Path::new(""));
     let scene = onda_svg::expand_svg(&parsed, base_dir).context("expanding <svg> nodes")?;
+    // Decode video frames before images so `Video.data` is set and the image pass
+    // skips it (a video container isn't an image). Native-only, opt-in feature.
+    #[cfg(feature = "video")]
+    let scene = onda_video::load_video_frames(&scene).context("decoding video frames")?;
     let scene = onda_image::load_images(&scene, base_dir).context("loading images")?;
     let (mut frames, used) =
         render_scenes(std::slice::from_ref(&scene), backend, font, extra_fonts)

@@ -68,11 +68,13 @@ fn load_node(node: &Node, base_dir: &Path) -> Result<Node, ImageError> {
         }
     }
 
-    // A Video node carries the CURRENT frame's `src` (the browser player rewrites
-    // it to a `data:` URI per frame; native export sets it from ffmpeg). Decode it
-    // the same way as an image so the renderer can draw it.
+    // A Video node's CURRENT frame arrives as a `data:` URI from the browser
+    // player; decode it like an image so the renderer can draw it. A path/URL
+    // `src` is a video container, NOT an image — image-decoding it would fail, so
+    // skip it here. Native export fills `data` first via `onda-video` (ffmpeg);
+    // any still-unresolved video src is simply left for the renderer to skip.
     if let NodeKind::Video(video) = &node.kind {
-        if video.data.is_none() {
+        if video.data.is_none() && video.src.starts_with("data:") {
             if let Some(data) = decode_src(&video.src, base_dir)? {
                 return Ok(Node {
                     kind: NodeKind::Video(video.clone().with_data(data)),
