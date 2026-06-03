@@ -9,6 +9,13 @@ repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
 
+[features]
+# Filesystem decode/encode (decode-from-path, write_wav). On by default for the
+# native CLI; turn OFF (`default-features = false`) for the wasm build, which uses
+# the bytes-based `decode_from_bytes` instead (no std::fs).
+default = ["native-io"]
+native-io = []
+
 [dependencies]
 symphonia = { version = "0.5", features = [
     "mp3",
@@ -22,3 +29,6 @@ symphonia = { version = "0.5", features = [
     "pcm",
     "adpcm",
 ] }
+# Scalar FFT (default-features off → no avx/sse/wasm_simd) so preview (wasm) and
+# export (native) run the IDENTICAL algorithm — bit-identical spectra.
+rustfft = { version = "6", default-features = false }

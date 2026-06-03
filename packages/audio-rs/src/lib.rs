@@ -10,6 +10,8 @@
 //! types here. Resampling is naive linear interpolation — fine for v1 muxing;
 //! a higher-quality resampler can replace it later without touching the API.
 
+use std::io::Cursor;
+#[cfg(feature = "native-io")]
 use std::path::Path;
 
 use symphonia::core::audio::SampleBuffer;
@@ -19,6 +21,9 @@ use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
+
+mod spectrum;
+pub use spectrum::{frame_bands, spectrogram, SpectrumOpts};
 
 /// Decoded PCM audio: interleaved f32 samples (`channels` per frame), in `-1..=1`.
 #[derive(Debug, Clone, PartialEq)]
@@ -76,17 +81,37 @@ impl From<std::io::Error> for AudioError {
 }
 
 /// Decode an audio file to interleaved f32 PCM. Format is detected from content
-/// (with the file extension as a hint).
+/// (with the file extension as a hint). Native only (filesystem); the wasm build
+/// uses [`decode_from_bytes`].
+#[cfg(feature = "native-io")]
 pub fn decode(path: impl AsRef<Path>) -> Result<AudioBuffer, AudioError> {
     let path = path.as_ref();
     let file = std::fs::File::open(path)?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
-
     let mut hint = Hint::new();
     if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
         hint.with_extension(ext);
     }
+    decode_stream(mss, hint)
+}
 
+/// Decode audio from in-memory bytes (no filesystem) — the browser/wasm path, and
+/// any caller that already holds the bytes. `ext_hint` is the file extension
+/// (`"mp3"`, `"wav"`, …) to aid format detection; `""` is fine (content probing
+/// still runs). The decode is byte-for-byte identical to [`decode`] on the same
+/// data, which is what keeps the in-browser preview and `onda export` in sync.
+pub fn decode_from_bytes(bytes: &[u8], ext_hint: &str) -> Result<AudioBuffer, AudioError> {
+    let mss = MediaSourceStream::new(Box::new(Cursor::new(bytes.to_vec())), Default::default());
+    let mut hint = Hint::new();
+    if !ext_hint.is_empty() {
+        hint.with_extension(ext_hint);
+    }
+    decode_stream(mss, hint)
+}
+
+/// Shared decode core: probe the stream, pick the first decodable audio track,
+/// and decode every packet into interleaved f32 PCM.
+fn decode_stream(mss: MediaSourceStream, hint: Hint) -> Result<AudioBuffer, AudioError> {
     let probed = symphonia::default::get_probe()
         .format(
             &hint,
@@ -237,7 +262,8 @@ fn sample_stereo(src: &AudioBuffer, i: usize, frac: f32) -> (f32, f32) {
     }
 }
 
-/// Write `buffer` as a 16-bit PCM WAV file.
+/// Write `buffer` as a 16-bit PCM WAV file. Native only (filesystem).
+#[cfg(feature = "native-io")]
 pub fn write_wav(buffer: &AudioBuffer, path: impl AsRef<Path>) -> Result<(), AudioError> {
     let channels = buffer.channels.max(1);
     let sample_rate = buffer.sample_rate.max(1);
