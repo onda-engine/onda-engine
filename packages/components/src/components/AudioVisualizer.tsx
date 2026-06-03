@@ -32,7 +32,8 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from '@onda/react'
-import type { ReactElement } from 'react'
+import { type ReactElement, useMemo } from 'react'
+import { useAudioData } from '../audio.js'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
@@ -51,6 +52,13 @@ export interface AudioVisualizerProps {
    *  - `dots` — an LED dot-matrix meter with a brighter peak dot.
    */
   type?: AudioVisualizerType
+  /**
+   * Audio file URL to drive the bars with REAL frequency data (decoded + FFT'd by
+   * `@onda/wasm-audio` — identical spectra in preview and export). Omit for the
+   * built-in procedural animation. For the browser preview the source must be
+   * same-origin or CORS-enabled; `onda export` accepts any direct URL.
+   */
+  src?: string
   /** Number of frequency bands. */
   barCount?: number
   /**
@@ -94,6 +102,7 @@ function toColorRamp(color: string | string[]): [string, string] {
 
 export function AudioVisualizer({
   type = 'bars',
+  src,
   barCount = 48,
   color: colorProp,
   width = 640,
@@ -107,7 +116,12 @@ export function AudioVisualizer({
   durationInFrames = DURATION.slow,
 }: AudioVisualizerProps) {
   const frame = useCurrentFrame()
-  const { width: compWidth, height: compHeight } = useVideoConfig()
+  const {
+    width: compWidth,
+    height: compHeight,
+    fps,
+    durationInFrames: compFrames,
+  } = useVideoConfig()
   const theme = useTheme()
   const color = colorProp ?? [theme.accent, theme.palette[1] ?? '#7c5ce5']
   const barRadius = barRadiusProp ?? theme.radius
@@ -140,9 +154,23 @@ export function AudioVisualizer({
   const tailColor =
     Array.isArray(color) && color.length > 1 ? bottomColor : withAlpha(topColor, 0x4d)
 
-  // The fake spectrum: one amplitude in [0, 1] per band, this frame. Every style
-  // renders from this — the single seam where real audio data would plug in.
-  const amps = Array.from({ length: n }, (_, i) => barAmplitude(seed, i, n, t))
+  // The amplitudes (0..1, low→high) every style renders from. With `src`, these
+  // are REAL FFT magnitudes (decoded + analyzed by @onda/wasm-audio, cached for
+  // the whole clip and indexed by frame); otherwise a deterministic procedural
+  // spectrum. While the audio loads, the procedural fallback keeps it live.
+  const audio = useAudioData(src)
+  const spectrum = useMemo(
+    () => (audio ? audio.spectrogram(fps, Math.max(1, compFrames), n) : null),
+    [audio, fps, compFrames, n],
+  )
+  const amps = spectrum
+    ? Array.from(
+        spectrum.subarray(
+          Math.min(Math.max(0, frame), Math.max(0, compFrames - 1)) * n,
+          Math.min(Math.max(0, frame), Math.max(0, compFrames - 1)) * n + n,
+        ),
+      )
+    : Array.from({ length: n }, (_, i) => barAmplitude(seed, i, n, t))
 
   const ctx: VizCtx = {
     amps,

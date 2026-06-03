@@ -54,6 +54,7 @@ export {
   useStaggeredEntrance,
   useTextReveal,
 } from './hooks.js'
+export { type AudioAnalyzer, useAudioData } from './audio.js'
 
 // Components (atomic wrappers + composites + effects), ported from ondajs.
 export { AudioClip, type AudioClipProps } from './components/AudioClip.js'

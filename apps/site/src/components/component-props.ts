@@ -83,6 +83,13 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
   ],
   AudioVisualizer: [
     {
+      name: 'src',
+      required: false,
+      type: 'string',
+      description:
+        'Audio file URL to drive the bars with REAL frequency data (decoded + FFT’d by @onda/wasm-audio — identical spectra in preview and export). Omit for the built-in procedural animation. Browser preview needs same-origin/CORS; `onda export` accepts any direct URL.',
+    },
+    {
       name: 'type',
       required: false,
       type: "'bars' | 'mirrored' | 'waveform' | 'radial' | 'dots'",

@@ -956,8 +956,9 @@ export const GALLERY: GalleryItem[] = [
   {
     name: 'AudioVisualizer',
     category: 'Media',
-    blurb: 'an audio-spectrum visualizer with selectable styles. Ported from ondajs',
+    blurb: 'an audio-spectrum visualizer with selectable styles, driven by real audio FFT',
     props: {
+      src: '/gallery-audio.mp3',
       barCount: 56,
       color: ['#d96b82', '#7c5ce5'],
       width: 920,
