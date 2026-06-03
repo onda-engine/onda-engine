@@ -17,8 +17,9 @@
 //! - box-shadow glow: ondajs draws the active-step glow with a CSS `box-shadow`
 //!   blur, which the engine can't do. It is approximated by a larger, low-alpha
 //!   accent `<Ellipse>` drawn UNDER the active dot (a hard-edged halo, not a
-//!   blurred one). It scales about its own center via a nested `<Group>` whose
-//!   origin sits at the dot center (scene scale pivots on the local origin).
+//!   blurred one). It scales about its own center via a scaled `<Group>` placed
+//!   AT the dot center (scene scale pivots on the Group's local origin), with the
+//!   ellipse offset by -r so it stays concentric with the dot at every scale.
 
 import { Ellipse, Group, Rect, Text, interpolate, useVideoConfig } from '@onda/react'
 import { useSpringValue } from '../hooks.js'
@@ -91,8 +92,10 @@ export function ProgressSteps({
     return radius + (i * (width - dotSize)) / (n - 1)
   }
 
-  // Label band sits below the dots; reserve room for one text line.
-  const labelTop = dotSize + 16
+  // Label band sits below the dots; reserve room for one text line plus the
+  // active-step halo, which scales out to ~2.4× the dot radius (see `glowScale`),
+  // so the label clears the glow rather than colliding with it.
+  const labelTop = dotSize + radius * 1.4 + 18
   const rowHeight = labelTop + fontSize
 
   // Center the fixed-size stepper on the composition by computing its top-left
@@ -150,16 +153,21 @@ export function ProgressSteps({
           <Group key={`step-${i}`}>
             {/* Dot center as the local origin so the halo scales about its middle. */}
             <Group x={cx} y={cy}>
+              {/* Halo: a scaled Group sits AT the dot center so the scale pivots
+                  on (0,0) = the center; the ellipse inside is offset to -r,-r so
+                  it stays concentric with the dot at every scale. Scaling the
+                  Ellipse directly would pivot on its top-left and drift the halo
+                  down-right. */}
               {glowAlpha > 0.001 ? (
-                <Ellipse
-                  x={-radius}
-                  y={-radius}
-                  width={dotSize}
-                  height={dotSize}
-                  fill={glowColor}
-                  scaleX={glowScale}
-                  scaleY={glowScale}
-                />
+                <Group scaleX={glowScale} scaleY={glowScale}>
+                  <Ellipse
+                    x={-radius}
+                    y={-radius}
+                    width={dotSize}
+                    height={dotSize}
+                    fill={glowColor}
+                  />
+                </Group>
               ) : null}
               <Ellipse x={-radius} y={-radius} width={dotSize} height={dotSize} fill={dotColor} />
             </Group>

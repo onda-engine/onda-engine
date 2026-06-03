@@ -39,7 +39,8 @@ export interface PieRevealSlice {
   value: number
   /** Slice fill color (hex `#rrggbb` / `#rrggbbaa`). */
   color: string
-  /** Optional label (currently used only for keying; not drawn). */
+  /** Optional label, drawn just outside the ring at the slice's mid-angle when
+   *  {@link PieRevealProps.showLabel} is set. Also used for React keying. */
   label?: string
 }
 
@@ -63,7 +64,8 @@ export interface PieRevealProps {
   x?: number
   /** Vertical center as a 0–1 fraction of canvas height. */
   y?: number
-  /** Show the total/center label (donut only). */
+  /** Show labels: the center total (donut only) plus each slice's `label`
+   *  drawn just outside the ring. */
   showLabel?: boolean
   /** Center label text. Defaults to the slice count. */
   label?: string
@@ -155,13 +157,23 @@ export function PieReveal({
     const startAngle = cursor
     const fullSweep = frac * Math.PI * 2
     cursor += fullSweep
-    return { ...d, startAngle, fullEndAngle: startAngle + fullSweep }
+    return {
+      ...d,
+      startAngle,
+      fullEndAngle: startAngle + fullSweep,
+      midAngle: startAngle + fullSweep / 2,
+    }
   })
 
   // Clamp the donut hole to the disc; only draw it when it has area.
   const holeRadius = Math.max(0, Math.min(innerRadius, radius - 1))
 
   const centerText = label ?? `${data.length}`
+
+  // Per-slice labels sit just outside the ring, sized relative to the center
+  // label. The engine has no text metrics, so width ≈ len * fontSize * 0.6.
+  const sliceFontSize = Math.max(12, Math.round(fontSize * 0.32))
+  const labelRadius = radius + sliceFontSize * 0.9
 
   return (
     <Group>
@@ -201,10 +213,11 @@ export function PieReveal({
       ) : null}
 
       {/* Center label (donut). Single-line; the engine measures from the text
-          origin and has no centering, so offset by a rough half-extent. */}
+          origin and has no centering, so offset by a rough half-extent
+          (width ≈ len * fontSize * 0.6). */}
       {showLabel && holeRadius > 0 ? (
         <Text
-          x={cx - (centerText.length * fontSize) / 4}
+          x={cx - centerText.length * fontSize * 0.3}
           y={cy - fontSize / 2}
           fontSize={fontSize}
           color={labelColor}
@@ -214,6 +227,42 @@ export function PieReveal({
           {centerText}
         </Text>
       ) : null}
+
+      {/* Per-slice labels, just outside the ring at each slice's mid-angle.
+          Mid-angle is measured clockwise from 12 o'clock (same convention as
+          the wedges): x = cx + r*sin(mid), y = cy - r*cos(mid). Each fades in
+          with its slice's sweep. Centered by half the estimated text extent. */}
+      {showLabel
+        ? slices.map((s, i) => {
+            if (!s.label) return null
+
+            const sliceDelay = delay + staggerFrames(i, stagger)
+            const local = Math.max(0, frame - sliceDelay)
+            const progress = spring({
+              frame: local,
+              fps,
+              config: SPRING_SMOOTH,
+              durationInFrames: duration,
+            })
+            if (progress <= 0.01) return null
+
+            const lx = cx + labelRadius * Math.sin(s.midAngle)
+            const ly = cy - labelRadius * Math.cos(s.midAngle)
+            return (
+              <Text
+                key={`label-${i}-${s.label}`}
+                x={lx - s.label.length * sliceFontSize * 0.3}
+                y={ly - sliceFontSize / 2}
+                fontSize={sliceFontSize}
+                color={labelColor}
+                fontFamily={fontFamily}
+                fontWeight={600}
+              >
+                {s.label}
+              </Text>
+            )
+          })
+        : null}
     </Group>
   )
 }

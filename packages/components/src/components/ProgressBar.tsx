@@ -108,11 +108,18 @@ export function ProgressBar({
   // Center the fixed-size assembly by computing its top-left offset directly —
   // no layout container, so the per-frame fill-width growth never reflows and
   // no offset translate gets clobbered by the layout pass (see BarChart).
-  const assemblyWidth = width + labelWidth
+  //
+  // The track is the dominant visual mass; the `${value}%` label is a light
+  // accent reserved only on the right. Centering the full bounding box (track +
+  // label) would over-weight that one-sided label and shove the heavy track
+  // left of frame-center. Instead center the *visual center-of-mass*: reserve
+  // only half the label width on the right so the track reads centered while the
+  // label is still accounted for and never runs off-frame.
+  const centeringWidth = width + labelWidth / 2
   // The label (font box height ≈ fontSize) can be taller than the track and is
   // vertically centered on it; the assembly's visual height is the taller one.
   const assemblyHeight = Math.max(height, fontSize)
-  const originX = Math.round((compWidth - assemblyWidth) / 2)
+  const originX = Math.round((compWidth - centeringWidth) / 2)
   const originY = Math.round((compHeight - assemblyHeight) / 2)
   // Track's own top within the assembly (centered against the taller label box).
   const trackY = Math.round((assemblyHeight - height) / 2)

@@ -5,7 +5,10 @@
 //! ondajs renders one of four SVG icons (check/cross/dot/star) inside a 0–24
 //! viewBox and pops it in via `entryScale` (SPRING_SMOOTH — no overshoot). This
 //! port keeps the four built-in `shape` icons (drawn as `<Path>`, GPU-only) and
-//! adds a `glyph` mode (any character/emoji via `<Text>`), and — per the
+//! adds a `glyph` mode (any character/emoji via `<Text>`) — except that common
+//! decorative star/sparkle symbols (e.g. "✦", which most render fonts have no
+//! glyph for and would draw blank) transparently fall back to the built-in
+//! `star` <Path>, so a star glyph always pops something visible. And — per the
 //! IconPop brief — uses an *overshoot* spring: a lightly-damped `spring` config
 //! whose value rises past 1.0 and rings down, giving the pop a little life (vs.
 //! the house spring's flat settle).
@@ -53,6 +56,29 @@ const SHAPES: Record<IconShape, { d: string; filled: boolean }> = {
     filled: true,
   },
 }
+
+/** Decorative star/sparkle symbol chars that fonts routinely lack a glyph for
+ *  (so `<Text>` would draw nothing — a blank frame). When a `glyph` is one of
+ *  these, we fall back to the guaranteed-renderable built-in `star` <Path>
+ *  instead, so the pop is never invisible. Other glyphs (real letters, common
+ *  emoji) still render via <Text>. */
+const STAR_SYMBOLS = new Set([
+  '✦', // U+2726 black four-pointed star
+  '✧', // U+2727 white four-pointed star
+  '★', // U+2605 black star
+  '☆', // U+2606 white star
+  '✪', // U+272A circled white star
+  '✶', // U+2736 six-pointed black star
+  '✷', // U+2737 eight-pointed rectilinear black star
+  '✸', // U+2738 heavy eight-pointed rectilinear black star
+  '✹', // U+2739 twelve-pointed black star
+  '✺', // U+273A sixteen-pointed asterisk
+  '⭐', // U+2B50 star
+  '🌟', // U+1F31F glowing star
+  '✨', // U+2728 sparkles
+  '⭑', // U+2B51 black small star
+  '⭒', // U+2B52 white small star
+])
 
 export interface IconPopProps {
   /** A character/emoji to pop in (e.g. "✦", "★", "🎉"). Takes precedence over
@@ -140,7 +166,12 @@ export function IconPop({
       {/* Inner group: scales (with overshoot) about that center + fades. */}
       <Group scaleX={scale} scaleY={scale} opacity={opacity}>
         {glyph
-          ? renderGlyph(glyph, iconSize, color, fontFamily)
+          ? // A decorative star/sparkle char the font may lack a glyph for would
+            // render blank via <Text>; draw the built-in `star` <Path> instead so
+            // the pop is always visible. Other glyphs render as text.
+            STAR_SYMBOLS.has(glyph)
+            ? renderShape('star', iconSize, color, strokeWidth)
+            : renderGlyph(glyph, iconSize, color, fontFamily)
           : renderShape(shape, iconSize, color, strokeWidth)}
       </Group>
     </Group>

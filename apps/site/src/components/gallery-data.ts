@@ -59,7 +59,6 @@ export const GALLERY: GalleryItem[] = [
       fontWeight: 600,
       duration: 24,
     },
-    child: true,
     themed: true,
   },
   {
@@ -617,8 +616,6 @@ export const GALLERY: GalleryItem[] = [
       label: 'LIVE',
       fontSize: 48,
       period: 45,
-      x: 760,
-      y: 500,
     },
     themed: true,
   },
@@ -699,7 +696,7 @@ export const GALLERY: GalleryItem[] = [
       animate: true,
       delay: 0,
     },
-    child: true,
+    child: false,
     themed: true,
   },
   {

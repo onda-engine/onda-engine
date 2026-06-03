@@ -77,6 +77,13 @@ export interface SplitScreenProps {
 /** House-spring travel for the pane entrance, in px (matches ondajs). */
 const TRAVEL = 16
 
+/** Default pane fill — a lifted surface that reads against the dark canvas
+ *  (the theme `surface` token sits too close to `background` when used bare). */
+const PANE_FILL = '#1b1e2a'
+/** Default divider/pane-edge color — a brighter hairline than `border` so the
+ *  seam and panel edges register on the dark canvas. */
+const PANE_EDGE = '#3a4055'
+
 export function SplitScreen({
   left,
   right,
@@ -97,9 +104,14 @@ export function SplitScreen({
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
   const theme = useTheme()
-  const paneBackground = paneBackgroundProp ?? theme.surface
+  // The house `surface`/`border` tokens are tuned to sit *on* a card; alone on
+  // the bare canvas they're nearly invisible (surface ≈ background, and the
+  // hairline border vanishes), so the two-pane structure reads as flat dark.
+  // Lift the pane fill a notch above `surface` and brighten the divider/edge so
+  // the split reads clearly against the dark canvas. Explicit props still win.
+  const paneBackground = paneBackgroundProp ?? PANE_FILL
   const background = backgroundProp ?? theme.background
-  const dividerColor = dividerColorProp ?? theme.border
+  const dividerColor = dividerColorProp ?? PANE_EDGE
   const placeholderColor = placeholderColorProp ?? theme.textMuted
   const fontFamily = fontFamilyProp ?? theme.fontFamily
   // Outer container corner radius in px (matches ondajs `borderRadius`). The
@@ -116,7 +128,9 @@ export function SplitScreen({
   const r = Math.max(0, Math.min(1, ratio))
 
   // Thickness of the divider band (only when shown), measured on the main axis.
-  const dividerThickness = divider ? 1 : 0
+  // A 2px seam reads as a deliberate token line on the dark canvas (a 1px line
+  // washes out at this contrast).
+  const dividerThickness = divider ? 2 : 0
 
   // Main-axis length to split between the two panes, after removing the gap and
   // the divider band. The full gap holds both the gutter and the divider line.
@@ -183,6 +197,7 @@ export function SplitScreen({
         translateX={horizontal ? firstTravel : 0}
         translateY={horizontal ? 0 : firstTravel}
         background={paneBackground}
+        edge={dividerColor}
         placeholderColor={placeholderColor}
         fontFamily={fontFamily}
       />
@@ -211,6 +226,7 @@ export function SplitScreen({
         translateX={horizontal ? secondTravel : 0}
         translateY={horizontal ? 0 : secondTravel}
         background={paneBackground}
+        edge={dividerColor}
         placeholderColor={placeholderColor}
         fontFamily={fontFamily}
       />
@@ -233,6 +249,7 @@ function Pane({
   translateX,
   translateY,
   background,
+  edge,
   placeholderColor,
   fontFamily,
 }: {
@@ -246,6 +263,7 @@ function Pane({
   translateX: number
   translateY: number
   background: string
+  edge: string
   placeholderColor: string
   fontFamily?: string
 }) {
@@ -260,7 +278,9 @@ function Pane({
 
   return (
     <Group x={x} y={y} clip={clipRect(width, height)}>
-      <Rect width={width} height={height} fill={background} />
+      {/* Pane fill + a faint edge stroke so the panel reads against the canvas
+          (the house "surface + 1px border" pattern). */}
+      <Rect width={width} height={height} fill={background} stroke={edge} strokeWidth={1} />
       <Group x={translateX} y={translateY} opacity={opacity}>
         {content ?? (
           <Text

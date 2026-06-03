@@ -77,7 +77,7 @@ export function Underline({
   align = 'left',
 }: UnderlineProps) {
   const frame = useCurrentFrame()
-  const { fps } = useVideoConfig()
+  const { fps, width: canvasWidth, height: canvasHeight } = useVideoConfig()
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const accentColor = accentColorProp ?? theme.accent
@@ -115,8 +115,17 @@ export function Underline({
   const lineX =
     align === 'center' ? (fullWidth - lineWidth) / 2 : align === 'right' ? fullWidth - lineWidth : 0
 
+  // Center the whole assembly. The rule's width animates every frame, so a
+  // layout container would reflow/jiggle (ProgressBar pattern) — instead we
+  // compute a static centered origin from the composition size and the block's
+  // ESTIMATED extent: `fullWidth` wide; from the text's top to the rule's
+  // bottom tall (`lineY + lineThickness`).
+  const blockHeight = lineY + lineThickness
+  const originX = (canvasWidth - fullWidth) / 2
+  const originY = (canvasHeight - blockHeight) / 2
+
   return (
-    <Group>
+    <Group x={originX} y={originY}>
       <Text
         opacity={opacity}
         fontSize={fontSize}

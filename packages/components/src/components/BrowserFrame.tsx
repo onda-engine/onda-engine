@@ -248,14 +248,24 @@ export function BrowserFrame({
 
         {/* Everything inside the content area is masked to it. */}
         <Group clip={clipRect(cardWidth, height)}>
-          {children ??
-            (src ? (
-              <Image src={src} x={0} y={0} scaleX={imageScale} scaleY={imageScale} />
-            ) : (
-              <Text x={placeholderX} y={placeholderY} fontSize={PLACEHOLDER_FONT} color={FAINT}>
-                {url}
-              </Text>
-            ))}
+          {children != null ? (
+            // Re-center wrapped children on the INNER content rect, not the full
+            // canvas. A self-centering child (e.g. one using <AbsoluteFill>) sizes
+            // to the composition and centers its content at (compW/2, compH/2) in
+            // its own local space; since that space is pinned to the content rect's
+            // top-left, the content would land at compCenter — off-center inside
+            // the chrome inset. Shift by (content − comp) / 2 so the child's center
+            // coincides with the content rect's center instead.
+            <Group x={(cardWidth - compWidth) / 2} y={(height - compHeight) / 2}>
+              {children}
+            </Group>
+          ) : src ? (
+            <Image src={src} x={0} y={0} scaleX={imageScale} scaleY={imageScale} />
+          ) : (
+            <Text x={placeholderX} y={placeholderY} fontSize={PLACEHOLDER_FONT} color={FAINT}>
+              {url}
+            </Text>
+          )}
         </Group>
       </Group>
     </Group>

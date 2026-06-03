@@ -82,7 +82,11 @@ export function SkeletonCard({
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
   const theme = useTheme()
   const shimmerColor = shimmerColorProp ?? theme.border
-  const barColor = barColorProp ?? theme.surface
+  // Resting bar fill. The theme `surface` (`#121217`) sits barely above the
+  // canvas `background` (`#0a0d17`), so raw surface bars vanish on a dark scene.
+  // Lift the *default* placeholder toward `text` so the card clearly reads as a
+  // skeleton; an explicit `barColor` is always honored as-is.
+  const barColor = barColorProp ?? mixHex(theme.surface, theme.text, 0.22)
   // The glass panel is the canvas background at ~80% alpha. Force `cc` onto a
   // 6-digit hex background; otherwise take the theme value as-is.
   const cardColor = cardColorProp ?? withGlassAlpha(theme.background)
@@ -231,6 +235,47 @@ function withGlassAlpha(color: string): string {
     }
   }
   return color
+}
+
+/** Parse a hex color to an `[r, g, b]` triple (0..255); non-hex → black. */
+function parseRgb(color: string): [number, number, number] {
+  if (color.startsWith('#')) {
+    const hex = color.slice(1)
+    if (hex.length === 3) {
+      const r = hex[0] ?? '0'
+      const g = hex[1] ?? '0'
+      const b = hex[2] ?? '0'
+      return [hx(`${r}${r}`), hx(`${g}${g}`), hx(`${b}${b}`)]
+    }
+    if (hex.length === 6 || hex.length === 8) {
+      return [hx(hex.slice(0, 2)), hx(hex.slice(2, 4)), hx(hex.slice(4, 6))]
+    }
+  }
+  return [0, 0, 0]
+}
+
+/** Parse a 2-char hex byte to 0..255, defaulting to 0. */
+function hx(byte: string): number {
+  const v = Number.parseInt(byte, 16)
+  return Number.isNaN(v) ? 0 : v
+}
+
+/** Two-digit hex for a 0..255 channel. */
+function toHexByte(v: number): string {
+  const c = Math.max(0, Math.min(255, Math.round(v)))
+  return c.toString(16).padStart(2, '0')
+}
+
+/** Straight sRGB lerp between two hex colors by `t` (0 = `a`, 1 = `b`). The
+ *  engine has no `color-mix`; this is the closest faithful approximation. */
+function mixHex(a: string, b: string, t: number): string {
+  const k = Math.max(0, Math.min(1, t))
+  const [ar, ag, ab] = parseRgb(a)
+  const [br, bg, bb] = parseRgb(b)
+  const r = ar + (br - ar) * k
+  const g = ag + (bg - ag) * k
+  const bl = ab + (bb - ab) * k
+  return `#${toHexByte(r)}${toHexByte(g)}${toHexByte(bl)}`
 }
 
 /** Return `color` with its alpha forced to `00` (fully transparent), preserving

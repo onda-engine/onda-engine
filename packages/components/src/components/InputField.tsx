@@ -113,13 +113,17 @@ export function InputField({
   // Caret blinks while typing (faster, tracking each keystroke) and after it
   // settles (slower, an idle cursor). Pure frame math — no timer (CLAUDE.md §1).
   const blinkOn = typing ? Math.floor(frame / 8) % 2 === 0 : Math.floor(frame / 18) % 2 === 0
-  const showCaret = typed && blinkOn
+  // Caret only appears once typing has actually begun (frame >= delay); before
+  // then the field rests on a steady placeholder with no blinking cursor.
+  const showCaret = typed && frame >= delay && blinkOn
 
   // Focus ring only reads as "focused" once typing is underway / done.
   const focused = focusRing && (!typed || frame >= delay)
   const fieldBorder = focused ? accentColor : borderColor
 
-  const showPlaceholder = visible.length === 0 && !showCaret
+  // Placeholder shows steadily while the field is empty and typing hasn't begun
+  // (no caret to blink against). Once typing starts it gives way to the caret.
+  const showPlaceholder = visible.length === 0 && (!typed || frame < delay)
 
   // Field geometry. Generous vertical padding so the line box breathes, matching
   // the ondajs `22px 28px` padding scaled to the video font size.

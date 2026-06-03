@@ -85,6 +85,12 @@ export function Marquee({
   // proxy, since we can't read the engine's measured box back here).
   const textY = Math.round((viewportHeight - fontSize) / 2)
 
+  // Center the whole clip band within the composition. When `height` is a short
+  // ticker strip, the band would otherwise pin to the top (y=0) and leave the
+  // rest of the frame empty; offsetting by half the slack reads as deliberate.
+  const bandY = Math.round((compHeight - viewportHeight) / 2)
+  const bandX = Math.round((compWidth - viewportWidth) / 2)
+
   // Precompute each item's local x within a single set (running sum of widths).
   let cursor = 0
   const placed = items.map((item, i) => {
@@ -102,7 +108,7 @@ export function Marquee({
   const copies = Array.from({ length: copyCount }, (_, copyIndex) => copyIndex * contentWidth)
 
   return (
-    <Group clip={clipRect(viewportWidth, viewportHeight)}>
+    <Group x={bandX} y={bandY} clip={clipRect(viewportWidth, viewportHeight)}>
       <Group x={offset}>
         {copies.map((copyOffset, copyIndex) =>
           placed.map(({ item, x }, i) => (

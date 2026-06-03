@@ -28,7 +28,7 @@
 //! Color defaults: ondajs ships `var(--onda-…, #hex)` CSS-token defaults. The
 //! engine has no CSS variables, so the literal hex fallbacks are used directly.
 
-import { Ellipse, Group, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Ellipse, Group, Path, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import type { TextRunInput } from '@onda/react'
 import { useStaggeredEntrance, useTextReveal } from '../hooks.js'
 import { STAGGER } from '../motion.js'
@@ -80,6 +80,13 @@ const MONO_CHAR_W = 0.6
 // Line box as a fraction of font size (ondajs uses CSS line-height 1.6).
 const LINE_HEIGHT = 1.6
 
+// Output check mark. The mono font lacks U+2713 (it falls back to "√"), so a
+// leading "✓"/"✔" on an output line is stripped from the text and drawn as a
+// small <Path> tick instead. The "M…L…L…" coords are in a unit (0..1) box,
+// scaled by `checkBox` at the call site.
+const CHECK_GLYPHS = /^[✓✔]\s?/u
+const CHECK_PATH = 'M 0.18 0.55 L 0.42 0.78 L 0.84 0.26'
+
 export function Terminal({
   command = 'npx ondajs add code-block',
   output = ['✓ added code-block', '✓ wrote 4 files'],
@@ -106,7 +113,10 @@ export function Terminal({
   const textColor = textColorProp ?? theme.text
   const promptColor = promptColorProp ?? theme.accent
   const outputColor = outputColorProp ?? theme.textMuted
-  const background = backgroundProp ?? theme.background
+  // The window must read as a SURFACE sitting on the canvas, so it defaults to
+  // the theme's surface token, not the page background (which would be invisible
+  // against an identically-colored composition background).
+  const background = backgroundProp ?? theme.surface
   const fontFamily =
     fontFamilyProp ??
     theme.monoFamily ??
@@ -162,6 +172,12 @@ export function Terminal({
   const promptX = bodyPadX
   const commandX = promptX + Math.round((prompt.length + 1) * fontSize * MONO_CHAR_W)
 
+  // Drawn check mark for output lines: a unit <Path> scaled into a glyph-sized
+  // box that occupies the same horizontal slot as the stripped "✓ " prefix, so
+  // the remaining text aligns exactly where it would after the glyph.
+  const checkBox = Math.round(fontSize * 0.62)
+  const checkGap = Math.round(fontSize * MONO_CHAR_W * 2 - checkBox)
+
   // Cursor as a second styled run so the engine glues the block glyph right
   // after the last revealed command glyph (no manual text-width math).
   const commandRuns: TextRunInput[] | undefined = showCursor
@@ -176,9 +192,11 @@ export function Terminal({
       {/* Window panel. */}
       <Rect width={width} height={windowHeight} cornerRadius={cornerRadius} fill={background} />
 
-      {/* Title bar: dots + optional label. */}
+      {/* Title bar: dots + optional label + a hairline separator that divides the
+          bar from the body, so the chrome reads as a real terminal window. */}
       {chrome ? (
         <>
+          <Rect x={0} y={titleBarHeight - 1} width={width} height={1} fill={theme.border} />
           <Ellipse x={dotStartX} y={dotY} width={dotR * 2} height={dotR * 2} fill={dotColor} />
           <Ellipse
             x={dotStartX + dotGap}
@@ -224,20 +242,39 @@ export function Terminal({
         {revealed}
       </Text>
 
-      {/* Output lines — staggered fade once the command finishes typing. */}
-      {output.map((line, i) => (
-        <Text
-          key={i}
-          x={bodyPadX}
-          y={bodyTop + (i + 1) * lineBox}
-          fontSize={fontSize}
-          color={outputColor}
-          fontFamily={fontFamily}
-          opacity={outputAt(i).opacity}
-        >
-          {line}
-        </Text>
-      ))}
+      {/* Output lines — staggered fade once the command finishes typing. A line
+          prefixed with a check glyph gets a drawn <Path> tick (the mono font has
+          no U+2713) and the prefix is stripped from its text. */}
+      {output.map((line, i) => {
+        const hasCheck = CHECK_GLYPHS.test(line)
+        const text = hasCheck ? line.replace(CHECK_GLYPHS, '') : line
+        const rowY = bodyTop + (i + 1) * lineBox
+        const textX = hasCheck ? bodyPadX + checkBox + checkGap : bodyPadX
+        const { opacity } = outputAt(i)
+        return (
+          <Group key={i} opacity={opacity}>
+            {hasCheck ? (
+              <Group
+                x={bodyPadX}
+                y={rowY + Math.round((fontSize - checkBox) / 2)}
+                scaleX={checkBox}
+                scaleY={checkBox}
+              >
+                <Path d={CHECK_PATH} stroke={theme.accent} strokeWidth={2.2 / checkBox} />
+              </Group>
+            ) : null}
+            <Text
+              x={textX}
+              y={rowY}
+              fontSize={fontSize}
+              color={outputColor}
+              fontFamily={fontFamily}
+            >
+              {text}
+            </Text>
+          </Group>
+        )
+      })}
     </Group>
   )
 }
