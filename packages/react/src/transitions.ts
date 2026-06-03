@@ -16,7 +16,7 @@
 
 import { Children, type ReactElement, type ReactNode, createElement, isValidElement } from 'react'
 import { clipEllipse, clipPath, clipRect } from './clip.js'
-import { Group } from './components.js'
+import { Group, Rect } from './components.js'
 import { useCurrentFrame, useVideoConfig } from './frame.js'
 import { Sequence } from './sequence.js'
 import { type SpringConfig, spring } from './spring.js'
@@ -217,6 +217,90 @@ export function clockWipe(): TransitionPresentation {
     return createElement(Group, { clip: clipPath(d) }, children)
   }
 }
+
+export type PushDirection = 'left' | 'right' | 'up' | 'down'
+
+const PUSH_VECTOR: Record<PushDirection, { x: number; y: number }> = {
+  left: { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
+  up: { x: 0, y: -1 },
+  down: { x: 0, y: 1 },
+}
+
+/** Both scenes translate together in `direction`, like a camera pan. */
+export function push({
+  direction = 'left',
+}: { direction?: PushDirection } = {}): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    const { x, y } = PUSH_VECTOR[direction]
+    const tx = (entering ? -x * (1 - progress) : x * progress) * width
+    const ty = (entering ? -y * (1 - progress) : y * progress) * height
+    return createElement(Group, { x: tx, y: ty }, children)
+  }
+}
+
+/** Scale-and-fade punch. `direction` 'in' pushes toward the viewer, 'out' pulls back. */
+export function zoom({
+  direction = 'in',
+  scaleAmount = 0.2,
+}: { direction?: 'in' | 'out'; scaleAmount?: number } = {}): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    const s = scaleAmount
+    let scale: number
+    if (direction === 'in') {
+      scale = entering ? 1 + s / 2 - (s / 2) * progress : 1 + s * progress
+    } else {
+      scale = entering ? 1 - s / 2 + (s / 2) * progress : 1 - s * progress
+    }
+    const opacity = entering ? progress : 1 - progress
+    return createElement(
+      Group,
+      { opacity },
+      scaleAbout(children, scale, scale, width / 2, height / 2),
+    )
+  }
+}
+
+/** Push with parallax depth — a scale layered on the translate (a camera dolly). */
+export function depthPush({
+  direction = 'left',
+  scaleAmount = 0.08,
+}: { direction?: PushDirection; scaleAmount?: number } = {}): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    const { x, y } = PUSH_VECTOR[direction]
+    const tx = (entering ? -x * (1 - progress) : x * progress) * width
+    const ty = (entering ? -y * (1 - progress) : y * progress) * height
+    const scale = entering ? 1 + scaleAmount * (1 - progress) : 1 - scaleAmount * progress
+    return createElement(
+      Group,
+      { x: tx, y: ty },
+      scaleAbout(children, scale, scale, width / 2, height / 2),
+    )
+  }
+}
+
+/** Outgoing fades to `color`, incoming fades up from it (dip-to-black/white). */
+export function dipToColor({ color = '#08080a' }: { color?: string } = {}): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    const sceneOpacity = entering ? Math.max(0, progress * 2 - 1) : Math.max(0, 1 - progress * 2)
+    const colorOpacity = entering
+      ? Math.max(0, 1 - (progress - 0.5) * 2)
+      : Math.min(1, progress * 2)
+    return createElement(
+      Group,
+      null,
+      createElement(Group, { opacity: sceneOpacity }, children),
+      createElement(
+        Group,
+        { opacity: colorOpacity },
+        createElement(Rect, { width, height, fill: color }),
+      ),
+    )
+  }
+}
+
+/** Alias of {@link fade} — Studio's "cross-fade" slug. */
+export const crossFade = fade
 
 // ---------------------------------------------------------------------------
 // <TransitionSeries>
