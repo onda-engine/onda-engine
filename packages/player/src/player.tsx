@@ -1058,8 +1058,11 @@ const PLAYER_CSS = `
   --onda-border: var(--border, #26262c);
   --onda-text: var(--text, #f2f2f4);
   --onda-text-muted: var(--text-muted, #8e8e98);
-  --onda-accent: var(--accent, #d96b82);
-  --onda-accent-600: var(--accent-600, #c8576f);
+  /* Player-scoped (NOT the page's generic --accent, which a host app like ONDA
+     Studio sets to its own color) so the controls stay the ONDA rose by default;
+     a host can still theme them via --onda-player-accent. */
+  --onda-accent: var(--onda-player-accent, #d96b82);
+  --onda-accent-600: var(--onda-player-accent-600, #c8576f);
   --onda-on-accent: var(--on-accent, #0e0e12);
   --onda-ok: var(--ok, #6bbf8a);
   --onda-warn: var(--warn, #d9b06b);
