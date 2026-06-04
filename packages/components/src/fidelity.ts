@@ -52,10 +52,10 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'both',
   },
   BoundingBox: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'stroke-dash',
-    backend: 'gpu_only',
+    needsFeature: null,
+    backend: 'both',
   },
   BrowserFrame: {
     fidelity: 'first_class',
@@ -319,8 +319,8 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
 }
 
 export const FIDELITY_SUMMARY = {
-  firstClass: 63,
-  degraded: 7,
+  firstClass: 64,
+  degraded: 6,
   apesRemotion: 0,
 } as const
 
@@ -331,6 +331,7 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'AudioVisualizer',
   'BentoGrid',
   'BarChart',
+  'BoundingBox',
   'Button',
   'BrowserFrame',
   'Callout',
