@@ -516,14 +516,20 @@ fn even_samples(len: usize, k: usize) -> Vec<usize> {
         .collect()
 }
 
-/// Geometry-lint the sampled scenes (laid out + text-shaped), de-duped.
+/// Geometry-lint the sampled scenes (laid out + text-shaped). Precision-tuned:
+/// full-bleed backgrounds, rotated elements, and animation transients (a slide-in
+/// off-canvas, a momentary scale spike) are NOT flagged — an issue survives only
+/// if it PERSISTS across a majority of the sampled frames where its element
+/// appears. Findings are gathered raw, then [`finalize_diags`] applies that filter.
 fn lint_scenes(
     scenes: &[Scene],
     samples: &[usize],
     fonts: &RefCell<FontContext>,
 ) -> Vec<serde_json::Value> {
-    let mut out = Vec::new();
-    let mut seen = std::collections::HashSet::new();
+    let mut raws: Vec<Raw> = Vec::new();
+    // How many sampled frames each element (by stable tree-path identity) appears
+    // in — the denominator of the "is this issue persistent?" test.
+    let mut visited: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
     for &i in samples {
         let Some(scene) = scenes.get(i) else {
             continue;
@@ -543,29 +549,49 @@ fn lint_scenes(
         lint_walk(
             &laid.root,
             Transform::IDENTITY,
+            false,
+            "0",
             cw,
             ch,
             i,
             fonts,
-            &mut out,
-            &mut seen,
+            &mut raws,
+            &mut visited,
         );
     }
-    out
+    finalize_diags(raws, &visited)
+}
+
+/// A raw, per-frame finding — before the persistence filter decides to keep it.
+struct Raw {
+    path: String,
+    label: String,
+    issue: &'static str,
+    level: &'static str,
+    bbox: [f32; 4],
+    message: String,
+    fix: &'static str,
+    frame: usize,
+    /// How bad this occurrence is (bigger = worse); picks the representative row.
+    severity: f32,
 }
 
 #[allow(clippy::too_many_arguments)]
 fn lint_walk(
     node: &Node,
     parent: Transform,
+    rotated: bool,
+    path: &str,
     cw: f32,
     ch: f32,
     frame: usize,
     fonts: &RefCell<FontContext>,
-    out: &mut Vec<serde_json::Value>,
-    seen: &mut std::collections::HashSet<String>,
+    raws: &mut Vec<Raw>,
+    visited: &mut std::collections::HashMap<String, u32>,
 ) {
-    // translate + scale compose down (rotation is dropped, as in the CPU path).
+    // translate + scale compose down (`then` drops rotation); track whether this
+    // element or an ancestor is rotated so we can skip its (now-wrong) AABB.
+    let rotated = rotated || node.transform.rotate.abs() > 1e-3;
     let t = parent.then(&node.transform);
     let (x, y) = (t.translate.x, t.translate.y);
     let (sx, sy) = (t.scale.x.abs(), t.scale.y.abs());
@@ -574,42 +600,47 @@ fn lint_walk(
             let size = measure_text(&mut fonts.borrow_mut(), text);
             let (w, h) = (size.width * sx, size.height * sy);
             let label = text_label(text);
+            mark_visited(visited, path, &label);
             let eff = text.font_size * sy;
             if eff > 0.0 && eff < 12.0 {
-                push_diag(
-                    out,
-                    seen,
+                record(
+                    raws,
                     frame,
+                    path,
                     "TINY_TEXT",
                     "warning",
                     &label,
                     [x, y, w, h],
                     format!("text \"{label}\" renders at ~{eff:.0}px — likely illegible (< 12px)"),
                     "increase the font size",
+                    12.0 - eff,
                 );
             } else if eff > 200.0 {
-                push_diag(
-                    out,
-                    seen,
+                record(
+                    raws,
                     frame,
+                    path,
                     "HUGE_TEXT",
                     "info",
                     &label,
                     [x, y, w, h],
                     format!("text \"{label}\" renders at ~{eff:.0}px — very large (> 200px)"),
                     "reduce the font size if this is unintended",
+                    eff,
                 );
             }
-            check_bounds(out, seen, frame, &label, true, x, y, w, h, cw, ch);
+            check_bounds(raws, frame, path, &label, true, rotated, x, y, w, h, cw, ch);
         }
         NodeKind::Shape(shape) => {
             if let Some((w0, h0)) = shape_size(&shape.geometry) {
+                mark_visited(visited, path, "shape");
                 check_bounds(
-                    out,
-                    seen,
+                    raws,
                     frame,
+                    path,
                     "shape",
                     false,
+                    rotated,
                     x,
                     y,
                     w0 * sx,
@@ -621,12 +652,14 @@ fn lint_walk(
         }
         NodeKind::Image(im) => {
             if let (Some(w0), Some(h0)) = (im.width, im.height) {
+                mark_visited(visited, path, "image");
                 check_bounds(
-                    out,
-                    seen,
+                    raws,
                     frame,
+                    path,
                     "image",
                     false,
+                    rotated,
                     x,
                     y,
                     w0 * sx,
@@ -638,12 +671,14 @@ fn lint_walk(
         }
         NodeKind::Video(v) => {
             if let (Some(w0), Some(h0)) = (v.width, v.height) {
+                mark_visited(visited, path, "video");
                 check_bounds(
-                    out,
-                    seen,
+                    raws,
                     frame,
+                    path,
                     "video",
                     false,
+                    rotated,
                     x,
                     y,
                     w0 * sx,
@@ -655,19 +690,38 @@ fn lint_walk(
         }
         _ => {}
     }
-    for child in &node.children {
-        lint_walk(child, t, cw, ch, frame, fonts, out, seen);
+    for (i, child) in node.children.iter().enumerate() {
+        let child_path = format!("{path}/{i}");
+        lint_walk(
+            child,
+            t,
+            rotated,
+            &child_path,
+            cw,
+            ch,
+            frame,
+            fonts,
+            raws,
+            visited,
+        );
     }
 }
 
-/// Flag an element whose box extends meaningfully (> 8px) beyond the canvas.
+/// Count one sampled-frame appearance of an element (stable `path|label` identity).
+fn mark_visited(visited: &mut std::collections::HashMap<String, u32>, path: &str, label: &str) {
+    *visited.entry(format!("{path}|{label}")).or_insert(0) += 1;
+}
+
+/// Record an element whose box extends meaningfully (> 8px) beyond the canvas —
+/// unless it's rotated (box untrustworthy) or a full-bleed background (intentional).
 #[allow(clippy::too_many_arguments)]
 fn check_bounds(
-    out: &mut Vec<serde_json::Value>,
-    seen: &mut std::collections::HashSet<String>,
+    raws: &mut Vec<Raw>,
     frame: usize,
+    path: &str,
     label: &str,
     is_text: bool,
+    rotated: bool,
     x: f32,
     y: f32,
     w: f32,
@@ -675,19 +729,31 @@ fn check_bounds(
     cw: f32,
     ch: f32,
 ) {
+    const TOL: f32 = 8.0;
+    // A rotated element's axis-aligned box is wrong (we drop rotation, as the CPU
+    // path does) — don't infer off-canvas from a box we can't trust.
+    if rotated {
+        return;
+    }
+    // A non-text element whose box CONTAINS the whole canvas is a full-bleed
+    // background / cover fill, not a drifting element — its overhang is intentional.
+    let covers = x <= TOL && y <= TOL && (x + w) >= cw - TOL && (y + h) >= ch - TOL;
+    if !is_text && covers {
+        return;
+    }
     let (over_r, over_l, over_b, over_t) = (x + w - cw, -x, y + h - ch, -y);
     let max_over = over_r.max(over_l).max(over_b).max(over_t);
-    if max_over <= 8.0 {
+    if max_over <= TOL {
         return;
     }
     // A text node spilling off the right/bottom (and not the left/top) reads as an
     // overflow (too wide / too big); anything else is a positioning problem.
-    let overflow = is_text && over_l <= 8.0 && over_t <= 8.0 && (over_r > 8.0 || over_b > 8.0);
+    let overflow = is_text && over_l <= TOL && over_t <= TOL && (over_r > TOL || over_b > TOL);
     if overflow {
-        push_diag(
-            out,
-            seen,
+        record(
+            raws,
             frame,
+            path,
             "TEXT_OVERFLOW",
             "warning",
             label,
@@ -696,49 +762,100 @@ fn check_bounds(
                 "text \"{label}\" ({w:.0}px wide) extends {max_over:.0}px past the canvas edge"
             ),
             "reduce its font size or width, or move it inward",
+            max_over,
         );
     } else {
-        push_diag(
-            out,
-            seen,
+        record(
+            raws,
             frame,
+            path,
             "OFF_CANVAS",
             "warning",
             label,
             [x, y, w, h],
             format!("{label} (box {x:.0},{y:.0} {w:.0}×{h:.0}) is {max_over:.0}px off-canvas"),
             "reposition it within the composition bounds",
+            max_over,
         );
     }
 }
 
-/// Push a diagnostic, de-duped by (issue, label, rounded top-left) so the same
-/// problem across several sampled frames is reported once.
+/// Stash a raw per-frame finding for [`finalize_diags`] to weigh.
 #[allow(clippy::too_many_arguments)]
-fn push_diag(
-    out: &mut Vec<serde_json::Value>,
-    seen: &mut std::collections::HashSet<String>,
+fn record(
+    raws: &mut Vec<Raw>,
     frame: usize,
-    issue: &str,
-    level: &str,
+    path: &str,
+    issue: &'static str,
+    level: &'static str,
     label: &str,
-    bounds: [f32; 4],
+    bbox: [f32; 4],
     message: String,
-    fix: &str,
+    fix: &'static str,
+    severity: f32,
 ) {
-    let key = format!("{issue}|{label}|{:.0},{:.0}", bounds[0], bounds[1]);
-    if !seen.insert(key) {
-        return;
+    raws.push(Raw {
+        path: path.to_string(),
+        label: label.to_string(),
+        issue,
+        level,
+        bbox,
+        message,
+        fix,
+        frame,
+        severity,
+    });
+}
+
+/// The persistence filter: keep an (issue, element) only if it was flagged in MORE
+/// THAN HALF of the sampled frames where that element appears — so a transient
+/// (slide-in off-canvas, a one-frame scale spike) drops out while a steady defect
+/// stays. Each surviving group reports its worst (max-severity) occurrence once,
+/// in deterministic (frame, issue, label) order.
+fn finalize_diags(
+    raws: Vec<Raw>,
+    visited: &std::collections::HashMap<String, u32>,
+) -> Vec<serde_json::Value> {
+    use std::collections::{HashMap, HashSet};
+    // group key -> (distinct frames flagged, index of the worst raw seen)
+    let mut groups: HashMap<String, (HashSet<usize>, usize)> = HashMap::new();
+    for (idx, r) in raws.iter().enumerate() {
+        let key = format!("{}|{}|{}", r.issue, r.path, r.label);
+        let g = groups.entry(key).or_insert_with(|| (HashSet::new(), idx));
+        g.0.insert(r.frame);
+        if r.severity > raws[g.1].severity {
+            g.1 = idx;
+        }
     }
-    out.push(serde_json::json!({
-        "level": level,
-        "issue": issue,
-        "frame": frame,
-        "label": label,
-        "box": bounds,
-        "message": message,
-        "fix": fix,
-    }));
+    let mut kept: Vec<&Raw> = groups
+        .values()
+        .filter_map(|(frames, best)| {
+            let r = &raws[*best];
+            let denom = *visited
+                .get(&format!("{}|{}", r.path, r.label))
+                .unwrap_or(&1);
+            (frames.len() as f32 > 0.5 * denom as f32).then_some(r)
+        })
+        .collect();
+    kept.sort_by(|a, b| {
+        a.frame
+            .cmp(&b.frame)
+            .then_with(|| a.issue.cmp(b.issue))
+            .then_with(|| a.label.cmp(&b.label))
+    });
+    kept.into_iter()
+        .map(|r| {
+            serde_json::json!({
+                "level": r.level,
+                "issue": r.issue,
+                "frame": r.frame,
+                "label": r.label,
+                "box": r.bbox,
+                "message": r.message,
+                "fix": r.fix,
+            })
+        })
+        .collect()
 }
 
 /// The width/height of a shape with a finite box (rect/ellipse); `None` for paths.
@@ -1516,6 +1633,66 @@ mod tests {
         assert!(
             lint_scenes(&[scene2], &[0], &fonts2).is_empty(),
             "clean scene → no diagnostics"
+        );
+    }
+
+    #[test]
+    fn lint_precision_suppresses_bleed_rotation_and_transients() {
+        let fonts = || RefCell::new(measure_font_context(FontMode::Bundled, &[]));
+
+        // 1. Full-bleed background (2000×1200 bleeding past a 1920×1080 canvas) →
+        //    its box covers the canvas, so the overhang is intentional → no flag.
+        let bleed = r#"{"composition":{"width":1920,"height":1080,"fps":30.0,"duration_in_frames":1},
+          "root":{"kind":{"type":"group"},"children":[
+            {"transform":{"translate":{"x":-40.0,"y":-60.0}},
+             "kind":{"type":"shape","geometry":{"shape":"rect","size":{"width":2000.0,"height":1200.0}},"fill":{"r":0.1,"g":0.1,"b":0.1}},
+             "children":[]}]}}"#;
+        let s: Scene = serde_json::from_str(bleed).unwrap();
+        assert!(
+            lint_scenes(&[s], &[0], &fonts()).is_empty(),
+            "full-bleed background must not be flagged off-canvas"
+        );
+
+        // 2. A rotated shape pushed off-canvas → its axis-aligned box is wrong, so
+        //    we don't guess → no flag.
+        let rot = r#"{"composition":{"width":200,"height":200,"fps":30.0,"duration_in_frames":1},
+          "root":{"kind":{"type":"group"},"children":[
+            {"transform":{"translate":{"x":-120.0,"y":50.0},"rotate":0.6},
+             "kind":{"type":"shape","geometry":{"shape":"rect","size":{"width":100.0,"height":100.0}},"fill":{"r":1.0,"g":1.0,"b":1.0}},
+             "children":[]}]}}"#;
+        let s: Scene = serde_json::from_str(rot).unwrap();
+        assert!(
+            lint_scenes(&[s], &[0], &fonts()).is_empty(),
+            "rotated off-canvas element must not be flagged (box untrustworthy)"
+        );
+
+        // 3 & 4. A title that slides in (off-canvas only on frame 0 of 8) is a
+        //    transient → suppressed; one parked off-canvas every frame → flagged.
+        let title_at = |x: f32| -> Scene {
+            let j = format!(
+                r#"{{"composition":{{"width":1920,"height":1080,"fps":30.0,"duration_in_frames":1}},
+                  "root":{{"kind":{{"type":"group"}},"children":[
+                    {{"transform":{{"translate":{{"x":{x},"y":500.0}}}},
+                     "kind":{{"type":"text","content":"Headline","font_size":80.0}}}}]}}}}"#
+            );
+            serde_json::from_str(&j).unwrap()
+        };
+        let samples: Vec<usize> = (0..8).collect();
+
+        let slide: Vec<Scene> = (0..8)
+            .map(|f| title_at(if f == 0 { -700.0 } else { 820.0 }))
+            .collect();
+        let slide_diags = lint_scenes(&slide, &samples, &fonts());
+        assert!(
+            slide_diags.is_empty(),
+            "a one-frame slide-in transient must be suppressed, got {slide_diags:?}"
+        );
+
+        let parked: Vec<Scene> = (0..8).map(|_| title_at(-700.0)).collect();
+        let parked_diags = lint_scenes(&parked, &samples, &fonts());
+        assert!(
+            parked_diags.iter().any(|x| x["issue"] == "OFF_CANVAS"),
+            "a persistently off-canvas title must be flagged, got {parked_diags:?}"
         );
     }
 
