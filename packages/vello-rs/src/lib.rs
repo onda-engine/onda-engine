@@ -13,7 +13,7 @@ use std::collections::HashMap;
 
 use onda_core::{Color, Transform};
 use onda_scene::{
-    Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Node, NodeKind, Scene,
+    Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Node, NodeKind, Scene, Shadow,
     ShapeGeometry, Text,
 };
 use onda_typography::{FontContext, StyledRun};
@@ -196,6 +196,18 @@ fn build(
         NodeKind::Group => {}
         NodeKind::Shape(shape) => {
             let path = shape_path(&shape.geometry);
+            // Drop shadow / glow: an analytic blurred rounded-rect drawn BEHIND
+            // the shape (Vello's built-in; no extra render pass).
+            if let Some(shadow) = &shape.shadow {
+                let (rect, radius) = shadow_box(&shape.geometry, &path, shadow);
+                vscene.draw_blurred_rounded_rect(
+                    affine,
+                    rect,
+                    peniko_color(shadow.color, opacity),
+                    radius,
+                    shadow.blur.max(0.0) as f64,
+                );
+            }
             if let Some(brush) = fill_brush(shape.fill, shape.gradient.as_ref(), opacity) {
                 vscene.fill(Fill::NonZero, affine, &brush, None, &path);
             }
@@ -339,6 +351,38 @@ fn to_affine(t: &Transform) -> Affine {
         * Affine::rotate((t.rotate as f64).to_radians())
         * Affine::scale_non_uniform(t.scale.x as f64, t.scale.y as f64)
         * Affine::translate((-ox, -oy))
+}
+
+/// The (local-space) rounded-rect + radius for a shape's drop shadow: the
+/// geometry's box, displaced by `offset` and grown by `spread`. Ellipses map to a
+/// fully-rounded rect; paths use their bounding box.
+fn shadow_box(geo: &ShapeGeometry, path: &BezPath, shadow: &Shadow) -> (Rect, f64) {
+    let s = shadow.spread as f64;
+    let (ox, oy) = (shadow.offset.x as f64, shadow.offset.y as f64);
+    let (x0, y0, x1, y1, base_r) = match geo {
+        ShapeGeometry::Rect {
+            size,
+            corner_radius,
+        } => (
+            0.0,
+            0.0,
+            size.width as f64,
+            size.height as f64,
+            *corner_radius as f64,
+        ),
+        ShapeGeometry::Ellipse { size } => {
+            let (w, h) = (size.width as f64, size.height as f64);
+            (0.0, 0.0, w, h, w.min(h) / 2.0)
+        }
+        ShapeGeometry::Path { .. } => {
+            let b = path.bounding_box();
+            (b.x0, b.y0, b.x1, b.y1, 0.0)
+        }
+    };
+    (
+        Rect::new(x0 + ox - s, y0 + oy - s, x1 + ox + s, y1 + oy + s),
+        (base_r + s).max(0.0),
+    )
 }
 
 fn cap_to_kurbo(c: LineCap) -> Cap {

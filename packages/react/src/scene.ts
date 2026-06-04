@@ -31,6 +31,17 @@ export interface Transform {
   origin?: Vec2
 }
 
+/** A drop shadow / glow behind a shape (mirrors onda-scene's `Shadow`). */
+export interface Shadow {
+  color: Color
+  /** Gaussian blur std-dev in px. */
+  blur: number
+  /** Shadow offset from the shape; default (0,0) = a centered glow. */
+  offset?: Vec2
+  /** Grow the shadow box by this many px on every side. Default 0. */
+  spread?: number
+}
+
 export interface Stroke {
   color: Color
   width: number
@@ -116,7 +127,14 @@ export type NodeKind =
       /** Linear gain 0..1. */
       volume?: number
     }
-  | { type: 'shape'; geometry: ShapeGeometry; fill?: Color; gradient?: Gradient; stroke?: Stroke }
+  | {
+      type: 'shape'
+      geometry: ShapeGeometry
+      fill?: Color
+      gradient?: Gradient
+      stroke?: Stroke
+      shadow?: Shadow
+    }
   | { type: 'svg'; src?: string; markup?: string }
 
 /** How a bitmap is fitted into its `width`×`height` box (mirrors onda-scene's

@@ -14,6 +14,7 @@ import type {
   NodeKind,
   Scene,
   SceneNode,
+  Shadow,
   ShapeGeometry,
   Stroke,
   Transform,
@@ -301,22 +302,45 @@ function fillStroke(props: Record<string, unknown>): {
   fill?: ReturnType<typeof parseColor>
   gradient?: Gradient
   stroke?: Stroke
+  shadow?: Shadow
 } {
-  const out: { fill?: ReturnType<typeof parseColor>; gradient?: Gradient; stroke?: Stroke } = {}
+  const out: {
+    fill?: ReturnType<typeof parseColor>
+    gradient?: Gradient
+    stroke?: Stroke
+    shadow?: Shadow
+  } = {}
   if (props.fill !== undefined) out.fill = parseColor(props.fill as never)
   if (props.gradient !== undefined) out.gradient = parseGradient(props.gradient as GradientInput)
+  const sh = props.shadow as
+    | { color: unknown; blur?: number; offsetX?: number; offsetY?: number; spread?: number }
+    | undefined
+  if (sh && typeof sh.blur === 'number') {
+    out.shadow = {
+      color: parseColor(sh.color as never),
+      blur: sh.blur,
+      ...(typeof sh.offsetX === 'number' || typeof sh.offsetY === 'number'
+        ? { offset: { x: sh.offsetX ?? 0, y: sh.offsetY ?? 0 } }
+        : {}),
+      ...(typeof sh.spread === 'number' ? { spread: sh.spread } : {}),
+    }
+  }
   if (props.stroke !== undefined) {
     out.stroke = {
       color: parseColor(props.stroke as never),
       width: typeof props.strokeWidth === 'number' ? props.strokeWidth : 1,
-      ...(props.strokeCap === 'round' || props.strokeCap === 'square' ? { cap: props.strokeCap } : {}),
+      ...(props.strokeCap === 'round' || props.strokeCap === 'square'
+        ? { cap: props.strokeCap }
+        : {}),
       ...(props.strokeJoin === 'round' || props.strokeJoin === 'bevel'
         ? { join: props.strokeJoin }
         : {}),
       ...(Array.isArray(props.strokeDash) && props.strokeDash.length
         ? { dash: props.strokeDash as number[] }
         : {}),
-      ...(typeof props.strokeDashOffset === 'number' ? { dash_offset: props.strokeDashOffset } : {}),
+      ...(typeof props.strokeDashOffset === 'number'
+        ? { dash_offset: props.strokeDashOffset }
+        : {}),
     }
   }
   return out
