@@ -8,15 +8,16 @@
 //! All three run on the house spring (`SPRING_SMOOTH`): no overshoot, no bounce —
 //! the mark lands and stays. Restraint IS the brand.
 //!
-//! ── Approximations vs ondajs ────────────────────────────────────────────────
+//! ── Mark draw-on (faithful to ondajs) ───────────────────────────────────────
 //! ondajs's mark is a `DrawOn` primitive that strokes the path in via SVG
 //! `stroke-dasharray`/`stroke-dashoffset` (`@remotion/paths` `evolvePath`). The
-//! engine has no stroke-dash draw-on, so the mark is revealed by CLIPPING instead
-//! (the prompt's prescribed substitute): an outer `<Group clip>` whose width
-//! grows 0→full on the house spring wipes the path in left-to-right. It reads as
-//! a continuous "the line arrives" reveal rather than a literal pen stroke. The
-//! `<Path>` (and the wipe) render only on the Vello/GPU backend; the CPU
-//! reference rasterizer skips paths, so the mark is GPU-only.
+//! engine has the same primitive now: the mark `<Path>` carries a dash as long
+//! as the whole path with an offset that retreats to 0 on the house spring, so
+//! the stroke is literally drawn on from start to end like a pen. The dash
+//! period is the path's arc length, estimated from `d` (see `path-length.ts`) so
+//! the pen reaches the end exactly as the reveal completes. The `<Path>` renders
+//! only on the Vello/GPU backend (the CPU reference rasterizer skips paths), so
+//! the mark is GPU-only.
 //!
 //! ── Layout / pivots ─────────────────────────────────────────────────────────
 //! This is a self-positioning composite. Because the mark needs an animated clip
@@ -28,8 +29,9 @@
 //! glyphs are drawn offset by -halfWidth). Title/rule widths are ESTIMATED from
 //! glyph count × font size (no author-time text metrics) — see Underline.
 
-import { Group, Path, Text, clipRect, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Path, Text, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { estimatePathLength } from '../path-length.js'
 import { useTheme } from '../theme.js'
 import { ScaleIn } from './ScaleIn.js'
 import { Underline } from './Underline.js'
@@ -125,7 +127,7 @@ export function LogoSting({
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
 
-  // ── Mark reveal: a clip-wipe standing in for ondajs's stroke draw-on. ──────
+  // ── Mark reveal: ondajs's stroke draw-on via an animated dash. ─────────────
   // Progress 0→1 on the house spring over DURATION.slow (24f), the DrawOn default.
   const markProgress = spring({
     frame: Math.max(0, frame - delay),
@@ -133,8 +135,12 @@ export function LogoSting({
     config: SPRING_SMOOTH,
     durationInFrames: DURATION.slow,
   })
-  // The wipe clip grows from nothing to the full mark width.
-  const revealWidth = Math.max(0, markProgress) * pathWidth
+  // Dash period = the path's arc length (in viewBox units, the Path's local
+  // space — strokeWidth is given there too). One dash + one gap, each as long as
+  // the whole path; the offset retreats len→0 so the stroke uncovers from start
+  // to end as progress → 1 (the BoundingBox draw-on, applied to a Path).
+  const markLength = Math.max(1, estimatePathLength(d))
+  const dashOffset = markLength * (1 - Math.max(0, Math.min(1, markProgress)))
 
   // viewBox → pixel scale for the path. The path `d` is authored in viewBox
   // units; map it onto pathWidth × pathHeight. (Non-uniform scale is fine for a
@@ -165,12 +171,23 @@ export function LogoSting({
 
   return (
     <Group>
-      {/* 1. Mark — the logo arrives, wiped in left→right (clip stands in for the
-          stroke draw-on; GPU/Vello only — the CPU reference skips paths). */}
-      <Group x={markX} y={markY} clip={clipRect(revealWidth, pathHeight)}>
+      {/* 1. Mark — the logo arrives, stroked on start→end by an animated dash
+          (the ondajs DrawOn; GPU/Vello only — the CPU reference skips paths). */}
+      <Group x={markX} y={markY}>
         <Group scaleX={scaleX} scaleY={scaleY} x={-vbMinX * scaleX} y={-vbMinY * scaleY}>
-          {/* fill none ('#00000000') so only the stroke reads, like ondajs. */}
-          <Path d={d} fill="#00000000" stroke={stroke} strokeWidth={strokeWidth / scaleX} />
+          {/* fill none ('#00000000') so only the stroke reads, like ondajs. The
+              dash period is the path length; the offset retreats to 0 as the pen
+              draws. Round caps/joins keep the moving pen-tip clean. */}
+          <Path
+            d={d}
+            fill="#00000000"
+            stroke={stroke}
+            strokeWidth={strokeWidth / scaleX}
+            strokeCap="round"
+            strokeJoin="round"
+            strokeDash={[markLength, markLength]}
+            strokeDashOffset={dashOffset}
+          />
         </Group>
       </Group>
 

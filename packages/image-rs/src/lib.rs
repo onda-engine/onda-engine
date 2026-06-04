@@ -58,7 +58,14 @@ fn load_node(node: &Node, base_dir: &Path) -> Result<Node, ImageError> {
 
     if let NodeKind::Image(image) = &node.kind {
         if image.data.is_none() {
-            if let Some(data) = decode_src(&image.src, base_dir)? {
+            if let Some(mut data) = decode_src(&image.src, base_dir)? {
+                // Optional gaussian "focus pull": blurring here (in the shared
+                // decode pass) keeps native/GPU/CPU byte-identical and needs no
+                // renderer support. Sigma is in source pixels; animating it
+                // frame-to-frame gives a soft→sharp entrance.
+                if image.blur > 0.0 {
+                    data = blur_image(data, image.blur);
+                }
                 return Ok(Node {
                     kind: NodeKind::Image(image.clone().with_data(data)),
                     children,
@@ -129,7 +136,11 @@ fn generate_noise(spec: &str) -> Result<ImageData, ImageError> {
     let (mut w, mut h, mut seed) = (0u32, 0u32, 0u32);
     let mut intensity = 0.1_f32;
     let mut mono = true;
-    for kv in spec.trim_start_matches('/').trim_start_matches('?').split('&') {
+    for kv in spec
+        .trim_start_matches('/')
+        .trim_start_matches('?')
+        .split('&')
+    {
         let (k, v) = kv.split_once('=').unwrap_or((kv, ""));
         match k {
             "w" => w = v.parse().unwrap_or(0),
@@ -166,6 +177,33 @@ fn generate_noise(spec: &str) -> Result<ImageData, ImageError> {
         height: h,
         rgba: std::sync::Arc::new(rgba),
     })
+}
+
+/// Gaussian-blur decoded RGBA8 by `sigma` source pixels (the `image` crate's
+/// separable gaussian — no hand-rolled kernel). Straight-alpha in, straight-alpha
+/// out; fully-opaque photos (the common case) blur cleanly. A degenerate buffer
+/// (wrong length) is returned unblurred rather than panicking.
+fn blur_image(data: ImageData, sigma: f32) -> ImageData {
+    let ImageData {
+        width,
+        height,
+        rgba,
+    } = data;
+    match image::RgbaImage::from_raw(width, height, (*rgba).clone()) {
+        Some(buf) => {
+            let blurred = image::imageops::blur(&buf, sigma.max(0.0));
+            ImageData {
+                width,
+                height,
+                rgba: Arc::new(blurred.into_raw()),
+            }
+        }
+        None => ImageData {
+            width,
+            height,
+            rgba,
+        },
+    }
 }
 
 /// A fast integer hash (Murmur3-style finalizer) — good per-pixel scatter.
@@ -277,5 +315,59 @@ mod tests {
         };
         let err = load_images(&scene, Path::new("/tmp")).unwrap_err();
         assert!(format!("{err}").contains("reading image"));
+    }
+
+    #[test]
+    fn blur_softens_a_hard_edge() {
+        // 8×8: left half black, right half white. A gaussian should turn the
+        // columns straddling the seam into intermediate grays (the edge melts),
+        // while fully-opaque alpha stays opaque.
+        let (w, h) = (8u32, 8u32);
+        let mut rgba = Vec::with_capacity((w * h * 4) as usize);
+        for _y in 0..h {
+            for x in 0..w {
+                let v = if x < w / 2 { 0 } else { 255 };
+                rgba.extend_from_slice(&[v, v, v, 255]);
+            }
+        }
+        let data = ImageData {
+            width: w,
+            height: h,
+            rgba: Arc::new(rgba),
+        };
+        let blurred = blur_image(data, 2.0);
+        assert_eq!((blurred.width, blurred.height), (w, h));
+        // The pixel just left of the seam (x = 3, row 0) should now be a gray.
+        let idx = 3 * 4;
+        assert!(
+            blurred.rgba[idx] > 0 && blurred.rgba[idx] < 255,
+            "edge pixel should be gray, got {}",
+            blurred.rgba[idx]
+        );
+        assert_eq!(blurred.rgba[idx + 3], 255, "alpha stays opaque");
+    }
+
+    #[test]
+    fn blur_is_applied_through_the_load_pass() {
+        // An Image node with `blur > 0` comes back blurred (edge no longer a
+        // hard 0/255 step) after the decode pass.
+        let b64 = base64::engine::general_purpose::STANDARD.encode(tiny_png_bytes());
+        let src = format!("data:image/png;base64,{b64}");
+        let scene = Scene {
+            composition: Composition::new(4, 4, 30.0, 1),
+            root: Node::new(NodeKind::Image(onda_scene::Image::new(src).with_blur(1.5))),
+        };
+        let loaded = load_images(&scene, Path::new("")).expect("decode + blur");
+        let NodeKind::Image(img) = &loaded.root.kind else {
+            panic!("expected image node");
+        };
+        let data = img.data.as_ref().expect("pixels attached");
+        assert_eq!((data.width, data.height), (2, 1));
+        // The original first pixel was pure red (255,0,0); a blur with the blue
+        // neighbour pulls its green/blue up off zero.
+        assert!(
+            data.rgba[2] > 0,
+            "blue channel bleeds in from the neighbour"
+        );
     }
 }

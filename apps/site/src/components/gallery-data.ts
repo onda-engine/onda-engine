@@ -992,9 +992,9 @@ export const GALLERY: GalleryItem[] = [
     blurb: "an image that enters with one of Onda's signature motion",
     props: {
       src: '/gallery-sample.jpg',
-      motion: 'wipe',
+      motion: 'blur',
       fit: 'cover',
-      durationInFrames: 24,
+      durationInFrames: 30,
     },
     themed: true,
   },

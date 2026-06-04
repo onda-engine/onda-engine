@@ -48,7 +48,7 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   BlurReveal: {
     fidelity: 'degraded',
     engineNative: false,
-    needsFeature: 'blur pass',
+    needsFeature: 'content blur (text)',
     backend: 'both',
   },
   BoundingBox: {
@@ -119,7 +119,7 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   EndCard: {
     fidelity: 'degraded',
     engineNative: false,
-    needsFeature: 'blur pass',
+    needsFeature: 'content blur (text)',
     backend: 'both',
   },
   FadeIn: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
@@ -144,10 +144,10 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'gpu_only',
   },
   ImageReveal: {
-    fidelity: 'degraded',
-    engineNative: false,
-    needsFeature: 'blur pass',
-    backend: 'both',
+    fidelity: 'first_class',
+    engineNative: true,
+    needsFeature: null,
+    backend: 'gpu_only',
   },
   InputField: {
     fidelity: 'first_class',
@@ -164,9 +164,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'gpu_only',
   },
   LogoSting: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'stroke-dash',
+    needsFeature: null,
     backend: 'gpu_only',
   },
   LowerThird: {
@@ -319,8 +319,8 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
 }
 
 export const FIDELITY_SUMMARY = {
-  firstClass: 66,
-  degraded: 4,
+  firstClass: 68,
+  degraded: 2,
   apesRemotion: 0,
 } as const
 
@@ -351,10 +351,12 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'GradientShift',
   'GrainOverlay',
   'Highlight',
+  'ImageReveal',
   'InputField',
   'IconPop',
   'KanbanBoard',
   'KenBurns',
+  'LogoSting',
   'LowerThird',
   'LineChart',
   'MatrixDecode',
@@ -414,13 +416,15 @@ export const ENGINE_CAPABILITIES = {
     'blend modes (multiply / screen / overlay / soft-light / …, GPU)',
     'procedural film grain (onda-noise source + overlay blend, GPU)',
     'drop-shadow / glow (analytic blurred rounded-rect)',
+    'animated image blur — gaussian focus-pull in the image pass (CPU+GPU+native byte-identical)',
     'no-Chromium export (ffmpeg / GIF / PNG)',
   ],
   unsupported: [
     {
-      feature: 'blur / backdrop-blur / drop-shadow',
-      status: 'deferred-gpu-layer',
-      guidance: "Don't author for blur; use stylized fills/gradients.",
+      feature: 'content/text blur (screen-space gaussian over an arbitrary subtree) + backdrop-filter',
+      status: 'deferred-render-to-texture',
+      guidance:
+        'Image blur IS supported (Image.blur). A live blur over text/shapes needs the render-to-texture pass; for now reveal text by fade/scale/slide, not blur.',
     },
     { feature: '3D / perspective transforms', status: '2d-affine-only' },
     { feature: 'SVG filters / embedded text+image / gradient paint', status: 'flattened-to-solid' },
