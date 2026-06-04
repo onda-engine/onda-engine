@@ -2,8 +2,9 @@
 //!
 //! ONDA's scene graph is a static snapshot, so this renderer just builds a
 //! mutable tree of [`HostNode`]s as React reconciles, which `reconciler.ts` then
-//! serializes once. Mutation mode; targets react-reconciler 0.29 (React 18).
+//! serializes once. Mutation mode; targets **react-reconciler 0.33 (React 19)**.
 
+import { createContext } from 'react'
 import type ReactReconciler from 'react-reconciler'
 import { DefaultEventPriority } from 'react-reconciler/constants.js'
 
@@ -22,7 +23,11 @@ export interface RootContainer {
 }
 
 type Props = Record<string, unknown>
-type HostContext = null
+// Must be NON-NULL: react-reconciler uses `null` as its internal NO_CONTEXT
+// sentinel, so returning `null` here trips "Expected host context to exist".
+// ONDA needs no host context, so a single shared empty object suffices.
+type HostContext = Record<string, never>
+const HOST_CONTEXT: HostContext = {}
 type TimeoutHandle = ReturnType<typeof setTimeout>
 
 /** Flatten React text children (string/number, possibly nested arrays) to text. */
@@ -34,6 +39,16 @@ function childrenToText(children: unknown): string {
   return ''
 }
 
+// react-reconciler 0.33 requires a host-transition context (React 19's <form>
+// action transitions). ONDA renders static frames — no transitions — so the
+// status is always null.
+const HostTransitionContext = createContext<null>(null)
+
+// 0.33 replaced `getCurrentEventPriority` with explicit update-priority
+// tracking. A static one-shot render has no real event priority — track the
+// last set value and default to `DefaultEventPriority`.
+let currentUpdatePriority: number = DefaultEventPriority
+
 export const hostConfig: ReactReconciler.HostConfig<
   string, // Type
   Props, // Props
@@ -42,12 +57,13 @@ export const hostConfig: ReactReconciler.HostConfig<
   HostNode, // TextInstance
   never, // SuspenseInstance
   never, // HydratableInstance
+  never, // FormInstance
   HostNode, // PublicInstance
   HostContext, // HostContext
-  boolean, // UpdatePayload
   never, // ChildSet
   TimeoutHandle, // TimeoutHandle
-  -1 // NoTimeout
+  -1, // NoTimeout
+  null // TransitionStatus
 > = {
   supportsMutation: true,
   supportsPersistence: false,
@@ -80,7 +96,7 @@ export const hostConfig: ReactReconciler.HostConfig<
   },
 
   getRootHostContext() {
-    return null
+    return HOST_CONTEXT
   },
   getChildHostContext(parentContext) {
     return parentContext
@@ -95,10 +111,9 @@ export const hostConfig: ReactReconciler.HostConfig<
   resetAfterCommit() {},
   preparePortalMount() {},
 
-  prepareUpdate() {
-    return true
-  },
-  commitUpdate(instance, _payload, type, _prevProps, nextProps) {
+  // 0.33: `prepareUpdate` is gone; `commitUpdate` receives the new props
+  // directly (no diff payload) and applies them.
+  commitUpdate(instance, type, _prevProps, nextProps) {
     instance.props = nextProps
     if (type === 'onda-text') instance.text = childrenToText(nextProps.children)
   },
@@ -134,9 +149,6 @@ export const hostConfig: ReactReconciler.HostConfig<
     container.children.length = 0
   },
 
-  getCurrentEventPriority() {
-    return DefaultEventPriority
-  },
   getInstanceFromNode() {
     return null
   },
@@ -147,4 +159,46 @@ export const hostConfig: ReactReconciler.HostConfig<
     return null
   },
   detachDeletedInstance() {},
+
+  // ── react-reconciler 0.33 (React 19) additions ─────────────────────────────
+  // ONDA is a static, single-pass renderer with no suspense, forms, or
+  // transitions, so these are inert (return the "nothing pending / never
+  // suspend / commit immediately" answers).
+  setCurrentUpdatePriority(newPriority) {
+    currentUpdatePriority = newPriority
+  },
+  getCurrentUpdatePriority() {
+    return currentUpdatePriority
+  },
+  resolveUpdatePriority() {
+    return DefaultEventPriority
+  },
+  NotPendingTransition: null,
+  // React's public `Context` type omits the internal fields (`_currentValue`,
+  // `_threadCount`) the reconciler reads; the runtime object has them.
+  // biome-ignore lint/suspicious/noExplicitAny: bridge React's public Context to the reconciler's ReactContext.
+  HostTransitionContext: HostTransitionContext as any,
+  resetFormInstance() {},
+  requestPostPaintCallback() {},
+  shouldAttemptEagerTransition() {
+    return false
+  },
+  trackSchedulerEvent() {},
+  resolveEventType() {
+    return null
+  },
+  resolveEventTimeStamp() {
+    return -1
+  },
+  maySuspendCommit() {
+    return false
+  },
+  preloadInstance() {
+    return true // already "loaded" — never suspends the commit
+  },
+  startSuspendingCommit() {},
+  suspendInstance() {},
+  waitForCommitToBeReady() {
+    return null // commit is always ready immediately
+  },
 }

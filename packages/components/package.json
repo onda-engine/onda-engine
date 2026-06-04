@@ -1,7 +1,7 @@
 {
   "name": "@onda/components",
   "version": "0.0.0",
-  "description": "The Onda motion language — a Remotion-shaped choreography + component library for @onda/react. Ported from ondajs.",
+  "description": "The Onda motion language \u2014 a Remotion-shaped choreography + component library for @onda/react. Ported from ondajs.",
   "license": "MIT OR Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -12,7 +12,9 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -22,12 +24,12 @@
     "@onda/react": "workspace:*",
     "@onda/wasm": "workspace:*",
     "@onda/wasm-audio": "workspace:*",
-    "react": "^18.3.1",
+    "react": "^19.2.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
-    "@types/react": "^18.3.12",
+    "@types/react": "^19.2.0",
     "vitest": "^2.1.8"
   }
 }

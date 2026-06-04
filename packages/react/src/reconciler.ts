@@ -30,28 +30,38 @@ export function renderFrame(element: ReactElement, frame: number): Scene {
   const root = reconciler.createContainer(
     container,
     0, // LegacyRoot — renders synchronously
-    null,
-    false,
-    null,
-    '',
-    (error) => {
-      throw error
+    null, // hydrationCallbacks
+    false, // isStrictMode
+    null, // concurrentUpdatesByDefaultOverride
+    '', // identifierPrefix
+    (error: Error) => {
+      throw error // onUncaughtError
     },
-    null,
+    (error: Error) => {
+      throw error // onCaughtError
+    },
+    () => {}, // onRecoverableError — non-fatal (e.g. hydration); ignore
+    () => {}, // onDefaultTransitionIndicator — no transitions in a static render
   )
-  reconciler.updateContainer(
+  // React 19's reconciler no longer flushes the initial mount synchronously via
+  // `updateContainer`; use the explicit sync API so ONDA can read the built tree
+  // immediately after.
+  reconciler.updateContainerSync(
     createElement(FrameContext.Provider, { value: { ...config, frame } }, element),
     root,
     null,
     null,
   )
+  reconciler.flushSyncWork()
 
   const top = container.children[0]
   if (container.children.length !== 1 || !top || top.type !== 'onda-composition') {
     throw new Error('render: the root element must be a single <Composition>')
   }
   const scene = compositionToScene(top)
-  reconciler.updateContainer(null, root, null, null) // unmount, running effect cleanups
+  // Unmount (runs effect cleanups), synchronously.
+  reconciler.updateContainerSync(null, root, null, null)
+  reconciler.flushSyncWork()
   return scene
 }
 
