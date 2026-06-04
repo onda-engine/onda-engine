@@ -117,6 +117,7 @@ function toNode(node: HostNode): SceneNode {
   if (transform) base.transform = transform
   if (typeof props.opacity === 'number') base.opacity = props.opacity
   if (props.clip !== undefined) base.clip = parseClip(props.clip as ClipInput)
+  if (typeof props.blendMode === 'string') base.blend = props.blendMode as SceneNode['blend']
   if (props.layout !== undefined) base.layout = parseLayout(props.layout as Layout)
   const children = node.children.map(toNode)
   const withChildren = children.length ? { children } : {}

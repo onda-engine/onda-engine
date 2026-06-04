@@ -13,7 +13,7 @@ import type { ClipInput } from './clip.js'
 import type { ColorInput } from './color.js'
 import { useCurrentFrame, useVideoConfig } from './frame.js'
 import type { GradientInput } from './gradient.js'
-import type { ImageFit, Layout } from './scene.js'
+import type { BlendMode, ImageFit, Layout } from './scene.js'
 
 /** Properties shared by every scene node: identity, placement, opacity, clip. */
 export interface NodeProps {
@@ -34,6 +34,9 @@ export interface NodeProps {
   originY?: number
   /** Opacity, 0..1. */
   opacity?: number
+  /** Blend this node's subtree against the backdrop (CSS mix-blend-mode).
+   *  GPU/Vello-rendered (e.g. `'screen'`, `'multiply'`, `'overlay'`). */
+  blendMode?: BlendMode
   /** Clip this node and its subtree to a region (local space). */
   clip?: ClipInput
   children?: ReactNode
