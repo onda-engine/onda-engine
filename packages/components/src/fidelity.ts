@@ -223,10 +223,10 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   },
   QuoteCard: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   RgbGlitch: {
-    fidelity: 'degraded',
-    engineNative: false,
-    needsFeature: 'blend modes',
-    backend: 'both',
+    fidelity: 'first_class',
+    engineNative: true,
+    needsFeature: null,
+    backend: 'gpu_only',
   },
   RotateIn: {
     fidelity: 'first_class',
@@ -319,8 +319,8 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
 }
 
 export const FIDELITY_SUMMARY = {
-  firstClass: 61,
-  degraded: 8,
+  firstClass: 62,
+  degraded: 7,
   apesRemotion: 1,
 } as const
 
@@ -366,6 +366,7 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'ProgressSteps',
   'PulsingIndicator',
   'QuoteCard',
+  'RgbGlitch',
   'RotateIn',
   'SkeletonCard',
   'ScaleIn',
