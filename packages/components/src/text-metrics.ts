@@ -32,10 +32,27 @@ export interface TextMetrics {
   lineHeight: number
 }
 
+/** Resolve a CSS letter-spacing value to engine px. `'-0.02em'` → `-0.02 *
+ *  fontSize`; `'2px'` → `2`; a bare number passes through. Undefined → 0. */
+export function letterSpacingPx(
+  value: string | number | undefined | null,
+  fontSize: number,
+): number {
+  if (value == null) return 0
+  if (typeof value === 'number') return value
+  const v = value.trim()
+  const n = Number.parseFloat(v)
+  if (!Number.isFinite(n)) return 0
+  return v.endsWith('em') ? n * fontSize : n
+}
+
 export interface MeasureOpts {
   fontFamily?: string
   fontWeight?: number
   italic?: boolean
+  /** Extra px between glyphs (CSS letter-spacing) — included in the width so a
+   *  component can center/size letter-spaced text faithfully. */
+  letterSpacing?: number
 }
 
 /** Minimal shape of `@onda/wasm` we use — kept local so this file doesn't
@@ -47,6 +64,7 @@ interface OndaEngineLike {
     family?: string,
     weight?: number,
     italic?: boolean,
+    letterSpacing?: number,
   ): TextMetrics
 }
 interface WasmModule {
@@ -63,9 +81,10 @@ let loadPromise: Promise<void> | null = null
  *  fails to load). Intentionally matches the legacy `WIDTH_RATIO` so behavior is
  *  unchanged until real metrics arrive. */
 const WIDTH_RATIO = 0.56
-function estimate(content: string, fontSize: number): TextMetrics {
+function estimate(content: string, fontSize: number, letterSpacing = 0): TextMetrics {
+  const n = Math.max(0, content.length)
   return {
-    width: Math.max(0, content.length) * fontSize * WIDTH_RATIO,
+    width: n * fontSize * WIDTH_RATIO + letterSpacing * Math.max(0, n - 1),
     height: fontSize * 1.2,
     ascent: fontSize * 0.8,
     descent: fontSize * 0.2,
@@ -113,11 +132,18 @@ export function measureText(
   fontSize: number,
   opts: MeasureOpts = {},
 ): TextMetrics {
-  if (!engine || !content || fontSize <= 0) return estimate(content, fontSize)
+  if (!engine || !content || fontSize <= 0) return estimate(content, fontSize, opts.letterSpacing)
   try {
-    return engine.measureText(content, fontSize, opts.fontFamily, opts.fontWeight, opts.italic)
+    return engine.measureText(
+      content,
+      fontSize,
+      opts.fontFamily,
+      opts.fontWeight,
+      opts.italic,
+      opts.letterSpacing,
+    )
   } catch {
-    return estimate(content, fontSize)
+    return estimate(content, fontSize, opts.letterSpacing)
   }
 }
 
