@@ -78,6 +78,11 @@ export interface PlayerProps {
   className?: string
   /** Frame to start on. Default `0`. Clamped to the composition length. */
   initialFrame?: number
+  /** Initial playback speed (preview only — does NOT change the exported video,
+   *  which always renders 1× at the composition fps). `1` = real-time. Forward
+   *  presets in the UI are 0.25×–2×; programmatic values clamp to 0.1×–4×.
+   *  Default `1`. */
+  playbackRate?: number
   /** Called whenever the current frame changes (scrub or playback). */
   onFrameUpdate?: (frame: number) => void
   /** Called when playback starts. */
@@ -99,13 +104,14 @@ export interface PlayerProps {
  */
 /** Player events (Remotion-`@remotion/player`-compatible) for a host editor to
  *  sync against — e.g. a canvas overlay tracking the current frame. */
-export type PlayerEventType = 'frameupdate' | 'play' | 'pause' | 'seeked' | 'ended'
+export type PlayerEventType = 'frameupdate' | 'play' | 'pause' | 'seeked' | 'ended' | 'ratechange'
 
 /** Event passed to a {@link PlayerEventListener}: `detail.frame` is the current
- *  frame (mirrors Remotion's `CallbackListener` event shape). */
+ *  frame (mirrors Remotion's `CallbackListener` event shape). For `ratechange`,
+ *  `detail.playbackRate` carries the new preview speed. */
 export interface PlayerEvent {
   type: PlayerEventType
-  detail: { frame: number }
+  detail: { frame: number; playbackRate?: number }
 }
 
 export type PlayerEventListener = (event: PlayerEvent) => void
@@ -125,7 +131,13 @@ export interface PlayerHandle {
   getTotalFrames(): number
   /** Whether playback is currently running. */
   isPlaying(): boolean
-  /** Subscribe to a player event (`frameupdate`/`play`/`pause`/`seeked`/`ended`).
+  /** The current preview playback speed (1 = real-time). */
+  getPlaybackRate(): number
+  /** Set the preview playback speed (clamped to 0.1×–4×). Preview only — does
+   *  not affect export. Emits a `ratechange` event. */
+  setPlaybackRate(rate: number): void
+  /** Subscribe to a player event
+   *  (`frameupdate`/`play`/`pause`/`seeked`/`ended`/`ratechange`).
    *  Mirrors `@remotion/player`'s `addEventListener` so an editor built against
    *  Remotion's Player ports without rewiring its frame-sync/overlay. */
   addEventListener(type: PlayerEventType, listener: PlayerEventListener): void
@@ -156,6 +168,7 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
     label = 'ONDA composition player',
     className,
     initialFrame = 0,
+    playbackRate = 1,
     onFrameUpdate,
     onPlay,
     onPause,
@@ -247,6 +260,11 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   const [playing, setPlaying] = useState(autoPlay)
   const [loop, setLoop] = useState(initialLoop)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  // Preview playback speed (1 = real-time). Preview-only: the clock advances
+  // `rate`× as fast; export is unaffected. `speedOpen` toggles the preset menu.
+  const [rate, setRate] = useState(() => clampRate(playbackRate))
+  const [speedOpen, setSpeedOpen] = useState(false)
+  const speedRef = useRef<HTMLDivElement>(null)
 
   // The frame/composition the canvas should show. Updated synchronously each
   // render so the async GPU loop can always pull the latest target. `images` is
@@ -256,8 +274,8 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
 
   // Latest values for the imperative handle + event callbacks, read from refs so
   // the handle/effects don't re-subscribe on every frame.
-  const liveRef = useRef({ frame, playing, loop, lastFrame, totalFrames })
-  liveRef.current = { frame, playing, loop, lastFrame, totalFrames }
+  const liveRef = useRef({ frame, playing, loop, lastFrame, totalFrames, rate })
+  liveRef.current = { frame, playing, loop, lastFrame, totalFrames, rate }
   const onFrameUpdateRef = useRef(onFrameUpdate)
   onFrameUpdateRef.current = onFrameUpdate
   const onPlayRef = useRef(onPlay)
@@ -269,11 +287,42 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   // ref so subscribing doesn't re-render; emitted from the same effects that
   // fire the callback props.
   const listenersRef = useRef<Map<PlayerEventType, Set<PlayerEventListener>>>(new Map())
-  const emit = useCallback((type: PlayerEventType, atFrame: number) => {
+  const emit = useCallback((type: PlayerEventType, atFrame: number, playbackRate?: number) => {
     const set = listenersRef.current.get(type)
     if (!set) return
-    for (const listener of set) listener({ type, detail: { frame: atFrame } })
+    const detail =
+      playbackRate === undefined ? { frame: atFrame } : { frame: atFrame, playbackRate }
+    for (const listener of set) listener({ type, detail })
   }, [])
+
+  // Change the preview speed (clamped), notifying listeners. Read by the rAF
+  // clock + the audio sync via `liveRef.current.rate`, so changing speed never
+  // tears down the playback loop.
+  const changeRate = useCallback(
+    (next: number) => {
+      const clamped = clampRate(next)
+      setRate(clamped)
+      emit('ratechange', liveRef.current.frame, clamped)
+    },
+    [emit],
+  )
+
+  // Close the speed menu on an outside click or Escape.
+  useEffect(() => {
+    if (!speedOpen) return
+    const onDown = (e: Event) => {
+      if (!speedRef.current?.contains(e.target as Node)) setSpeedOpen(false)
+    }
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') setSpeedOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [speedOpen])
 
   // Single-flight async GPU paint: render the latest target, dropping any
   // intermediate frames (the readback can't always keep up at 60fps). The busy
@@ -363,6 +412,10 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
     audioClips.forEach((clip, i) => {
       const el = audioRefs.current[i]
       if (!el) return
+      // Match the audio to the preview speed so it stays in sync with the frame
+      // clock; preserve pitch so sped-up narration doesn't chipmunk.
+      el.playbackRate = rate
+      el.preservesPitch = true
       if (tc < clip.start) {
         el.pause()
         return
@@ -380,9 +433,11 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
         if (Math.abs(el.currentTime - desired) > 0.05) seekAudio(el, desired)
       }
     })
-  }, [frame, playing, audioClips, config.fps])
+  }, [frame, playing, audioClips, config.fps, rate])
 
-  // Playback paced to the composition's fps via requestAnimationFrame.
+  // Playback paced to the composition's fps via requestAnimationFrame, scaled by
+  // the preview `rate` (read live from the ref — `rate > 1` skips frames, `< 1`
+  // holds them; the renderer just draws whatever frame the clock lands on).
   useEffect(() => {
     if (!playing) return
     const frameDuration = 1000 / config.fps
@@ -390,7 +445,7 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
     let raf = 0
     const tick = (now: number) => {
       if (last === null) last = now
-      const steps = Math.floor((now - last) / frameDuration)
+      const steps = Math.floor(((now - last) * liveRef.current.rate) / frameDuration)
       if (steps > 0) {
         last = now
         setFrame((current) => {
@@ -469,6 +524,8 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
       getCurrentFrame: () => liveRef.current.frame,
       getTotalFrames: () => liveRef.current.totalFrames,
       isPlaying: () => liveRef.current.playing,
+      getPlaybackRate: () => liveRef.current.rate,
+      setPlaybackRate: changeRate,
       addEventListener: (type, listener) => {
         const map = listenersRef.current
         if (!map.has(type)) map.set(type, new Set())
@@ -478,7 +535,7 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
         listenersRef.current.get(type)?.delete(listener)
       },
     }),
-    [goToFrame, togglePlay],
+    [goToFrame, togglePlay, changeRate],
   )
 
   // Fullscreen the stage (canvas + controls). Uses the standard API with a
@@ -727,6 +784,39 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
               </div>
             )}
 
+            <div className="onda-player__speed" ref={speedRef}>
+              <button
+                type="button"
+                className={`onda-player__icon onda-player__speed-btn${rate !== 1 ? ' is-active' : ''}`}
+                onClick={() => setSpeedOpen((v) => !v)}
+                aria-label={`Playback speed: ${formatRate(rate)}`}
+                aria-haspopup="menu"
+                aria-expanded={speedOpen}
+                title="Playback speed (preview only)"
+              >
+                {formatRate(rate)}
+              </button>
+              {speedOpen && (
+                <div className="onda-player__speed-menu" role="menu" aria-label="Playback speed">
+                  {SPEED_PRESETS.map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={r === rate}
+                      className={`onda-player__speed-item${r === rate ? ' is-active' : ''}`}
+                      onClick={() => {
+                        changeRate(r)
+                        setSpeedOpen(false)
+                      }}
+                    >
+                      {formatRate(r)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <button
               type="button"
               className={`onda-player__icon${loop ? ' is-active' : ''}`}
@@ -756,6 +846,20 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
     </div>
   )
 })
+
+/** Preview-speed presets shown in the speed menu (forward only; 1 = real-time). */
+const SPEED_PRESETS = [0.25, 0.5, 1, 1.5, 2] as const
+
+/** Clamp a programmatic playback rate to the supported preview range. */
+function clampRate(rate: number): number {
+  if (!Number.isFinite(rate) || rate <= 0) return 1
+  return Math.max(0.1, Math.min(4, rate))
+}
+
+/** Format a rate for the UI, e.g. `0.5×`, `1×`, `1.5×` (≤2 decimals). */
+function formatRate(rate: number): string {
+  return `${Math.round(rate * 100) / 100}×`
+}
 
 /** Seek an `<audio>` element, swallowing the throw if it isn't seekable yet
  *  (currentTime before metadata loads). */
@@ -1054,6 +1158,33 @@ const PLAYER_CSS = `
   background: color-mix(in srgb, var(--onda-accent) 16%, transparent);
 }
 .onda-player__icon svg { display: block; }
+/* Speed: a rate button (shows e.g. "1×") that opens a preset menu above it. */
+.onda-player__speed { position: relative; display: inline-flex; flex: 0 0 auto; }
+.onda-player__speed-btn {
+  width: auto; min-width: 46px; padding: 0 10px;
+  font: 600 13px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.onda-player__speed-menu {
+  position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 6;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 4px; border-radius: 10px;
+  background: #16161c; border: 1px solid rgba(255,255,255,.14);
+  box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+.onda-player__speed-item {
+  appearance: none; border: 0; background: transparent;
+  color: rgba(255,255,255,.82); cursor: pointer;
+  font: 600 13px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap;
+  padding: 7px 12px; border-radius: 7px; min-width: 60px;
+}
+.onda-player__speed-item:hover { background: rgba(255,255,255,.1); color: #fff; }
+.onda-player__speed-item.is-active { color: var(--onda-accent); }
+.onda-player__speed-btn:focus-visible,
+.onda-player__speed-item:focus-visible {
+  outline: 2px solid var(--onda-accent); outline-offset: 2px;
+}
 /* Volume: a mute toggle + a slider that expands on hover/focus (compact). */
 .onda-player__volume { display: inline-flex; align-items: center; gap: 4px; }
 .onda-player__volume-slider {
