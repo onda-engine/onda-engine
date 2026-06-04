@@ -33,9 +33,9 @@ export interface ComponentFidelity {
 export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   AudioClip: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   AudioVisualizer: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'gradients',
+    needsFeature: null,
     backend: 'gpu_only',
   },
   BarChart: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
@@ -111,9 +111,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   },
   DrawOn: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   DynamicGrid: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'gradients',
+    needsFeature: null,
     backend: 'gpu_only',
   },
   EndCard: {
@@ -125,9 +125,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   FadeIn: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   FadeOut: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   GradientShift: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'gradients',
+    needsFeature: null,
     backend: 'gpu_only',
   },
   GrainOverlay: {
@@ -186,20 +186,20 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   MeshGradient: {
     fidelity: 'degraded',
     engineNative: true,
-    needsFeature: 'gradients',
+    needsFeature: 'mesh gradient',
     backend: 'gpu_only',
   },
   NodeGraph: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'gradients',
+    needsFeature: null,
     backend: 'gpu_only',
   },
   Parallax: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   PieReveal: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'gradients',
+    needsFeature: null,
     backend: 'gpu_only',
   },
   PricingCard: {
@@ -241,9 +241,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'both',
   },
   ShimmerSweep: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'gradients',
+    needsFeature: null,
     backend: 'gpu_only',
   },
   SkeletonCard: {
@@ -267,9 +267,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'both',
   },
   Spotlight: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'gradients',
+    needsFeature: null,
     backend: 'gpu_only',
   },
   SpotlightCard: {
@@ -319,8 +319,8 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
 }
 
 export const FIDELITY_SUMMARY = {
-  firstClass: 38,
-  degraded: 31,
+  firstClass: 45,
+  degraded: 24,
   apesRemotion: 1,
 } as const
 
@@ -328,6 +328,7 @@ export const FIDELITY_SUMMARY = {
  *  default to these in one read and only escalate to degraded ones on demand. */
 export const RECOMMENDED_PALETTE: readonly string[] = [
   'AudioClip',
+  'AudioVisualizer',
   'BarChart',
   'BrowserFrame',
   'CameraShake',
@@ -337,8 +338,10 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'Cursor',
   'DeviceFrame',
   'DrawOn',
+  'DynamicGrid',
   'FadeIn',
   'FadeOut',
+  'GradientShift',
   'Highlight',
   'IconPop',
   'KanbanBoard',
@@ -346,15 +349,19 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'LineChart',
   'Marquee',
   'MaskReveal',
+  'NodeGraph',
   'Parallax',
+  'PieReveal',
   'ProgressBar',
   'ProgressSteps',
   'PulsingIndicator',
   'QuoteCard',
   'RotateIn',
   'ScaleIn',
+  'ShimmerSweep',
   'SlideIn',
   'SlideOut',
+  'Spotlight',
   'StaggerGroup',
   'StatCard',
   'TextFadeReplace',
