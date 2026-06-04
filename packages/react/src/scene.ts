@@ -25,8 +25,10 @@ export interface Color {
 export interface Transform {
   translate?: Vec2
   scale?: Vec2
-  /** Clockwise rotation in degrees about the node's local origin. */
+  /** Clockwise rotation in degrees about `origin` (default the local origin). */
   rotate?: number
+  /** Pivot for scale + rotation in local space (CSS transform-origin). Default (0,0). */
+  origin?: Vec2
 }
 
 export interface Stroke {

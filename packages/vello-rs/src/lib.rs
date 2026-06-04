@@ -319,12 +319,16 @@ fn draw_image_data(
 }
 
 fn to_affine(t: &Transform) -> Affine {
-    // TRS about the local origin: scale, then rotate (degrees → radians,
-    // clockwise in screen space), then translate. Composed with the parent
-    // affine up the tree, so nested rotation works.
+    // TRS about `origin` (CSS transform-origin): move the pivot to 0, scale, then
+    // rotate (degrees → radians, clockwise in screen space), move it back, then
+    // the node translate. origin (0,0) reduces to the plain local-origin TRS.
+    // Composed with the parent affine up the tree, so nested transforms work.
+    let (ox, oy) = (t.origin.x as f64, t.origin.y as f64);
     Affine::translate((t.translate.x as f64, t.translate.y as f64))
+        * Affine::translate((ox, oy))
         * Affine::rotate((t.rotate as f64).to_radians())
         * Affine::scale_non_uniform(t.scale.x as f64, t.scale.y as f64)
+        * Affine::translate((-ox, -oy))
 }
 
 fn peniko_color(color: Color, opacity: f32) -> PenikoColor {

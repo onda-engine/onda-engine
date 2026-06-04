@@ -25,9 +25,13 @@ export interface NodeProps {
   /** Scale factor (1 = identity). */
   scaleX?: number
   scaleY?: number
-  /** Clockwise rotation in degrees, about the node's local origin (0,0).
+  /** Clockwise rotation in degrees, about the transform origin (default (0,0)).
    *  Renders on the GPU (Vello) backend; the CPU reference rasterizer ignores it. */
   rotation?: number
+  /** Pivot for scale + rotation in local px (CSS transform-origin). Default (0,0).
+   *  For "about the center", pass half the node's width/height. */
+  originX?: number
+  originY?: number
   /** Opacity, 0..1. */
   opacity?: number
   /** Clip this node and its subtree to a region (local space). */

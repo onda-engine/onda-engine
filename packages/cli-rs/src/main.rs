@@ -502,8 +502,7 @@ fn render_frame_command(args: &[String]) -> Result<()> {
 fn at(x: f32, y: f32) -> Transform {
     Transform {
         translate: Vec2::new(x, y),
-        scale: Vec2::splat(1.0),
-        rotate: 0.0,
+        ..Transform::IDENTITY
     }
 }
 
@@ -1001,13 +1000,17 @@ struct Raw {
     severity: f32,
 }
 
-/// The node's affine, matching the Vello backend EXACTLY (TRS about the local
-/// origin: translate · rotate[deg] · scale) so the lint's geometry is the geometry
-/// that actually renders — including rotation, which the CPU reference drops.
+/// The node's affine, matching the Vello backend EXACTLY (TRS about `origin`:
+/// translate · originPivot · rotate[deg] · scale) so the lint's geometry is the
+/// geometry that actually renders — including rotation + transform-origin, which
+/// the CPU reference drops/folds.
 fn to_affine(t: &Transform) -> Affine {
+    let (ox, oy) = (t.origin.x as f64, t.origin.y as f64);
     Affine::translate((t.translate.x as f64, t.translate.y as f64))
+        * Affine::translate((ox, oy))
         * Affine::rotate((t.rotate as f64).to_radians())
         * Affine::scale_non_uniform(t.scale.x as f64, t.scale.y as f64)
+        * Affine::translate((-ox, -oy))
 }
 
 #[allow(clippy::too_many_arguments)]

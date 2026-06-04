@@ -254,7 +254,13 @@ function transformOf(props: Record<string, unknown>): Transform | undefined {
   if (typeof props.rotation === 'number') {
     transform.rotate = props.rotation
   }
-  return transform.translate || transform.scale || transform.rotate !== undefined
+  if (typeof props.originX === 'number' || typeof props.originY === 'number') {
+    transform.origin = { x: (props.originX as number) ?? 0, y: (props.originY as number) ?? 0 }
+  }
+  return transform.translate ||
+    transform.scale ||
+    transform.rotate !== undefined ||
+    transform.origin
     ? transform
     : undefined
 }
