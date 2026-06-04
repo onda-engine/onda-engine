@@ -40,9 +40,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   },
   BarChart: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   BentoGrid: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: false,
-    needsFeature: 'backdrop-blur',
+    needsFeature: null,
     backend: 'both',
   },
   BlurReveal: {
@@ -89,9 +89,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'both',
   },
   CodeBlock: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: false,
-    needsFeature: 'backdrop-blur',
+    needsFeature: null,
     backend: 'both',
   },
   CodeDiff: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
@@ -247,9 +247,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'gpu_only',
   },
   SkeletonCard: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: false,
-    needsFeature: 'backdrop-blur',
+    needsFeature: null,
     backend: 'both',
   },
   SlideIn: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
@@ -273,9 +273,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'gpu_only',
   },
   SpotlightCard: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: false,
-    needsFeature: 'backdrop-blur',
+    needsFeature: null,
     backend: 'both',
   },
   StaggerGroup: {
@@ -319,8 +319,8 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
 }
 
 export const FIDELITY_SUMMARY = {
-  firstClass: 57,
-  degraded: 12,
+  firstClass: 61,
+  degraded: 8,
   apesRemotion: 1,
 } as const
 
@@ -329,6 +329,7 @@ export const FIDELITY_SUMMARY = {
 export const RECOMMENDED_PALETTE: readonly string[] = [
   'AudioClip',
   'AudioVisualizer',
+  'BentoGrid',
   'BarChart',
   'Button',
   'BrowserFrame',
@@ -336,6 +337,7 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'ChapterCard',
   'CameraShake',
   'Captions',
+  'CodeBlock',
   'CodeDiff',
   'Confetti',
   'CountUp',
@@ -365,10 +367,12 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'PulsingIndicator',
   'QuoteCard',
   'RotateIn',
+  'SkeletonCard',
   'ScaleIn',
   'ShimmerSweep',
   'SlideIn',
   'SlotMachineRoll',
+  'SpotlightCard',
   'SplitScreen',
   'SlideOut',
   'Spotlight',
