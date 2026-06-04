@@ -165,6 +165,7 @@ export function InputField({
           x={0}
           y={0}
           fontSize={labelSize}
+          letterSpacing={labelSize * 0.08}
           color={labelColor}
           fontFamily={fontFamily}
           fontWeight={600}

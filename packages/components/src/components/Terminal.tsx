@@ -234,6 +234,7 @@ export function Terminal({
         x={commandX}
         y={bodyTop}
         fontSize={fontSize}
+        letterSpacing={fontSize * 0.04}
         color={textColor}
         fontFamily={fontFamily}
         fontWeight={500}

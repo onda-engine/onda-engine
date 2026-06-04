@@ -155,9 +155,14 @@ export function Button({
   const cornerRadius = cornerRadiusProp ?? theme.radius
   const radius = cornerRadius
 
+  // Letter-spacing (ondajs `-0.01em`), in engine px. Added between glyphs, so it
+  // widens the label by `tracking × (glyphs − 1)` — folded into the centering.
+  const labelTracking = fontSize * -0.01
   // Estimated label extent, used to center it over the pill. No author-time
   // engine text metrics exist, so derive from glyph count × size.
-  const labelWidth = Math.max(0, label.length) * fontSize * CHAR_WIDTH_FACTOR
+  const labelWidth =
+    Math.max(0, label.length) * fontSize * CHAR_WIDTH_FACTOR +
+    labelTracking * Math.max(0, label.length - 1)
   const lineHeight = fontSize * LINE_RATIO
   // Text places its TOP-LEFT at (x, y); offset by half the estimated extent so
   // the label sits centered on the local origin (where the pill is also centered).
@@ -195,6 +200,7 @@ export function Button({
               x={labelX}
               y={labelY}
               fontSize={fontSize}
+              letterSpacing={labelTracking}
               color={labelColor}
               fontFamily={fontFamily}
               fontWeight={fontWeight}

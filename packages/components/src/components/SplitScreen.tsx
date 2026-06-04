@@ -273,7 +273,15 @@ function Pane({
 
   // Placeholder label sizing/position when the pane has no content.
   const placeholderSize = 28
-  const labelX = Math.round((width - label.length * placeholderSize * 0.6) / 2)
+  // Letter-spacing (ondajs `0.04em`); widens the line by `tracking × (glyphs−1)`,
+  // folded into the centering so the placeholder stays centered.
+  const placeholderTracking = placeholderSize * 0.04
+  const labelX = Math.round(
+    (width -
+      (label.length * placeholderSize * 0.6 +
+        placeholderTracking * Math.max(0, label.length - 1))) /
+      2,
+  )
   const labelY = Math.round((height - placeholderSize) / 2)
 
   return (
@@ -287,6 +295,7 @@ function Pane({
             x={labelX}
             y={labelY}
             fontSize={placeholderSize}
+            letterSpacing={placeholderTracking}
             color={placeholderColor}
             fontFamily={fontFamily}
             fontWeight={500}

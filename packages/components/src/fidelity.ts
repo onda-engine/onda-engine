@@ -64,9 +64,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'both',
   },
   Button: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'letter-spacing',
+    needsFeature: null,
     backend: 'both',
   },
   Callout: {
@@ -150,9 +150,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'both',
   },
   InputField: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'letter-spacing',
+    needsFeature: null,
     backend: 'both',
   },
   KanbanBoard: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
@@ -203,9 +203,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'gpu_only',
   },
   PricingCard: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'letter-spacing',
+    needsFeature: null,
     backend: 'both',
   },
   ProgressBar: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
@@ -261,9 +261,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'both',
   },
   SplitScreen: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'letter-spacing',
+    needsFeature: null,
     backend: 'both',
   },
   Spotlight: {
@@ -286,9 +286,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   },
   StatCard: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   Terminal: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'letter-spacing',
+    needsFeature: null,
     backend: 'both',
   },
   TextFadeReplace: {
@@ -300,9 +300,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   Timeline: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   TitleCard: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   TrackingIn: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'letter-spacing',
+    needsFeature: null,
     backend: 'both',
   },
   Typewriter: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
@@ -319,8 +319,8 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
 }
 
 export const FIDELITY_SUMMARY = {
-  firstClass: 51,
-  degraded: 18,
+  firstClass: 57,
+  degraded: 12,
   apesRemotion: 1,
 } as const
 
@@ -330,6 +330,7 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'AudioClip',
   'AudioVisualizer',
   'BarChart',
+  'Button',
   'BrowserFrame',
   'Callout',
   'ChapterCard',
@@ -346,6 +347,7 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'FadeOut',
   'GradientShift',
   'Highlight',
+  'InputField',
   'IconPop',
   'KanbanBoard',
   'KenBurns',
@@ -355,6 +357,7 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'Marquee',
   'MaskReveal',
   'NodeGraph',
+  'PricingCard',
   'Parallax',
   'PieReveal',
   'ProgressBar',
@@ -366,11 +369,14 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'ShimmerSweep',
   'SlideIn',
   'SlotMachineRoll',
+  'SplitScreen',
   'SlideOut',
   'Spotlight',
   'StaggerGroup',
   'StatCard',
+  'Terminal',
   'TextFadeReplace',
+  'TrackingIn',
   'Timeline',
   'TitleCard',
   'Typewriter',
