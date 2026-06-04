@@ -1563,6 +1563,7 @@ fn measure_text(fonts: &mut FontContext, text: &Text) -> Size {
             family: r.font_family.as_deref(),
             weight: r.weight,
             italic: r.italic,
+            letter_spacing: text.letter_spacing,
         })
         .collect();
     let layout = fonts.layout_rich(&styled);

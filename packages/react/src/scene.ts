@@ -77,6 +77,7 @@ export type NodeKind =
       font_family?: string
       weight?: number
       italic?: boolean
+      letter_spacing?: number
       runs?: SceneTextRun[]
     }
   | { type: 'image'; src: string; width?: number; height?: number; fit?: ImageFit }

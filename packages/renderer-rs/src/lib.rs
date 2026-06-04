@@ -331,6 +331,9 @@ impl Renderer {
         };
         // Rich runs render per-run color/size on the GPU (Vello) backend; the CPU
         // reference draws their concatenated text in the node's color/size.
+        // `letter_spacing` is likewise GPU-only for now — this coverage path
+        // rasterizes the whole string in one pass (no per-glyph offset). Applying
+        // it here means a per-glyph rasterize; the export/preview path is Vello.
         let content = if text.runs.is_empty() {
             text.content.clone()
         } else {

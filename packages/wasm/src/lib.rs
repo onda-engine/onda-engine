@@ -29,6 +29,7 @@ fn measure_text(fonts: &mut FontContext, text: &Text) -> Size {
             family: r.font_family.as_deref(),
             weight: r.weight,
             italic: r.italic,
+            letter_spacing: text.letter_spacing,
         })
         .collect();
     let layout = fonts.layout_rich(&styled);
@@ -180,6 +181,7 @@ impl OndaEngine {
         family: Option<String>,
         weight: Option<u16>,
         italic: Option<bool>,
+        letter_spacing: Option<f32>,
     ) -> TextMetricsJs {
         let inner = self.fonts.borrow_mut().measure_with(
             content,
@@ -187,6 +189,7 @@ impl OndaEngine {
             family.as_deref(),
             weight.unwrap_or(400),
             italic.unwrap_or(false),
+            letter_spacing.unwrap_or(0.0),
         );
         TextMetricsJs { inner }
     }
