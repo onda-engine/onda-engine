@@ -41,6 +41,19 @@ export {
   RECOMMENDED_PALETTE,
 } from './fidelity.js'
 
+// The agent catalog — per-component metadata + @onda-native Zod prop schemas,
+// richer than ondajs (per-prop role/themeable, fidelity, sceneRole, examples).
+// Replaces the `ondajs` manifest as the Studio agent's single source of truth.
+export {
+  compactCatalog,
+  firstClassEntries,
+  MANIFEST,
+  MANIFEST_NAMES,
+  type ManifestEntry,
+  manifestEntry,
+  type PropMeta,
+} from './manifest.js'
+
 // Theme (brand tokens — colors, fonts, logo) via React context
 export {
   type Theme,
