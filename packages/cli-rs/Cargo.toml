@@ -24,6 +24,9 @@ onda-image = { workspace = true }
 onda-layout = { workspace = true }
 onda-typography = { workspace = true }
 onda-audio = { workspace = true, features = ["native-io"] }
+# Geometry for the structural lint: affine compose (incl. rotation, matching the
+# Vello backend) + transformed-rect bounding box. Already in the tree via Vello.
+kurbo = { workspace = true }
 # Native video-frame decode for export (shells out to ffmpeg). Behind the `video`
 # feature so the default build needs no ffmpeg at build time and stays lean.
 onda-video = { workspace = true, optional = true }

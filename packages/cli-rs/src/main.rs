@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{bail, Context, Result};
+use kurbo::{Affine, Rect};
 use onda_animation::{AnimatedScene, AudioTrack};
 use onda_core::{Size, Transform};
 use onda_renderer::{encode_gif, Framebuffer, Renderer};
@@ -548,8 +549,7 @@ fn lint_scenes(
         );
         lint_walk(
             &laid.root,
-            Transform::IDENTITY,
-            false,
+            Affine::IDENTITY,
             "0",
             cw,
             ch,
@@ -576,11 +576,19 @@ struct Raw {
     severity: f32,
 }
 
+/// The node's affine, matching the Vello backend EXACTLY (TRS about the local
+/// origin: translate · rotate[deg] · scale) so the lint's geometry is the geometry
+/// that actually renders — including rotation, which the CPU reference drops.
+fn to_affine(t: &Transform) -> Affine {
+    Affine::translate((t.translate.x as f64, t.translate.y as f64))
+        * Affine::rotate((t.rotate as f64).to_radians())
+        * Affine::scale_non_uniform(t.scale.x as f64, t.scale.y as f64)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn lint_walk(
     node: &Node,
-    parent: Transform,
-    rotated: bool,
+    parent: Affine,
     path: &str,
     cw: f32,
     ch: f32,
@@ -589,19 +597,25 @@ fn lint_walk(
     raws: &mut Vec<Raw>,
     visited: &mut std::collections::HashMap<String, u32>,
 ) {
-    // translate + scale compose down (`then` drops rotation); track whether this
-    // element or an ancestor is rotated so we can skip its (now-wrong) AABB.
-    let rotated = rotated || node.transform.rotate.abs() > 1e-3;
-    let t = parent.then(&node.transform);
-    let (x, y) = (t.translate.x, t.translate.y);
-    let (sx, sy) = (t.scale.x.abs(), t.scale.y.abs());
+    // Compose down the tree the way the renderer does (parent · local), so a box
+    // here is where the pixels land — rotation and nested transforms included.
+    let affine = parent * to_affine(&node.transform);
+    // Effective vertical scale = length of the y-basis vector (c,d) — captures
+    // non-uniform scale and stays 1.0 under pure rotation (text keeps its size).
+    let [_, _, c, d, _, _] = affine.as_coeffs();
+    let vscale = (c * c + d * d).sqrt() as f32;
     match &node.kind {
         NodeKind::Text(text) => {
             let size = measure_text(&mut fonts.borrow_mut(), text);
-            let (w, h) = (size.width * sx, size.height * sy);
+            let bbox = affine.transform_rect_bbox(Rect::new(
+                0.0,
+                0.0,
+                size.width as f64,
+                size.height as f64,
+            ));
             let label = text_label(text);
             mark_visited(visited, path, &label);
-            let eff = text.font_size * sy;
+            let eff = text.font_size * vscale;
             if eff > 0.0 && eff < 12.0 {
                 record(
                     raws,
@@ -610,7 +624,7 @@ fn lint_walk(
                     "TINY_TEXT",
                     "warning",
                     &label,
-                    [x, y, w, h],
+                    rect_xywh(bbox),
                     format!("text \"{label}\" renders at ~{eff:.0}px — likely illegible (< 12px)"),
                     "increase the font size",
                     12.0 - eff,
@@ -623,69 +637,33 @@ fn lint_walk(
                     "HUGE_TEXT",
                     "info",
                     &label,
-                    [x, y, w, h],
+                    rect_xywh(bbox),
                     format!("text \"{label}\" renders at ~{eff:.0}px — very large (> 200px)"),
                     "reduce the font size if this is unintended",
                     eff,
                 );
             }
-            check_bounds(raws, frame, path, &label, true, rotated, x, y, w, h, cw, ch);
+            check_bounds(raws, frame, path, &label, true, bbox, cw, ch);
         }
         NodeKind::Shape(shape) => {
             if let Some((w0, h0)) = shape_size(&shape.geometry) {
                 mark_visited(visited, path, "shape");
-                check_bounds(
-                    raws,
-                    frame,
-                    path,
-                    "shape",
-                    false,
-                    rotated,
-                    x,
-                    y,
-                    w0 * sx,
-                    h0 * sy,
-                    cw,
-                    ch,
-                );
+                let bbox = affine.transform_rect_bbox(Rect::new(0.0, 0.0, w0 as f64, h0 as f64));
+                check_bounds(raws, frame, path, "shape", false, bbox, cw, ch);
             }
         }
         NodeKind::Image(im) => {
             if let (Some(w0), Some(h0)) = (im.width, im.height) {
                 mark_visited(visited, path, "image");
-                check_bounds(
-                    raws,
-                    frame,
-                    path,
-                    "image",
-                    false,
-                    rotated,
-                    x,
-                    y,
-                    w0 * sx,
-                    h0 * sy,
-                    cw,
-                    ch,
-                );
+                let bbox = affine.transform_rect_bbox(Rect::new(0.0, 0.0, w0 as f64, h0 as f64));
+                check_bounds(raws, frame, path, "image", false, bbox, cw, ch);
             }
         }
         NodeKind::Video(v) => {
             if let (Some(w0), Some(h0)) = (v.width, v.height) {
                 mark_visited(visited, path, "video");
-                check_bounds(
-                    raws,
-                    frame,
-                    path,
-                    "video",
-                    false,
-                    rotated,
-                    x,
-                    y,
-                    w0 * sx,
-                    h0 * sy,
-                    cw,
-                    ch,
-                );
+                let bbox = affine.transform_rect_bbox(Rect::new(0.0, 0.0, w0 as f64, h0 as f64));
+                check_bounds(raws, frame, path, "video", false, bbox, cw, ch);
             }
         }
         _ => {}
@@ -694,8 +672,7 @@ fn lint_walk(
         let child_path = format!("{path}/{i}");
         lint_walk(
             child,
-            t,
-            rotated,
+            affine,
             &child_path,
             cw,
             ch,
@@ -707,13 +684,25 @@ fn lint_walk(
     }
 }
 
+/// A kurbo `Rect` as the diagnostic's `[x, y, w, h]` (top-left + size).
+fn rect_xywh(r: Rect) -> [f32; 4] {
+    [
+        r.x0 as f32,
+        r.y0 as f32,
+        r.width() as f32,
+        r.height() as f32,
+    ]
+}
+
 /// Count one sampled-frame appearance of an element (stable `path|label` identity).
 fn mark_visited(visited: &mut std::collections::HashMap<String, u32>, path: &str, label: &str) {
     *visited.entry(format!("{path}|{label}")).or_insert(0) += 1;
 }
 
-/// Record an element whose box extends meaningfully (> 8px) beyond the canvas —
-/// unless it's rotated (box untrustworthy) or a full-bleed background (intentional).
+/// Record an element whose rendered AABB extends meaningfully (> 8px) beyond the
+/// canvas — unless it's a full-bleed background (its overhang is intentional). The
+/// `bbox` is already the true post-transform AABB (rotation included), so this is
+/// the box the renderer actually paints.
 #[allow(clippy::too_many_arguments)]
 fn check_bounds(
     raws: &mut Vec<Raw>,
@@ -721,31 +710,24 @@ fn check_bounds(
     path: &str,
     label: &str,
     is_text: bool,
-    rotated: bool,
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
+    bbox: Rect,
     cw: f32,
     ch: f32,
 ) {
-    const TOL: f32 = 8.0;
-    // A rotated element's axis-aligned box is wrong (we drop rotation, as the CPU
-    // path does) — don't infer off-canvas from a box we can't trust.
-    if rotated {
-        return;
-    }
+    const TOL: f64 = 8.0;
+    let (cw, ch) = (cw as f64, ch as f64);
     // A non-text element whose box CONTAINS the whole canvas is a full-bleed
     // background / cover fill, not a drifting element — its overhang is intentional.
-    let covers = x <= TOL && y <= TOL && (x + w) >= cw - TOL && (y + h) >= ch - TOL;
+    let covers = bbox.x0 <= TOL && bbox.y0 <= TOL && bbox.x1 >= cw - TOL && bbox.y1 >= ch - TOL;
     if !is_text && covers {
         return;
     }
-    let (over_r, over_l, over_b, over_t) = (x + w - cw, -x, y + h - ch, -y);
+    let (over_r, over_l, over_b, over_t) = (bbox.x1 - cw, -bbox.x0, bbox.y1 - ch, -bbox.y0);
     let max_over = over_r.max(over_l).max(over_b).max(over_t);
     if max_over <= TOL {
         return;
     }
+    let (x, y, w, h) = (bbox.x0, bbox.y0, bbox.width(), bbox.height());
     // A text node spilling off the right/bottom (and not the left/top) reads as an
     // overflow (too wide / too big); anything else is a positioning problem.
     let overflow = is_text && over_l <= TOL && over_t <= TOL && (over_r > TOL || over_b > TOL);
@@ -757,12 +739,12 @@ fn check_bounds(
             "TEXT_OVERFLOW",
             "warning",
             label,
-            [x, y, w, h],
+            rect_xywh(bbox),
             format!(
                 "text \"{label}\" ({w:.0}px wide) extends {max_over:.0}px past the canvas edge"
             ),
             "reduce its font size or width, or move it inward",
-            max_over,
+            max_over as f32,
         );
     } else {
         record(
@@ -772,10 +754,10 @@ fn check_bounds(
             "OFF_CANVAS",
             "warning",
             label,
-            [x, y, w, h],
+            rect_xywh(bbox),
             format!("{label} (box {x:.0},{y:.0} {w:.0}×{h:.0}) is {max_over:.0}px off-canvas"),
             "reposition it within the composition bounds",
-            max_over,
+            max_over as f32,
         );
     }
 }
@@ -1637,7 +1619,7 @@ mod tests {
     }
 
     #[test]
-    fn lint_precision_suppresses_bleed_rotation_and_transients() {
+    fn lint_precision_bleed_rotation_and_transients() {
         let fonts = || RefCell::new(measure_font_context(FontMode::Bundled, &[]));
 
         // 1. Full-bleed background (2000×1200 bleeding past a 1920×1080 canvas) →
@@ -1653,17 +1635,38 @@ mod tests {
             "full-bleed background must not be flagged off-canvas"
         );
 
-        // 2. A rotated shape pushed off-canvas → its axis-aligned box is wrong, so
-        //    we don't guess → no flag.
-        let rot = r#"{"composition":{"width":200,"height":200,"fps":30.0,"duration_in_frames":1},
+        // 2a. Rotation is ACCOUNTED for (matches the Vello backend), not skipped: a
+        //     200×100 rect rotated 90° has a 100×200 AABB swung off the origin, so
+        //     it's flagged off-canvas AND its reported box has swapped dimensions.
+        let rot90 = r#"{"composition":{"width":400,"height":400,"fps":30.0,"duration_in_frames":1},
           "root":{"kind":{"type":"group"},"children":[
-            {"transform":{"translate":{"x":-120.0,"y":50.0},"rotate":0.6},
+            {"transform":{"translate":{"x":0.0,"y":0.0},"rotate":90.0},
+             "kind":{"type":"shape","geometry":{"shape":"rect","size":{"width":200.0,"height":100.0}},"fill":{"r":1.0,"g":1.0,"b":1.0}},
+             "children":[]}]}}"#;
+        let s: Scene = serde_json::from_str(rot90).unwrap();
+        let d = lint_scenes(&[s], &[0], &fonts());
+        let off = d.iter().find(|x| x["issue"] == "OFF_CANVAS");
+        let b = off
+            .expect("rotated rect off the origin must be flagged")
+            .get("box")
+            .unwrap();
+        let (w, h) = (b[2].as_f64().unwrap(), b[3].as_f64().unwrap());
+        assert!(
+            (w - 100.0).abs() < 1.0 && (h - 200.0).abs() < 1.0,
+            "90°-rotated 200×100 rect should report a 100×200 AABB, got {w}×{h}"
+        );
+
+        // 2b. A rotated element that still FITS the canvas must not be flagged — a
+        //     100×100 square at (150,150) rotated 45° stays within a 400×400 canvas.
+        let rot_fits = r#"{"composition":{"width":400,"height":400,"fps":30.0,"duration_in_frames":1},
+          "root":{"kind":{"type":"group"},"children":[
+            {"transform":{"translate":{"x":150.0,"y":150.0},"rotate":45.0},
              "kind":{"type":"shape","geometry":{"shape":"rect","size":{"width":100.0,"height":100.0}},"fill":{"r":1.0,"g":1.0,"b":1.0}},
              "children":[]}]}}"#;
-        let s: Scene = serde_json::from_str(rot).unwrap();
+        let s: Scene = serde_json::from_str(rot_fits).unwrap();
         assert!(
             lint_scenes(&[s], &[0], &fonts()).is_empty(),
-            "rotated off-canvas element must not be flagged (box untrustworthy)"
+            "an in-bounds rotated element must not be flagged"
         );
 
         // 3 & 4. A title that slides in (off-canvas only on frame 0 of 8) is a
