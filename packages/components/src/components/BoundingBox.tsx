@@ -83,6 +83,7 @@ export function BoundingBox({
   delay = 0,
   drawDuration = DURATION.slow,
   strokeWidth = 3,
+  cornerRadius = 0,
   labelColor = '#08080a',
   fontSize = 16,
   fontFamily: fontFamilyProp,
@@ -112,18 +113,11 @@ export function BoundingBox({
     extrapolateRight: 'clamp',
     easing: HOUSE_EASE,
   })
-  // Real draw-on: the stroke "travels" clockwise around the perimeter from the
-  // top-left, so the outline draws from zero like a pen. The engine has no
-  // stroke-dash, so each edge is a thin <Rect> whose length animates with the
-  // travelling pen position — Rects render on BOTH backends (unlike <Path>).
+  // Real draw-on via animated stroke-dash: one dash as long as the whole
+  // perimeter, its offset retreating to 0 as `drawProgress` → 1, so the outline
+  // is "drawn" clockwise from the top-left like a pen. Renders on both backends.
   const perim = 2 * (bw + bh)
-  const drawn = drawProgress * perim
-  // Length of the edge that begins at perimeter offset `start` and runs `len`.
-  const seg = (start: number, len: number): number => Math.max(0, Math.min(len, drawn - start))
-  const topLen = seg(0, bw) // top: left → right
-  const rightLen = seg(bw, bh) // right: top → bottom
-  const botLen = seg(bw + bh, bw) // bottom: right → left
-  const leftLen = seg(2 * bw + bh, bh) // left: bottom → top
+  const dashOffset = perim * (1 - drawProgress)
 
   // Phase 2 — the label tag comes in once the outline has essentially landed.
   const phaseTwoDelay = delay + drawDuration
@@ -145,26 +139,20 @@ export function BoundingBox({
 
   return (
     <Group x={bx} y={by}>
-      {/* The outline, drawn on edge-by-edge around the perimeter. Each edge is a
-          thin filled <Rect> grown from its start corner toward the travelling pen
-          (top L→R, right T→B, bottom R→L, left B→T), so the box draws from zero.
-          `cornerRadius` rounding isn't traced by this pen — corners stay sharp,
-          matching the default selection-marquee look. */}
-      {topLen > 0.5 ? <Rect x={0} y={0} width={topLen} height={strokeWidth} fill={color} /> : null}
-      {rightLen > 0.5 ? (
-        <Rect x={bw - strokeWidth} y={0} width={strokeWidth} height={rightLen} fill={color} />
-      ) : null}
-      {botLen > 0.5 ? (
+      {/* The outline, drawn on by an animated stroke-dash around the perimeter
+          (clockwise from the top-left). `cornerRadius` rounds the corners. */}
+      {drawProgress > 0.001 ? (
         <Rect
-          x={bw - botLen}
-          y={bh - strokeWidth}
-          width={botLen}
-          height={strokeWidth}
-          fill={color}
+          width={bw}
+          height={bh}
+          cornerRadius={cornerRadius}
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeCap="round"
+          strokeJoin="round"
+          strokeDash={[perim, perim]}
+          strokeDashOffset={dashOffset}
         />
-      ) : null}
-      {leftLen > 0.5 ? (
-        <Rect x={0} y={bh - leftLen} width={strokeWidth} height={leftLen} fill={color} />
       ) : null}
       {/* Label tag pinned above the top-left corner. Fades + scales in once the
           outline lands. Scale pivots on the tag's bottom-left (its local origin
