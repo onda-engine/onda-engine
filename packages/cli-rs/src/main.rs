@@ -15,9 +15,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{bail, Context, Result};
 use onda_animation::{AnimatedScene, AudioTrack};
-use onda_core::Size;
+use onda_core::{Size, Transform};
 use onda_renderer::{encode_gif, Framebuffer, Renderer};
-use onda_scene::{Node, NodeKind, Scene, Text};
+use onda_scene::{Node, NodeKind, Scene, ShapeGeometry, Text};
 use onda_typography::{FontContext, StyledRun};
 use onda_vello::VelloRenderer;
 
@@ -32,6 +32,8 @@ USAGE:
     onda render <scene.json> <out.png>             Render one still
     onda export <movie.json> <out.gif|.mp4>        Render a scene + timeline
     onda export-frames <frames.json> <out.gif|.mp4>  Render pre-evaluated frames
+    onda lint <frames.json> [out.json]             Geometry lint (text overflow,
+                                                   off-canvas, tiny/huge text)
 
     <scene.json>   a scene graph              (onda-scene JSON)
     <movie.json>   a scene graph + timeline   ({ \"scene\": ..., \"timeline\": ... })
@@ -241,6 +243,7 @@ fn run(args: Vec<String>) -> Result<()> {
         "render" => render_command(&args[1..]),
         "export" => export_command(&args[1..]),
         "export-frames" => export_frames_command(&args[1..]),
+        "lint" => lint_command(&args[1..]),
         other => bail!("unknown command '{other}'\n\n{USAGE}"),
     }
 }
@@ -439,6 +442,330 @@ fn export_frames_command(args: &[String]) -> Result<()> {
         }
     };
     encode_movie(&frames, fps, out, &output, &input, used, encoder, audio)
+}
+
+/// `onda lint` — the structural geometry lint (agent-vision Layer 0). The engine
+/// MEASURES what a vision model can't reliably see — text overflowing the canvas,
+/// elements off-canvas, illegibly tiny / huge text — over the LAID-OUT scene
+/// (taffy resolved, text shaped), grounded to a box + a fix. Emits a JSON
+/// `Diagnostic[]` an agent reads (cheap, deterministic) before it ever looks at a
+/// pixel. Samples a handful of frames (default 8 evenly spaced, or `--at a,b,c`).
+fn lint_command(args: &[String]) -> Result<()> {
+    let mut input: Option<&str> = None;
+    let mut output: Option<&str> = None;
+    let mut at: Option<Vec<usize>> = None;
+    let mut font = FontMode::Bundled;
+    let mut font_paths: Vec<PathBuf> = Vec::new();
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--system-fonts" => font = FontMode::System,
+            "--at" => {
+                let v = iter.next().with_context(|| {
+                    format!("--at needs frame indices, e.g. --at 0,30,60\n\n{USAGE}")
+                })?;
+                at = Some(
+                    v.split(',')
+                        .filter_map(|s| s.trim().parse::<usize>().ok())
+                        .collect(),
+                );
+            }
+            "--font" => {
+                let p = iter
+                    .next()
+                    .with_context(|| format!("--font needs a path\n\n{USAGE}"))?;
+                font_paths.push(PathBuf::from(p));
+            }
+            other if other.starts_with("--") => bail!("unknown flag '{other}'\n\n{USAGE}"),
+            other if input.is_none() => input = Some(other),
+            other if output.is_none() => output = Some(other),
+            other => bail!("unexpected argument '{other}'\n\n{USAGE}"),
+        }
+    }
+    let input = input.with_context(|| format!("lint needs a frames.json input\n\n{USAGE}"))?;
+    let json =
+        std::fs::read_to_string(input).with_context(|| format!("reading frames file '{input}'"))?;
+    let scenes: Vec<Scene> =
+        serde_json::from_str(&json).context("frames JSON is not an array of scene graphs")?;
+    if scenes.is_empty() {
+        bail!("no scenes to lint");
+    }
+    let extra_fonts = load_font_bytes(&font_paths)?;
+    let samples = at.unwrap_or_else(|| even_samples(scenes.len(), 8));
+    let fonts = RefCell::new(measure_font_context(font, &extra_fonts));
+    let diags = lint_scenes(&scenes, &samples, &fonts);
+    let out_json = serde_json::to_string_pretty(&diags).context("serializing diagnostics")?;
+    match output {
+        Some(path) => {
+            std::fs::write(path, &out_json).with_context(|| format!("writing '{path}'"))?;
+            eprintln!("lint: {} diagnostic(s) -> {path}", diags.len());
+        }
+        None => println!("{out_json}"),
+    }
+    Ok(())
+}
+
+/// `k` evenly-spaced frame indices across `len` (the midpoints of `k` slices).
+fn even_samples(len: usize, k: usize) -> Vec<usize> {
+    if len == 0 {
+        return Vec::new();
+    }
+    let k = k.clamp(1, len);
+    (0..k)
+        .map(|i| (((i as f32 + 0.5) * len as f32 / k as f32) as usize).min(len - 1))
+        .collect()
+}
+
+/// Geometry-lint the sampled scenes (laid out + text-shaped), de-duped.
+fn lint_scenes(
+    scenes: &[Scene],
+    samples: &[usize],
+    fonts: &RefCell<FontContext>,
+) -> Vec<serde_json::Value> {
+    let mut out = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for &i in samples {
+        let Some(scene) = scenes.get(i) else {
+            continue;
+        };
+        // Resolve flex layout so element boxes are absolute (the whole point —
+        // the renderer's positions, not the unlaid authoring tree).
+        let laid = if scene_has_layout(scene) {
+            let measure = |t: &Text| measure_text(&mut fonts.borrow_mut(), t);
+            onda_layout::layout(scene, &measure)
+        } else {
+            scene.clone()
+        };
+        let (cw, ch) = (
+            laid.composition.width as f32,
+            laid.composition.height as f32,
+        );
+        lint_walk(
+            &laid.root,
+            Transform::IDENTITY,
+            cw,
+            ch,
+            i,
+            fonts,
+            &mut out,
+            &mut seen,
+        );
+    }
+    out
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lint_walk(
+    node: &Node,
+    parent: Transform,
+    cw: f32,
+    ch: f32,
+    frame: usize,
+    fonts: &RefCell<FontContext>,
+    out: &mut Vec<serde_json::Value>,
+    seen: &mut std::collections::HashSet<String>,
+) {
+    // translate + scale compose down (rotation is dropped, as in the CPU path).
+    let t = parent.then(&node.transform);
+    let (x, y) = (t.translate.x, t.translate.y);
+    let (sx, sy) = (t.scale.x.abs(), t.scale.y.abs());
+    match &node.kind {
+        NodeKind::Text(text) => {
+            let size = measure_text(&mut fonts.borrow_mut(), text);
+            let (w, h) = (size.width * sx, size.height * sy);
+            let label = text_label(text);
+            let eff = text.font_size * sy;
+            if eff > 0.0 && eff < 12.0 {
+                push_diag(
+                    out,
+                    seen,
+                    frame,
+                    "TINY_TEXT",
+                    "warning",
+                    &label,
+                    [x, y, w, h],
+                    format!("text \"{label}\" renders at ~{eff:.0}px — likely illegible (< 12px)"),
+                    "increase the font size",
+                );
+            } else if eff > 200.0 {
+                push_diag(
+                    out,
+                    seen,
+                    frame,
+                    "HUGE_TEXT",
+                    "info",
+                    &label,
+                    [x, y, w, h],
+                    format!("text \"{label}\" renders at ~{eff:.0}px — very large (> 200px)"),
+                    "reduce the font size if this is unintended",
+                );
+            }
+            check_bounds(out, seen, frame, &label, true, x, y, w, h, cw, ch);
+        }
+        NodeKind::Shape(shape) => {
+            if let Some((w0, h0)) = shape_size(&shape.geometry) {
+                check_bounds(
+                    out,
+                    seen,
+                    frame,
+                    "shape",
+                    false,
+                    x,
+                    y,
+                    w0 * sx,
+                    h0 * sy,
+                    cw,
+                    ch,
+                );
+            }
+        }
+        NodeKind::Image(im) => {
+            if let (Some(w0), Some(h0)) = (im.width, im.height) {
+                check_bounds(
+                    out,
+                    seen,
+                    frame,
+                    "image",
+                    false,
+                    x,
+                    y,
+                    w0 * sx,
+                    h0 * sy,
+                    cw,
+                    ch,
+                );
+            }
+        }
+        NodeKind::Video(v) => {
+            if let (Some(w0), Some(h0)) = (v.width, v.height) {
+                check_bounds(
+                    out,
+                    seen,
+                    frame,
+                    "video",
+                    false,
+                    x,
+                    y,
+                    w0 * sx,
+                    h0 * sy,
+                    cw,
+                    ch,
+                );
+            }
+        }
+        _ => {}
+    }
+    for child in &node.children {
+        lint_walk(child, t, cw, ch, frame, fonts, out, seen);
+    }
+}
+
+/// Flag an element whose box extends meaningfully (> 8px) beyond the canvas.
+#[allow(clippy::too_many_arguments)]
+fn check_bounds(
+    out: &mut Vec<serde_json::Value>,
+    seen: &mut std::collections::HashSet<String>,
+    frame: usize,
+    label: &str,
+    is_text: bool,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    cw: f32,
+    ch: f32,
+) {
+    let (over_r, over_l, over_b, over_t) = (x + w - cw, -x, y + h - ch, -y);
+    let max_over = over_r.max(over_l).max(over_b).max(over_t);
+    if max_over <= 8.0 {
+        return;
+    }
+    // A text node spilling off the right/bottom (and not the left/top) reads as an
+    // overflow (too wide / too big); anything else is a positioning problem.
+    let overflow = is_text && over_l <= 8.0 && over_t <= 8.0 && (over_r > 8.0 || over_b > 8.0);
+    if overflow {
+        push_diag(
+            out,
+            seen,
+            frame,
+            "TEXT_OVERFLOW",
+            "warning",
+            label,
+            [x, y, w, h],
+            format!(
+                "text \"{label}\" ({w:.0}px wide) extends {max_over:.0}px past the canvas edge"
+            ),
+            "reduce its font size or width, or move it inward",
+        );
+    } else {
+        push_diag(
+            out,
+            seen,
+            frame,
+            "OFF_CANVAS",
+            "warning",
+            label,
+            [x, y, w, h],
+            format!("{label} (box {x:.0},{y:.0} {w:.0}×{h:.0}) is {max_over:.0}px off-canvas"),
+            "reposition it within the composition bounds",
+        );
+    }
+}
+
+/// Push a diagnostic, de-duped by (issue, label, rounded top-left) so the same
+/// problem across several sampled frames is reported once.
+#[allow(clippy::too_many_arguments)]
+fn push_diag(
+    out: &mut Vec<serde_json::Value>,
+    seen: &mut std::collections::HashSet<String>,
+    frame: usize,
+    issue: &str,
+    level: &str,
+    label: &str,
+    bounds: [f32; 4],
+    message: String,
+    fix: &str,
+) {
+    let key = format!("{issue}|{label}|{:.0},{:.0}", bounds[0], bounds[1]);
+    if !seen.insert(key) {
+        return;
+    }
+    out.push(serde_json::json!({
+        "level": level,
+        "issue": issue,
+        "frame": frame,
+        "label": label,
+        "box": bounds,
+        "message": message,
+        "fix": fix,
+    }));
+}
+
+/// The width/height of a shape with a finite box (rect/ellipse); `None` for paths.
+fn shape_size(geometry: &ShapeGeometry) -> Option<(f32, f32)> {
+    match geometry {
+        ShapeGeometry::Rect { size, .. } | ShapeGeometry::Ellipse { size } => {
+            Some((size.width, size.height))
+        }
+        ShapeGeometry::Path { .. } => None,
+    }
+}
+
+/// A short display label for a text node (its content, or concatenated runs).
+fn text_label(text: &Text) -> String {
+    let s = if text.content.is_empty() {
+        text.runs
+            .iter()
+            .map(|r| r.text.as_str())
+            .collect::<String>()
+    } else {
+        text.content.clone()
+    };
+    if s.chars().count() > 32 {
+        format!("{}…", s.chars().take(31).collect::<String>())
+    } else {
+        s
+    }
 }
 
 /// Collect the soundtrack from a pre-evaluated frame sequence: every
@@ -1161,6 +1488,36 @@ fn render_scene_json(json: &str, font: FontMode) -> Result<onda_renderer::Frameb
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lint_flags_off_canvas_and_passes_clean() {
+        // A 100×100 rect at x=-80 on a 200×200 canvas → 80px off-canvas left.
+        let off = r#"{"composition":{"width":200,"height":200,"fps":30.0,"duration_in_frames":1},
+          "root":{"kind":{"type":"group"},"children":[
+            {"transform":{"translate":{"x":-80.0,"y":50.0}},
+             "kind":{"type":"shape","geometry":{"shape":"rect","size":{"width":100.0,"height":100.0}},"fill":{"r":1.0,"g":1.0,"b":1.0}},
+             "children":[]}]}}"#;
+        let scene: Scene = serde_json::from_str(off).unwrap();
+        let fonts = RefCell::new(measure_font_context(FontMode::Bundled, &[]));
+        let diags = lint_scenes(&[scene], &[0], &fonts);
+        assert!(
+            diags.iter().any(|d| d["issue"] == "OFF_CANVAS"),
+            "should flag off-canvas, got {diags:?}"
+        );
+
+        // An in-bounds rect → no diagnostics.
+        let clean = r#"{"composition":{"width":200,"height":200,"fps":30.0,"duration_in_frames":1},
+          "root":{"kind":{"type":"group"},"children":[
+            {"transform":{"translate":{"x":40.0,"y":40.0}},
+             "kind":{"type":"shape","geometry":{"shape":"rect","size":{"width":80.0,"height":80.0}},"fill":{"r":1.0,"g":1.0,"b":1.0}},
+             "children":[]}]}}"#;
+        let scene2: Scene = serde_json::from_str(clean).unwrap();
+        let fonts2 = RefCell::new(measure_font_context(FontMode::Bundled, &[]));
+        assert!(
+            lint_scenes(&[scene2], &[0], &fonts2).is_empty(),
+            "clean scene → no diagnostics"
+        );
+    }
 
     const SCENE: &str = r#"{
         "composition": { "width": 40, "height": 24, "fps": 30.0, "duration_in_frames": 1 },
