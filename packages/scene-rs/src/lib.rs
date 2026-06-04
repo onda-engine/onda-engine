@@ -238,11 +238,22 @@ pub struct Text {
     /// Italic/oblique. `None` = upright.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub italic: Option<bool>,
+    /// Extra horizontal space between glyphs, in pixels (CSS `letter-spacing` /
+    /// tracking). Added on top of the shaped advance after each glyph; `0` (the
+    /// default) is natural spacing. May be negative to tighten.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub letter_spacing: f32,
     /// Rich multi-style runs. When non-empty, these replace `content` — each run
     /// is laid out inline and may override color/size/family/weight/style.
     /// Empty = a single run from `content`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub runs: Vec<TextRun>,
+}
+
+/// Serde helper: omit a zero float (keeps serialized scenes clean + back-compat).
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_zero(v: &f32) -> bool {
+    *v == 0.0
 }
 
 /// One styled span of a [`Text`]. Unset fields inherit the [`Text`]'s defaults.
@@ -323,6 +334,7 @@ impl Text {
             font_family: None,
             weight: None,
             italic: None,
+            letter_spacing: 0.0,
             runs: Vec::new(),
         }
     }
@@ -330,6 +342,12 @@ impl Text {
     /// Builder: set the font size in pixels.
     pub fn with_font_size(mut self, font_size: f32) -> Self {
         self.font_size = font_size;
+        self
+    }
+
+    /// Builder: set letter-spacing (extra px between glyphs; CSS `letter-spacing`).
+    pub fn with_letter_spacing(mut self, letter_spacing: f32) -> Self {
+        self.letter_spacing = letter_spacing;
         self
     }
 

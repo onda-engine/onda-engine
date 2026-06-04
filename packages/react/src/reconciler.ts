@@ -161,6 +161,7 @@ function toNode(node: HostNode): SceneNode {
         ...(typeof props.fontFamily === 'string' ? { font_family: props.fontFamily } : {}),
         ...(typeof props.fontWeight === 'number' ? { weight: props.fontWeight } : {}),
         ...(props.italic === true ? { italic: true } : {}),
+        ...(typeof props.letterSpacing === 'number' ? { letter_spacing: props.letterSpacing } : {}),
       }
       if (Array.isArray(props.runs)) {
         kind.runs = (props.runs as TextRunInput[]).map((r) => ({

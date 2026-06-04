@@ -212,12 +212,13 @@ impl FontContext {
     /// `"WWW"` ≫ `"iii"`), so callers size underlines/pills/carets to the real
     /// text instead of a glyph-count estimate.
     pub fn measure(&mut self, content: &str, font_size: f32) -> TextMetrics {
-        self.measure_with(content, font_size, None, 400, false)
+        self.measure_with(content, font_size, None, 400, false, 0.0)
     }
 
-    /// Measure with explicit font selection (family / weight / italic), matching
-    /// what [`FontContext::rasterize_with`] would draw — so measurement and
-    /// drawing agree.
+    /// Measure with explicit font selection (family / weight / italic) and
+    /// `letter_spacing`, matching what [`FontContext::layout_rich`] /
+    /// [`FontContext::rasterize_with`] would draw — so measurement and drawing
+    /// agree (the text-overflow lint and component layout depend on this).
     pub fn measure_with(
         &mut self,
         content: &str,
@@ -225,6 +226,7 @@ impl FontContext {
         family: Option<&str>,
         weight: u16,
         italic: bool,
+        letter_spacing: f32,
     ) -> TextMetrics {
         let line_height = font_size * 1.2;
         if content.is_empty() || font_size <= 0.0 {
@@ -262,7 +264,9 @@ impl FontContext {
         let mut descent = 0.0_f32;
         let mut first = true;
         for run in buffer.layout_runs() {
-            width = width.max(run.line_w);
+            // Letter-spacing widens the line by `spacing` per inter-glyph gap.
+            let gaps = (run.glyphs.len() as f32 - 1.0).max(0.0);
+            width = width.max(run.line_w + letter_spacing * gaps);
             bottom = bottom.max(run.line_top + run.line_height);
             // The first (often only) line sets ascent/descent: the baseline
             // (`line_y`) splits the line box into above/below.
@@ -355,9 +359,14 @@ impl FontContext {
         }
         drop(buffer);
 
+        // Letter-spacing: shift each glyph right by a cumulative offset so the
+        // gap after every glyph grows by `spacing`. Node-level (the first run's
+        // value); per-run tracking can come later. Width follows via the max x.
+        let spacing = runs.first().map_or(0.0, |r| r.letter_spacing);
+
         let mut fonts: Vec<FontBlob> = Vec::new();
         let mut glyphs = Vec::with_capacity(raw.len());
-        for (id, x, y, font_size, color, font_id) in raw {
+        for (i, (id, x, y, font_size, color, font_id)) in raw.into_iter().enumerate() {
             let font_key = match self.face_blob(font_id) {
                 Some(blob) => {
                     if !fonts.iter().any(|f| f.key == blob.key) {
@@ -369,7 +378,7 @@ impl FontContext {
             };
             glyphs.push(RichGlyph {
                 id,
-                x,
+                x: x + spacing * i as f32,
                 y,
                 font_size,
                 color,
@@ -518,6 +527,9 @@ pub struct StyledRun<'a> {
     /// CSS weight 1..=1000 (400 = normal, 700 = bold).
     pub weight: u16,
     pub italic: bool,
+    /// Extra px between glyphs (CSS `letter-spacing`); applied uniformly across
+    /// the layout. Node-level: the first run's value drives the whole layout.
+    pub letter_spacing: f32,
 }
 
 /// A laid-out glyph from [`FontContext::layout_rich`], carrying its run's size,
@@ -619,6 +631,37 @@ mod tests {
     }
 
     #[test]
+    fn letter_spacing_widens_measure_and_layout() {
+        let mut ctx = FontContext::with_default_font();
+        let tight = ctx.measure_with("Onda", 48.0, None, 400, false, 0.0);
+        let loose = ctx.measure_with("Onda", 48.0, None, 400, false, 10.0);
+        // "Onda" shapes to 4 glyphs → 3 inter-glyph gaps → +30px of tracking.
+        let dw = loose.width - tight.width;
+        assert!(
+            (28.0..=32.0).contains(&dw),
+            "letter-spacing 10 over 4 glyphs should add ~30px, got {dw}"
+        );
+
+        // layout_rich spreads glyphs by the same cumulative offset (last glyph i=3
+        // shifts by 3×spacing), so measurement and the drawn glyphs agree.
+        let sr = |ls: f32| StyledRun {
+            text: "Onda",
+            font_size: 48.0,
+            color: [1.0, 1.0, 1.0, 1.0],
+            family: None,
+            weight: 400,
+            italic: false,
+            letter_spacing: ls,
+        };
+        let max_x = |l: &RichLayout| l.glyphs.iter().map(|g| g.x).fold(0.0_f32, f32::max);
+        let spread = max_x(&ctx.layout_rich(&[sr(12.0)])) - max_x(&ctx.layout_rich(&[sr(0.0)]));
+        assert!(
+            (34.0..=38.0).contains(&spread),
+            "letter-spacing 12 should shift the last of 4 glyphs ~36px, got {spread}"
+        );
+    }
+
+    #[test]
     fn rasterizes_visible_text() {
         let mut ctx = FontContext::with_system_fonts();
         let raster = ctx
@@ -669,6 +712,7 @@ mod tests {
             family,
             weight,
             italic,
+            letter_spacing: 0.0,
         }
     }
 

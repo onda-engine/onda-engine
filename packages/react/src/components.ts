@@ -136,6 +136,9 @@ export interface TextProps extends NodeProps {
   /** CSS weight 1..1000 (700 = bold). */
   fontWeight?: number
   italic?: boolean
+  /** Extra px between glyphs (CSS `letter-spacing` / tracking). `0` = natural;
+   *  negative tightens. Applied on the GPU/preview (Vello) text path. */
+  letterSpacing?: number
   /** Rich multi-style runs. When set, these replace the text children — each run
    *  may override color/size/family/weight/style. Renders per-run on the GPU
    *  (Vello); the CPU backend draws their concatenated text in the node style. */
