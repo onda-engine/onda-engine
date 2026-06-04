@@ -43,10 +43,11 @@ OPTIONS:
     --backend <auto|vello|cpu>
                       Rendering backend. 'vello' is the GPU-native vector
                       renderer (anti-aliased fills/strokes, paths, gradients,
-                      clips, crisp text). 'cpu' is the deterministic reference
-                      rasterizer (bit-identical across machines; no AA, no
-                      strokes/paths/gradients/clips). 'auto' (default) uses
-                      Vello when a GPU is available, else falls back to CPU.
+                      clips, rotation, crisp text). 'cpu' is the pure-Rust
+                      rasterizer (tiny-skia: anti-aliased fills/strokes/
+                      gradients/paths; no rotation or clip — those are Vello-
+                      only). 'auto' (default) uses Vello when a GPU is
+                      available, else falls back to CPU.
     --encoder <auto|videotoolbox|nvenc|qsv|libx264>
                       H.264 encoder for .mp4 output. 'auto' (default) uses a
                       hardware encoder if one works on this machine, else
@@ -1312,8 +1313,8 @@ mod tests {
             render_scenes(&scenes, BackendChoice::Cpu, FontMode::Bundled, &[]).unwrap();
         assert_eq!(used, "cpu");
         assert_eq!(frames.len(), 1);
-        // The CPU backend skips paths, so the canvas stays transparent.
-        assert_eq!(frames[0].pixel(8, 8), [0, 0, 0, 0]);
+        // The CPU backend now rasterizes paths (tiny-skia) — opaque green, like Vello.
+        assert_eq!(frames[0].pixel(8, 8), [0, 255, 0, 255]);
     }
 
     #[test]
