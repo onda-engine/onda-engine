@@ -124,15 +124,29 @@ export function RgbGlitch({
 
   const common = { fontSize, fontFamily, fontWeight, italic } as const
 
-  // Draw order matters for the screen-blend approximation: coloured copies first
-  // (under, reduced opacity), white center last (on top, fully opaque) so the
-  // center text stays clean and the offset copies read as chromatic fringes.
+  // The coloured copies composite with a real `screen` blend (ondajs's
+  // mix-blend-mode: screen) so overlaps brighten toward white; the white center
+  // draws last, on top, normal-composited, so it stays clean.
   return (
     <Group>
-      <Text x={baseX - dx} y={anchorY - dy} color={redColor} opacity={channelOpacity} {...common}>
+      <Text
+        x={baseX - dx}
+        y={anchorY - dy}
+        color={redColor}
+        opacity={channelOpacity}
+        blendMode="screen"
+        {...common}
+      >
         {text}
       </Text>
-      <Text x={baseX + dx} y={anchorY + dy} color={cyanColor} opacity={channelOpacity} {...common}>
+      <Text
+        x={baseX + dx}
+        y={anchorY + dy}
+        color={cyanColor}
+        opacity={channelOpacity}
+        blendMode="screen"
+        {...common}
+      >
         {text}
       </Text>
       <Text x={baseX} y={anchorY} color={color} {...common}>
