@@ -131,10 +131,10 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'gpu_only',
   },
   GrainOverlay: {
-    fidelity: 'apes_remotion',
-    engineNative: false,
+    fidelity: 'first_class',
+    engineNative: true,
     needsFeature: null,
-    backend: 'both',
+    backend: 'gpu_only',
   },
   Highlight: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   IconPop: {
@@ -319,9 +319,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
 }
 
 export const FIDELITY_SUMMARY = {
-  firstClass: 62,
+  firstClass: 63,
   degraded: 7,
-  apesRemotion: 1,
+  apesRemotion: 0,
 } as const
 
 /** The safe, recommended palette: every first-class component. An agent can
@@ -348,6 +348,7 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'FadeIn',
   'FadeOut',
   'GradientShift',
+  'GrainOverlay',
   'Highlight',
   'InputField',
   'IconPop',
@@ -407,6 +408,9 @@ export const ENGINE_CAPABILITIES = {
     'images + video frames with cover/contain/fill fit',
     'audio decode + FFT spectrum (symphonia + rustfft)',
     'deterministic CPU==GPU verification; parallel frame export',
+    'blend modes (multiply / screen / overlay / soft-light / …, GPU)',
+    'procedural film grain (onda-noise source + overlay blend, GPU)',
+    'drop-shadow / glow (analytic blurred rounded-rect)',
     'no-Chromium export (ffmpeg / GIF / PNG)',
   ],
   unsupported: [
@@ -415,7 +419,6 @@ export const ENGINE_CAPABILITIES = {
       status: 'deferred-gpu-layer',
       guidance: "Don't author for blur; use stylized fills/gradients.",
     },
-    { feature: 'blend modes beyond src-over', status: 'deferred' },
     { feature: '3D / perspective transforms', status: '2d-affine-only' },
     { feature: 'SVG filters / embedded text+image / gradient paint', status: 'flattened-to-solid' },
     { feature: 'color / emoji glyphs / variable fonts', status: 'outline-only' },

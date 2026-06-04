@@ -94,7 +94,12 @@ fn load_node(node: &Node, base_dir: &Path) -> Result<Node, ImageError> {
 /// Decode one `src` to pixels. Returns `Ok(None)` for sources the offline pass
 /// can't resolve (e.g. remote URLs), which renderers then skip.
 fn decode_src(src: &str, base_dir: &Path) -> Result<Option<ImageData>, ImageError> {
-    if let Some(rest) = src.strip_prefix("data:") {
+    if let Some(spec) = src.strip_prefix("onda-noise:") {
+        // Procedural film grain — generated, not decoded. Deterministic per
+        // (pixel, seed), so animating `seed` (e.g. by frame) gives moving grain.
+        // Works identically on native + wasm, so preview == export.
+        Ok(Some(generate_noise(spec)?))
+    } else if let Some(rest) = src.strip_prefix("data:") {
         Ok(Some(decode_data_uri(rest)?))
     } else if src.starts_with("http://") || src.starts_with("https://") {
         Ok(None)
@@ -114,6 +119,69 @@ fn decode_src(src: &str, base_dir: &Path) -> Result<Option<ImageData>, ImageErro
             Err(e) => Err(ImageError::Io(path.display().to_string(), e)),
         }
     }
+}
+
+/// Generate procedural grain from an `onda-noise://w=..&h=..&seed=..&intensity=..&mono=..`
+/// spec: gray noise centred on 128 (the neutral value for an `overlay` blend, so
+/// it modulates luminance) at the given amplitude. `mono=0` gives per-channel
+/// (colour) grain. Deterministic per (pixel, seed).
+fn generate_noise(spec: &str) -> Result<ImageData, ImageError> {
+    let (mut w, mut h, mut seed) = (0u32, 0u32, 0u32);
+    let mut intensity = 0.1_f32;
+    let mut mono = true;
+    for kv in spec.trim_start_matches('/').trim_start_matches('?').split('&') {
+        let (k, v) = kv.split_once('=').unwrap_or((kv, ""));
+        match k {
+            "w" => w = v.parse().unwrap_or(0),
+            "h" => h = v.parse().unwrap_or(0),
+            "seed" => seed = v.parse().unwrap_or(0),
+            "intensity" => intensity = v.parse().unwrap_or(0.1),
+            "mono" => mono = v != "0",
+            _ => {}
+        }
+    }
+    if w == 0 || h == 0 {
+        return Err(ImageError::Decode("onda-noise needs w and h".into()));
+    }
+    let amp = intensity.clamp(0.0, 1.0) * 255.0;
+    let count = (w as usize) * (h as usize);
+    let mut rgba = Vec::with_capacity(count * 4);
+    let key = seed.wrapping_mul(0x9E37_79B9);
+    for i in 0..count {
+        let base = hash32(i as u32 ^ key);
+        let g = noise_val(base, amp);
+        if mono {
+            rgba.extend_from_slice(&[g, g, g, 255]);
+        } else {
+            rgba.extend_from_slice(&[
+                noise_val(hash32(base ^ 0xA5A5_A5A5), amp),
+                g,
+                noise_val(hash32(base ^ 0x5A5A_5A5A), amp),
+                255,
+            ]);
+        }
+    }
+    Ok(ImageData {
+        width: w,
+        height: h,
+        rgba: std::sync::Arc::new(rgba),
+    })
+}
+
+/// A fast integer hash (Murmur3-style finalizer) — good per-pixel scatter.
+fn hash32(mut x: u32) -> u32 {
+    x ^= x >> 16;
+    x = x.wrapping_mul(0x7feb_352d);
+    x ^= x >> 15;
+    x = x.wrapping_mul(0x846c_a68b);
+    x ^= x >> 16;
+    x
+}
+
+/// Map a hash to a grain byte centred on 128 with `amp` peak deviation.
+fn noise_val(h: u32, amp: f32) -> u8 {
+    let t = (h as f32 / u32::MAX as f32) - 0.5;
+    (128.0 + t * 2.0 * amp).clamp(0.0, 255.0) as u8
 }
 
 /// `<mediatype>[;base64],<data>` — only base64 payloads are supported (a raster
