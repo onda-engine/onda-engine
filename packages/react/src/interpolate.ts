@@ -3,9 +3,17 @@
 
 export type EasingFn = (t: number) => number
 
-/** Easing presets (match `onda-animation`'s curves). Pass any `(t) => t` too. */
+/** Easing presets + factories. Remotion-compatible: use a preset as an `EasingFn`
+ *  (`Easing.linear`, `Easing.cubic`, …) or call the `Easing.bezier(x1,y1,x2,y2)`
+ *  factory. The Remotion-named curves (`quad`/`cubic`/`sin`/`ease`/`bezier`) exist
+ *  so components authored against Remotion port without rewriting their easing. */
 export const Easing = {
   linear: (t: number) => t,
+  // Remotion-named curves (drop-in for `Easing.quad`/`.cubic`/`.sin`/`.ease`).
+  quad: (t: number) => t * t,
+  cubic: (t: number) => t * t * t,
+  sin: (t: number) => 1 - Math.cos((t * Math.PI) / 2),
+  ease: cubicBezier(0.42, 0, 1, 1),
   easeInQuad: (t: number) => t * t,
   easeOutQuad: (t: number) => 1 - (1 - t) * (1 - t),
   easeInOutQuad: (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2),
@@ -15,7 +23,9 @@ export const Easing = {
   smoothStep: (t: number) => t * t * (3 - 2 * t),
   easeInBack: (t: number) => 2.70158 * t ** 3 - 1.70158 * t ** 2,
   easeOutBack: (t: number) => 1 + 2.70158 * (t - 1) ** 3 + 1.70158 * (t - 1) ** 2,
-} satisfies Record<string, EasingFn>
+  /** CSS cubic-bézier factory — Remotion's `Easing.bezier(x1,y1,x2,y2)`. */
+  bezier: (x1: number, y1: number, x2: number, y2: number): EasingFn => cubicBezier(x1, y1, x2, y2),
+}
 
 /** A CSS-style cubic-bézier ease with control points `(x1,y1)`, `(x2,y2)` and
  *  fixed endpoints `(0,0)`–`(1,1)`. Matches `onda-animation`'s `CubicBezier`. */
