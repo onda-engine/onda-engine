@@ -57,6 +57,37 @@ impl Composition {
     }
 }
 
+/// Compositing blend mode for a node's subtree against what's behind it
+/// (CSS `mix-blend-mode`). Vello renders the full set; the CPU reference
+/// composites `Normal` (src-over) only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BlendMode {
+    #[default]
+    Normal,
+    Multiply,
+    Screen,
+    Overlay,
+    Darken,
+    Lighten,
+    ColorDodge,
+    ColorBurn,
+    HardLight,
+    SoftLight,
+    Difference,
+    Exclusion,
+    Hue,
+    Saturation,
+    Color,
+    Luminosity,
+}
+
+impl BlendMode {
+    fn is_normal(&self) -> bool {
+        matches!(self, BlendMode::Normal)
+    }
+}
+
 /// A node in the scene graph: shared properties plus a kind-specific payload and
 /// an ordered list of children. Children inherit nothing implicitly except draw
 /// order; transform/opacity composition is the renderer's job.
@@ -74,6 +105,11 @@ pub struct Node {
     /// (Vello); the CPU backend ignores it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub clip: Option<ShapeGeometry>,
+    /// Compositing blend mode for this node's subtree against the backdrop
+    /// (CSS `mix-blend-mode`). Honored by Vello; the CPU reference composites
+    /// `Normal` (src-over).
+    #[serde(default, skip_serializing_if = "BlendMode::is_normal")]
+    pub blend: BlendMode,
     /// Optional flex layout: when set, this node positions its direct children
     /// (sets their `transform.translate`) per the rules — resolved by the
     /// `onda-layout` pre-pass before rendering, so backends just draw.
@@ -121,10 +157,17 @@ impl Node {
             transform: Transform::IDENTITY,
             opacity: 1.0,
             clip: None,
+            blend: BlendMode::Normal,
             layout: None,
             kind,
             children: Vec::new(),
         }
+    }
+
+    /// Builder: set the node's blend mode (CSS `mix-blend-mode`).
+    pub fn with_blend(mut self, blend: BlendMode) -> Self {
+        self.blend = blend;
+        self
     }
 
     /// A container node.

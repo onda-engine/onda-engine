@@ -156,12 +156,34 @@ export interface Layout {
   height?: number
 }
 
+/** Compositing blend mode (CSS `mix-blend-mode`). Vello renders the full set;
+ *  the CPU reference composites `normal` only. */
+export type BlendMode =
+  | 'normal'
+  | 'multiply'
+  | 'screen'
+  | 'overlay'
+  | 'darken'
+  | 'lighten'
+  | 'color-dodge'
+  | 'color-burn'
+  | 'hard-light'
+  | 'soft-light'
+  | 'difference'
+  | 'exclusion'
+  | 'hue'
+  | 'saturation'
+  | 'color'
+  | 'luminosity'
+
 export interface SceneNode {
   id?: number
   transform?: Transform
   opacity?: number
   /** Clip this node and its subtree to a geometry (local space). */
   clip?: ShapeGeometry
+  /** Blend this node's subtree against the backdrop (CSS mix-blend-mode). */
+  blend?: BlendMode
   /** Flex-lay-out this node's direct children. */
   layout?: Layout
   kind: NodeKind

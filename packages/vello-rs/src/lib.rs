@@ -13,8 +13,8 @@ use std::collections::HashMap;
 
 use onda_core::{Color, Transform};
 use onda_scene::{
-    Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Node, NodeKind, Scene, Shadow,
-    ShapeGeometry, Text,
+    BlendMode, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Node, NodeKind,
+    Scene, Shadow, ShapeGeometry, Text,
 };
 use onda_typography::{FontContext, StyledRun};
 use vello::kurbo::{Affine, BezPath, Cap, Ellipse, Join, Rect, RoundedRect, Shape, Stroke};
@@ -185,6 +185,19 @@ fn build(
     let affine = parent * to_affine(&node.transform);
     let opacity = (parent_opacity * node.opacity).clamp(0.0, 1.0);
 
+    // A blend mode composites this node's whole subtree against the backdrop
+    // (CSS mix-blend-mode). Push a canvas-covering blend layer around everything,
+    // like clip; the subtree draws into it and composites with the chosen mode.
+    let blended = node.blend != BlendMode::Normal;
+    if blended {
+        vscene.push_layer(
+            blend_mix(node.blend),
+            1.0,
+            Affine::IDENTITY,
+            &Rect::new(-1.0e7, -1.0e7, 1.0e7, 1.0e7),
+        );
+    }
+
     // A clip on this node bounds its own drawing *and* its subtree to the clip
     // geometry (in local space). Push a clip layer, draw, then pop.
     let clipped = node.clip.is_some();
@@ -267,6 +280,9 @@ fn build(
     }
 
     if clipped {
+        vscene.pop_layer();
+    }
+    if blended {
         vscene.pop_layer();
     }
 }
@@ -383,6 +399,27 @@ fn shadow_box(geo: &ShapeGeometry, path: &BezPath, shadow: &Shadow) -> (Rect, f6
         Rect::new(x0 + ox - s, y0 + oy - s, x1 + ox + s, y1 + oy + s),
         (base_r + s).max(0.0),
     )
+}
+
+fn blend_mix(b: BlendMode) -> Mix {
+    match b {
+        BlendMode::Normal => Mix::Normal,
+        BlendMode::Multiply => Mix::Multiply,
+        BlendMode::Screen => Mix::Screen,
+        BlendMode::Overlay => Mix::Overlay,
+        BlendMode::Darken => Mix::Darken,
+        BlendMode::Lighten => Mix::Lighten,
+        BlendMode::ColorDodge => Mix::ColorDodge,
+        BlendMode::ColorBurn => Mix::ColorBurn,
+        BlendMode::HardLight => Mix::HardLight,
+        BlendMode::SoftLight => Mix::SoftLight,
+        BlendMode::Difference => Mix::Difference,
+        BlendMode::Exclusion => Mix::Exclusion,
+        BlendMode::Hue => Mix::Hue,
+        BlendMode::Saturation => Mix::Saturation,
+        BlendMode::Color => Mix::Color,
+        BlendMode::Luminosity => Mix::Luminosity,
+    }
 }
 
 fn cap_to_kurbo(c: LineCap) -> Cap {
