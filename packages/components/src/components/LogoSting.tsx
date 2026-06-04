@@ -177,17 +177,24 @@ export function LogoSting({
         <Group scaleX={scaleX} scaleY={scaleY} x={-vbMinX * scaleX} y={-vbMinY * scaleY}>
           {/* fill none ('#00000000') so only the stroke reads, like ondajs. The
               dash period is the path length; the offset retreats to 0 as the pen
-              draws. Round caps/joins keep the moving pen-tip clean. */}
-          <Path
-            d={d}
-            fill="#00000000"
-            stroke={stroke}
-            strokeWidth={strokeWidth / scaleX}
-            strokeCap="round"
-            strokeJoin="round"
-            strokeDash={[markLength, markLength]}
-            strokeDashOffset={dashOffset}
-          />
+              draws. Round caps/joins keep the moving pen-tip clean.
+              Gate on progress > 0 (like BoundingBox): at exactly 0 the whole path
+              sits in the dash gap, but the end-point lands on a dash boundary and
+              the round cap would render a stray zero-length dot at the path END
+              (the right side). Not drawing until the pen has actually started
+              avoids that artifact and keeps frame 0 clean. */}
+          {markProgress > 0.001 ? (
+            <Path
+              d={d}
+              fill="#00000000"
+              stroke={stroke}
+              strokeWidth={strokeWidth / scaleX}
+              strokeCap="round"
+              strokeJoin="round"
+              strokeDash={[markLength, markLength]}
+              strokeDashOffset={dashOffset}
+            />
+          ) : null}
         </Group>
       </Group>
 
