@@ -10,11 +10,11 @@
 //!                    (vector / layout / audio / determinism); false when it
 //!                    imitates a browser feature (blur/blend/backdrop/grain).
 //! - `needsFeature` — the single engine gap a degraded component waits on.
-//! - `backend`      — `both` renders on the CPU reference too (byte-identical
-//!                    CPU==GPU verification holds); `gpu_only` needs Vello today
-//!                    because the CPU reference rasterizes solid rect/ellipse
-//!                    only (gradients collapse to first stop; paths/strokes/
-//!                    video skipped). P1/P2 (CPU gradients + paths) promote these.
+//! - `backend`      — `both` renders byte-identically on the CPU reference too;
+//!                    `gpu_only` needs Vello for a capability the CPU reference
+//!                    lacks: **rotation**, **clipping**, or **video** decode. (The
+//!                    CPU tiny-skia backend DOES render fills, strokes, gradients,
+//!                    and Bézier paths — those are no longer GPU-only.)
 //!
 //! Agent policy: prefer `first_class` + `engineNative`; reach for `degraded`
 //! only when the design demands it; never silently pick a `gpu_only` component
@@ -58,9 +58,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'gpu_only',
   },
   BrowserFrame: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'object-fit',
+    needsFeature: null,
     backend: 'both',
   },
   Button: {
@@ -98,15 +98,15 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   Confetti: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   CountUp: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   Cursor: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'transform-origin',
+    needsFeature: null,
     backend: 'both',
   },
   DeviceFrame: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'object-fit',
+    needsFeature: null,
     backend: 'both',
   },
   DrawOn: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
@@ -138,9 +138,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   },
   Highlight: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   IconPop: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'line-cap/line-join',
+    needsFeature: null,
     backend: 'gpu_only',
   },
   ImageReveal: {
@@ -158,9 +158,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   KanbanBoard: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   KenBurns: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   LineChart: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'line-cap/line-join',
+    needsFeature: null,
     backend: 'gpu_only',
   },
   LogoSting: {
@@ -210,9 +210,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   },
   ProgressBar: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   ProgressSteps: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'color-mix',
+    needsFeature: null,
     backend: 'both',
   },
   PulsingIndicator: {
@@ -229,15 +229,15 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'both',
   },
   RotateIn: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'transform-origin',
-    backend: 'both',
+    needsFeature: null,
+    backend: 'gpu_only',
   },
   ScaleIn: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'transform-origin',
+    needsFeature: null,
     backend: 'both',
   },
   ShimmerSweep: {
@@ -319,8 +319,8 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
 }
 
 export const FIDELITY_SUMMARY = {
-  firstClass: 30,
-  degraded: 39,
+  firstClass: 38,
+  degraded: 31,
   apesRemotion: 1,
 } as const
 
@@ -329,22 +329,30 @@ export const FIDELITY_SUMMARY = {
 export const RECOMMENDED_PALETTE: readonly string[] = [
   'AudioClip',
   'BarChart',
+  'BrowserFrame',
   'CameraShake',
   'CodeDiff',
   'Confetti',
   'CountUp',
+  'Cursor',
+  'DeviceFrame',
   'DrawOn',
   'FadeIn',
   'FadeOut',
   'Highlight',
+  'IconPop',
   'KanbanBoard',
   'KenBurns',
+  'LineChart',
   'Marquee',
   'MaskReveal',
   'Parallax',
   'ProgressBar',
+  'ProgressSteps',
   'PulsingIndicator',
   'QuoteCard',
+  'RotateIn',
+  'ScaleIn',
   'SlideIn',
   'SlideOut',
   'StaggerGroup',
@@ -365,11 +373,12 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
  *  GPU vector renderer, not a headless browser. */
 export const ENGINE_CAPABILITIES = {
   supported: [
-    'vector fills / strokes / rounded-rect / arbitrary Bézier paths',
-    'linear + radial gradients with stops (GPU)',
-    'per-glyph vector text (resolution-independent)',
+    'vector fills / strokes (cap/join/dash) / rounded-rect / arbitrary Bézier paths',
+    'linear + radial gradients with stops (CPU + GPU)',
+    'per-glyph vector text (resolution-independent) with letter-spacing / tracking',
+    'author-time text metrics (measureText — size underlines/pills to real text)',
     'taffy flexbox layout (direction/justify/align/gap/padding/wrap)',
-    '2D affine transforms (translate / scale / rotate)',
+    '2D affine transforms (translate / scale / rotate) with transform-origin pivot',
     'clipping (rect / ellipse / path) in local space',
     'images + video frames with cover/contain/fill fit',
     'audio decode + FFT spectrum (symphonia + rustfft)',
@@ -383,12 +392,10 @@ export const ENGINE_CAPABILITIES = {
       guidance: "Don't author for blur; use stylized fills/gradients.",
     },
     { feature: 'blend modes beyond src-over', status: 'deferred' },
-    { feature: 'transform-origin / 3D / perspective', status: '2d-affine-only' },
-    { feature: 'letter-spacing / per-glyph tracking', status: 'not-exposed' },
-    { feature: 'author-time text metrics', status: 'size-only' },
+    { feature: '3D / perspective transforms', status: '2d-affine-only' },
     { feature: 'SVG filters / embedded text+image / gradient paint', status: 'flattened-to-solid' },
     { feature: 'color / emoji glyphs / variable fonts', status: 'outline-only' },
   ],
   backendNotes:
-    "CPU reference backend renders solid rect/ellipse only — gradients collapse to first stop; paths/strokes/video skipped. For byte-identical CPU==GPU output prefer backend:'both' components until CPU gradient+path support lands.",
+    "CPU reference (tiny-skia) renders fills, strokes (cap/join/dash), linear+radial gradients, and Bézier paths — byte-identical to Vello for those. It does NOT apply rotation or clipping (Vello-only) or decode video. A 'gpu_only' component needs one of those three; prefer 'both' components for a CPU-verified render.",
 } as const
