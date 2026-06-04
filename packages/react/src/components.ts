@@ -46,6 +46,14 @@ export interface PaintProps {
   gradient?: GradientInput
   stroke?: ColorInput
   strokeWidth?: number
+  /** Stroke end-cap (CSS stroke-linecap). Default 'butt'. */
+  strokeCap?: 'butt' | 'round' | 'square'
+  /** Stroke corner-join (CSS stroke-linejoin). Default 'miter'. */
+  strokeJoin?: 'miter' | 'round' | 'bevel'
+  /** Dash pattern: alternating on/off px (e.g. [12, 8]). Omit for solid. */
+  strokeDash?: number[]
+  /** Phase offset into the dash pattern (px) — animate for a draw-on reveal. */
+  strokeDashOffset?: number
 }
 
 export interface CompositionProps {

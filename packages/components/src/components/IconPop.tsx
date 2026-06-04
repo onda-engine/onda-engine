@@ -216,6 +216,8 @@ function renderShape(shape: IconShape, iconSize: number, color: string, strokeWi
         // Stroke width is in the 24-unit space (it scales with the group), so
         // divide by `unit` to keep the on-screen stroke ≈ `strokeWidth` px.
         strokeWidth={def.filled ? undefined : strokeWidth / unit}
+        strokeCap="round"
+        strokeJoin="round"
       />
     </Group>
   )

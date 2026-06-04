@@ -13,10 +13,11 @@ use std::collections::HashMap;
 
 use onda_core::{Color, Transform};
 use onda_scene::{
-    Gradient, GradientStop, ImageData, ImageFit, Node, NodeKind, Scene, ShapeGeometry, Text,
+    Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Node, NodeKind, Scene,
+    ShapeGeometry, Text,
 };
 use onda_typography::{FontContext, StyledRun};
-use vello::kurbo::{Affine, BezPath, Ellipse, Rect, RoundedRect, Shape, Stroke};
+use vello::kurbo::{Affine, BezPath, Cap, Ellipse, Join, Rect, RoundedRect, Shape, Stroke};
 use vello::peniko::{
     Blob, Brush, Color as PenikoColor, ColorStop, Fill, Font, Format, Gradient as PenikoGradient,
     Image as PenikoImage, Mix,
@@ -198,9 +199,18 @@ fn build(
             if let Some(brush) = fill_brush(shape.fill, shape.gradient.as_ref(), opacity) {
                 vscene.fill(Fill::NonZero, affine, &brush, None, &path);
             }
-            if let Some(stroke) = shape.stroke {
+            if let Some(stroke) = &shape.stroke {
+                let mut sk = Stroke::new(stroke.width as f64)
+                    .with_caps(cap_to_kurbo(stroke.cap))
+                    .with_join(join_to_kurbo(stroke.join));
+                if !stroke.dash.is_empty() {
+                    sk = sk.with_dashes(
+                        stroke.dash_offset as f64,
+                        stroke.dash.iter().map(|d| *d as f64),
+                    );
+                }
                 vscene.stroke(
-                    &Stroke::new(stroke.width as f64),
+                    &sk,
                     affine,
                     peniko_color(stroke.color, opacity),
                     None,
@@ -329,6 +339,22 @@ fn to_affine(t: &Transform) -> Affine {
         * Affine::rotate((t.rotate as f64).to_radians())
         * Affine::scale_non_uniform(t.scale.x as f64, t.scale.y as f64)
         * Affine::translate((-ox, -oy))
+}
+
+fn cap_to_kurbo(c: LineCap) -> Cap {
+    match c {
+        LineCap::Butt => Cap::Butt,
+        LineCap::Round => Cap::Round,
+        LineCap::Square => Cap::Square,
+    }
+}
+
+fn join_to_kurbo(j: LineJoin) -> Join {
+    match j {
+        LineJoin::Miter => Join::Miter,
+        LineJoin::Round => Join::Round,
+        LineJoin::Bevel => Join::Bevel,
+    }
 }
 
 fn peniko_color(color: Color, opacity: f32) -> PenikoColor {
