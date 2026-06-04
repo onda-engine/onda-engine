@@ -1,7 +1,7 @@
 {
   "name": "@onda/player",
   "version": "0.0.0",
-  "description": "Interactive <Player> for ONDA compositions — a real-time Canvas2D preview of the scene graph with playback controls.",
+  "description": "Interactive <Player> for ONDA compositions \u2014 a real-time Canvas2D preview of the scene graph with playback controls.",
   "license": "MIT OR Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -12,7 +12,9 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -22,11 +24,11 @@
     "@onda/react": "workspace:*"
   },
   "peerDependencies": {
-    "react": "^18.3.1"
+    "react": "^19.2.0"
   },
   "devDependencies": {
-    "@types/react": "^18.3.12",
-    "react": "^18.3.1",
+    "@types/react": "^19.2.0",
+    "react": "^19.2.0",
     "vitest": "^2.1.8"
   }
 }
