@@ -142,7 +142,11 @@ export function PricingCard({
   // and to offset the billing period after the price. The engine measures these;
   // they fall back to a glyph-count estimate until the wasm engine warms.
   const ctaMetrics = useTextMetrics(cta, ctaSize, { fontFamily: bodyFontFamily, fontWeight: 600 })
-  const priceMetrics = useTextMetrics(price, priceSize, { fontFamily, fontWeight: 600 })
+  const priceMetrics = useTextMetrics(price, priceSize, {
+    fontFamily,
+    fontWeight: 600,
+    letterSpacing: priceSize * -0.03,
+  })
 
   // Vertical cursor through the card body, accumulating each section's height.
   const tierY = padding
@@ -181,7 +185,11 @@ export function PricingCard({
   const badgeFontSize = 12
   const badgePadX = 16
   const badgeWidthRatio = 0.72
-  const badgeTextWidth = badgeLabel.length * badgeFontSize * badgeWidthRatio
+  // ondajs tracks the badge at 0.12em — widens it by tracking × (glyphs − 1).
+  const badgeTracking = badgeFontSize * 0.12
+  const badgeTextWidth =
+    badgeLabel.length * badgeFontSize * badgeWidthRatio +
+    badgeTracking * Math.max(0, badgeLabel.length - 1)
   const badgeWidth = Math.round(badgeTextWidth + badgePadX * 2)
   const badgeHeight = Math.round(badgeFontSize * LINE_RATIO + 8)
 
@@ -218,11 +226,12 @@ export function PricingCard({
 
         {/* --- Card body, inset by `padding`. --- */}
         <Group x={padding} y={0}>
-          {/* Tier name (uppercased — engine has no text-transform / letter-spacing). */}
+          {/* Tier name (uppercased, ondajs `0.16em` tracking; left-aligned). */}
           <Text
             x={0}
             y={tierY}
             fontSize={tierSize}
+            letterSpacing={tierSize * 0.16}
             color={dimColor}
             fontFamily={bodyFontFamily}
             fontWeight={600}
@@ -245,6 +254,7 @@ export function PricingCard({
                 x={badgePadX}
                 y={Math.round((badgeHeight - badgeFontSize * LINE_RATIO) / 2)}
                 fontSize={badgeFontSize}
+                letterSpacing={badgeTracking}
                 color={accent}
                 fontFamily={bodyFontFamily}
                 fontWeight={600}
@@ -254,11 +264,13 @@ export function PricingCard({
             </Group>
           ) : null}
 
-          {/* Price (large display) + billing period, baseline-aligned. */}
+          {/* Price (large display, ondajs `-0.03em`) + billing period; left-aligned,
+              billing offset uses priceMetrics which now folds in the tracking. */}
           <Text
             x={0}
             y={priceY}
             fontSize={priceSize}
+            letterSpacing={priceSize * -0.03}
             color={color}
             fontFamily={fontFamily}
             fontWeight={600}
@@ -306,6 +318,7 @@ export function PricingCard({
                   x={checkBox + checkGap}
                   y={0}
                   fontSize={featureSize}
+                  letterSpacing={featureSize * 0.01}
                   color={color}
                   fontFamily={bodyFontFamily}
                   fontWeight={400}

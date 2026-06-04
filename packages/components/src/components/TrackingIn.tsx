@@ -4,33 +4,25 @@
 //! house spring (SPRING_SMOOTH, no overshoot), fading as it settles — a
 //! confident, cinematic title entrance.
 //!
-//! Per-glyph approximation: the engine `<Text>` node has NO letter-spacing
-//! control, so each character is rendered as its own absolutely-positioned
-//! `<Text>`. Glyph x-positions interpolate from spread-out to natural advance
-//! as the spring settles. Because real per-glyph advances aren't known ahead of
-//! the layout pass, the natural advance is ESTIMATED from `fontSize`
-//! (`advanceFactor`, default 0.55× — a typical display-sans average). Tracking
-//! (em) adds `tracking * fontSize` px between glyphs, matching the CSS
-//! `letter-spacing: Xem` semantics of the original. Proportional fonts will
-//! drift slightly from a true measured layout; tune `advanceFactor` per font if
-//! exactness matters.
+//! The whole line is ONE engine `<Text>` with real **letter-spacing** (the scene
+//! `<Text>` carries a `letterSpacing` prop; `tracking * fontSize` px between
+//! glyphs = the CSS `letter-spacing: Xem` semantics of the original) — exact
+//! shaping, no per-glyph estimate.
 //!
-//! Layout note: the line's measured width changes every frame as the tracking
-//! tightens, so it is positioned ABSOLUTELY at an explicit `x`/`y` (centered by
-//! default) rather than as a `<Flex>`/`<AbsoluteFill>` child, where a per-frame
-//! width change would make the layout pass reflow/jiggle (HARD RULE 2). Glyphs
-//! are laid out around a fixed center so the line stays put while it contracts.
+//! Layout note: the line's width changes every frame as the tracking tightens,
+//! so it is MEASURED (letter-spacing-aware `useTextMetrics`) and positioned
+//! ABSOLUTELY at an explicit `x`/`y`, not as a `<Flex>`/`<AbsoluteFill>` child,
+//! where a per-frame width change would make the layout pass reflow (HARD RULE 2).
 //!
 //! Approximation — blur: ondajs starts the text soft (CSS `blur(8px)`) and
-//! sharpens as it settles; the engine has no blur/filter primitive. When `blur`
-//! is enabled this is approximated with a faint, wider-spread ghost copy of
-//! each glyph layered behind the crisp glyph, fading out as the line settles —
-//! reading as a soft edge that sharpens. It is a nod to the effect, not a true
-//! Gaussian blur.
+//! sharpens as it settles; the engine has no content-blur primitive. When `blur`
+//! is enabled this is a nod — a faint, wider-tracked ghost of the line layered
+//! behind the crisp text, fading out as it settles — not a true Gaussian blur.
 
 import { Group, Text, useVideoConfig } from '@onda/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
 export interface TrackingInProps {
@@ -58,8 +50,8 @@ export interface TrackingInProps {
   italic?: boolean
   /** Horizontal alignment of the line about `x`. Default `'center'`. */
   align?: 'left' | 'center' | 'right'
-  /** Estimated per-glyph advance as a fraction of `fontSize` (default 0.55 —
-   *  a typical display-sans average; tune per font). */
+  /** @deprecated No longer used — the line now uses real shaped letter-spacing
+   *  metrics, so no per-glyph advance estimate is needed. Accepted for compat. */
   advanceFactor?: number
   /** Absolute x anchor of the line (default canvas center). */
   x?: number
@@ -80,7 +72,6 @@ export function TrackingIn({
   fontWeight = 600,
   italic = false,
   align = 'center',
-  advanceFactor = 0.55,
   x,
   y,
 }: TrackingInProps) {
@@ -95,88 +86,63 @@ export function TrackingIn({
   // Opacity fades 0 → 1 across the settle.
   const opacity = progress
 
-  // Current tracking in em, contracting from spread → rest.
+  // Current tracking, contracting from spread → rest: em → engine px.
   const ls = fromTracking + (tracking - fromTracking) * progress
-  // Tracking contributes this many px of extra gap after each glyph.
   const trackPx = ls * fontSize
-  // Estimated natural advance per glyph (excluding tracking).
-  const charAdvance = fontSize * advanceFactor
-  // Per-glyph slot width including the current tracking. Floor the advance so
-  // negative tracking can tighten the line but never collapse a glyph onto its
-  // neighbour: the rendered glyphs are wider than `charAdvance` at display
-  // weights, so unclamped negative tracking makes them overlap (O over N,
-  // D/A merge). Keep each step at >= MIN_ADVANCE_FRACTION of the natural
-  // advance so letters touch but stay legible.
-  const MIN_ADVANCE_FRACTION = 0.85
-  const slot = Math.max(charAdvance + trackPx, charAdvance * MIN_ADVANCE_FRACTION)
 
-  // Split into characters, preserving spaces. Render every char as its own
-  // <Text> so each can be positioned independently.
-  const chars = [...text]
-  const count = chars.length
+  // ONE engine <Text> with real letter-spacing (exact shaping + tracking, no
+  // per-glyph estimate). The line's width changes every frame as it contracts;
+  // we MEASURE it (letter-spacing-aware) to keep it centered. Positioned at an
+  // explicit x/y, NOT a flex child, so the per-frame width change can't reflow.
+  const measured = useTextMetrics(text, fontSize, {
+    fontFamily,
+    fontWeight,
+    letterSpacing: trackPx,
+  })
+  const lineWidth = measured.width
 
-  // Total width of the line at the current tracking. Each step advances by the
-  // (clamped) `slot`; the last glyph adds its own advance, so width is
-  // `slot * (count - 1) + charAdvance`. Using the clamped `slot` keeps the
-  // centering anchor consistent with the actual glyph layout.
-  const lineWidth = count > 0 ? slot * Math.max(0, count - 1) + charAdvance : 0
-
-  // Anchor x: center by default. Resolve alignment about the anchor.
   const anchorX = x ?? Math.round(width / 2)
   const startX =
     align === 'center' ? anchorX - lineWidth / 2 : align === 'right' ? anchorX - lineWidth : anchorX
-
   // Vertical: roughly center the single line by offsetting the top by ~half the
   // cap height (matches Typewriter's convention).
   const py = y ?? Math.round(height / 2 - fontSize * 0.6)
 
-  // Ghost-layer (blur approximation) parameters: visible only while settling,
-  // spread slightly wider than the crisp glyphs, low opacity.
+  // Optional soft-edge "nod to blur" (the engine has no content blur): a faint,
+  // wider-tracked ghost of the line behind the crisp text, fading as it settles.
   const ghostOn = blur && progress < 1
   const ghostOpacity = ghostOn ? (1 - progress) * 0.45 * opacity : 0
-  // Extra spread for the ghost so it reads as a soft halo around each glyph.
-  const ghostExtra = (1 - progress) * fontSize * 0.06
-
-  // Cumulative x as we walk the glyphs. `slot` advances each step.
-  let cursor = startX
+  const ghostTrack = trackPx + (1 - progress) * fontSize * 0.06
 
   return (
     <Group opacity={opacity}>
-      {chars.map((ch, i) => {
-        const gx = cursor
-        cursor += slot
-        // Skip rendering spaces (they only advance the cursor).
-        if (ch === ' ') return null
-        return (
-          <Group key={`${i}-${ch}`}>
-            {ghostOpacity > 0.001 ? (
-              <Text
-                x={gx - ghostExtra}
-                y={py}
-                fontSize={fontSize}
-                color={color}
-                fontFamily={fontFamily}
-                fontWeight={fontWeight}
-                italic={italic}
-                opacity={ghostOpacity}
-              >
-                {ch}
-              </Text>
-            ) : null}
-            <Text
-              x={gx}
-              y={py}
-              fontSize={fontSize}
-              color={color}
-              fontFamily={fontFamily}
-              fontWeight={fontWeight}
-              italic={italic}
-            >
-              {ch}
-            </Text>
-          </Group>
-        )
-      })}
+      {ghostOpacity > 0.001 ? (
+        <Text
+          x={startX}
+          y={py}
+          fontSize={fontSize}
+          letterSpacing={ghostTrack}
+          color={color}
+          fontFamily={fontFamily}
+          fontWeight={fontWeight}
+          italic={italic}
+          opacity={ghostOpacity}
+        >
+          {text}
+        </Text>
+      ) : null}
+      <Text
+        x={startX}
+        y={py}
+        fontSize={fontSize}
+        letterSpacing={trackPx}
+        color={color}
+        fontFamily={fontFamily}
+        fontWeight={fontWeight}
+        italic={italic}
+      >
+        {text}
+      </Text>
     </Group>
   )
 }
