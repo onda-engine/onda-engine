@@ -148,7 +148,8 @@ export function SkeletonCard({
 
   return (
     <Group x={originX} y={originY + motion.y} opacity={motion.opacity}>
-      {/* Glass panel (flat translucent fill — no backdrop blur; see caveats). */}
+      {/* Glass panel: translucent fill + 1px border + a soft drop-shadow for
+          elevation (ondajs's box-shadow; backdrop-blur stays a non-goal). */}
       <Rect
         x={0}
         y={0}
@@ -158,6 +159,7 @@ export function SkeletonCard({
         fill={cardColor}
         stroke={borderColor}
         strokeWidth={1}
+        shadow={{ color: '#00000059', blur: 28, offsetY: 12 }}
       />
 
       {/* Placeholder content, inset by the padding. */}

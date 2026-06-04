@@ -183,7 +183,8 @@ export function SpotlightCard({
       {/* Rise translate nested inside the layout-positioned group (translate-safe:
           this group is positioned by explicit x/y above, not by a Flex). */}
       <Group y={riseY}>
-        {/* Glass surface: translucent fill + 1px border (backdrop-blur omitted). */}
+        {/* Glass surface: translucent fill + 1px border + a soft drop-shadow for
+            elevation (ondajs's box-shadow; backdrop-blur stays a non-goal). */}
         <Rect
           width={cardWidth}
           height={cardHeight}
@@ -191,6 +192,7 @@ export function SpotlightCard({
           fill={background}
           stroke={borderColor}
           strokeWidth={1}
+          shadow={{ color: '#00000059', blur: 28, offsetY: 12 }}
         />
 
         {/* Drifting spotlight behind the content, clipped to the card's rounded
