@@ -486,8 +486,16 @@ fn shape_path(geometry: &ShapeGeometry) -> BezPath {
             corner_radius,
         } => {
             let (w, h) = (size.width as f64, size.height as f64);
-            if *corner_radius > 0.0 {
-                RoundedRect::new(0.0, 0.0, w, h, *corner_radius as f64).to_path(TOL)
+            // Clamp the radius below half the shorter side. Near a stadium/pill
+            // (radius ≈ half the height, e.g. a `RECOMMENDED` badge) the rounded
+            // rect's straight edges shrink toward zero and the stroked path
+            // degenerates — leaving a stray full-width line (verified on Vello).
+            // The 2px margin keeps every pill ~4px of straight edge: visually
+            // still a perfect pill, but a well-formed, robustly-strokeable path.
+            let max_r = (w.min(h) / 2.0 - 2.0).max(0.0);
+            let r = (*corner_radius as f64).min(max_r);
+            if r > 0.0 {
+                RoundedRect::new(0.0, 0.0, w, h, r).to_path(TOL)
             } else {
                 Rect::new(0.0, 0.0, w, h).to_path(TOL)
             }

@@ -310,8 +310,11 @@ export function PricingCard({
                     d={`M ${checkBox * 0.22} ${checkBox * 0.53} L ${checkBox * 0.4} ${
                       checkBox * 0.69
                     } L ${checkBox * 0.78} ${checkBox * 0.31}`}
+                    fill="#00000000"
                     stroke={accent}
                     strokeWidth={2}
+                    strokeCap="round"
+                    strokeJoin="round"
                   />
                 </Group>
                 <Text

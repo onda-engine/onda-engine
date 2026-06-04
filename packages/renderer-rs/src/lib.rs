@@ -456,7 +456,11 @@ fn build_path(geometry: &ShapeGeometry) -> Option<tsk::Path> {
             if !(w > 0.0 && h > 0.0) {
                 return None;
             }
-            let r = corner_radius.clamp(0.0, w.min(h) / 2.0);
+            // Below half the shorter side, with a 2px margin: at the exact
+            // stadium boundary the rounded-rect path degenerates (zero-length
+            // straight edges) and a stroke leaves a stray line — keep a hair of
+            // straight edge so every pill stays well-formed (matches vello-rs).
+            let r = corner_radius.clamp(0.0, (w.min(h) / 2.0 - 2.0).max(0.0));
             if r <= 0.0 {
                 let mut pb = tsk::PathBuilder::new();
                 pb.push_rect(tsk::Rect::from_xywh(0.0, 0.0, w, h)?);
