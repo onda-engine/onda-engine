@@ -183,6 +183,10 @@ export interface ImageProps extends NodeProps {
   height?: number
   /** How to fit the image into the `width`×`height` box (default `'cover'`). */
   fit?: ImageFit
+  /** Gaussian blur radius (sigma, in source pixels) applied to the decoded image
+   *  by the engine's image pass. `0`/omitted leaves it sharp; animating it gives
+   *  a soft→sharp "focus pull" entrance. Identical on every backend. */
+  blur?: number
 }
 
 export function Image(props: ImageProps) {

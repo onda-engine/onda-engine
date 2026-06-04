@@ -101,7 +101,7 @@ export type NodeKind =
       letter_spacing?: number
       runs?: SceneTextRun[]
     }
-  | { type: 'image'; src: string; width?: number; height?: number; fit?: ImageFit }
+  | { type: 'image'; src: string; width?: number; height?: number; fit?: ImageFit; blur?: number }
   | {
       type: 'video'
       src: string

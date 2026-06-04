@@ -487,6 +487,13 @@ pub struct Image {
     /// without a box. Defaults to [`ImageFit::Cover`].
     #[serde(default)]
     pub fit: ImageFit,
+    /// Gaussian blur radius (sigma, in *source* pixels) applied to the decoded
+    /// pixels by the image-loading pass. `0` (the default) leaves the image
+    /// sharp. Animating this frame-to-frame gives a soft→sharp "focus pull"
+    /// entrance. Applied in the shared decode pass, so native, GPU and CPU
+    /// backends are byte-identical (no renderer support needed).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub blur: f32,
 }
 
 /// How a bitmap is fitted into its `width`×`height` box. The renderer — which
@@ -514,6 +521,7 @@ impl Image {
             width: None,
             height: None,
             fit: ImageFit::default(),
+            blur: 0.0,
         }
     }
 
@@ -522,6 +530,12 @@ impl Image {
         self.width = Some(width);
         self.height = Some(height);
         self.fit = fit;
+        self
+    }
+
+    /// Set the gaussian blur sigma (source pixels) applied by the decode pass.
+    pub fn with_blur(mut self, blur: f32) -> Self {
+        self.blur = blur;
         self
     }
 

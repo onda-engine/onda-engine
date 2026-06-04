@@ -2,10 +2,9 @@
 //! fingerprints (fade / scale / wipe). Ported from ondajs.
 //!
 //! ondajs wraps Remotion's `<Img>` with CSS `object-fit` and a CSS `filter:
-//! blur()` entrance. The engine's `<Image>` has neither: it draws the decoded
-//! source at its *natural pixel box* `[0,0]..[srcW,srcH]`, mapped through the
-//! node's translate + scale. So this port reproduces the behavior with scene
-//! primitives:
+//! blur()` entrance. The engine's `<Image>` reproduces both with scene
+//! primitives — `fit` for `object-fit`, and a REAL gaussian (`Image.blur`,
+//! applied in the engine's image pass) for the soft→sharp focus pull:
 //!
 //!  - Sizing / `fit`: the engine can't read the source's intrinsic dimensions
 //!    back into a pure frame→scene function, so we take them as `srcWidth` /
@@ -17,10 +16,10 @@
 //!    from the box.
 //!  - Box: defaults to the full composition (the ondajs "hero photo" fill case).
 //!    Pass `width`/`height` (and `x`/`y`) to place a sized sub-canvas image.
-//!  - `motion`: `'fade'` (opacity), `'scale'` (opacity + subtle 0.95→1, no
-//!    overshoot — the ondajs `entryScale` fingerprint), and `'wipe'` — a
-//!    left→right clip reveal that REPLACES ondajs's `'blur'` variant (the engine
-//!    has no blur filter; a clip-wipe is the closest faithful image entrance).
+//!  - `motion`: `'blur'` (opacity + a real soft→sharp focus pull, the ondajs
+//!    default, now backed by the engine's `Image.blur` gaussian), `'fade'`
+//!    (opacity), `'scale'` (opacity + subtle 0.95→1, no overshoot — the ondajs
+//!    `entryScale` fingerprint), and `'wipe'` (a left→right clip reveal).
 //!
 //! Pivot note: scene scale is about a node's local origin, so the `'scale'`
 //! variant nests an inner group at the box CENTER and draws the image offset by
@@ -31,9 +30,9 @@ import { entryFade, entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
 
-/** Which entrance fingerprint the image uses. `'wipe'` replaces ondajs's
- *  blur-rise variant (the engine has no blur filter). */
-export type ImageRevealMotion = 'fade' | 'scale' | 'wipe'
+/** Which entrance fingerprint the image uses. `'blur'` is the ondajs default —
+ *  a real soft→sharp focus pull via the engine's `Image.blur` gaussian. */
+export type ImageRevealMotion = 'blur' | 'fade' | 'scale' | 'wipe'
 
 /** How the image fills its box. Both require `srcWidth`/`srcHeight` to differ
  *  from a plain stretch — see the file doc comment. */
@@ -42,8 +41,11 @@ export type ImageRevealFit = 'cover' | 'contain'
 export interface ImageRevealProps {
   /** Image URL or path (resolved at render time). */
   src: string
-  /** Which motion fingerprint the entrance uses (default `'wipe'`). */
+  /** Which motion fingerprint the entrance uses (default `'blur'`). */
   motion?: ImageRevealMotion
+  /** Peak blur for the `'blur'` motion — the sigma (source px) the image starts
+   *  at before resolving to sharp. Ignored by the other motions. Default `24`. */
+  blurAmount?: number
   /** How the image fits its box (default `'cover'`). */
   fit?: ImageRevealFit
   /** Frames to fully reveal (default `DURATION.base` = 18). */
@@ -64,7 +66,8 @@ export interface ImageRevealProps {
 
 export function ImageReveal({
   src,
-  motion = 'wipe',
+  motion = 'blur',
+  blurAmount = 24,
   fit = 'cover',
   durationInFrames = DURATION.base,
   delay = 0,
@@ -95,6 +98,18 @@ export function ImageReveal({
   // The image, fitted into the box by the renderer (it measures the decoded
   // pixels). The wrapping group's clip crops `cover`; `contain` letterboxes.
   const image = <Image src={src} width={boxW} height={boxH} fit={fit} />
+
+  if (motion === 'blur') {
+    // Soft→sharp focus pull: the decoded image carries a gaussian sigma that
+    // retreats `blurAmount` → 0 as the spring fades it in — a REAL engine blur
+    // (the ondajs `filter: blur()` entrance), identical on GPU/CPU/native.
+    const sigma = Math.max(0, (1 - fade.opacity) * blurAmount)
+    return (
+      <Group x={x} y={y} opacity={fade.opacity} clip={clipRect(boxW, boxH, cornerRadius)}>
+        <Image src={src} width={boxW} height={boxH} fit={fit} blur={sigma} />
+      </Group>
+    )
+  }
 
   if (motion === 'fade') {
     return (

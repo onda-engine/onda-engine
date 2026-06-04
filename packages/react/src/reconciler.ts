@@ -189,6 +189,7 @@ function toNode(node: HostNode): SceneNode {
           ...(props.fit === 'fill' || props.fit === 'cover' || props.fit === 'contain'
             ? { fit: props.fit }
             : {}),
+          ...(typeof props.blur === 'number' && props.blur > 0 ? { blur: props.blur } : {}),
         },
         ...withChildren,
       }
