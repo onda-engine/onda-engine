@@ -12,13 +12,16 @@
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use kurbo::{Affine, Rect};
 use onda_animation::{AnimatedScene, AudioTrack};
-use onda_core::{Size, Transform};
+use onda_core::{Color, Size, Transform, Vec2};
 use onda_renderer::{encode_gif, Framebuffer, Renderer};
-use onda_scene::{Node, NodeKind, Scene, ShapeGeometry, Text};
+use onda_scene::{
+    Composition, Image, ImageData, ImageFit, Node, NodeKind, Scene, Shape, ShapeGeometry, Text,
+};
 use onda_typography::{FontContext, StyledRun};
 use onda_vello::VelloRenderer;
 
@@ -37,6 +40,8 @@ USAGE:
                                                    off-canvas, tiny/huge text)
     onda render-frame <frames.json> <out.png>      Render ONE frame full-res
                                                    (--frame N); --crop a region
+    onda contact-sheet <frames.json> <out.png>     Tile N frames + overlay the
+                                                   lint's numbered problem boxes
 
     <scene.json>   a scene graph              (onda-scene JSON)
     <movie.json>   a scene graph + timeline   ({ \"scene\": ..., \"timeline\": ... })
@@ -69,6 +74,9 @@ OPTIONS:
     --crop <x,y,w,h>  For `render-frame`: write only this region (e.g. a lint
                       `box`), so a flagged area is read at full res, not upscaled.
     --pad <px>        For `render-frame`: grow --crop by this many px per side.
+    --cells <N>       For `contact-sheet`: how many frames to tile (default 8).
+    --cols <C>        For `contact-sheet`: grid columns (default 4).
+    --cell-width <W>  For `contact-sheet`: thumbnail width in px (default 360).
     -h, --help        Print this help
     -V, --version     Print version
 ";
@@ -249,6 +257,7 @@ fn run(args: Vec<String>) -> Result<()> {
         }
         "render" => render_command(&args[1..]),
         "render-frame" => render_frame_command(&args[1..]),
+        "contact-sheet" => contact_sheet_command(&args[1..]),
         "export" => export_command(&args[1..]),
         "export-frames" => export_frames_command(&args[1..]),
         "lint" => lint_command(&args[1..]),
@@ -484,6 +493,290 @@ fn render_frame_command(args: &[String]) -> Result<()> {
         fb.width(),
         fb.height()
     );
+    Ok(())
+}
+
+// ---- contact sheet (agent-vision Layer 1) -------------------------------------
+
+/// A translate-only transform (the sheet positions everything absolutely).
+fn at(x: f32, y: f32) -> Transform {
+    Transform {
+        translate: Vec2::new(x, y),
+        scale: Vec2::splat(1.0),
+        rotate: 0.0,
+    }
+}
+
+/// A text node at `(x, y)`.
+fn sheet_text(content: impl Into<String>, x: f32, y: f32, size: f32, color: Color) -> Node {
+    Node::new(NodeKind::Text(
+        Text::new(content).with_font_size(size).with_color(color),
+    ))
+    .with_transform(at(x, y))
+}
+
+/// A solid-filled rect at `(x, y)`.
+fn sheet_fill(x: f32, y: f32, w: f32, h: f32, color: Color) -> Node {
+    Node::new(NodeKind::Shape(
+        Shape::rect(Size::new(w, h)).with_fill(color),
+    ))
+    .with_transform(at(x, y))
+}
+
+/// A stroked (outline-only) rect at `(x, y)`.
+fn sheet_stroke(x: f32, y: f32, w: f32, h: f32, color: Color, width: f32) -> Node {
+    Node::new(NodeKind::Shape(
+        Shape::rect(Size::new(w.max(1.0), h.max(1.0))).with_stroke(color, width),
+    ))
+    .with_transform(at(x, y))
+}
+
+/// An already-rendered frame embedded as an `Image` node, scaled into a `w×h`
+/// cell — the engine does the downscale (we dogfood our own image path).
+fn sheet_image(fb: &Framebuffer, x: f32, y: f32, w: f32, h: f32) -> Node {
+    let data = ImageData {
+        width: fb.width(),
+        height: fb.height(),
+        rgba: Arc::new(fb.as_bytes().to_vec()),
+    };
+    Node::new(NodeKind::Image(
+        Image::new("mem://frame")
+            .with_data(data)
+            .with_box(w, h, ImageFit::Fill),
+    ))
+    .with_transform(at(x, y))
+}
+
+/// `onda contact-sheet <frames.json> <out.png> [--cells N] [--cols C] [--cell-width W]`
+/// — agent-vision Layer 1: tile N sampled frames into ONE labeled image and overlay
+/// the Layer-0 lint's problem boxes as numbered Set-of-Mark chips. The gestalt view
+/// (hierarchy, pacing, color) the structural lint can't judge. The sheet is itself a
+/// composition of Image+Text+Shape nodes, rendered by the engine.
+fn contact_sheet_command(args: &[String]) -> Result<()> {
+    let mut input: Option<&str> = None;
+    let mut output: Option<&str> = None;
+    let mut cells: usize = 8;
+    let mut cols: usize = 4;
+    let mut cell_width: f32 = 360.0;
+    let mut font = FontMode::Bundled;
+    let mut backend = BackendChoice::Auto;
+    let mut font_paths: Vec<PathBuf> = Vec::new();
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--system-fonts" => font = FontMode::System,
+            "--cells" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--cells needs a value\n\n{USAGE}"))?;
+                cells = v
+                    .trim()
+                    .parse::<usize>()
+                    .with_context(|| format!("--cells '{v}' is not a number"))?
+                    .max(1);
+            }
+            "--cols" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--cols needs a value\n\n{USAGE}"))?;
+                cols = v
+                    .trim()
+                    .parse::<usize>()
+                    .with_context(|| format!("--cols '{v}' is not a number"))?
+                    .max(1);
+            }
+            "--cell-width" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--cell-width needs a value\n\n{USAGE}"))?;
+                cell_width = v
+                    .trim()
+                    .parse::<f32>()
+                    .with_context(|| format!("--cell-width '{v}' is not a number"))?
+                    .max(32.0);
+            }
+            "--backend" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--backend needs a value\n\n{USAGE}"))?;
+                backend = match v.as_str() {
+                    "auto" => BackendChoice::Auto,
+                    "vello" | "gpu" => BackendChoice::Vello,
+                    "cpu" => BackendChoice::Cpu,
+                    other => {
+                        bail!("unknown backend '{other}' — use auto, vello, or cpu\n\n{USAGE}")
+                    }
+                };
+            }
+            "--font" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--font needs a path\n\n{USAGE}"))?;
+                font_paths.push(PathBuf::from(v));
+            }
+            other if other.starts_with("--") => bail!("unknown flag '{other}'\n\n{USAGE}"),
+            other if input.is_none() => input = Some(other),
+            other if output.is_none() => output = Some(other),
+            other => bail!("unexpected argument '{other}'\n\n{USAGE}"),
+        }
+    }
+    let input =
+        input.with_context(|| format!("contact-sheet needs a frames.json input\n\n{USAGE}"))?;
+    let output =
+        output.with_context(|| format!("contact-sheet needs an output .png path\n\n{USAGE}"))?;
+    let json =
+        std::fs::read_to_string(input).with_context(|| format!("reading frames file '{input}'"))?;
+    let scenes: Vec<Scene> =
+        serde_json::from_str(&json).context("frames JSON is not an array of scene graphs")?;
+    if scenes.is_empty() {
+        bail!("no frames to tile");
+    }
+
+    let extra_fonts = load_font_bytes(&font_paths)?;
+    let samples = even_samples(scenes.len(), cells);
+    let cols = cols.min(samples.len()).max(1);
+    let rows = samples.len().div_ceil(cols);
+
+    // Layer 0 on the same sampled frames, so a mark's `frame` lands in a tile.
+    let fonts = RefCell::new(measure_font_context(font, &extra_fonts));
+    let diags = lint_scenes(&scenes, &samples, &fonts);
+
+    // All tiles share the composition's aspect, so Fill scales without distortion.
+    let comp = &scenes[0].composition;
+    let (comp_w, comp_h) = (comp.width as f32, comp.height as f32);
+    let cell_w = cell_width;
+    let cell_h = (cell_w * comp_h / comp_w).round();
+    let scale = cell_w / comp_w;
+
+    let (margin, gutter, label_h) = (24.0_f32, 16.0_f32, 26.0_f32);
+    let block_h = label_h + cell_h;
+    let sheet_w = margin * 2.0 + cols as f32 * cell_w + (cols as f32 - 1.0) * gutter;
+    let sheet_h = margin * 2.0 + rows as f32 * block_h + (rows as f32 - 1.0) * gutter;
+    let cell_origin = |c: usize| -> (f32, f32) {
+        let (col, row) = (c % cols, c / cols);
+        (
+            margin + col as f32 * (cell_w + gutter),
+            margin + row as f32 * (block_h + gutter),
+        )
+    };
+
+    // Render the sampled frames (pre-passed like `onda render`) in one batch.
+    let base_dir = Path::new(input).parent().unwrap_or_else(|| Path::new(""));
+    let prepped: Vec<Scene> = samples
+        .iter()
+        .map(|&s| {
+            let scene = onda_svg::expand_svg(&scenes[s], base_dir).context("expanding <svg>")?;
+            #[cfg(feature = "video")]
+            let scene = onda_video::load_video_frames(&scene).context("decoding video")?;
+            onda_image::load_images(&scene, base_dir).context("loading images")
+        })
+        .collect::<Result<_>>()?;
+    let (fbs, used) = render_scenes(&prepped, backend, font, &extra_fonts)
+        .context("rendering frames for the contact sheet")?;
+
+    // Build the sheet as a scene graph: background, then per cell a label + the
+    // scaled frame + a hairline border.
+    let mut children = vec![sheet_fill(
+        0.0,
+        0.0,
+        sheet_w,
+        sheet_h,
+        Color::rgb(0.078, 0.094, 0.122),
+    )];
+    let mut frame_cell = std::collections::HashMap::new();
+    for (c, &s) in samples.iter().enumerate() {
+        frame_cell.insert(s, c);
+        let (cx, cy) = cell_origin(c);
+        children.push(sheet_text(
+            format!("frame {s}"),
+            cx,
+            cy + 4.0,
+            15.0,
+            Color::rgb(0.78, 0.83, 0.9),
+        ));
+        children.push(sheet_image(&fbs[c], cx, cy + label_h, cell_w, cell_h));
+        children.push(sheet_stroke(
+            cx,
+            cy + label_h,
+            cell_w,
+            cell_h,
+            Color::rgb(0.2, 0.24, 0.3),
+            1.0,
+        ));
+    }
+
+    // Overlay each diagnostic as a numbered Set-of-Mark chip on its tile.
+    let mut legend: Vec<String> = Vec::new();
+    for (i, d) in diags.iter().enumerate() {
+        let mark = i + 1;
+        let frame = d["frame"].as_u64().unwrap_or(0) as usize;
+        let Some(&c) = frame_cell.get(&frame) else {
+            continue;
+        };
+        let b = &d["box"];
+        let (bx, by, bw, bh) = (
+            b[0].as_f64().unwrap_or(0.0) as f32,
+            b[1].as_f64().unwrap_or(0.0) as f32,
+            b[2].as_f64().unwrap_or(0.0) as f32,
+            b[3].as_f64().unwrap_or(0.0) as f32,
+        );
+        let (cx, cy) = cell_origin(c);
+        let (ix, iy) = (cx, cy + label_h);
+        // Clamp the mapped box to the tile so an off-canvas element still marks.
+        let x = (ix + bx * scale).clamp(ix, ix + cell_w);
+        let y = (iy + by * scale).clamp(iy, iy + cell_h);
+        let w = (bw * scale).min(ix + cell_w - x).max(2.0);
+        let h = (bh * scale).min(iy + cell_h - y).max(2.0);
+        let color = if d["level"].as_str() == Some("info") {
+            Color::rgb(0.36, 0.6, 1.0)
+        } else {
+            Color::rgb(1.0, 0.75, 0.2)
+        };
+        children.push(sheet_stroke(x, y, w, h, color, 2.0));
+        let chip = 17.0;
+        children.push(sheet_fill(x, y, chip, chip, color));
+        children.push(sheet_text(
+            mark.to_string(),
+            x + 4.0,
+            y + 1.0,
+            12.0,
+            Color::rgb(0.05, 0.06, 0.08),
+        ));
+        legend.push(format!(
+            "  [{mark}] frame {frame} · {} — {}",
+            d["issue"].as_str().unwrap_or("?"),
+            d["message"].as_str().unwrap_or("")
+        ));
+    }
+
+    let mut sheet = Scene::new(Composition::new(
+        sheet_w as u32,
+        sheet_h as u32,
+        comp.fps,
+        1,
+    ));
+    sheet.root = Node::new(NodeKind::Group).with_children(children);
+    let (mut sheet_fb, _) =
+        render_scenes(std::slice::from_ref(&sheet), backend, font, &extra_fonts)
+            .context("rendering the contact sheet")?;
+    sheet_fb
+        .remove(0)
+        .write_png(output)
+        .with_context(|| format!("writing PNG '{output}'"))?;
+
+    println!(
+        "contact sheet -> {output} ({}x{}, {} frames, {} mark(s), {used} backend)",
+        sheet_w as u32,
+        sheet_h as u32,
+        samples.len(),
+        diags.len()
+    );
+    if !legend.is_empty() {
+        println!("marks:");
+        for l in &legend {
+            println!("{l}");
+        }
+    }
     Ok(())
 }
 
@@ -1867,6 +2160,51 @@ mod tests {
         let err = render_frame_command(&[i, o, s("--frame"), s("9"), s("--backend"), s("cpu")])
             .unwrap_err();
         assert!(format!("{err:#}").contains("out of range"));
+
+        let _ = std::fs::remove_file(&input);
+        let _ = std::fs::remove_file(&output);
+    }
+
+    #[test]
+    fn contact_sheet_tiles_frames_and_overlays_marks() {
+        let dir = std::env::temp_dir();
+        let input = dir.join("onda_cs_frames.json");
+        let output = dir.join("onda_cs_out.png");
+        // Three frames; each carries a tiny-text node so the sheet has a mark.
+        let frame = |bg: &str| {
+            format!(
+                r#"{{"composition":{{"width":160,"height":90,"fps":30.0,"duration_in_frames":1}},
+                  "root":{{"kind":{{"type":"group"}},"children":[
+                    {{"kind":{{"type":"shape","geometry":{{"shape":"rect","size":{{"width":160.0,"height":90.0}}}},"fill":{bg}}}}},
+                    {{"transform":{{"translate":{{"x":10.0,"y":70.0}}}},"kind":{{"type":"text","content":"tiny","font_size":7.0}}}}]}}}}"#
+            )
+        };
+        let frames = format!(
+            "[{},{},{}]",
+            frame(r#"{"r":0.2,"g":0.1,"b":0.1}"#),
+            frame(r#"{"r":0.1,"g":0.2,"b":0.1}"#),
+            frame(r#"{"r":0.1,"g":0.1,"b":0.2}"#),
+        );
+        std::fs::write(&input, frames).unwrap();
+        let s = |x: &str| x.to_string();
+        let (i, o) = (s(input.to_str().unwrap()), s(output.to_str().unwrap()));
+
+        contact_sheet_command(&[
+            i,
+            o,
+            s("--cells"),
+            s("3"),
+            s("--cols"),
+            s("2"),
+            s("--cell-width"),
+            s("120"),
+            s("--backend"),
+            s("cpu"),
+        ])
+        .expect("contact-sheet should succeed");
+        assert!(output.exists());
+        // A non-trivial PNG was written (header + tiled content).
+        assert!(std::fs::metadata(&output).unwrap().len() > 1000);
 
         let _ = std::fs::remove_file(&input);
         let _ = std::fs::remove_file(&output);
