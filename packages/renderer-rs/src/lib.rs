@@ -21,7 +21,8 @@
 use kurbo::{BezPath, PathEl, Shape as _};
 use onda_core::{Color, Transform, Vec2};
 use onda_scene::{
-    Gradient, GradientStop, ImageData, ImageFit, Node, NodeKind, Scene, Shape, ShapeGeometry, Text,
+    Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Node, NodeKind, Scene, Shape,
+    ShapeGeometry, Text,
 };
 pub use onda_typography::{FontContext, TextMetrics, TextRaster};
 use tiny_skia as tsk;
@@ -570,7 +571,7 @@ fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, op
             pixmap.fill_path(&path, &paint, tsk::FillRule::Winding, into_temp, None);
         }
     }
-    // Stroke (solid; the scene `Stroke` is color + width).
+    // Stroke (color + width + cap/join/dash).
     if let Some(stroke) = &shape.stroke {
         if stroke.width > 0.0 && stroke.color.a > 0.0 {
             let paint = tsk::Paint {
@@ -580,6 +581,19 @@ fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, op
             };
             let sk_stroke = tsk::Stroke {
                 width: stroke.width,
+                line_cap: match stroke.cap {
+                    LineCap::Butt => tsk::LineCap::Butt,
+                    LineCap::Round => tsk::LineCap::Round,
+                    LineCap::Square => tsk::LineCap::Square,
+                },
+                line_join: match stroke.join {
+                    LineJoin::Miter => tsk::LineJoin::Miter,
+                    LineJoin::Round => tsk::LineJoin::Round,
+                    LineJoin::Bevel => tsk::LineJoin::Bevel,
+                },
+                dash: (!stroke.dash.is_empty())
+                    .then(|| tsk::StrokeDash::new(stroke.dash.clone(), stroke.dash_offset))
+                    .flatten(),
                 ..Default::default()
             };
             pixmap.stroke_path(&path, &paint, &sk_stroke, into_temp, None);

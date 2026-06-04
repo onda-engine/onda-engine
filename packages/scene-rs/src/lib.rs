@@ -783,11 +783,54 @@ pub enum ShapeGeometry {
     },
 }
 
-/// A shape's outline.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+/// Stroke end-cap style (CSS `stroke-linecap`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LineCap {
+    #[default]
+    Butt,
+    Round,
+    Square,
+}
+
+impl LineCap {
+    fn is_default(&self) -> bool {
+        matches!(self, LineCap::Butt)
+    }
+}
+
+/// Stroke corner-join style (CSS `stroke-linejoin`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LineJoin {
+    #[default]
+    Miter,
+    Round,
+    Bevel,
+}
+
+impl LineJoin {
+    fn is_default(&self) -> bool {
+        matches!(self, LineJoin::Miter)
+    }
+}
+
+/// A shape's outline. `dash` (on/off px, empty = solid), `cap`, and `join` are
+/// honored by both backends (Vello + the tiny-skia CPU reference).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Stroke {
     pub color: Color,
     pub width: f32,
+    #[serde(default, skip_serializing_if = "LineCap::is_default")]
+    pub cap: LineCap,
+    #[serde(default, skip_serializing_if = "LineJoin::is_default")]
+    pub join: LineJoin,
+    /// Dash pattern: alternating on/off lengths in px. Empty = a solid stroke.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dash: Vec<f32>,
+    /// Phase offset into the dash pattern (px). Animate it for a draw-on reveal.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub dash_offset: f32,
 }
 
 impl Shape {
@@ -871,7 +914,32 @@ impl Shape {
 
     /// Builder: set the stroke.
     pub fn with_stroke(mut self, color: Color, width: f32) -> Self {
-        self.stroke = Some(Stroke { color, width });
+        self.stroke = Some(Stroke {
+            color,
+            width,
+            cap: LineCap::default(),
+            join: LineJoin::default(),
+            dash: Vec::new(),
+            dash_offset: 0.0,
+        });
+        self
+    }
+
+    /// Builder: set the stroke's dash pattern (alternating on/off px). No-op if
+    /// the shape has no stroke yet (call after [`Shape::with_stroke`]).
+    pub fn with_stroke_dash(mut self, dash: impl Into<Vec<f32>>) -> Self {
+        if let Some(s) = self.stroke.as_mut() {
+            s.dash = dash.into();
+        }
+        self
+    }
+
+    /// Builder: set the stroke's cap + join. No-op without a stroke.
+    pub fn with_stroke_caps(mut self, cap: LineCap, join: LineJoin) -> Self {
+        if let Some(s) = self.stroke.as_mut() {
+            s.cap = cap;
+            s.join = join;
+        }
         self
     }
 }

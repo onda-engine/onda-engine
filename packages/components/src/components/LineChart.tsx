@@ -182,7 +182,7 @@ export function LineChart({
           top-left), so it opens from x=0 rightward. */}
       {n >= 2 && revealWidth > 0 ? (
         <Group clip={clipRect(revealWidth, height)}>
-          <Path d={linePath} stroke={color} strokeWidth={strokeWidth} />
+          <Path d={linePath} stroke={color} strokeWidth={strokeWidth} strokeCap="round" strokeJoin="round" />
         </Group>
       ) : null}
 

@@ -309,6 +309,14 @@ function fillStroke(props: Record<string, unknown>): {
     out.stroke = {
       color: parseColor(props.stroke as never),
       width: typeof props.strokeWidth === 'number' ? props.strokeWidth : 1,
+      ...(props.strokeCap === 'round' || props.strokeCap === 'square' ? { cap: props.strokeCap } : {}),
+      ...(props.strokeJoin === 'round' || props.strokeJoin === 'bevel'
+        ? { join: props.strokeJoin }
+        : {}),
+      ...(Array.isArray(props.strokeDash) && props.strokeDash.length
+        ? { dash: props.strokeDash as number[] }
+        : {}),
+      ...(typeof props.strokeDashOffset === 'number' ? { dash_offset: props.strokeDashOffset } : {}),
     }
   }
   return out

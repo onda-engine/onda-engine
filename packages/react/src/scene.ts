@@ -34,6 +34,14 @@ export interface Transform {
 export interface Stroke {
   color: Color
   width: number
+  /** End-cap style (CSS stroke-linecap). Default 'butt'. */
+  cap?: 'butt' | 'round' | 'square'
+  /** Corner-join style (CSS stroke-linejoin). Default 'miter'. */
+  join?: 'miter' | 'round' | 'bevel'
+  /** Dash pattern: alternating on/off lengths in px. Omit for a solid stroke. */
+  dash?: number[]
+  /** Phase offset into the dash pattern (px) — animate for a draw-on reveal. */
+  dash_offset?: number
 }
 
 export interface Composition {
