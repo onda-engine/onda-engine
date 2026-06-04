@@ -18,10 +18,10 @@
 //!    `<Flex>`, so animated centers can't make a layout jiggle (§2).
 //!  - Overall `opacity` is applied as a wrapping `<Group opacity>` (the scene
 //!    equivalent of ondajs's layer opacity over the background).
-//!  - Backend caveat: gradients render only on the Vello/GPU backend. The CPU
-//!    reference rasterizer collapses each gradient to its first stop (the solid
-//!    blob color), so the soft mesh blend is a GPU-only effect — on CPU the
-//!    blobs become flat color fills. The meaningful color is the FIRST stop.
+//!  - Overlapping soft radial blobs ARE the mesh gradient (the standard
+//!    radials-as-mesh technique). Both backends render radial gradients + the
+//!    transparent-tail alpha compositing, so the soft mesh blend holds on the CPU
+//!    reference too.
 
 import { Group, Rect, radialGradient, random, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useTheme } from '../theme.js'

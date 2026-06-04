@@ -184,10 +184,10 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'both',
   },
   MeshGradient: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'mesh gradient',
-    backend: 'gpu_only',
+    needsFeature: null,
+    backend: 'both',
   },
   NodeGraph: {
     fidelity: 'first_class',
@@ -308,9 +308,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   Typewriter: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   Underline: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   VideoClip: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'video decode',
+    needsFeature: null,
     backend: 'gpu_only',
   },
   Vignette: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
@@ -319,8 +319,8 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
 }
 
 export const FIDELITY_SUMMARY = {
-  firstClass: 64,
-  degraded: 6,
+  firstClass: 66,
+  degraded: 4,
   apesRemotion: 0,
 } as const
 
@@ -358,6 +358,7 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'LowerThird',
   'LineChart',
   'MatrixDecode',
+  'MeshGradient',
   'Marquee',
   'MaskReveal',
   'NodeGraph',
@@ -388,6 +389,7 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'TitleCard',
   'Typewriter',
   'Underline',
+  'VideoClip',
   'Vignette',
   'WordRotate',
   'WordStagger',
