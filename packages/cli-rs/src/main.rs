@@ -398,6 +398,28 @@ fn export_frames_command(args: &[String]) -> Result<()> {
 
     let json = std::fs::read_to_string(&input)
         .with_context(|| format!("reading frames file '{input}'"))?;
+
+    // mp4 streams (render+pipe in bounded-memory chunks — long videos that would
+    // OOM if every frame were buffered). gif needs every frame, so it stays
+    // buffered (gifs are short).
+    let is_mp4 = out
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("mp4"));
+    if is_mp4 {
+        return stream_frames_to_mp4(
+            &json,
+            &input,
+            &output,
+            out,
+            base_dir_of(&input),
+            backend,
+            font,
+            &fonts,
+            encoder,
+        );
+    }
+
     let (scenes, fps) = frames_scenes(&json, base_dir_of(&input))
         .with_context(|| format!("reading frames '{input}'"))?;
     let (frames, used) = render_scenes(&scenes, backend, font, &fonts)
@@ -818,16 +840,18 @@ fn write_mp4(
 /// disk round-trip) and encode with `enc`. `Framebuffer::as_bytes` is
 /// straight-alpha RGBA8, row-major — matching `-pixel_format rgba`. yuv420p has
 /// no alpha, so transparent regions composite over black.
-fn pipe_encode(
-    frames: &[Framebuffer],
+/// Build the ffmpeg command that reads raw RGBA8 frames on stdin and encodes an
+/// mp4 with `enc` (muxing `audio_wav` if present). Shared by the buffered
+/// ([`pipe_encode`]) and streaming ([`stream_encode_mp4`]) paths so they encode
+/// identically. Stdin is piped; the caller writes frames + waits.
+fn ffmpeg_mp4_cmd(
+    w: u32,
+    h: u32,
     fps: f32,
     out: &Path,
     audio_wav: Option<&Path>,
     enc: Encoder,
-) -> Result<()> {
-    use std::io::Write;
-    let (w, h) = (frames[0].width(), frames[0].height());
-
+) -> std::process::Command {
     let mut cmd = std::process::Command::new("ffmpeg");
     cmd.args([
         "-y",
@@ -866,8 +890,19 @@ fn pipe_encode(
         cmd.args(["-c:a", "aac", "-b:a", "192k", "-shortest"]);
     }
     cmd.arg(out).stdin(std::process::Stdio::piped());
+    cmd
+}
 
-    let mut child = cmd
+fn pipe_encode(
+    frames: &[Framebuffer],
+    fps: f32,
+    out: &Path,
+    audio_wav: Option<&Path>,
+    enc: Encoder,
+) -> Result<()> {
+    use std::io::Write;
+    let (w, h) = (frames[0].width(), frames[0].height());
+    let mut child = ffmpeg_mp4_cmd(w, h, fps, out, audio_wav, enc)
         .spawn()
         .context("failed to launch ffmpeg — is it installed and on PATH? (.gif needs no tools)")?;
     {
@@ -883,6 +918,200 @@ fn pipe_encode(
     if !status.success() {
         bail!("ffmpeg exited unsuccessfully ({status})");
     }
+    Ok(())
+}
+
+/// Render `raw_scenes` in chunks, calling `write` with each frame in order — the
+/// memory-bounded counterpart of `frames_scenes` + `render_scenes`. Each chunk is
+/// pre-passed (svg → video → layout → images) and rendered, then freed before the
+/// next, so peak RAM is ~one chunk of frames regardless of the video's length
+/// (vs. buffering every frame). Returns the backend actually used.
+fn render_stream(
+    raw_scenes: &[Scene],
+    base_dir: &Path,
+    backend: BackendChoice,
+    font: FontMode,
+    extra_fonts: &[Vec<u8>],
+    mut write: impl FnMut(&Framebuffer) -> Result<()>,
+) -> Result<&'static str> {
+    let comp = raw_scenes[0].composition;
+    // Adaptive chunk: target ~1 GiB of raw frames in flight, whatever the
+    // resolution (1080p ≈ 128 frames, 4K ≈ 32), so memory stays flat + bounded.
+    let frame_bytes = (comp.width as usize) * (comp.height as usize) * 4;
+    let chunk = (1_073_741_824usize / frame_bytes.max(1)).clamp(8, 512);
+
+    let measure_fonts = RefCell::new(measure_font_context(font, extra_fonts));
+    #[cfg(feature = "video")]
+    let mut video = onda_video::VideoDecoder::new();
+
+    // Pre-pass one chunk's scenes (sequential: shared font ctx + streaming video
+    // decoder). The chunk then renders in parallel (CPU) / sequentially (Vello).
+    // `mut` is only needed when the video decoder is captured (the `video` feature).
+    #[cfg_attr(not(feature = "video"), allow(unused_mut))]
+    let mut prepare = |slice: &[Scene]| -> Result<Vec<Scene>> {
+        slice
+            .iter()
+            .map(|raw| {
+                let s = onda_svg::expand_svg(raw, base_dir).context("expanding <svg> nodes")?;
+                #[cfg(feature = "video")]
+                let s = video.resolve_scene(&s).context("decoding video frames")?;
+                let s = if scene_has_layout(&s) {
+                    let measure = |t: &Text| measure_text(&mut measure_fonts.borrow_mut(), t);
+                    onda_layout::layout(&s, &measure)
+                } else {
+                    s
+                };
+                onda_image::load_images(&s, base_dir).context("loading images")
+            })
+            .collect()
+    };
+
+    // Resolve the backend once, then render + pipe chunk by chunk.
+    let vello = match backend {
+        BackendChoice::Cpu => None,
+        BackendChoice::Vello => Some(
+            VelloRenderer::new()
+                .context("no GPU adapter available for the Vello backend (try --backend cpu)")?,
+        ),
+        BackendChoice::Auto => VelloRenderer::new(),
+    };
+    if let Some(mut renderer) = vello {
+        load_into_vello(&mut renderer, extra_fonts);
+        for slice in raw_scenes.chunks(chunk) {
+            for scene in &prepare(slice)? {
+                let frame = renderer.render(scene);
+                write(&Framebuffer::from_rgba(
+                    frame.width,
+                    frame.height,
+                    frame.pixels,
+                ))?;
+            }
+        }
+        Ok("vello")
+    } else {
+        if matches!(backend, BackendChoice::Auto) {
+            eprintln!("note: no GPU adapter found; falling back to the CPU backend");
+        }
+        for slice in raw_scenes.chunks(chunk) {
+            let frames = render_scenes_cpu(&prepare(slice)?, font, extra_fonts);
+            for fb in &frames {
+                write(fb)?;
+            }
+        }
+        Ok("cpu")
+    }
+}
+
+/// Stream `raw_scenes` straight into an mp4: spawn ffmpeg, render+pipe each chunk
+/// (bounded memory), encode with the resolved encoder. On a hardware-encoder
+/// failure, re-render once with libx264 (rare — the encoder is probed up front).
+/// Returns the backend + encoder used.
+fn stream_encode_mp4(
+    raw_scenes: &[Scene],
+    fps: f32,
+    out: &Path,
+    base_dir: &Path,
+    backend: BackendChoice,
+    font: FontMode,
+    extra_fonts: &[Vec<u8>],
+    encoder: EncoderChoice,
+    audio_wav: Option<&Path>,
+) -> Result<(&'static str, Encoder)> {
+    let comp = raw_scenes[0].composition;
+    let attempt = |enc: Encoder| -> Result<&'static str> {
+        use std::io::Write;
+        let mut child = ffmpeg_mp4_cmd(comp.width, comp.height, fps, out, audio_wav, enc)
+            .spawn()
+            .context("failed to launch ffmpeg — is it installed and on PATH?")?;
+        let mut stdin = child.stdin.take().context("ffmpeg stdin was unavailable")?;
+        let render = render_stream(raw_scenes, base_dir, backend, font, extra_fonts, |fb| {
+            stdin
+                .write_all(fb.as_bytes())
+                .context("piping frame to ffmpeg")
+        });
+        drop(stdin); // EOF so ffmpeg finalizes (and unblocks if the render errored)
+        let status = child.wait().context("waiting for ffmpeg")?;
+        let used = render?; // a render error is the root cause — surface it first
+        if !status.success() {
+            bail!("ffmpeg exited unsuccessfully ({status})");
+        }
+        Ok(used)
+    };
+
+    let enc = resolve_encoder(encoder);
+    match attempt(enc) {
+        Ok(used) => Ok((used, enc)),
+        Err(err) if enc != Encoder::Libx264 => {
+            eprintln!(
+                "note: {} encode failed ({err:#}); re-rendering with libx264",
+                enc.name()
+            );
+            Ok((attempt(Encoder::Libx264)?, Encoder::Libx264))
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// The streaming `export-frames` → mp4 path: parse the frames, mux any audio, and
+/// stream-render to a bounded-memory mp4 (works for long videos that buffering
+/// every frame would OOM on).
+fn stream_frames_to_mp4(
+    json: &str,
+    input: &str,
+    output: &str,
+    out: &Path,
+    base_dir: &Path,
+    backend: BackendChoice,
+    font: FontMode,
+    fonts: &[Vec<u8>],
+    encoder: EncoderChoice,
+) -> Result<()> {
+    let raw: Vec<Scene> =
+        serde_json::from_str(json).context("frames JSON is not an array of scene graphs")?;
+    let Some(first) = raw.first() else {
+        bail!("frames JSON contains no scenes");
+    };
+    let fps = first.composition.fps;
+    let (w, h) = (first.composition.width, first.composition.height);
+    let audio_tracks = collect_audio_tracks(&raw, fps);
+
+    let wav = if audio_tracks.is_empty() {
+        None
+    } else {
+        let mux = AudioMux {
+            tracks: &audio_tracks,
+            base_dir,
+            duration_secs: raw.len() as f32 / fps.max(1.0),
+        };
+        Some(build_audio_wav(&mux, fps).context("building the audio track")?)
+    };
+    let result = stream_encode_mp4(
+        &raw,
+        fps,
+        out,
+        base_dir,
+        backend,
+        font,
+        fonts,
+        encoder,
+        wav.as_deref(),
+    );
+    if let Some(w) = &wav {
+        if let Some(dir) = w.parent() {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+    let (used, enc) = result?;
+    let sound = if audio_tracks.is_empty() {
+        String::new()
+    } else {
+        format!(", {} audio clip(s)", audio_tracks.len())
+    };
+    println!(
+        "exported {input} -> {output} ({} frames, {w}x{h} @ {fps} fps, {used} backend, {} encoder{sound}, streamed)",
+        raw.len(),
+        enc.name()
+    );
     Ok(())
 }
 
