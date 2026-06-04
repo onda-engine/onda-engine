@@ -35,6 +35,8 @@ USAGE:
     onda export-frames <frames.json> <out.gif|.mp4>  Render pre-evaluated frames
     onda lint <frames.json> [out.json]             Geometry lint (text overflow,
                                                    off-canvas, tiny/huge text)
+    onda render-frame <frames.json> <out.png>      Render ONE frame full-res
+                                                   (--frame N); --crop a region
 
     <scene.json>   a scene graph              (onda-scene JSON)
     <movie.json>   a scene graph + timeline   ({ \"scene\": ..., \"timeline\": ... })
@@ -63,6 +65,10 @@ OPTIONS:
     --font <path>     Load a .ttf/.otf font, then select it by family name on a
                       <Text> run (like Remotion's loadFont). Repeat for several.
                       Works with both backends and alongside the bundled fonts.
+    --frame <N>       For `render-frame`: which frame of the array (default 0).
+    --crop <x,y,w,h>  For `render-frame`: write only this region (e.g. a lint
+                      `box`), so a flagged area is read at full res, not upscaled.
+    --pad <px>        For `render-frame`: grow --crop by this many px per side.
     -h, --help        Print this help
     -V, --version     Print version
 ";
@@ -242,6 +248,7 @@ fn run(args: Vec<String>) -> Result<()> {
             Ok(())
         }
         "render" => render_command(&args[1..]),
+        "render-frame" => render_frame_command(&args[1..]),
         "export" => export_command(&args[1..]),
         "export-frames" => export_frames_command(&args[1..]),
         "lint" => lint_command(&args[1..]),
@@ -352,6 +359,131 @@ fn render_command(args: &[String]) -> Result<()> {
     let (width, height, used) =
         render_scene_file(Path::new(&input), Path::new(&output), font, backend, &fonts)?;
     println!("rendered {input} -> {output} ({width}x{height}, {used} backend)");
+    Ok(())
+}
+
+/// `onda render-frame <frames.json> <out.png> [--frame N] [--crop x,y,w,h] [--pad P]`
+/// — render ONE frame of a pre-evaluated array at full resolution (the agent-vision
+/// Layer 2 zoom). With `--crop` it writes only that sub-rectangle (a lint `box`),
+/// optionally `--pad`-ded, so the agent inspects a flagged region at native res
+/// instead of upscaling the whole frame. Same pre-passes + backends as `render`.
+fn render_frame_command(args: &[String]) -> Result<()> {
+    let mut input: Option<&str> = None;
+    let mut output: Option<&str> = None;
+    let mut frame: usize = 0;
+    let mut crop: Option<[u32; 4]> = None;
+    let mut pad: u32 = 0;
+    let mut font = FontMode::Bundled;
+    let mut backend = BackendChoice::Auto;
+    let mut font_paths: Vec<PathBuf> = Vec::new();
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--system-fonts" => font = FontMode::System,
+            "--frame" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--frame needs an index\n\n{USAGE}"))?;
+                frame = v
+                    .trim()
+                    .parse()
+                    .with_context(|| format!("--frame '{v}' is not a frame index"))?;
+            }
+            "--crop" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--crop needs x,y,w,h\n\n{USAGE}"))?;
+                let nums: Vec<u32> = v.split(',').filter_map(|s| s.trim().parse().ok()).collect();
+                let [x, y, w, h] = nums.as_slice() else {
+                    bail!(
+                        "--crop wants four comma-separated numbers x,y,w,h (got '{v}')\n\n{USAGE}"
+                    );
+                };
+                crop = Some([*x, *y, *w, *h]);
+            }
+            "--pad" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--pad needs a pixel count\n\n{USAGE}"))?;
+                pad = v
+                    .trim()
+                    .parse()
+                    .with_context(|| format!("--pad '{v}' is not a number"))?;
+            }
+            "--backend" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--backend needs a value\n\n{USAGE}"))?;
+                backend = match v.as_str() {
+                    "auto" => BackendChoice::Auto,
+                    "vello" | "gpu" => BackendChoice::Vello,
+                    "cpu" => BackendChoice::Cpu,
+                    other => {
+                        bail!("unknown backend '{other}' — use auto, vello, or cpu\n\n{USAGE}")
+                    }
+                };
+            }
+            "--font" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--font needs a path\n\n{USAGE}"))?;
+                font_paths.push(PathBuf::from(v));
+            }
+            other if other.starts_with("--") => bail!("unknown flag '{other}'\n\n{USAGE}"),
+            other if input.is_none() => input = Some(other),
+            other if output.is_none() => output = Some(other),
+            other => bail!("unexpected argument '{other}'\n\n{USAGE}"),
+        }
+    }
+    let input =
+        input.with_context(|| format!("render-frame needs a frames.json input\n\n{USAGE}"))?;
+    let output =
+        output.with_context(|| format!("render-frame needs an output .png path\n\n{USAGE}"))?;
+    let json =
+        std::fs::read_to_string(input).with_context(|| format!("reading frames file '{input}'"))?;
+    let scenes: Vec<Scene> =
+        serde_json::from_str(&json).context("frames JSON is not an array of scene graphs")?;
+    let total = scenes.len();
+    let scene = scenes
+        .get(frame)
+        .with_context(|| format!("frame {frame} is out of range (0..{total})"))?;
+
+    // Same pre-passes as `onda render`, so the zoomed frame is faithful.
+    let base_dir = Path::new(input).parent().unwrap_or_else(|| Path::new(""));
+    let scene = onda_svg::expand_svg(scene, base_dir).context("expanding <svg> nodes")?;
+    #[cfg(feature = "video")]
+    let scene = onda_video::load_video_frames(&scene).context("decoding video frames")?;
+    let scene = onda_image::load_images(&scene, base_dir).context("loading images")?;
+
+    let extra_fonts = load_font_bytes(&font_paths)?;
+    let (mut frames, used) =
+        render_scenes(std::slice::from_ref(&scene), backend, font, &extra_fonts)
+            .with_context(|| format!("rendering frame {frame}"))?;
+    let mut fb = frames.remove(0);
+    let (fw, fh) = (fb.width(), fb.height());
+
+    let crop_desc = if let Some([x, y, w, h]) = crop {
+        // Grow by `pad`, clamp to the frame; a region fully outside is an error.
+        let x0 = x.saturating_sub(pad);
+        let y0 = y.saturating_sub(pad);
+        let x1 = x.saturating_add(w).saturating_add(pad).min(fw);
+        let y1 = y.saturating_add(h).saturating_add(pad).min(fh);
+        if x0 >= x1 || y0 >= y1 {
+            bail!("--crop {x},{y},{w},{h} is entirely outside the {fw}x{fh} frame");
+        }
+        fb = fb.crop(x0, y0, x1 - x0, y1 - y0);
+        format!(", crop [{x0},{y0},{},{}]", x1 - x0, y1 - y0)
+    } else {
+        String::new()
+    };
+
+    fb.write_png(output)
+        .with_context(|| format!("writing PNG '{output}'"))?;
+    println!(
+        "rendered frame {frame} -> {output} ({}x{}, {used} backend{crop_desc})",
+        fb.width(),
+        fb.height()
+    );
     Ok(())
 }
 
@@ -1697,6 +1829,47 @@ mod tests {
             parked_diags.iter().any(|x| x["issue"] == "OFF_CANVAS"),
             "a persistently off-canvas title must be flagged, got {parked_diags:?}"
         );
+    }
+
+    #[test]
+    fn render_frame_renders_a_cropped_frame_and_validates_range() {
+        let dir = std::env::temp_dir();
+        let input = dir.join("onda_rf_frames.json");
+        let output = dir.join("onda_rf_out.png");
+        // Two distinct frames (red, then green) so frame selection is observable.
+        let frames = r#"[
+          {"composition":{"width":40,"height":24,"fps":30.0,"duration_in_frames":1},
+           "root":{"kind":{"type":"group"},"children":[
+             {"kind":{"type":"shape","geometry":{"shape":"rect","size":{"width":40.0,"height":24.0}},"fill":{"r":1.0,"g":0.0,"b":0.0}}}]}},
+          {"composition":{"width":40,"height":24,"fps":30.0,"duration_in_frames":1},
+           "root":{"kind":{"type":"group"},"children":[
+             {"kind":{"type":"shape","geometry":{"shape":"rect","size":{"width":40.0,"height":24.0}},"fill":{"r":0.0,"g":1.0,"b":0.0}}}]}}
+        ]"#;
+        std::fs::write(&input, frames).unwrap();
+        let s = |x: &str| x.to_string();
+        let (i, o) = (s(input.to_str().unwrap()), s(output.to_str().unwrap()));
+
+        // Render frame 1, crop a 20×10 region, on the CPU backend (no GPU needed).
+        render_frame_command(&[
+            i.clone(),
+            o.clone(),
+            s("--frame"),
+            s("1"),
+            s("--crop"),
+            s("5,5,20,10"),
+            s("--backend"),
+            s("cpu"),
+        ])
+        .expect("render-frame should succeed");
+        assert!(output.exists());
+
+        // An out-of-range frame fails with a clear message.
+        let err = render_frame_command(&[i, o, s("--frame"), s("9"), s("--backend"), s("cpu")])
+            .unwrap_err();
+        assert!(format!("{err:#}").contains("out of range"));
+
+        let _ = std::fs::remove_file(&input);
+        let _ = std::fs::remove_file(&output);
     }
 
     const SCENE: &str = r#"{

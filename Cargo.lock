@@ -990,6 +990,7 @@ name = "onda-cli"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "kurbo",
  "onda-animation",
  "onda-audio",
  "onda-core",

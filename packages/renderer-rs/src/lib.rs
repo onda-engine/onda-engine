@@ -124,6 +124,23 @@ impl Framebuffer {
         let out = over(src, dst).to_rgba8();
         self.pixels[i..i + 4].copy_from_slice(&out);
     }
+
+    /// A new framebuffer holding the `[x, y, w, h]` sub-rectangle, clamped to the
+    /// framebuffer's bounds (an over-large region just yields what exists). Used by
+    /// the agent-vision zoom (`onda render-frame --crop`) and frame tiling.
+    pub fn crop(&self, x: u32, y: u32, w: u32, h: u32) -> Framebuffer {
+        let x = x.min(self.width);
+        let y = y.min(self.height);
+        let w = w.min(self.width - x);
+        let h = h.min(self.height - y);
+        let row_bytes = (w as usize) * 4;
+        let mut pixels = Vec::with_capacity((h as usize) * row_bytes);
+        for row in 0..h as usize {
+            let start = (((y as usize) + row) * (self.width as usize) + (x as usize)) * 4;
+            pixels.extend_from_slice(&self.pixels[start..start + row_bytes]);
+        }
+        Framebuffer::from_rgba(w, h, pixels)
+    }
 }
 
 #[cfg(feature = "png")]
@@ -696,6 +713,31 @@ mod tests {
         let fb = render(&Scene::new(comp(4, 3)));
         assert_eq!((fb.width(), fb.height()), (4, 3));
         assert!(fb.as_bytes().iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn crop_extracts_subrect_and_clamps_to_bounds() {
+        // 4×4 where the red channel encodes x*10 + y, so each pixel is identifiable.
+        let mut bytes = vec![0u8; 4 * 4 * 4];
+        for y in 0..4u32 {
+            for x in 0..4u32 {
+                let i = ((y * 4 + x) * 4) as usize;
+                bytes[i] = (x * 10 + y) as u8;
+                bytes[i + 3] = 255;
+            }
+        }
+        let fb = Framebuffer::from_rgba(4, 4, bytes);
+
+        let c = fb.crop(1, 1, 2, 2);
+        assert_eq!((c.width(), c.height()), (2, 2));
+        assert_eq!(c.pixel(0, 0), [11, 0, 0, 255]); // src (1,1)
+        assert_eq!(c.pixel(1, 0), [21, 0, 0, 255]); // src (2,1)
+        assert_eq!(c.pixel(1, 1), [22, 0, 0, 255]); // src (2,2)
+
+        // A region running past the edge is clamped to what exists.
+        let c2 = fb.crop(3, 3, 10, 10);
+        assert_eq!((c2.width(), c2.height()), (1, 1));
+        assert_eq!(c2.pixel(0, 0), [33, 0, 0, 255]); // src (3,3)
     }
 
     #[test]
