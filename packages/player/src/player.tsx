@@ -25,9 +25,9 @@ import {
   useRef,
   useState,
 } from 'react'
+import { type AudioClip, collectAudioClips } from './audio.js'
 import { type FrameDrawer, drawScene } from './canvas-renderer.js'
 import { type RenderEngine, engineDrawer } from './engine-drawer.js'
-import { type AudioClip, collectAudioClips } from './audio.js'
 import { applyResolvedImages, collectImageUrls, resolveImageUrl } from './images.js'
 import { collectVideoOverlays, resolveVideoFrames } from './video.js'
 
@@ -97,6 +97,19 @@ export interface PlayerProps {
  * ref.current?.seekTo(48)
  * ```
  */
+/** Player events (Remotion-`@remotion/player`-compatible) for a host editor to
+ *  sync against — e.g. a canvas overlay tracking the current frame. */
+export type PlayerEventType = 'frameupdate' | 'play' | 'pause' | 'seeked' | 'ended'
+
+/** Event passed to a {@link PlayerEventListener}: `detail.frame` is the current
+ *  frame (mirrors Remotion's `CallbackListener` event shape). */
+export interface PlayerEvent {
+  type: PlayerEventType
+  detail: { frame: number }
+}
+
+export type PlayerEventListener = (event: PlayerEvent) => void
+
 export interface PlayerHandle {
   /** Seek to a frame (clamped). Does not change the play/pause state. */
   seekTo(frame: number): void
@@ -112,6 +125,12 @@ export interface PlayerHandle {
   getTotalFrames(): number
   /** Whether playback is currently running. */
   isPlaying(): boolean
+  /** Subscribe to a player event (`frameupdate`/`play`/`pause`/`seeked`/`ended`).
+   *  Mirrors `@remotion/player`'s `addEventListener` so an editor built against
+   *  Remotion's Player ports without rewiring its frame-sync/overlay. */
+  addEventListener(type: PlayerEventType, listener: PlayerEventListener): void
+  /** Unsubscribe a listener previously passed to {@link addEventListener}. */
+  removeEventListener(type: PlayerEventType, listener: PlayerEventListener): void
 }
 
 /**
@@ -186,7 +205,8 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   // (display-only preview for sources we can't composite, e.g. cross-origin
   // without CORS). Boxes are frame-independent, so derive once per composition.
   const videoOverlays = useMemo(
-    () => collectVideoOverlays(renderFrame(composition, 0).root as never, config.width, config.height),
+    () =>
+      collectVideoOverlays(renderFrame(composition, 0).root as never, config.width, config.height),
     [composition, config.width, config.height],
   )
   const videoOverlayRef = useRef<HTMLDivElement>(null)
@@ -244,6 +264,16 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   onPlayRef.current = onPlay
   const onPauseRef = useRef(onPause)
   onPauseRef.current = onPause
+
+  // Remotion-style event listeners (addEventListener on the handle). Held in a
+  // ref so subscribing doesn't re-render; emitted from the same effects that
+  // fire the callback props.
+  const listenersRef = useRef<Map<PlayerEventType, Set<PlayerEventListener>>>(new Map())
+  const emit = useCallback((type: PlayerEventType, atFrame: number) => {
+    const set = listenersRef.current.get(type)
+    if (!set) return
+    for (const listener of set) listener({ type, detail: { frame: atFrame } })
+  }, [])
 
   // Single-flight async GPU paint: render the latest target, dropping any
   // intermediate frames (the readback can't always keep up at 60fps). The busy
@@ -375,21 +405,26 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
     return () => cancelAnimationFrame(raf)
   }, [playing, config.fps, totalFrames, lastFrame, loop])
 
-  // Stop at the end when not looping.
+  // Stop at the end when not looping (and emit `ended`).
   useEffect(() => {
-    if (!loop && frame >= lastFrame) setPlaying(false)
-  }, [frame, lastFrame, loop])
+    if (!loop && frame >= lastFrame) {
+      setPlaying(false)
+      emit('ended', frame)
+    }
+  }, [frame, lastFrame, loop, emit])
 
   // Emit frame/play/pause events for host apps (e.g. an editor syncing an
-  // overlay to the composition). Callbacks are read from refs so a changing
-  // callback identity doesn't re-subscribe these effects.
+  // overlay to the composition), both via the callback props and the
+  // addEventListener API. Refs keep a changing callback from re-subscribing.
   useEffect(() => {
     onFrameUpdateRef.current?.(frame)
-  }, [frame])
+    emit('frameupdate', frame)
+  }, [frame, emit])
   useEffect(() => {
     if (playing) onPlayRef.current?.()
     else onPauseRef.current?.()
-  }, [playing])
+    emit(playing ? 'play' : 'pause', liveRef.current.frame)
+  }, [playing, emit])
 
   const togglePlay = useCallback(() => {
     setPlaying((p) => {
@@ -412,9 +447,11 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   // `seekTo` above.)
   const goToFrame = useCallback(
     (next: number) => {
-      setFrame(Math.min(lastFrame, Math.max(0, Math.floor(next))))
+      const clamped = Math.min(lastFrame, Math.max(0, Math.floor(next)))
+      setFrame(clamped)
+      emit('seeked', clamped)
     },
-    [lastFrame],
+    [lastFrame, emit],
   )
 
   // Imperative API for host apps driving playback (e.g. an editor timeline).
@@ -432,6 +469,14 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
       getCurrentFrame: () => liveRef.current.frame,
       getTotalFrames: () => liveRef.current.totalFrames,
       isPlaying: () => liveRef.current.playing,
+      addEventListener: (type, listener) => {
+        const map = listenersRef.current
+        if (!map.has(type)) map.set(type, new Set())
+        map.get(type)?.add(listener)
+      },
+      removeEventListener: (type, listener) => {
+        listenersRef.current.get(type)?.delete(listener)
+      },
     }),
     [goToFrame, togglePlay],
   )

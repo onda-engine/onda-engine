@@ -6,4 +6,11 @@
 
 export { cssColor, drawScene, type FrameDrawer } from './canvas-renderer.js'
 export { engineDrawer, type RenderEngine, type RenderedFrame } from './engine-drawer.js'
-export { Player, type PlayerProps, type PlayerHandle } from './player.js'
+export {
+  Player,
+  type PlayerProps,
+  type PlayerHandle,
+  type PlayerEvent,
+  type PlayerEventType,
+  type PlayerEventListener,
+} from './player.js'
