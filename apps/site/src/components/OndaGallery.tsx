@@ -158,6 +158,28 @@ function TextControl({
   )
 }
 
+// Boot the engine EXACTLY ONCE, module-globally, so React 19's dev double-mount
+// (or remounting on component switch) can't re-init the wasm and drop a closure
+// mid-render ("closure invoked recursively or after being dropped").
+// biome-ignore lint/suspicious/noExplicitAny: wasm engine types load dynamically.
+let enginesPromise: Promise<{ gpu: any; cpu: any }> | null = null
+function bootEngines() {
+  if (!enginesPromise) {
+    enginesPromise = (async () => {
+      try {
+        const { default: initVello, VelloEngine } = await import('@onda/wasm-vello')
+        await initVello({ module_or_path: velloWasmUrl })
+        return { gpu: await VelloEngine.create(), cpu: null }
+      } catch {
+        const { default: initCpu, OndaEngine } = await import('@onda/wasm')
+        await initCpu({ module_or_path: cpuWasmUrl })
+        return { gpu: null, cpu: new OndaEngine() }
+      }
+    })()
+  }
+  return enginesPromise
+}
+
 function useEngine() {
   // biome-ignore lint/suspicious/noExplicitAny: wasm engine types load dynamically.
   const [gpu, setGpu] = useState<any>(null)
@@ -185,19 +207,11 @@ function useEngine() {
   useEffect(() => {
     if (!active) return
     let cancelled = false
-    ;(async () => {
-      try {
-        const { default: initVello, VelloEngine } = await import('@onda/wasm-vello')
-        await initVello({ module_or_path: velloWasmUrl })
-        const engine = await VelloEngine.create()
-        if (!cancelled) setGpu(engine)
-      } catch {
-        const { default: initCpu, OndaEngine } = await import('@onda/wasm')
-        await initCpu({ module_or_path: cpuWasmUrl })
-        const engine = new OndaEngine()
-        if (!cancelled) setCpu(engine)
-      }
-    })()
+    bootEngines().then((e) => {
+      if (cancelled) return
+      if (e.gpu) setGpu(e.gpu)
+      else setCpu(e.cpu)
+    })
     return () => {
       cancelled = true
     }
