@@ -3,10 +3,9 @@
 //! starting angle (safe zone [-12°, +12°]), one spring driving both fade and
 //! settle.
 //!
-//! Rotation in the scene pivots on the node's LOCAL ORIGIN (0,0), not its
-//! center, so a centered element will swing about its top-left as it settles.
-//! For true center rotation, anchor the wrapped subtree's origin where you want
-//! the pivot. (Per-node transform-origin is a planned engine feature.)
+//! Rotation pivots on the transform origin, set here to the composition center
+//! (matching ondajs's CSS `transform-origin: center` for centered content), so a
+//! centered element settles in place rather than swinging about its top-left.
 
 import { Group, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
 import type { ReactNode } from 'react'
@@ -29,7 +28,7 @@ export function RotateIn({
   children,
 }: RotateInProps) {
   const frame = useCurrentFrame()
-  const { fps } = useVideoConfig()
+  const { fps, width, height } = useVideoConfig()
 
   // One spring drives both the fade and the angle settle, so they read as a
   // single motion — mirrors the ondajs source (no overshoot, calm landing).
@@ -45,7 +44,7 @@ export function RotateIn({
   const rotation = interpolate(progress, [0, 1], [fromDegrees, 0], clamp)
 
   return (
-    <Group rotation={rotation} opacity={opacity}>
+    <Group rotation={rotation} opacity={opacity} originX={width / 2} originY={height / 2}>
       {children}
     </Group>
   )

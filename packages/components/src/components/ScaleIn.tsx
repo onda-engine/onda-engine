@@ -1,10 +1,9 @@
 //! ScaleIn — opacity + scale from `from` → 1 on the house spring. Restrained by
 //! design (default 0.9).
 //!
-//! Scene scale is about the node's local origin (0,0), not its center, so a
-//! centered element will drift slightly as it scales. For true center growth,
-//! anchor the subtree's origin where you want it. (Per-node transform-origin is
-//! a planned engine feature.)
+//! Scale pivots on the transform origin, set here to the composition center
+//! (matching ondajs's CSS `transform-origin: center` for centered content), so a
+//! centered element grows in place instead of drifting toward its top-left.
 
 import { Group, useCurrentFrame, useVideoConfig } from '@onda/react'
 import type { ReactNode } from 'react'
@@ -26,10 +25,16 @@ export function ScaleIn({
   children,
 }: ScaleInProps) {
   const frame = useCurrentFrame()
-  const { fps } = useVideoConfig()
+  const { fps, width, height } = useVideoConfig()
   const { opacity, scaleX, scaleY } = entryScale({ frame, fps, delay, durationInFrames, from })
   return (
-    <Group scaleX={scaleX} scaleY={scaleY} opacity={opacity}>
+    <Group
+      scaleX={scaleX}
+      scaleY={scaleY}
+      opacity={opacity}
+      originX={width / 2}
+      originY={height / 2}
+    >
       {children}
     </Group>
   )
