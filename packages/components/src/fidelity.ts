@@ -70,22 +70,22 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'both',
   },
   Callout: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'letter-spacing',
+    needsFeature: null,
     backend: 'both',
   },
   CameraShake: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   Captions: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'letter-spacing',
+    needsFeature: null,
     backend: 'both',
   },
   ChapterCard: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'letter-spacing',
+    needsFeature: null,
     backend: 'both',
   },
   CodeBlock: {
@@ -170,17 +170,17 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'gpu_only',
   },
   LowerThird: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'letter-spacing',
+    needsFeature: null,
     backend: 'both',
   },
   Marquee: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   MaskReveal: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   MatrixDecode: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'letter-spacing',
+    needsFeature: null,
     backend: 'both',
   },
   MeshGradient: {
@@ -255,9 +255,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   SlideIn: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   SlideOut: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   SlotMachineRoll: {
-    fidelity: 'degraded',
+    fidelity: 'first_class',
     engineNative: true,
-    needsFeature: 'letter-spacing',
+    needsFeature: null,
     backend: 'both',
   },
   SplitScreen: {
@@ -319,8 +319,8 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
 }
 
 export const FIDELITY_SUMMARY = {
-  firstClass: 45,
-  degraded: 24,
+  firstClass: 51,
+  degraded: 18,
   apesRemotion: 1,
 } as const
 
@@ -331,7 +331,10 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'AudioVisualizer',
   'BarChart',
   'BrowserFrame',
+  'Callout',
+  'ChapterCard',
   'CameraShake',
+  'Captions',
   'CodeDiff',
   'Confetti',
   'CountUp',
@@ -346,7 +349,9 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'IconPop',
   'KanbanBoard',
   'KenBurns',
+  'LowerThird',
   'LineChart',
+  'MatrixDecode',
   'Marquee',
   'MaskReveal',
   'NodeGraph',
@@ -360,6 +365,7 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'ScaleIn',
   'ShimmerSweep',
   'SlideIn',
+  'SlotMachineRoll',
   'SlideOut',
   'Spotlight',
   'StaggerGroup',

@@ -31,7 +31,7 @@
 
 import { Group, Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { SPRING_SMOOTH } from '../motion.js'
-import { useTextMetrics } from '../text-metrics.js'
+import { letterSpacingPx, useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
 /** One transcript entry: a word and its `[startMs, endMs)` activation window. */
@@ -62,9 +62,8 @@ export interface CaptionsProps {
   fontFamily?: string
   /** Font weight (display default 600). */
   fontWeight?: number
-  /** CSS letter-spacing (e.g. `'-0.02em'`). Accepted for prop-shape parity with
-   *  ondajs; the scene `<Text>` has no letter-spacing knob, so it is NOT applied
-   *  (see `approximations`). */
+  /** CSS letter-spacing (e.g. `'-0.02em'` or `'2px'`). Applied to the caption
+   *  text and folded into its measured width so centering stays exact. */
   letterSpacing?: string
   /** Unitless line height. Accepted for prop-shape parity with ondajs; the scene
    *  `<Text>` has a fixed text box, so it is NOT applied (see `approximations`). */
@@ -103,6 +102,7 @@ export function Captions({
   fontSize = 96,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
+  letterSpacing,
   align = 'center',
   placement = 'lower-third',
   maxWidth = 0.8,
@@ -127,7 +127,12 @@ export function Captions({
   // Real shaped width of the active caption. Measured unconditionally (the hook
   // must run every render) with an empty string in the gaps; the result is only
   // read once an active caption exists.
-  const measured = useTextMetrics(active?.text ?? '', fontSize, { fontFamily, fontWeight })
+  const lsPx = letterSpacingPx(letterSpacing, fontSize)
+  const measured = useTextMetrics(active?.text ?? '', fontSize, {
+    fontFamily,
+    fontWeight,
+    letterSpacing: lsPx,
+  })
 
   if (!active) return null
 
@@ -176,6 +181,7 @@ export function Captions({
         color={accentColor}
         fontFamily={fontFamily}
         fontWeight={fontWeight}
+        letterSpacing={lsPx}
       >
         {active.text}
       </Text>
