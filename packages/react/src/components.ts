@@ -54,6 +54,15 @@ export interface PaintProps {
   strokeDash?: number[]
   /** Phase offset into the dash pattern (px) — animate for a draw-on reveal. */
   strokeDashOffset?: number
+  /** Drop shadow / glow behind the shape (CSS box-shadow). `blur` is the gaussian
+   *  std-dev; `(0,0)` offset reads as a centered glow. GPU/Vello-rendered. */
+  shadow?: {
+    color: ColorInput
+    blur: number
+    offsetX?: number
+    offsetY?: number
+    spread?: number
+  }
 }
 
 export interface CompositionProps {

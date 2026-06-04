@@ -727,6 +727,26 @@ pub struct Shape {
     pub gradient: Option<Gradient>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stroke: Option<Stroke>,
+    /// A drop shadow / glow drawn behind the shape (CSS `box-shadow`). Rendered by
+    /// Vello as an analytic blurred rounded-rect; the CPU reference skips it
+    /// (GPU-only, like clip/rotation).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shadow: Option<Shadow>,
+}
+
+/// A drop shadow / glow behind a [`Shape`] (CSS `box-shadow`): a blurred
+/// solid-color rounded-rect, offset + grown by `spread`, in `color`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Shadow {
+    pub color: Color,
+    /// Gaussian blur std-dev in px (the softness).
+    pub blur: f32,
+    /// Shadow displacement from the shape (px). `(0,0)` = a centered glow.
+    #[serde(default)]
+    pub offset: Vec2,
+    /// Grow the shadow box by this many px on every side (CSS spread). Default 0.
+    #[serde(default)]
+    pub spread: f32,
 }
 
 /// One color stop of a [`Gradient`]: a color at a normalized position `0..=1`
@@ -841,7 +861,14 @@ impl Shape {
             fill: None,
             gradient: None,
             stroke: None,
+            shadow: None,
         }
+    }
+
+    /// Builder: add a drop shadow / glow behind the shape.
+    pub fn with_shadow(mut self, shadow: Shadow) -> Self {
+        self.shadow = Some(shadow);
+        self
     }
 
     /// A rectangle (square corners).
