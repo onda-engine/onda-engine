@@ -22,7 +22,8 @@
     "@onda/react": "workspace:*",
     "@onda/wasm": "workspace:*",
     "@onda/wasm-audio": "workspace:*",
-    "react": "^18.3.1"
+    "react": "^18.3.1",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
