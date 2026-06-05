@@ -48,6 +48,9 @@ const year = new Date().getFullYear()
         document.documentElement.classList.add('anim')
       }
     </script>
+    {/* react-grab (dev only): hover any element + ⌘C / Ctrl+C to copy its
+        file / component / source for a coding agent. Never ships to prod. */}
+    {import.meta.env.DEV && <script type="module">{`import("react-grab")`}</script>}
   </head>
   <body>
     <div class="onda-landing">
