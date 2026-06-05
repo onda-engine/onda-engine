@@ -167,6 +167,18 @@ export type Effect =
    *  `intensity`) are blurred with `sigma` and composited *additively* over the
    *  sharp subtree — a bright accent glows a soft halo. */
   | { effect: 'bloom'; threshold: number; intensity: number; sigma: number }
+  /** Cinematic color grade: a per-pixel remap (no blur) — the "land AI media"
+   *  wedge. `exposure` (linear gain, 0 = identity), `contrast` (1 = identity),
+   *  `saturation` (1 = identity, 0 = grayscale), `temperature` (warm/cool on R/B,
+   *  0 = neutral) and `tint` (green/magenta on G, 0 = neutral). */
+  | {
+      effect: 'color_grade'
+      exposure: number
+      contrast: number
+      saturation: number
+      temperature: number
+      tint: number
+    }
 
 /** Compositing blend mode (CSS `mix-blend-mode`). Vello renders the full set;
  *  the CPU reference composites `normal` only. */

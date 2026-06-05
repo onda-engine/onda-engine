@@ -570,6 +570,189 @@ impl Bloom {
     }
 }
 
+/// Compute shader: the **color grade** — a single per-pixel color remap (no
+/// blur), the cheapest effect pass. Mirrors the CPU `color_grade_framebuffer`
+/// math so both backends share a visual look: per-channel exposure
+/// (`2^exposure`), temperature (R up / B down), tint (G up/down) and contrast
+/// (around a 0.5 pivot), then a saturation lerp toward Rec.601 luma. Operates on
+/// straight-alpha RGB; alpha is passed through untouched.
+const COLOR_GRADE_WGSL: &str = r#"
+struct Params {
+    exposure: f32,
+    contrast: f32,
+    saturation: f32,
+    temperature: f32,
+    tint: f32,
+    width: u32,
+    height: u32,
+    _pad: u32,
+};
+
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var<uniform> params: Params;
+
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let x = gid.x;
+    let y = gid.y;
+    if (x >= params.width || y >= params.height) {
+        return;
+    }
+    let p = vec2<i32>(i32(x), i32(y));
+    let texel = textureLoad(src, p, 0);
+
+    // Per-channel gains: exposure (2^exposure) folded with temperature (R/B) and
+    // tint (G). Positive temperature warms (R up, B down); positive tint greens.
+    let gain = exp2(params.exposure);
+    let r_mul = gain * (1.0 + params.temperature * 0.5);
+    let g_mul = gain * (1.0 + params.tint * 0.5);
+    let b_mul = gain * (1.0 - params.temperature * 0.5);
+    var rgb = texel.rgb * vec3<f32>(r_mul, g_mul, b_mul);
+
+    // Contrast around a 0.5 pivot.
+    rgb = (rgb - vec3<f32>(0.5)) * params.contrast + vec3<f32>(0.5);
+
+    // Saturation: lerp toward Rec.601 luma.
+    let luma = dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
+    rgb = vec3<f32>(luma) + (rgb - vec3<f32>(luma)) * params.saturation;
+
+    rgb = clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0));
+    textureStore(dst, p, vec4<f32>(rgb, texel.a));
+}
+"#;
+
+/// Lazily-built color-grade compute pipeline (a single per-pixel pass — no
+/// ping-pong, no blur). Cached on the renderer; the per-call texture/uniform are
+/// allocated in [`ColorGrade::run`].
+pub struct ColorGrade {
+    pipeline: wgpu::ComputePipeline,
+    layout: wgpu::BindGroupLayout,
+}
+
+/// Byte size of the color-grade params uniform (5 × f32 + 3 × u32 = 32, std140-safe).
+const COLOR_GRADE_PARAMS_SIZE: u64 = 32;
+
+impl ColorGrade {
+    /// Build the compute pipeline + bind-group layout. Cache on the renderer.
+    pub fn new(device: &wgpu::Device) -> Self {
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("onda-color-grade-wgsl"),
+            source: wgpu::ShaderSource::Wgsl(COLOR_GRADE_WGSL.into()),
+        });
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("onda-color-grade-bgl"),
+            entries: &[
+                sampled_texture_entry(0),
+                storage_texture_entry(1),
+                uniform_entry(2),
+            ],
+        });
+        let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("onda-color-grade-pl"),
+            bind_group_layouts: &[&layout],
+            push_constant_ranges: &[],
+        });
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("onda-color-grade-pipeline"),
+            layout: Some(&pl),
+            module: &module,
+            entry_point: "main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+        ColorGrade { pipeline, layout }
+    }
+
+    /// Grade `source` (the captured subtree texture): one per-pixel compute pass →
+    /// a new `Rgba8Unorm` texture (`COPY_SRC`, ready for readback). Runs as its own
+    /// command encoder + submit — like the blur/bloom, it never injects into
+    /// Vello's pass.
+    #[allow(clippy::too_many_arguments)]
+    pub fn run(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        source: &wgpu::Texture,
+        width: u32,
+        height: u32,
+        exposure: f32,
+        contrast: f32,
+        saturation: f32,
+        temperature: f32,
+        tint: f32,
+    ) -> wgpu::Texture {
+        let out = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("onda-color-grade-out"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let src_view = source.create_view(&wgpu::TextureViewDescriptor::default());
+        let out_view = out.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut bytes = Vec::with_capacity(COLOR_GRADE_PARAMS_SIZE as usize);
+        bytes.extend_from_slice(&exposure.to_le_bytes());
+        bytes.extend_from_slice(&contrast.to_le_bytes());
+        bytes.extend_from_slice(&saturation.to_le_bytes());
+        bytes.extend_from_slice(&temperature.to_le_bytes());
+        bytes.extend_from_slice(&tint.to_le_bytes());
+        bytes.extend_from_slice(&width.to_le_bytes());
+        bytes.extend_from_slice(&height.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        let params = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("onda-color-grade-params"),
+            size: COLOR_GRADE_PARAMS_SIZE,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(&params, 0, &bytes);
+
+        let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("onda-color-grade-bg"),
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&src_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&out_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: params.as_entire_binding(),
+                },
+            ],
+        });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("onda-color-grade-encoder"),
+        });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("onda-color-grade"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &bg, &[]);
+            pass.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
+        }
+        queue.submit(Some(encoder.finish()));
+        out
+    }
+}
+
 /// A sampled (read-only) `texture_2d<f32>` bind-group-layout entry at `binding`.
 fn sampled_texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {

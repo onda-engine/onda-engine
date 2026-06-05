@@ -435,6 +435,103 @@ pub fn bloom_framebuffer(fb: &mut Framebuffer, threshold: f32, intensity: f32, s
     }
 }
 
+/// Fixed-point shift for the color-grade per-channel lookup table. The grade is a
+/// pure per-channel function of the input byte, so we precompute a 256-entry `u8`
+/// LUT per channel once and index it per pixel — the hot loop is a table lookup,
+/// no float math, so the result is byte-identical across runs and architectures.
+const GRADE_LUT_LEN: usize = 256;
+
+/// Apply a deterministic cinematic color grade to `fb` in place: a per-pixel color
+/// remap (exposure → contrast → temperature/tint → saturation), operating on
+/// straight-alpha RGB (alpha is untouched). No blur — a single cheap pass.
+///
+/// The order and math (all in 0..1 float, but resolved through fixed 256-entry
+/// per-channel LUTs so the per-pixel work is integer table lookups):
+/// 1. **Exposure** — linear gain `2^exposure` (`0` = identity; +1 ≈ one stop
+///    brighter). A per-channel pre-LUT is built from this.
+/// 2. **Contrast** — pivot around `0.5`: `c' = (c - 0.5) * contrast + 0.5`
+///    (`1` = identity). Folded into the same per-channel pre-LUT as exposure.
+/// 3. **Temperature / tint** — a constant per-channel multiplier: `temperature`
+///    lifts R and lowers B (positive = warmer), `tint` lifts G (positive =
+///    greener, negative = magenta). Folded into the per-channel pre-LUTs so R/G/B
+///    each get their own LUT. `0`/`0` is neutral.
+/// 4. **Saturation** — lerp each pixel's RGB toward its Rec.601 luma
+///    (`0.299r + 0.587g + 0.114b`): `out = luma + (rgb - luma) * saturation`
+///    (`1` = identity, `0` = grayscale, >1 = punchier). This couples the three
+///    channels, so it runs per pixel *after* the per-channel LUTs (still integer:
+///    fixed-point luma weights, round-to-nearest).
+///
+/// The neutral identity (exposure 0, contrast 1, saturation 1, temperature 0,
+/// tint 0) is a no-op fast path, so a grade that does nothing leaves `fb`
+/// byte-identical.
+pub fn color_grade_framebuffer(
+    fb: &mut Framebuffer,
+    exposure: f32,
+    contrast: f32,
+    saturation: f32,
+    temperature: f32,
+    tint: f32,
+) {
+    // Neutral identity → nothing to do (and keeps any neutral grade a true no-op).
+    let neutral = exposure == 0.0
+        && contrast == 1.0
+        && saturation == 1.0
+        && temperature == 0.0
+        && tint == 0.0;
+    if neutral || fb.width == 0 || fb.height == 0 {
+        return;
+    }
+
+    // Per-channel pre-LUTs fold the channel-independent stages (exposure, contrast,
+    // temperature/tint) into one 0..255 → 0..255 table each, evaluated once.
+    let gain = exposure.exp2(); // 2^exposure (0 → 1.0, identity)
+                                // Temperature: warm (positive) lifts red, cools blue; symmetric small gains.
+    let r_mul = gain * (1.0 + temperature * 0.5);
+    let b_mul = gain * (1.0 - temperature * 0.5);
+    // Tint: positive → green, negative → magenta (lift/drop green).
+    let g_mul = gain * (1.0 + tint * 0.5);
+
+    let build_lut = |channel_mul: f32| -> [u8; GRADE_LUT_LEN] {
+        let mut lut = [0u8; GRADE_LUT_LEN];
+        for (i, slot) in lut.iter_mut().enumerate() {
+            let v = i as f32 / 255.0;
+            let v = v * channel_mul; // exposure + temperature/tint
+            let v = (v - 0.5) * contrast + 0.5; // contrast around 0.5 pivot
+                                                // Round-to-nearest f32 → u8 (deterministic clamp), no platform-varying
+                                                // reduction: each entry is an independent scalar evaluation.
+            *slot = (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+        }
+        lut
+    };
+    let lut_r = build_lut(r_mul);
+    let lut_g = build_lut(g_mul);
+    let lut_b = build_lut(b_mul);
+
+    // Saturation as a fixed-point multiplier (round-to-nearest); 1<<8 unit. Applied
+    // per pixel after the LUTs, lerping each channel toward integer Rec.601 luma.
+    let sat_fp = (saturation.max(0.0) * 256.0).round() as i32;
+
+    for px in fb.pixels.chunks_exact_mut(4) {
+        if px[3] == 0 {
+            continue; // fully transparent → no visible color to grade
+        }
+        // 1–3) per-channel LUT (exposure, contrast, temperature/tint).
+        let r = lut_r[px[0] as usize] as i32;
+        let g = lut_g[px[1] as usize] as i32;
+        let b = lut_b[px[2] as usize] as i32;
+        // 4) saturation: lerp toward Rec.601 luma. Integer weights /256 (77+150+29).
+        let luma = (r * 77 + g * 150 + b * 29) >> 8;
+        let mix = |c: i32| {
+            // c' = luma + (c - luma) * sat (fixed-point), round-to-nearest, clamp.
+            let v = luma + (((c - luma) * sat_fp) + 128) / 256;
+            v.clamp(0, 255) as u8
+        };
+        px[0] = mix(r);
+        px[1] = mix(g);
+        px[2] = mix(b);
+    }
+}
+
 /// Straight-alpha "source over destination" Porter-Duff compositing.
 fn over(src: Color, dst: Color) -> Color {
     let out_a = src.a + dst.a * (1.0 - src.a);
@@ -643,6 +740,8 @@ impl Renderer {
                 // Bloom blurs its bright-pass with `sigma`; the halo needs the same
                 // 3σ headroom around the subtree so the glow isn't clipped.
                 Effect::Bloom { sigma, .. } => (3.0 * sigma.max(0.0)).ceil(),
+                // ColorGrade is a per-pixel remap (no spread) — it needs no margin.
+                Effect::ColorGrade { .. } => 0.0,
             })
             .fold(0.0f32, f32::max);
         let bounds = self.captured_local_bounds(node);
@@ -680,6 +779,20 @@ impl Renderer {
                     intensity,
                     sigma,
                 } => bloom_framebuffer(&mut temp, *threshold, *intensity, *sigma),
+                Effect::ColorGrade {
+                    exposure,
+                    contrast,
+                    saturation,
+                    temperature,
+                    tint,
+                } => color_grade_framebuffer(
+                    &mut temp,
+                    *exposure,
+                    *contrast,
+                    *saturation,
+                    *temperature,
+                    *tint,
+                ),
             }
         }
 
@@ -853,10 +966,17 @@ impl Renderer {
         // at composite-back).
         if let Some((w, h)) = node_local_size(node) {
             let stroke_inflate = match &node.kind {
-                NodeKind::Shape(s) => s.stroke.as_ref().map_or(0.0, |st| st.width.max(0.0)) * 0.5 + 1.0,
+                NodeKind::Shape(s) => {
+                    s.stroke.as_ref().map_or(0.0, |st| st.width.max(0.0)) * 0.5 + 1.0
+                }
                 _ => 0.0,
             };
-            push(-stroke_inflate, -stroke_inflate, w + stroke_inflate, h + stroke_inflate);
+            push(
+                -stroke_inflate,
+                -stroke_inflate,
+                w + stroke_inflate,
+                h + stroke_inflate,
+            );
         } else if let NodeKind::Text(text) = &node.kind {
             if let Some(b) = self.text_local_bounds(text, Transform::IDENTITY) {
                 push(b.0, b.1, b.2, b.3);
@@ -1768,6 +1888,46 @@ mod tests {
             before.as_slice(),
             "below-threshold pixels should not bloom"
         );
+    }
+
+    #[test]
+    fn color_grade_neutral_is_a_noop() {
+        // The documented identity (exposure 0, contrast 1, saturation 1, temp 0,
+        // tint 0) must leave the framebuffer byte-identical.
+        let make = || Framebuffer::filled(8, 8, Color::rgb(0.4, 0.6, 0.2));
+        let mut fb = make();
+        color_grade_framebuffer(&mut fb, 0.0, 1.0, 1.0, 0.0, 0.0);
+        assert_eq!(fb.as_bytes(), make().as_bytes());
+    }
+
+    #[test]
+    fn color_grade_is_deterministic() {
+        // Pure integer LUT + fixed-point saturation → two runs are byte-identical.
+        let make = || Framebuffer::filled(16, 16, Color::rgb(0.5, 0.3, 0.7));
+        let mut a = make();
+        let mut b = make();
+        color_grade_framebuffer(&mut a, 0.3, 1.2, 0.6, 0.4, -0.2);
+        color_grade_framebuffer(&mut b, 0.3, 1.2, 0.6, 0.4, -0.2);
+        assert_eq!(a.as_bytes(), b.as_bytes(), "grade must be reproducible");
+    }
+
+    #[test]
+    fn color_grade_warms_and_desaturates() {
+        // A neutral mid-gray graded warm (positive temperature) should gain red and
+        // lose blue; pushing saturation toward 0 pulls all channels toward luma.
+        let mut warm = Framebuffer::filled(4, 4, Color::rgb(0.5, 0.5, 0.5));
+        color_grade_framebuffer(&mut warm, 0.0, 1.0, 1.0, 0.6, 0.0);
+        let [r, _g, b, _a] = warm.pixel(0, 0);
+        assert!(
+            r > b,
+            "warm grade should lift red above blue (r={r}, b={b})"
+        );
+
+        // A saturated red driven to saturation 0 becomes gray (R≈G≈B at its luma).
+        let mut gray = Framebuffer::filled(4, 4, Color::rgb(1.0, 0.0, 0.0));
+        color_grade_framebuffer(&mut gray, 0.0, 1.0, 0.0, 0.0, 0.0);
+        let [r, g, b, _a] = gray.pixel(0, 0);
+        assert_eq!((r, g, b), (76, 76, 76), "sat 0 → Rec.601 luma gray");
     }
 
     #[cfg(feature = "parallel")]

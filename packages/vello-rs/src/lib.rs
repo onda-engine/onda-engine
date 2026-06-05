@@ -25,7 +25,7 @@ use vello::peniko::{
 use vello::{wgpu, AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene as VelloScene};
 
 mod effects;
-use effects::{Bloom, GaussianBlur};
+use effects::{Bloom, ColorGrade, GaussianBlur};
 
 /// A rendered frame: straight-alpha RGBA8, row-major, top-left origin.
 pub struct Frame {
@@ -51,6 +51,9 @@ pub struct VelloRenderer {
     /// first time a node carries a `Bloom` effect; reuses `blur_pipeline` for the
     /// spread in between.
     bloom_pipeline: Option<Bloom>,
+    /// Color-grade compute pipeline (a single per-pixel remap — no blur). Built
+    /// lazily the first time a node carries a `ColorGrade` effect, then reused.
+    grade_pipeline: Option<ColorGrade>,
 }
 
 impl VelloRenderer {
@@ -117,6 +120,7 @@ impl VelloRenderer {
             font_cache: HashMap::new(),
             blur_pipeline: None,
             bloom_pipeline: None,
+            grade_pipeline: None,
         })
     }
 
@@ -155,6 +159,7 @@ impl VelloRenderer {
                 font_cache: &mut self.font_cache,
                 blur_pipeline: &mut self.blur_pipeline,
                 bloom_pipeline: &mut self.bloom_pipeline,
+                grade_pipeline: &mut self.grade_pipeline,
             },
             &scene.root,
             Affine::IDENTITY,
@@ -186,6 +191,7 @@ struct Ctx<'a> {
     font_cache: &'a mut HashMap<u64, Font>,
     blur_pipeline: &'a mut Option<GaussianBlur>,
     bloom_pipeline: &'a mut Option<Bloom>,
+    grade_pipeline: &'a mut Option<ColorGrade>,
 }
 
 /// Rasterize an already-built `VelloScene` to a fresh `Rgba8Unorm` texture of the
@@ -422,6 +428,8 @@ fn render_effects_subtree(
             // Bloom blurs its bright-pass with `sigma`; the halo needs the same
             // headroom as a blur so the glow isn't clipped at the texture edge.
             Effect::Bloom { sigma, .. } => *sigma,
+            // ColorGrade is a per-pixel remap (no spread) — it needs no margin.
+            Effect::ColorGrade { .. } => 0.0,
         })
         .fold(0.0_f32, f32::max);
     let margin = (3.0 * max_sigma).ceil().max(0.0) as f64;
@@ -509,6 +517,29 @@ fn render_effects_subtree(
             }
             // Degenerate bloom (no spread or no intensity) is a no-op.
             Effect::Bloom { .. } => {}
+            Effect::ColorGrade {
+                exposure,
+                contrast,
+                saturation,
+                temperature,
+                tint,
+            } => {
+                let grade = ctx
+                    .grade_pipeline
+                    .get_or_insert_with(|| ColorGrade::new(ctx.device));
+                texture = grade.run(
+                    ctx.device,
+                    ctx.queue,
+                    &texture,
+                    tw,
+                    th,
+                    *exposure,
+                    *contrast,
+                    *saturation,
+                    *temperature,
+                    *tint,
+                );
+            }
         }
     }
 

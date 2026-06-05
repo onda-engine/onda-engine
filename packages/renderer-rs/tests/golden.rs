@@ -249,6 +249,57 @@ fn fixtures() -> Vec<(&'static str, Scene)> {
                 ),
             ),
         ),
+        // RTT color grade — the "land AI media" wedge: a multi-hue swatch grid
+        // graded warm + contrasty + slightly desaturated, exactly as a
+        // cinematographer would unify mismatched clips. A single per-pixel remap on
+        // the captured group (no blur). Locks the deterministic grade math.
+        (
+            "grade_image",
+            scene(
+                Node::group()
+                    .with_effect(Effect::ColorGrade {
+                        exposure: 0.15,
+                        contrast: 1.25,
+                        saturation: 0.85,
+                        temperature: 0.5,
+                        tint: -0.1,
+                    })
+                    .with_children([
+                        // A row of saturated primaries + neutrals — the grade's
+                        // effect on each hue is visible side by side.
+                        Node::shape(
+                            Shape::rect(Size::new(60.0, 70.0))
+                                .with_fill(Color::from_rgba8(0xE0, 0x30, 0x30, 0xFF)),
+                        )
+                        .with_transform(translate(10.0, 10.0)),
+                        Node::shape(
+                            Shape::rect(Size::new(60.0, 70.0))
+                                .with_fill(Color::from_rgba8(0x30, 0xC0, 0x40, 0xFF)),
+                        )
+                        .with_transform(translate(70.0, 10.0)),
+                        Node::shape(
+                            Shape::rect(Size::new(60.0, 70.0))
+                                .with_fill(Color::from_rgba8(0x30, 0x50, 0xE0, 0xFF)),
+                        )
+                        .with_transform(translate(130.0, 10.0)),
+                        Node::shape(
+                            Shape::rect(Size::new(60.0, 70.0))
+                                .with_fill(Color::from_rgba8(0x80, 0x80, 0x80, 0xFF)),
+                        )
+                        .with_transform(translate(10.0, 80.0)),
+                        Node::shape(
+                            Shape::rect(Size::new(60.0, 70.0))
+                                .with_fill(Color::from_rgba8(0xF0, 0xC0, 0x30, 0xFF)),
+                        )
+                        .with_transform(translate(70.0, 80.0)),
+                        Node::shape(
+                            Shape::rect(Size::new(60.0, 70.0))
+                                .with_fill(Color::from_rgba8(0x20, 0xC8, 0xD0, 0xFF)),
+                        )
+                        .with_transform(translate(130.0, 80.0)),
+                    ]),
+            ),
+        ),
     ]
 }
 

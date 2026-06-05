@@ -49,6 +49,23 @@ export interface NodeProps {
    *  blur with `sigma` and composite additively over the sharp subtree. Honored by
    *  Vello AND the CPU reference. */
   bloom?: number | { sigma: number; threshold?: number; intensity?: number }
+  /** Cinematic color-grade sugar for `effects: [{ effect: 'color_grade', ... }]` —
+   *  the "land AI media" wedge: one grade unifies mismatched clips into a single
+   *  look. All five fields are optional and default to the neutral identity
+   *  (`exposure` 0, `contrast` 1, `saturation` 1, `temperature` 0, `tint` 0), so
+   *  `{}` is a no-op. Honored by Vello AND the CPU reference. */
+  grade?: {
+    /** Linear exposure gain (`2^exposure`); 0 = identity. */
+    exposure?: number
+    /** Contrast around a 0.5 pivot; 1 = identity. */
+    contrast?: number
+    /** Saturation; 1 = identity, 0 = grayscale, >1 = punchier. */
+    saturation?: number
+    /** Warm/cool shift (R up / B down for positive); 0 = neutral. */
+    temperature?: number
+    /** Green/magenta shift on G (positive = green); 0 = neutral. */
+    tint?: number
+  }
   children?: ReactNode
 }
 

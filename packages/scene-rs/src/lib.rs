@@ -110,6 +110,36 @@ pub enum Effect {
         intensity: f32,
         sigma: f32,
     },
+    /// Cinematic color grade: a per-pixel color remap on the captured subtree — no
+    /// blur, so it's a single cheap pass (unlike `Blur`/`Bloom`). The product's
+    /// "land AI media" wedge: drop one grade on a group of mismatched AI-generated
+    /// clips and they share a cinematographer's look. Applied in order:
+    /// `exposure` (linear gain `2^exposure` — `0` is identity), `contrast` (around
+    /// a 0.5 pivot — `1` is identity), `saturation` (lerp toward Rec.601 luma —
+    /// `1` is identity, `0` grayscale), `temperature` (warm/cool, lifting R &
+    /// lowering B for positive — `0` neutral) and `tint` (green/magenta on G — `0`
+    /// neutral). The neutral identity (all-zero except `contrast`/`saturation` = 1)
+    /// is a visual no-op.
+    ColorGrade {
+        exposure: f32,
+        contrast: f32,
+        saturation: f32,
+        temperature: f32,
+        tint: f32,
+    },
+}
+
+impl Effect {
+    /// A neutral [`Effect::ColorGrade`] — the identity remap (exposure 0,
+    /// contrast 1, saturation 1, temperature 0, tint 0). Adjust the fields for a
+    /// look.
+    pub const NEUTRAL_GRADE: Effect = Effect::ColorGrade {
+        exposure: 0.0,
+        contrast: 1.0,
+        saturation: 1.0,
+        temperature: 0.0,
+        tint: 0.0,
+    };
 }
 
 /// A node in the scene graph: shared properties plus a kind-specific payload and
@@ -1338,6 +1368,33 @@ mod tests {
         ));
         let back: Node = serde_json::from_str(&json).unwrap();
         assert_eq!(glow, back);
+
+        // A color-grade effect serializes snake_case with all five fields and round-trips.
+        let graded = Node::image("clip.png").with_effect(Effect::ColorGrade {
+            exposure: 0.2,
+            contrast: 1.1,
+            saturation: 0.8,
+            temperature: 0.3,
+            tint: -0.1,
+        });
+        let json = serde_json::to_string(&graded).unwrap();
+        assert!(json.contains(
+            r#""effects":[{"effect":"color_grade","exposure":0.2,"contrast":1.1,"saturation":0.8,"temperature":0.3,"tint":-0.1}]"#
+        ));
+        let back: Node = serde_json::from_str(&json).unwrap();
+        assert_eq!(graded, back);
+
+        // The neutral grade is the documented identity.
+        assert_eq!(
+            Effect::NEUTRAL_GRADE,
+            Effect::ColorGrade {
+                exposure: 0.0,
+                contrast: 1.0,
+                saturation: 1.0,
+                temperature: 0.0,
+                tint: 0.0,
+            }
+        );
     }
 
     #[test]
