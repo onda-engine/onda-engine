@@ -133,6 +133,11 @@ export {
 export { InputField, type InputFieldProps } from './components/InputField.js'
 export { KanbanBoard, type KanbanBoardProps, type KanbanColumn } from './components/KanbanBoard.js'
 export { KenBurns, type KenBurnsProps } from './components/KenBurns.js'
+export {
+  KineticText,
+  type KineticTextPreset,
+  type KineticTextProps,
+} from './components/KineticText.js'
 export { LineChart, type LineChartProps } from './components/LineChart.js'
 export { LogoSting, type LogoStingProps } from './components/LogoSting.js'
 export { LowerThird, type LowerThirdProps } from './components/LowerThird.js'

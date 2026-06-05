@@ -157,6 +157,12 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   },
   KanbanBoard: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   KenBurns: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
+  KineticText: {
+    fidelity: 'first_class',
+    engineNative: true,
+    needsFeature: null,
+    backend: 'both',
+  },
   LineChart: {
     fidelity: 'first_class',
     engineNative: true,
@@ -319,7 +325,7 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
 }
 
 export const FIDELITY_SUMMARY = {
-  firstClass: 70,
+  firstClass: 71,
   degraded: 0,
   apesRemotion: 0,
 } as const
@@ -358,6 +364,7 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'IconPop',
   'KanbanBoard',
   'KenBurns',
+  'KineticText',
   'LogoSting',
   'LowerThird',
   'LineChart',
