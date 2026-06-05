@@ -19,8 +19,10 @@ import {
   Composition,
   Group,
   Image,
+  Path,
   Rect,
   Text,
+  morphPath,
   radialGradient,
   useCurrentFrame,
   useVideoConfig,
@@ -34,6 +36,12 @@ const FONT = 'Bricolage Grotesque 96pt'
 const INK = '#f6efe2'
 const MUTED = '#c2b29a'
 const DIM = '#8c7f6c'
+const GOLD = '#e8b074'
+
+// The morph ornament: a diamond that magic-moves into a hairline rule (the
+// "fleuron unfolds into an underline" — demonstrates morphPath, centered at origin).
+const DIAMOND = 'M 0 -10 L 10 0 L 0 10 L -10 0 Z'
+const RULE = 'M -104 -1.5 L 104 -1.5 L 104 1.5 L -104 1.5 Z'
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x))
 function ramp(f, a, b) {
@@ -53,20 +61,33 @@ function Scene() {
   const fy = H / 2 + (1 - ramp(f, 0, N)) * H * 0.015
 
   // Title beats (after the focus resolves).
-  const wordIn = ramp(f, 58, 92)
-  const subIn = ramp(f, 80, 112)
-  const credIn = ramp(f, 124, 156)
-  const wordRise = (1 - ramp(f, 58, 104)) * 26
+  // Staged title reveal: SOLENNE rises → a gold ornament unfolds (morphs) from a
+  // diamond into a hairline rule → the subtitle + credit settle under it.
+  const wordIn = ramp(f, 52, 88)
+  const wordRise = (1 - ramp(f, 52, 100)) * 26
+  const ornIn = ramp(f, 74, 96)
+  const ornD = morphPath(DIAMOND, RULE, ramp(f, 98, 126))
+  const subIn = ramp(f, 116, 146)
+  const credIn = ramp(f, 150, 182)
 
   // Rough centering (tuned by eye for Bricolage; verified by render).
   const wordSize = Math.round(W * 0.15)
   const wordX = Math.round(W / 2 - wordSize * 1.62)
+  const wordY = Math.round(H * 0.62)
+  const ornY = Math.round(wordY + wordSize * 1.2)
   const subSize = Math.round(W * 0.03)
   const subText = 'Eau de Parfum · Summer ’26'
   const subX = Math.round(W / 2 - subText.length * subSize * 0.27)
+  const subY = Math.round(wordY + wordSize * 1.56)
   const credText = 'Composed in ONDA — directed from a single still.'
   const credSize = Math.round(W * 0.0205)
   const credX = Math.round(W / 2 - credText.length * credSize * 0.255)
+
+  // Film grain (onda-noise overlay) — per-frame seed so it shimmers AND survives
+  // motion-blur averaging (round(f) is constant across a frame's sub-frames).
+  const gnw = Math.max(2, Math.round(W * 0.91))
+  const gnh = Math.max(2, Math.round(H * 0.91))
+  const gSeed = Math.round(f)
 
   return [
     // The directed plate: corrective grade + bloom + focus-pull, inside a slow push.
@@ -110,7 +131,7 @@ function Scene() {
         Text,
         {
           x: wordX,
-          y: Math.round(H * 0.7),
+          y: wordY,
           fontSize: wordSize,
           fontFamily: FONT,
           fontWeight: 800,
@@ -120,11 +141,21 @@ function Scene() {
         },
         'SOLENNE',
       ),
+      // The morph ornament: a gold diamond that magic-moves into a hairline rule,
+      // with a soft glow so it reads against the dark plate.
+      h(Path, {
+        x: W / 2,
+        y: ornY,
+        d: ornD,
+        fill: GOLD,
+        opacity: ornIn,
+        shadow: { color: GOLD, blur: 9 },
+      }),
       h(
         Text,
         {
           x: subX,
-          y: Math.round(H * 0.7 + wordSize * 1.15),
+          y: subY,
           fontSize: subSize,
           fontFamily: FONT,
           fontWeight: 300,
@@ -152,6 +183,19 @@ function Scene() {
       },
       credText,
     ),
+
+    // Film grain over everything — onda-noise, overlay-blended (modulates, not
+    // washes), shimmering. Unifies the plate + graphics under one texture.
+    h(Image, {
+      key: 'grain',
+      src: `onda-noise://w=${gnw}&h=${gnh}&seed=${gSeed}&intensity=0.06&mono=1`,
+      x: 0,
+      y: 0,
+      width: W,
+      height: H,
+      fit: 'fill',
+      blendMode: 'overlay',
+    }),
   ]
 }
 
