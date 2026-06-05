@@ -234,12 +234,23 @@ fn build(
                         stroke.dash.iter().map(|d| *d as f64),
                     );
                 }
-                vscene.stroke(
-                    &sk,
+                // Expand the stroke to a FILLED outline on the CPU (kurbo) and fill
+                // that, instead of using Vello's GPU stroke path. This sidesteps a
+                // Vello-on-Dawn (WebGPU) stroke-rasterization artifact — a stray
+                // column of fragments on stroked rounded-rect borders that only
+                // appeared on Chrome's Dawn backend (native Metal + the CPU
+                // reference were always clean). The filled outline rasterizes
+                // identically across backends; stroke counts are tiny, so the CPU
+                // expansion is cheap.
+                const STROKE_TOL: f64 = 0.1;
+                let outline =
+                    vello::kurbo::stroke(path.path_elements(STROKE_TOL), &sk, &Default::default(), STROKE_TOL);
+                vscene.fill(
+                    Fill::NonZero,
                     affine,
                     peniko_color(stroke.color, opacity),
                     None,
-                    &path,
+                    &outline,
                 );
             }
         }
