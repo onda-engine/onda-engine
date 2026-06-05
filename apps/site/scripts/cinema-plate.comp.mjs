@@ -1,0 +1,160 @@
+// cinema-plate.comp.mjs — the cinematic-compositing exemplar (v1, existing tools).
+//
+// Takes ONE raw golden-hour still (apps/site/public/cinema/plate.jpg, a CC0 stand-in
+// for AI-generated media) and DIRECTS it into a premium title card: a corrective
+// grade, a focus-pull entrance, a slow Ken Burns push, bloom on the sun flare, a
+// Bricolage title in the dark negative space, and a vignette. Proves "ONDA lands
+// media beautifully." v1 runs in the engine's current (gamma) pipeline — the linear
+// + light-wrap keystone will sharpen the bloom/integration next (the before/after).
+//
+//   node apps/site/scripts/render-comp.mjs --comp apps/site/scripts/cinema-plate.comp.mjs \
+//     --width 1080 --height 1920 --fps 30 --duration 210 --out apps/site/public/cinema/plate-film.mp4 \
+//     --font apps/site/public/fonts/BricolageGrotesque96pt-ExtraBold.ttf \
+//     --font apps/site/public/fonts/BricolageGrotesque96pt-Light.ttf
+
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import {
+  Camera,
+  Composition,
+  Group,
+  Image,
+  Rect,
+  Text,
+  radialGradient,
+  useCurrentFrame,
+  useVideoConfig,
+} from '@onda/react'
+import { createElement as h } from 'react'
+
+const HERE = path.dirname(fileURLToPath(import.meta.url))
+const PLATE = path.resolve(HERE, '../public/cinema/plate.jpg')
+
+const FONT = 'Bricolage Grotesque 96pt'
+const INK = '#f6efe2'
+const MUTED = '#c2b29a'
+const DIM = '#8c7f6c'
+
+const clamp01 = (x) => Math.max(0, Math.min(1, x))
+function ramp(f, a, b) {
+  const t = clamp01((f - a) / (b - a))
+  return t * t * (3 - 2 * t)
+}
+
+function Scene() {
+  const f = useCurrentFrame()
+  const { width: W, height: H, durationInFrames: N } = useVideoConfig()
+
+  // Focus-pull entrance: the plate racks from soft to sharp.
+  const focus = (1 - ramp(f, 0, 50)) * 30
+
+  // Slow Ken Burns push (a still gains motion) + a faint vertical drift.
+  const zoom = 1.04 + 0.06 * ramp(f, 0, N)
+  const fy = H / 2 + (1 - ramp(f, 0, N)) * H * 0.015
+
+  // Title beats (after the focus resolves).
+  const wordIn = ramp(f, 58, 92)
+  const subIn = ramp(f, 80, 112)
+  const credIn = ramp(f, 124, 156)
+  const wordRise = (1 - ramp(f, 58, 104)) * 26
+
+  // Rough centering (tuned by eye for Bricolage; verified by render).
+  const wordSize = Math.round(W * 0.15)
+  const wordX = Math.round(W / 2 - wordSize * 1.62)
+  const subSize = Math.round(W * 0.03)
+  const subText = 'Eau de Parfum · Summer ’26'
+  const subX = Math.round(W / 2 - subText.length * subSize * 0.27)
+  const credText = 'Composed in ONDA — directed from a single still.'
+  const credSize = Math.round(W * 0.0205)
+  const credX = Math.round(W / 2 - credText.length * credSize * 0.255)
+
+  return [
+    // The directed plate: corrective grade + bloom + focus-pull, inside a slow push.
+    h(
+      Camera,
+      { key: 'cam', zoom, focusX: W / 2, focusY: fy, viewportWidth: W, viewportHeight: H },
+      h(Image, {
+        key: 'plate',
+        src: PLATE,
+        x: 0,
+        y: 0,
+        width: W,
+        height: H,
+        fit: 'cover',
+        blur: focus,
+        // Corrective grade: tame the stock saturation, add contrast + a touch of
+        // warmth — kills the "stock photo" read, nudges toward a graded look.
+        grade: { saturation: 0.9, contrast: 1.06, exposure: -0.03, temperature: 0.03 },
+        // Bloom the bright sun-flare highlights (flat-ish in gamma; real in linear).
+        bloom: { sigma: 22, threshold: 0.72, intensity: 1.25 },
+      }),
+    ),
+
+    // Vignette — pull focus to the subject, deepen the lower negative space.
+    h(Rect, {
+      key: 'vignette',
+      width: W,
+      height: H,
+      gradient: radialGradient([W / 2, H * 0.42], Math.hypot(W, H) * 0.62, [
+        { offset: 0.0, color: '#00000000' },
+        { offset: 0.55, color: '#00000000' },
+        { offset: 1.0, color: '#0a0704bf' },
+      ]),
+    }),
+
+    // Title block in the dark lower third.
+    h(
+      Group,
+      { key: 'title', y: wordRise },
+      h(
+        Text,
+        {
+          x: wordX,
+          y: Math.round(H * 0.7),
+          fontSize: wordSize,
+          fontFamily: FONT,
+          fontWeight: 800,
+          letterSpacing: 2,
+          color: INK,
+          opacity: wordIn,
+        },
+        'SOLENNE',
+      ),
+      h(
+        Text,
+        {
+          x: subX,
+          y: Math.round(H * 0.7 + wordSize * 1.15),
+          fontSize: subSize,
+          fontFamily: FONT,
+          fontWeight: 300,
+          letterSpacing: 1,
+          color: MUTED,
+          opacity: subIn,
+        },
+        subText,
+      ),
+    ),
+
+    // Quiet credit at the very bottom — ties the demo back to the engine.
+    h(
+      Text,
+      {
+        key: 'credit',
+        x: credX,
+        y: Math.round(H * 0.93),
+        fontSize: credSize,
+        fontFamily: FONT,
+        fontWeight: 300,
+        letterSpacing: 1,
+        color: DIM,
+        opacity: credIn,
+      },
+      credText,
+    ),
+  ]
+}
+
+export default function cinemaPlate({ fps, durationInFrames, width, height }) {
+  return h(Composition, { width, height, fps, durationInFrames }, h(Scene, null))
+}
