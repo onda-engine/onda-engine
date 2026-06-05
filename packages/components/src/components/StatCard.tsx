@@ -8,10 +8,11 @@ import { useTheme } from '../theme.js'
 import { FadeIn } from './FadeIn.js'
 
 export interface StatCardProps {
-  /** The headline metric, e.g. "26.8 fps" or "100×" (number is stringified). */
-  value: string | number
+  /** The headline metric, e.g. "26.8 fps" or "100×" (number is stringified).
+   *  Defaults to "—" so an under-specified card renders a placeholder, not nothing. */
+  value?: string | number
   /** The label beneath, e.g. "faster than Remotion". */
-  label: string
+  label?: string
   valueSize?: number
   labelSize?: number
   /** Value color (default: theme `text`). */
@@ -30,8 +31,8 @@ export interface StatCardProps {
 }
 
 export function StatCard({
-  value,
-  label,
+  value = "—",
+  label = "",
   valueSize = 140,
   labelSize = 34,
   valueColor,
