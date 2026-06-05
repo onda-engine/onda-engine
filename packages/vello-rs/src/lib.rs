@@ -11,7 +11,7 @@
 
 use std::collections::HashMap;
 
-use onda_core::{Color, Transform};
+use onda_core::{Color, Size, Transform};
 use onda_scene::{
     BlendMode, Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Node,
     NodeKind, Scene, Shadow, ShapeGeometry, Text,
@@ -141,7 +141,9 @@ impl VelloRenderer {
 
     /// Render an ONDA scene to a [`Frame`] (blocking readback; native only).
     pub fn render(&mut self, scene: &Scene) -> Frame {
-        let (texture, width, height) = self.render_to_target(scene, None);
+        // Native resolves both effects and backdrop blur INLINE during the build
+        // (synchronous readback), so no pre-pass cache is needed.
+        let (texture, width, height) = self.render_to_target(scene, None, None);
         read_back(&self.device, &self.queue, &texture, width, height)
     }
 
@@ -149,10 +151,19 @@ impl VelloRenderer {
     /// blocking — required on the web (wasm), where buffer mapping is async.
     pub async fn render_async(&mut self, scene: &Scene) -> Frame {
         // WebGPU can't map buffers synchronously mid-build, so resolve every effect
-        // subtree up front with async readbacks, then build using the cached images
-        // (`prepare_effect_images` is a no-op on native — effects read back inline).
+        // subtree AND every frosted backdrop up front with async readbacks, then
+        // build using the cached images (both pre-passes are no-ops on native —
+        // effects and backdrops read back inline there).
         let effect_images = self.prepare_effect_images(scene).await;
-        let (texture, width, height) = self.render_to_target(scene, Some(&effect_images));
+        // Thread the effect cache into the backdrop pre-pass so a subtree effect
+        // (blur/bloom/grade/goo) sitting BEHIND a glass panel shows up correctly in
+        // the frosted backdrop — matching native (which resolves it inline). Each
+        // backdrop node re-walks from root, so the prefix sees the same stop-at-
+        // effect DFS prefix of effect nodes; a fresh effect_idx:0 per node consumes
+        // exactly those.
+        let backdrop_images = self.prepare_backdrop_images(scene, &effect_images).await;
+        let (texture, width, height) =
+            self.render_to_target(scene, Some(&effect_images), Some(&backdrop_images));
         read_back_async(&self.device, &self.queue, &texture, width, height).await
     }
 
@@ -171,9 +182,17 @@ impl VelloRenderer {
         // Pre-order DFS over the ORIGINAL tree: descend into non-effect nodes; at an
         // effect node render+process its subtree to a texture, async-read it back,
         // and STOP (don't descend) — matching `build`'s consumption order exactly.
+        let comp = (
+            scene.composition.width.max(1),
+            scene.composition.height.max(1),
+        );
         let mut stack: Vec<&Node> = vec![&scene.root];
         while let Some(node) = stack.pop() {
-            if node.effects.is_empty() {
+            // Descend through plain nodes AND backdrop-blur nodes (the latter are
+            // resolved by the separate backdrop pre-pass, not here). Capture only at
+            // a node with a real SUBTREE effect (blur/bloom/grade/goo) and no
+            // backdrop — exactly the nodes `build`'s subtree branch consumes.
+            if !has_subtree_effect(node) || backdrop_blur_of(node).is_some() {
                 // Push children reversed so they pop (and resolve) in document order.
                 for child in node.children.iter().rev() {
                     stack.push(child);
@@ -195,6 +214,13 @@ impl VelloRenderer {
                     // Nested effects inside this subtree degrade (no cache here).
                     effect_images: None,
                     effect_idx: 0,
+                    comp,
+                    root: &scene.root,
+                    backdrop_images: None,
+                    backdrop_idx: 0,
+                    backdrop_stop: None,
+                    backdrop_done: false,
+                    suppress_backdrop: false,
                 },
                 node,
             );
@@ -216,6 +242,76 @@ impl VelloRenderer {
         out
     }
 
+    /// Resolve every frosted backdrop up front with ASYNC readbacks — the web
+    /// counterpart to the native inline backdrop path. Enumerates backdrop-blur
+    /// nodes in the SAME pre-order `build` consumes them (`collect_backdrop_nodes`),
+    /// and for each one captures the backdrop *behind* it (the prefix of nodes
+    /// painted before it) to a full-canvas texture, blurs/grades it, and reads it
+    /// back. Consumed in `build` via `backdrop_idx`; a miss degrades to clear glass
+    /// (no crash). A no-op (empty) on native, where backdrops read back inline.
+    ///
+    /// COST (web): each glass node triggers a full-canvas prefix render + blur +
+    /// async readback, so N live frosted panels cost ≈ N × canvas-area per frame.
+    /// Fine for the 1–2 panels a premium comp uses; a future optimization can
+    /// downsample the backdrop (frost is low-frequency) or cap N to clear glass.
+    async fn prepare_backdrop_images(
+        &mut self,
+        scene: &Scene,
+        effect_images: &[Option<CachedEffect>],
+    ) -> Vec<Option<CachedBackdrop>> {
+        if !self.web {
+            return Vec::new();
+        }
+        let comp = (
+            scene.composition.width.max(1),
+            scene.composition.height.max(1),
+        );
+        let mut nodes: Vec<&Node> = Vec::new();
+        collect_backdrop_nodes(&scene.root, &mut nodes);
+        let mut out: Vec<Option<CachedBackdrop>> = Vec::new();
+        for node in nodes {
+            let built = build_backdrop_texture(
+                &mut Ctx {
+                    device: &self.device,
+                    queue: &self.queue,
+                    renderer: &mut self.renderer,
+                    fonts: &mut self.fonts,
+                    font_cache: &mut self.font_cache,
+                    blur_pipeline: &mut self.blur_pipeline,
+                    bloom_pipeline: &mut self.bloom_pipeline,
+                    grade_pipeline: &mut self.grade_pipeline,
+                    goo_pipeline: &mut self.goo_pipeline,
+                    web: true,
+                    // Effect nodes BEHIND the glass resolve from the cache (computed
+                    // just before this pre-pass); a fresh cursor per backdrop node,
+                    // since each prefix walk restarts the DFS from root.
+                    effect_images: Some(effect_images),
+                    effect_idx: 0,
+                    comp,
+                    root: &scene.root,
+                    backdrop_images: None,
+                    backdrop_idx: 0,
+                    backdrop_stop: None,
+                    backdrop_done: false,
+                    suppress_backdrop: false,
+                },
+                node,
+            );
+            match built {
+                Some((texture, tw, th)) => {
+                    let frame = read_back_async(&self.device, &self.queue, &texture, tw, th).await;
+                    out.push(Some(CachedBackdrop {
+                        rgba: std::sync::Arc::new(frame.pixels),
+                        width: tw,
+                        height: th,
+                    }));
+                }
+                None => out.push(None),
+            }
+        }
+        out
+    }
+
     /// Build the scene and rasterize it to an offscreen RGBA texture (shared by
     /// the sync and async render paths). `effect_images` supplies pre-rendered
     /// effect results for the web path (`None` natively — effects read back
@@ -224,6 +320,7 @@ impl VelloRenderer {
         &mut self,
         scene: &Scene,
         effect_images: Option<&[Option<CachedEffect>]>,
+        backdrop_images: Option<&[Option<CachedBackdrop>]>,
     ) -> (wgpu::Texture, u32, u32) {
         let width = scene.composition.width.max(1);
         let height = scene.composition.height.max(1);
@@ -249,6 +346,13 @@ impl VelloRenderer {
                 web: self.web,
                 effect_images,
                 effect_idx: 0,
+                comp: (width, height),
+                root: &scene.root,
+                backdrop_images,
+                backdrop_idx: 0,
+                backdrop_stop: None,
+                backdrop_done: false,
+                suppress_backdrop: false,
             },
             &scene.root,
             Affine::IDENTITY,
@@ -294,6 +398,25 @@ struct Ctx<'a> {
     effect_images: Option<&'a [Option<CachedEffect>]>,
     /// Cursor into `effect_images`, advanced as each effect node is drawn.
     effect_idx: usize,
+    /// Composition size `(w, h)` — the full-canvas target a backdrop blur samples.
+    comp: (u32, u32),
+    /// The scene root, so a backdrop-blur node can re-walk the tree to capture the
+    /// *prefix* (everything painted before it) into a full-canvas texture.
+    root: &'a Node,
+    /// Pre-rendered frosted-backdrop images (web path), one per backdrop-blur node
+    /// in `build`'s pre-order, consumed via `backdrop_idx`. `None` natively (the
+    /// backdrop is captured + read back inline).
+    backdrop_images: Option<&'a [Option<CachedBackdrop>]>,
+    /// Cursor into `backdrop_images`.
+    backdrop_idx: usize,
+    /// While capturing a backdrop *prefix*, stop the walk once this node is reached
+    /// (everything before it IS the backdrop). `None` during a normal build.
+    backdrop_stop: Option<*const Node>,
+    /// Latched once `backdrop_stop` is hit — short-circuits the rest of the walk.
+    backdrop_done: bool,
+    /// Suppress backdrop-blur resolution (inside a prefix capture or an effect
+    /// subtree capture): nested glass renders clear instead of recursing.
+    suppress_backdrop: bool,
 }
 
 /// A pre-rendered effect node's result (computed by the async effect pre-pass on
@@ -306,6 +429,16 @@ struct CachedEffect {
     height: u32,
     x0: f64,
     y0: f64,
+}
+
+/// A pre-rendered frosted backdrop (full composition size), computed by the async
+/// backdrop pre-pass on the web path and drawn back (clipped to the glass shape)
+/// during the synchronous build.
+#[derive(Clone)]
+struct CachedBackdrop {
+    rgba: std::sync::Arc<Vec<u8>>,
+    width: u32,
+    height: u32,
 }
 
 /// Rasterize an already-built `VelloScene` to a fresh `Rgba8Unorm` texture of the
@@ -360,6 +493,19 @@ fn render_vscene_to_texture(
 
 /// Walk the scene graph, appending fills/strokes/text to the Vello scene.
 fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, parent_opacity: f32) {
+    // Backdrop-prefix capture: when re-walking the tree to collect everything
+    // painted BEHIND a glass node, stop the moment we reach that node — whatever's
+    // been appended so far is exactly its backdrop.
+    if ctx.backdrop_done {
+        return;
+    }
+    if let Some(stop) = ctx.backdrop_stop {
+        if std::ptr::eq(node as *const Node, stop) {
+            ctx.backdrop_done = true;
+            return;
+        }
+    }
+
     let affine = parent * to_affine(&node.transform);
     let opacity = (parent_opacity * node.opacity).clamp(0.0, 1.0);
 
@@ -374,7 +520,46 @@ fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, pa
     // `ctx.effect_images` and consumed here in order; a cache miss degrades to
     // un-effected (never a crash). Native reads back inline. Either way blend/clip
     // wrap the composited result via the surrounding push_layer/pop_layer.
-    if !node.effects.is_empty() {
+    // Frosted glass (`Effect::BackdropBlur`): resolve + composite the blurred
+    // backdrop UNDER this node, then FALL THROUGH to draw the node's own content
+    // (panel fill/stroke/children) on top. Suppressed while capturing a prefix or
+    // an effect subtree (nested glass renders clear). A backdrop-blur node ignores
+    // any co-located subtree-capture effects.
+    let backdrop = if ctx.suppress_backdrop {
+        None
+    } else {
+        backdrop_blur_of(node)
+    };
+    if let Some(bb) = backdrop {
+        enum BackdropDraw {
+            Native,
+            Cached(Option<CachedBackdrop>),
+            Degrade,
+        }
+        let how = if !ctx.web {
+            BackdropDraw::Native
+        } else if let Some(imgs) = ctx.backdrop_images {
+            if ctx.backdrop_idx < imgs.len() {
+                let c = imgs[ctx.backdrop_idx].clone();
+                ctx.backdrop_idx += 1;
+                BackdropDraw::Cached(c)
+            } else {
+                BackdropDraw::Degrade
+            }
+        } else {
+            BackdropDraw::Degrade
+        };
+        match how {
+            BackdropDraw::Native => draw_backdrop_native(vscene, ctx, node, affine, opacity, bb),
+            BackdropDraw::Cached(Some(c)) => composite_backdrop(
+                vscene, ctx, node, affine, opacity, bb, c.rgba, c.width, c.height,
+            ),
+            // A degenerate backdrop (nothing behind) or a web cache miss → the glass
+            // simply stays clear (no frost), never a crash.
+            BackdropDraw::Cached(None) | BackdropDraw::Degrade => {}
+        }
+        // Fall through to draw the node's own content on top of the frost.
+    } else if has_subtree_effect(node) {
         enum EffectDraw {
             Native,
             Cached(Option<CachedEffect>),
@@ -573,6 +758,9 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
             // Goo blurs the subtree with `sigma` before thresholding; it needs the
             // same headroom as a blur so the spread (and fused neck) isn't clipped.
             Effect::Goo { sigma, .. } => *sigma,
+            // BackdropBlur is resolved in `build` (samples the backdrop, not this
+            // subtree), so it contributes no capture margin here.
+            Effect::BackdropBlur { .. } => 0.0,
         })
         .fold(0.0_f32, f32::max);
     let margin = (3.0 * max_sigma).ceil().max(0.0) as f64;
@@ -613,6 +801,11 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
         ..node.clone()
     };
     let mut sub = VelloScene::new();
+    // Suppress backdrop-blur resolution inside the captured subtree — a nested glass
+    // panel renders clear (its content) rather than trying to sample a backdrop that
+    // doesn't exist in this local-space capture.
+    let saved_suppress = ctx.suppress_backdrop;
+    ctx.suppress_backdrop = true;
     build(
         &mut sub,
         ctx,
@@ -620,6 +813,7 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
         Affine::translate((-x0, -y0)),
         1.0,
     );
+    ctx.suppress_backdrop = saved_suppress;
 
     let mut texture = render_vscene_to_texture(ctx.device, ctx.queue, ctx.renderer, &sub, tw, th);
 
@@ -696,6 +890,8 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
                     ctx.device, ctx.queue, blur, &texture, tw, th, *sigma, *threshold,
                 );
             }
+            // Resolved in `build` (samples the backdrop, not this captured subtree).
+            Effect::BackdropBlur { .. } => {}
         }
     }
 
@@ -756,6 +952,205 @@ fn draw_effect_image(
         None,
         ImageFit::Fill,
     );
+}
+
+/// The first `Effect::BackdropBlur` in a node's chain (frosted glass), if any.
+/// Backdrop blur is handled apart from the subtree-capture effects: it samples the
+/// backdrop *behind* the node rather than the node's own subtree.
+fn backdrop_blur_of(node: &Node) -> Option<Effect> {
+    node.effects
+        .iter()
+        .copied()
+        .find(|e| matches!(e, Effect::BackdropBlur { .. }))
+}
+
+/// Whether a node carries a real SUBTREE-capture effect (blur/bloom/grade/goo) —
+/// any effect other than `BackdropBlur`, which is composited separately.
+fn has_subtree_effect(node: &Node) -> bool {
+    node.effects
+        .iter()
+        .any(|e| !matches!(e, Effect::BackdropBlur { .. }))
+}
+
+/// Collect every backdrop-blur node in the SAME pre-order `build` reaches them:
+/// descend into a backdrop node's children (build falls through to them), but NOT
+/// into a subtree-effect node's children (build returns at the effect branch, so
+/// its descendants are never reached at the top level). Keeps the web pre-pass's
+/// `backdrop_idx` order aligned with `build`'s consumption.
+fn collect_backdrop_nodes<'a>(node: &'a Node, out: &mut Vec<&'a Node>) {
+    if backdrop_blur_of(node).is_some() {
+        out.push(node);
+    } else if has_subtree_effect(node) {
+        return;
+    }
+    for child in &node.children {
+        collect_backdrop_nodes(child, out);
+    }
+}
+
+/// The frosted region of a backdrop-blur node, in its LOCAL space: its `clip`, or
+/// its own `Shape` geometry, or — for a bare container — its subtree bounds. The
+/// returned offset places a subtree-bounds rect (clip/shape sit at the origin).
+fn backdrop_region(ctx: &mut Ctx, node: &Node) -> Option<(ShapeGeometry, (f64, f64))> {
+    if let Some(clip) = &node.clip {
+        return Some((clip.clone(), (0.0, 0.0)));
+    }
+    if let NodeKind::Shape(shape) = &node.kind {
+        return Some((shape.geometry.clone(), (0.0, 0.0)));
+    }
+    let b = subtree_local_bounds(ctx.fonts, node)?;
+    let (w, h) = (b.x1 - b.x0, b.y1 - b.y0);
+    if !(w > 0.0 && h > 0.0) {
+        return None;
+    }
+    Some((
+        ShapeGeometry::Rect {
+            size: Size::new(w as f32, h as f32),
+            corner_radius: 0.0,
+        },
+        (b.x0, b.y0),
+    ))
+}
+
+/// Capture the backdrop *behind* a glass `node` — everything painted before it —
+/// into a full-canvas texture, then blur it by `sigma` and apply brightness/
+/// saturation. Returns the texture (composition size); the caller reads it back
+/// (sync native / async web) and composites it, clipped to the glass shape. The
+/// backdrop is captured by re-walking the scene root and STOPPING at this node
+/// (`backdrop_stop`), so it sees exactly the nodes drawn before it. Mirrors
+/// `build_effect_texture`, but for the backdrop instead of the node's subtree.
+fn build_backdrop_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u32, u32)> {
+    let Effect::BackdropBlur {
+        sigma,
+        brightness,
+        saturation,
+        ..
+    } = backdrop_blur_of(node)?
+    else {
+        return None;
+    };
+    let (w, h) = ctx.comp;
+    if w == 0 || h == 0 {
+        return None;
+    }
+
+    // Re-walk from the root into a fresh scene, stopping the moment we reach this
+    // node — what's appended is the backdrop. Suppress nested glass (renders clear).
+    let saved_stop = ctx.backdrop_stop;
+    let saved_done = ctx.backdrop_done;
+    let saved_suppress = ctx.suppress_backdrop;
+    ctx.backdrop_stop = Some(node as *const Node);
+    ctx.backdrop_done = false;
+    ctx.suppress_backdrop = true;
+    let root = ctx.root;
+    let mut prefix = VelloScene::new();
+    build(&mut prefix, ctx, root, Affine::IDENTITY, 1.0);
+    ctx.backdrop_stop = saved_stop;
+    ctx.backdrop_done = saved_done;
+    ctx.suppress_backdrop = saved_suppress;
+
+    let mut texture = render_vscene_to_texture(ctx.device, ctx.queue, ctx.renderer, &prefix, w, h);
+
+    if sigma > 0.0 {
+        let blur = ctx
+            .blur_pipeline
+            .get_or_insert_with(|| GaussianBlur::new(ctx.device));
+        texture = blur.run(ctx.device, ctx.queue, &texture, w, h, sigma);
+    }
+    if brightness != 1.0 || saturation != 1.0 {
+        // brightness is a linear multiply → encode as exposure (2^exposure); the
+        // grade also applies saturation (lerp toward luma). temperature/tint stay 0.
+        let exposure = if brightness > 0.0 {
+            brightness.log2()
+        } else {
+            f32::NEG_INFINITY
+        };
+        let grade = ctx
+            .grade_pipeline
+            .get_or_insert_with(|| ColorGrade::new(ctx.device));
+        texture = grade.run(
+            ctx.device, ctx.queue, &texture, w, h, exposure, 1.0, saturation, 0.0, 0.0,
+        );
+    }
+    Some((texture, w, h))
+}
+
+/// Native inline backdrop path: capture + blur the backdrop, read it back
+/// synchronously (native only), and composite it under the glass node.
+fn draw_backdrop_native(
+    vscene: &mut VelloScene,
+    ctx: &mut Ctx,
+    node: &Node,
+    affine: Affine,
+    opacity: f32,
+    bb: Effect,
+) {
+    let Some((texture, tw, th)) = build_backdrop_texture(ctx, node) else {
+        return;
+    };
+    let frame = read_back(ctx.device, ctx.queue, &texture, tw, th);
+    composite_backdrop(
+        vscene,
+        ctx,
+        node,
+        affine,
+        opacity,
+        bb,
+        std::sync::Arc::new(frame.pixels),
+        tw,
+        th,
+    );
+}
+
+/// Composite a (full-canvas) frosted-backdrop image under a glass node: clip to the
+/// node's region, draw the image at composition origin, lay the `tint` over it
+/// (alpha = strength), and pop. Shared by the native inline and web cached paths.
+fn composite_backdrop(
+    vscene: &mut VelloScene,
+    ctx: &mut Ctx,
+    node: &Node,
+    affine: Affine,
+    opacity: f32,
+    bb: Effect,
+    rgba: std::sync::Arc<Vec<u8>>,
+    iw: u32,
+    ih: u32,
+) {
+    let Effect::BackdropBlur { tint, .. } = bb else {
+        return;
+    };
+    let Some((geometry, offset)) = backdrop_region(ctx, node) else {
+        return;
+    };
+    let region_affine = affine * Affine::translate(offset);
+    let path = shape_path(&geometry);
+    vscene.push_layer(Mix::Clip, 1.0, region_affine, &path);
+    let data = ImageData {
+        width: iw,
+        height: ih,
+        rgba,
+    };
+    // The image IS the full canvas, drawn at identity → pixel (x,y) → canvas (x,y);
+    // the clip layer keeps only the glass region.
+    draw_image_data(
+        vscene,
+        Affine::IDENTITY,
+        opacity,
+        Some(&data),
+        None,
+        None,
+        ImageFit::Fill,
+    );
+    if tint.a > 0.0 {
+        vscene.fill(
+            Fill::NonZero,
+            region_affine,
+            peniko_color(tint, opacity),
+            None,
+            &path,
+        );
+    }
+    vscene.pop_layer();
 }
 
 /// Axis-aligned bounds of a node's subtree in the node's **own local space**

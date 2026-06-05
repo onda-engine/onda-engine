@@ -23,9 +23,9 @@
 //! no centered scale is applied to the card itself.
 //!
 //! Engine approximations vs the ondajs (CSS) original:
-//! - `backdrop-filter: blur()` (the "glass" frost) has no engine equivalent, so
-//!   the card is a translucent rounded `Rect` fill plus a 1px border `stroke`.
-//!   It reads as a dark glass panel but does not blur what's behind it.
+//! - The "glass" frost: this card is a translucent rounded `Rect` fill plus a
+//!   1px border `stroke` (it doesn't blur what's behind it). The engine now ships
+//!   a `backdropBlur` node prop (real frosted glass) it could adopt for the frost.
 //! - The CSS `box-shadow` elevation and the 1px top `SHEEN` highlight are
 //!   omitted (no box-shadow / inset-gradient primitive); the border stroke
 //!   carries the surface edge.
