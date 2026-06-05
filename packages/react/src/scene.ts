@@ -197,6 +197,12 @@ export type Effect =
       saturation: number
     }
 
+/** Which channel of a {@link Matte}'s rendered `source` subtree drives the reveal
+ *  (CSS `mask-mode`). `'alpha'` (the default): content alpha ×= matte alpha — the
+ *  signature media-through-type matte. `'luminance'`: content alpha ×= luma(matte
+ *  rgb) × matte alpha (white reveals, black hides — gradient wipes / luma keys). */
+export type MatteMode = 'alpha' | 'luminance'
+
 /** Compositing blend mode (CSS `mix-blend-mode`). Vello renders the full set;
  *  the CPU reference composites `normal` only. */
 export type BlendMode =
@@ -223,6 +229,12 @@ export interface SceneNode {
   opacity?: number
   /** Clip this node and its subtree to a geometry (local space). */
   clip?: ShapeGeometry
+  /** Matte (track matte / mask): reveal this node's content only through the
+   *  `source` subtree's alpha — or luminance, per `mode` — multiplying the
+   *  content's alpha by it. The strictly-more-powerful sibling of `clip` (a
+   *  static geometry); `source` is a fully rendered subtree (animated text, a
+   *  gradient, an image) — the "media-through-type" move. Omitted when absent. */
+  matte?: { mode: MatteMode; source: SceneNode }
   /** Blend this node's subtree against the backdrop (CSS mix-blend-mode). */
   blend?: BlendMode
   /** Ordered screen-space effects applied to this node + subtree (render-to-texture). */

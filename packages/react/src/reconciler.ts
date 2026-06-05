@@ -24,47 +24,61 @@ import type {
 
 const reconciler = Reconciler(hostConfig)
 
+/** The frame context active during the current {@link renderFrame} pass
+ *  (`{ ...VideoConfig, frame }`). Captured here so {@link elementToNode} can
+ *  reconcile a `matte` prop-element under the SAME frame context as the main
+ *  tree — its hooks (`useCurrentFrame`/`useVideoConfig`) read the live frame, so
+ *  the matte animates per-frame just like the content. `null` outside a render. */
+let activeFrameState: (VideoConfig & { frame: number }) | null = null
+
 /** Render `element` (root must be `<Composition>`) at `frame` to a static
  *  {@link Scene}. Components read the frame via {@link useCurrentFrame}. */
 export function renderFrame(element: ReactElement, frame: number): Scene {
   const config = videoConfig(element)
-  const container: RootContainer = { children: [] }
-  const root = reconciler.createContainer(
-    container,
-    0, // LegacyRoot — renders synchronously
-    null, // hydrationCallbacks
-    false, // isStrictMode
-    null, // concurrentUpdatesByDefaultOverride
-    '', // identifierPrefix
-    (error: Error) => {
-      throw error // onUncaughtError
-    },
-    (error: Error) => {
-      throw error // onCaughtError
-    },
-    () => {}, // onRecoverableError — non-fatal (e.g. hydration); ignore
-    () => {}, // onDefaultTransitionIndicator — no transitions in a static render
-  )
-  // React 19's reconciler no longer flushes the initial mount synchronously via
-  // `updateContainer`; use the explicit sync API so ONDA can read the built tree
-  // immediately after.
-  reconciler.updateContainerSync(
-    createElement(FrameContext.Provider, { value: { ...config, frame } }, element),
-    root,
-    null,
-    null,
-  )
-  reconciler.flushSyncWork()
+  const frameState = { ...config, frame }
+  const prevFrameState = activeFrameState
+  activeFrameState = frameState
+  try {
+    const container: RootContainer = { children: [] }
+    const root = reconciler.createContainer(
+      container,
+      0, // LegacyRoot — renders synchronously
+      null, // hydrationCallbacks
+      false, // isStrictMode
+      null, // concurrentUpdatesByDefaultOverride
+      '', // identifierPrefix
+      (error: Error) => {
+        throw error // onUncaughtError
+      },
+      (error: Error) => {
+        throw error // onCaughtError
+      },
+      () => {}, // onRecoverableError — non-fatal (e.g. hydration); ignore
+      () => {}, // onDefaultTransitionIndicator — no transitions in a static render
+    )
+    // React 19's reconciler no longer flushes the initial mount synchronously via
+    // `updateContainer`; use the explicit sync API so ONDA can read the built tree
+    // immediately after.
+    reconciler.updateContainerSync(
+      createElement(FrameContext.Provider, { value: frameState }, element),
+      root,
+      null,
+      null,
+    )
+    reconciler.flushSyncWork()
 
-  const top = container.children[0]
-  if (container.children.length !== 1 || !top || top.type !== 'onda-composition') {
-    throw new Error('render: the root element must be a single <Composition>')
+    const top = container.children[0]
+    if (container.children.length !== 1 || !top || top.type !== 'onda-composition') {
+      throw new Error('render: the root element must be a single <Composition>')
+    }
+    const scene = compositionToScene(top)
+    // Unmount (runs effect cleanups), synchronously.
+    reconciler.updateContainerSync(null, root, null, null)
+    reconciler.flushSyncWork()
+    return scene
+  } finally {
+    activeFrameState = prevFrameState
   }
-  const scene = compositionToScene(top)
-  // Unmount (runs effect cleanups), synchronously.
-  reconciler.updateContainerSync(null, root, null, null)
-  reconciler.flushSyncWork()
-  return scene
 }
 
 /** Render the composition once, at frame 0. */
@@ -121,6 +135,53 @@ function compositionToScene(node: HostNode): Scene {
   }
 }
 
+/** Reconcile a SINGLE prop-element (e.g. a `matte` subtree) into one
+ *  {@link SceneNode}. Mirrors {@link renderFrame}'s machinery — create a fresh
+ *  container, render the element, flush synchronously, take the single root host
+ *  child, and {@link toNode} it — but for one element rather than a whole tree.
+ *
+ *  The element is wrapped in the SAME {@link FrameContext} as the main tree (the
+ *  module-level {@link activeFrameState}, set by the enclosing `renderFrame`), so
+ *  its hooks (`useCurrentFrame`/`useVideoConfig`) read the live frame and the
+ *  matte ANIMATES per-frame — `renderFrames` re-runs this for every frame. The
+ *  prop-element must resolve to exactly one root host node (e.g. a single
+ *  `<Text>`/`<Rect>`/`<Group>`); wrap multiple nodes in a `<Group>`. */
+function elementToNode(element: ReactElement): SceneNode {
+  const container: RootContainer = { children: [] }
+  const root = reconciler.createContainer(
+    container,
+    0, // LegacyRoot — renders synchronously
+    null,
+    false,
+    null,
+    '',
+    (error: Error) => {
+      throw error
+    },
+    (error: Error) => {
+      throw error
+    },
+    () => {},
+    () => {},
+  )
+  // Reconcile under the active frame context so the matte animates per-frame.
+  const wrapped = activeFrameState
+    ? createElement(FrameContext.Provider, { value: activeFrameState }, element)
+    : element
+  reconciler.updateContainerSync(wrapped, root, null, null)
+  reconciler.flushSyncWork()
+  const top = container.children[0]
+  if (container.children.length !== 1 || !top) {
+    throw new Error(
+      'matte: the matte element must resolve to a single node (wrap many in a <Group>)',
+    )
+  }
+  const node = toNode(top)
+  reconciler.updateContainerSync(null, root, null, null)
+  reconciler.flushSyncWork()
+  return node
+}
+
 function toNode(node: HostNode): SceneNode {
   const { props } = node
   const base: Omit<SceneNode, 'kind'> = {}
@@ -129,6 +190,12 @@ function toNode(node: HostNode): SceneNode {
   if (transform) base.transform = transform
   if (typeof props.opacity === 'number') base.opacity = props.opacity
   if (props.clip !== undefined) base.clip = parseClip(props.clip as ClipInput)
+  if (props.matte !== undefined) {
+    base.matte = {
+      mode: props.matteMode === 'luminance' ? 'luminance' : 'alpha',
+      source: elementToNode(props.matte as ReactElement),
+    }
+  }
   if (typeof props.blendMode === 'string') base.blend = props.blendMode as SceneNode['blend']
   const effects: Effect[] = Array.isArray(props.effects) ? [...(props.effects as Effect[])] : []
   if (typeof props.blur === 'number' && props.blur > 0)

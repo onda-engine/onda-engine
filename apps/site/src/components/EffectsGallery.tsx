@@ -318,6 +318,45 @@ function FrostedGlassDemo(): ReactElement {
   )
 }
 
+/** matte — media-through-type. OFF = the plain photo; ON = the SAME photo
+ *  revealed only through giant bold "ONDA" type. The matte (the white word) is a
+ *  stencil whose alpha multiplies the content (photo) alpha, so the picture shows
+ *  only inside the glyphs — the signature mask move. A matte is a fully rendered,
+ *  animatable subtree (here static text; swap for a gradient/shape for wipes). */
+function MatteDemo(): ReactElement {
+  // The shared content drawn under both halves: a full-half photo. ON wraps the
+  // same photo in `{ matte, matteMode }`, so it clips to the word.
+  const content = (_o: number): ReactElement[] => [
+    createElement(Img, {
+      key: 'photo',
+      x: 0,
+      y: 0,
+      width: HALF,
+      height: H,
+      src: '/gallery-sample.jpg',
+      fit: 'cover',
+    }),
+  ]
+  // The matte subtree: one giant, bold, white word centred in the HALF. Its alpha
+  // is the stencil — white glyph = reveal, transparent gaps = hide.
+  const matte = createElement(
+    Text,
+    {
+      x: 24,
+      y: H / 2 - 110,
+      fontSize: 160,
+      fontWeight: 800,
+      color: '#ffffff',
+      letterSpacing: -4,
+    },
+    'ONDA',
+  )
+  return Split(createElement(Rect, { width: W, height: H, fill: '#06060a' }), content, {
+    matte,
+    matteMode: 'alpha',
+  })
+}
+
 interface EffectDef {
   name: string
   Demo: () => ReactElement
@@ -364,6 +403,17 @@ const EFFECTS: EffectDef[] = [
     blurb:
       'A translucent card over a photo. Left, the panel is plain glass — the photo stays sharp through it. Right, the same panel carries backdropBlur: real backdrop blur sampled from the rendered scene, composited under the glass — the new render-to-texture backdrop pass. Unlike the other effects it samples what is BEHIND the node, not its own subtree, so it lives on the panel itself.',
     snippet: ['<Rect backdropBlur={14} fill="#ffffff22" cornerRadius={22} />'].join('\n'),
+  },
+  {
+    name: 'matte',
+    Demo: MatteDemo,
+    blurb:
+      'Media-through-type. Left, the plain photo. Right, the SAME photo revealed only through giant “ONDA” type. The content (photo) renders to a texture and the matte (text) renders to a second; the content’s alpha is multiplied by the matte’s — so the picture shows only inside the glyphs (CSS mask-image / mask-mode:alpha). Swap the matte for a gradient or moving shape for wipes and luma reveals (matteMode:"luminance").',
+    snippet: [
+      '<Group matte={<Text fontSize={160} fontWeight={800}>ONDA</Text>}>',
+      '  <Img src="photo.jpg" fit="cover" />',
+      '</Group>',
+    ].join('\n'),
   },
 ]
 

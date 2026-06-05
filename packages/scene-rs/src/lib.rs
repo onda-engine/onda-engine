@@ -88,6 +88,40 @@ impl BlendMode {
     }
 }
 
+/// How a [`Matte`]'s rendered subtree becomes the coverage that reveals the
+/// matted content (the pro "luma/alpha matte"; CSS `mask-mode`). The matte
+/// subtree is rendered to its own texture; this picks which channel drives the
+/// reveal, multiplying the content's alpha by it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MatteMode {
+    /// Reveal where the matte is OPAQUE: content alpha ×= matte alpha. The
+    /// signature media-through-type matte — an image/video shows only where the
+    /// animated text or shape (drawn solid) covers. The default.
+    #[default]
+    Alpha,
+    /// Reveal by the matte's BRIGHTNESS: content alpha ×= luma(matte.rgb) ×
+    /// matte.alpha (Rec.601). White reveals, black hides — gradient wipes and
+    /// luma-keyed mattes.
+    Luminance,
+}
+
+/// A MATTE (track matte / mask): a renderable subtree whose alpha — or luminance,
+/// per [`MatteMode`] — multiplies the matted node's content alpha, revealing the
+/// content only through the matte's shape. The strictly-more-powerful sibling of
+/// [`Node::clip`]: `clip` masks to a static geometry; a matte masks to a fully
+/// rendered subtree (animated text, a gradient, an image). The signature
+/// "media-through-type" move. `source` is `Box`ed because `Node` contains `Node`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Matte {
+    /// Which channel of `source` drives the reveal (alpha vs. luminance).
+    #[serde(default)]
+    pub mode: MatteMode,
+    /// The matte subtree, rendered to its own texture; its coverage reveals the
+    /// matted node's content.
+    pub source: Box<Node>,
+}
+
 /// One entry in a node's ordered, screen-space effect chain. Effects render the
 /// node's subtree to an offscreen surface and post-process it before
 /// compositing back (see the render-to-texture design). A `Vec<Effect>` (not a
@@ -200,6 +234,14 @@ pub struct Node {
     /// (Vello); the CPU backend ignores it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub clip: Option<ShapeGeometry>,
+    /// Optional MATTE (mask): reveal this node's content only through the matte
+    /// subtree's alpha/luminance ([`Matte`]). The strictly-more-powerful sibling
+    /// of `clip` (a static geometry) — a matte is a fully rendered subtree, e.g.
+    /// media revealed through animated type. Honored via render-to-texture by
+    /// Vello + the CPU reference; omitted from JSON when `None`, so existing
+    /// scenes and goldens stay byte-identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub matte: Option<Matte>,
     /// Compositing blend mode for this node's subtree against the backdrop
     /// (CSS `mix-blend-mode`). Honored by Vello; the CPU reference composites
     /// `Normal` (src-over).
@@ -258,6 +300,7 @@ impl Node {
             transform: Transform::IDENTITY,
             opacity: 1.0,
             clip: None,
+            matte: None,
             blend: BlendMode::Normal,
             effects: Vec::new(),
             layout: None,
@@ -335,6 +378,26 @@ impl Node {
     /// Builder: clip this node and its subtree to `geometry` (local space).
     pub fn with_clip(mut self, geometry: ShapeGeometry) -> Self {
         self.clip = Some(geometry);
+        self
+    }
+
+    /// Builder: reveal this node's content through `source`'s alpha (an alpha
+    /// matte — the media-through-type / shape-wipe move). See [`Node::matte`].
+    pub fn with_matte(mut self, source: Node) -> Self {
+        self.matte = Some(Matte {
+            mode: MatteMode::Alpha,
+            source: Box::new(source),
+        });
+        self
+    }
+
+    /// Builder: reveal this node's content through `source`, reading its coverage
+    /// per `mode` (alpha or luminance). See [`Node::matte`].
+    pub fn with_matte_mode(mut self, source: Node, mode: MatteMode) -> Self {
+        self.matte = Some(Matte {
+            mode,
+            source: Box::new(source),
+        });
         self
     }
 
@@ -1379,6 +1442,29 @@ mod tests {
         assert!(json.contains(r#""clip""#));
         let back: Scene = serde_json::from_str(&json).unwrap();
         assert_eq!(scene, back);
+    }
+
+    #[test]
+    fn matte_round_trips_and_skips_when_absent() {
+        // No matte → the `matte` key is omitted (skip-if-none), so existing scenes
+        // and goldens serialize byte-identically.
+        let plain = Node::group();
+        let json = serde_json::to_string(&plain).unwrap();
+        assert!(!json.contains("matte"));
+
+        // An alpha matte (the default mode) round-trips with the bundled shape.
+        let masked = Node::image("photo.png").with_matte(Node::text("REVEAL"));
+        let json = serde_json::to_string(&masked).unwrap();
+        assert!(json.contains(r#""matte":{"mode":"alpha","source":{"#));
+        let back: Node = serde_json::from_str(&json).unwrap();
+        assert_eq!(masked, back);
+
+        // A luminance matte serializes its snake_case mode and round-trips.
+        let luma = Node::image("photo.png").with_matte_mode(Node::group(), MatteMode::Luminance);
+        let json = serde_json::to_string(&luma).unwrap();
+        assert!(json.contains(r#""mode":"luminance""#));
+        let back: Node = serde_json::from_str(&json).unwrap();
+        assert_eq!(luma, back);
     }
 
     #[test]

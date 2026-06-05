@@ -13,8 +13,8 @@ use std::collections::HashMap;
 
 use onda_core::{Color, Size, Transform};
 use onda_scene::{
-    BlendMode, Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Node,
-    NodeKind, Scene, Shadow, ShapeGeometry, Text,
+    BlendMode, Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Matte,
+    MatteMode, Node, NodeKind, Scene, Shadow, ShapeGeometry, Text,
 };
 use onda_typography::{FontContext, StyledRun};
 use vello::kurbo::{Affine, BezPath, Cap, Ellipse, Join, Rect, RoundedRect, Shape, Stroke};
@@ -25,7 +25,7 @@ use vello::peniko::{
 use vello::{wgpu, AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene as VelloScene};
 
 mod effects;
-use effects::{Bloom, ColorGrade, GaussianBlur, Goo};
+use effects::{AlphaMatte, Bloom, ColorGrade, GaussianBlur, Goo};
 
 /// A rendered frame: straight-alpha RGBA8, row-major, top-left origin.
 pub struct Frame {
@@ -58,6 +58,9 @@ pub struct VelloRenderer {
     /// the first time a node carries a `Goo` effect; reuses `blur_pipeline` for the
     /// spread before the threshold.
     goo_pipeline: Option<Goo>,
+    /// Alpha-matte combine pipeline (content × matte coverage). Built lazily the
+    /// first time a node carries a `matte`, then reused.
+    matte_pipeline: Option<AlphaMatte>,
     /// True on the WebGPU (browser) backend, where buffer mapping is async-only.
     /// The effect path can't read a texture back synchronously mid-build there, so
     /// on the web effects are resolved up front by `prepare_effect_images` (async
@@ -135,15 +138,16 @@ impl VelloRenderer {
             bloom_pipeline: None,
             grade_pipeline: None,
             goo_pipeline: None,
+            matte_pipeline: None,
             web,
         })
     }
 
     /// Render an ONDA scene to a [`Frame`] (blocking readback; native only).
     pub fn render(&mut self, scene: &Scene) -> Frame {
-        // Native resolves both effects and backdrop blur INLINE during the build
+        // Native resolves effects, backdrop blur AND mattes INLINE during the build
         // (synchronous readback), so no pre-pass cache is needed.
-        let (texture, width, height) = self.render_to_target(scene, None, None);
+        let (texture, width, height) = self.render_to_target(scene, None, None, None);
         read_back(&self.device, &self.queue, &texture, width, height)
     }
 
@@ -162,8 +166,15 @@ impl VelloRenderer {
         // effect DFS prefix of effect nodes; a fresh effect_idx:0 per node consumes
         // exactly those.
         let backdrop_images = self.prepare_backdrop_images(scene, &effect_images).await;
-        let (texture, width, height) =
-            self.render_to_target(scene, Some(&effect_images), Some(&backdrop_images));
+        // Mattes likewise resolve up front on web (two captures + an alpha-combine
+        // need a readback the build can't do synchronously).
+        let matte_images = self.prepare_matte_images(scene).await;
+        let (texture, width, height) = self.render_to_target(
+            scene,
+            Some(&effect_images),
+            Some(&backdrop_images),
+            Some(&matte_images),
+        );
         read_back_async(&self.device, &self.queue, &texture, width, height).await
     }
 
@@ -188,6 +199,13 @@ impl VelloRenderer {
         );
         let mut stack: Vec<&Node> = vec![&scene.root];
         while let Some(node) = stack.pop() {
+            // A matte node is owned by the matte pre-pass: `build`'s matte branch
+            // wins and returns (its subtree is captured separately), so the main
+            // build never reaches its content here. Skip it entirely — don't
+            // capture, don't descend — or `effect_idx` would desync.
+            if node.matte.is_some() {
+                continue;
+            }
             // Descend through plain nodes AND backdrop-blur nodes (the latter are
             // resolved by the separate backdrop pre-pass, not here). Capture only at
             // a node with a real SUBTREE effect (blur/bloom/grade/goo) and no
@@ -210,6 +228,7 @@ impl VelloRenderer {
                     bloom_pipeline: &mut self.bloom_pipeline,
                     grade_pipeline: &mut self.grade_pipeline,
                     goo_pipeline: &mut self.goo_pipeline,
+                    matte_pipeline: &mut self.matte_pipeline,
                     web: true,
                     // Nested effects inside this subtree degrade (no cache here).
                     effect_images: None,
@@ -221,6 +240,9 @@ impl VelloRenderer {
                     backdrop_stop: None,
                     backdrop_done: false,
                     suppress_backdrop: false,
+                    matte_images: None,
+                    matte_idx: 0,
+                    suppress_matte: false,
                 },
                 node,
             );
@@ -281,6 +303,7 @@ impl VelloRenderer {
                     bloom_pipeline: &mut self.bloom_pipeline,
                     grade_pipeline: &mut self.grade_pipeline,
                     goo_pipeline: &mut self.goo_pipeline,
+                    matte_pipeline: &mut self.matte_pipeline,
                     web: true,
                     // Effect nodes BEHIND the glass resolve from the cache (computed
                     // just before this pre-pass); a fresh cursor per backdrop node,
@@ -294,6 +317,9 @@ impl VelloRenderer {
                     backdrop_stop: None,
                     backdrop_done: false,
                     suppress_backdrop: false,
+                    matte_images: None,
+                    matte_idx: 0,
+                    suppress_matte: false,
                 },
                 node,
             );
@@ -312,6 +338,84 @@ impl VelloRenderer {
         out
     }
 
+    /// Resolve every matte up front with ASYNC readbacks — the web counterpart to
+    /// the native inline matte path. Enumerates matte nodes in the SAME pre-order
+    /// `build` consumes them (a matte node wins + returns without descending; an
+    /// effect node also returns; plain/backdrop nodes descend), captures each
+    /// (content + matte → alpha-combine) to a texture, and reads it back. Consumed
+    /// in `build` via `matte_idx`; a miss hides the content. No-op on native.
+    async fn prepare_matte_images(&mut self, scene: &Scene) -> Vec<Option<CachedEffect>> {
+        if !self.web {
+            return Vec::new();
+        }
+        let comp = (
+            scene.composition.width.max(1),
+            scene.composition.height.max(1),
+        );
+        let mut out: Vec<Option<CachedEffect>> = Vec::new();
+        let mut stack: Vec<&Node> = vec![&scene.root];
+        while let Some(node) = stack.pop() {
+            if let Some(matte) = node.matte.as_ref() {
+                // Matte node: capture (content + matte), don't descend — matching
+                // `build`'s matte branch (which returns without recursing children).
+                let built = build_matte_texture(
+                    &mut Ctx {
+                        device: &self.device,
+                        queue: &self.queue,
+                        renderer: &mut self.renderer,
+                        fonts: &mut self.fonts,
+                        font_cache: &mut self.font_cache,
+                        blur_pipeline: &mut self.blur_pipeline,
+                        bloom_pipeline: &mut self.bloom_pipeline,
+                        grade_pipeline: &mut self.grade_pipeline,
+                        goo_pipeline: &mut self.goo_pipeline,
+                        matte_pipeline: &mut self.matte_pipeline,
+                        web: true,
+                        effect_images: None,
+                        effect_idx: 0,
+                        comp,
+                        root: &scene.root,
+                        backdrop_images: None,
+                        backdrop_idx: 0,
+                        backdrop_stop: None,
+                        backdrop_done: false,
+                        suppress_backdrop: false,
+                        matte_images: None,
+                        matte_idx: 0,
+                        suppress_matte: false,
+                    },
+                    node,
+                    matte,
+                );
+                match built {
+                    Some((texture, tw, th, x0, y0)) => {
+                        let frame =
+                            read_back_async(&self.device, &self.queue, &texture, tw, th).await;
+                        out.push(Some(CachedEffect {
+                            rgba: std::sync::Arc::new(frame.pixels),
+                            width: tw,
+                            height: th,
+                            x0,
+                            y0,
+                        }));
+                    }
+                    None => out.push(None),
+                }
+                continue;
+            }
+            // An effect node (no matte) also returns in `build` without descending;
+            // its content's mattes are captured inside the effect texture, not here.
+            if has_subtree_effect(node) && backdrop_blur_of(node).is_none() {
+                continue;
+            }
+            // Plain or backdrop node: descend (document order).
+            for child in node.children.iter().rev() {
+                stack.push(child);
+            }
+        }
+        out
+    }
+
     /// Build the scene and rasterize it to an offscreen RGBA texture (shared by
     /// the sync and async render paths). `effect_images` supplies pre-rendered
     /// effect results for the web path (`None` natively — effects read back
@@ -321,6 +425,7 @@ impl VelloRenderer {
         scene: &Scene,
         effect_images: Option<&[Option<CachedEffect>]>,
         backdrop_images: Option<&[Option<CachedBackdrop>]>,
+        matte_images: Option<&[Option<CachedEffect>]>,
     ) -> (wgpu::Texture, u32, u32) {
         let width = scene.composition.width.max(1);
         let height = scene.composition.height.max(1);
@@ -343,6 +448,7 @@ impl VelloRenderer {
                 bloom_pipeline: &mut self.bloom_pipeline,
                 grade_pipeline: &mut self.grade_pipeline,
                 goo_pipeline: &mut self.goo_pipeline,
+                matte_pipeline: &mut self.matte_pipeline,
                 web: self.web,
                 effect_images,
                 effect_idx: 0,
@@ -353,6 +459,9 @@ impl VelloRenderer {
                 backdrop_stop: None,
                 backdrop_done: false,
                 suppress_backdrop: false,
+                matte_images,
+                matte_idx: 0,
+                suppress_matte: false,
             },
             &scene.root,
             Affine::IDENTITY,
@@ -386,6 +495,7 @@ struct Ctx<'a> {
     bloom_pipeline: &'a mut Option<Bloom>,
     grade_pipeline: &'a mut Option<ColorGrade>,
     goo_pipeline: &'a mut Option<Goo>,
+    matte_pipeline: &'a mut Option<AlphaMatte>,
     /// WebGPU backend — the effect path's synchronous readback can't run mid-build
     /// here, so effects are resolved by an async PRE-PASS into `effect_images`
     /// instead; if that cache is absent/exhausted the node draws un-effected
@@ -417,6 +527,15 @@ struct Ctx<'a> {
     /// Suppress backdrop-blur resolution (inside a prefix capture or an effect
     /// subtree capture): nested glass renders clear instead of recursing.
     suppress_backdrop: bool,
+    /// Pre-rendered matte results (web path), one per matte node in `build`'s
+    /// pre-order, consumed via `matte_idx`. `None` natively (matte read back
+    /// inline). A `None`/exhausted entry → the matted content is hidden.
+    matte_images: Option<&'a [Option<CachedEffect>]>,
+    /// Cursor into `matte_images`.
+    matte_idx: usize,
+    /// Suppress matte resolution (inside a capture): a nested matte renders its
+    /// content un-matted instead of recursing.
+    suppress_matte: bool,
 }
 
 /// A pre-rendered effect node's result (computed by the async effect pre-pass on
@@ -508,6 +627,69 @@ fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, pa
 
     let affine = parent * to_affine(&node.transform);
     let opacity = (parent_opacity * node.opacity).clamp(0.0, 1.0);
+
+    // MATTE (track matte / mask): reveal this node's content only through the matte
+    // subtree's alpha/luminance. It captures the content + matte to two textures,
+    // alpha-combines them, and composites the result — REPLACING the node's whole
+    // draw, so it wins over backdrop/effects and returns. Native reads back inline;
+    // web resolves via `prepare_matte_images` and consumes by `matte_idx`, degrading
+    // (content hidden) on a miss. Suppressed inside a capture (nested matte renders
+    // its content un-matted). blend/clip wrap the composite via push_layer/pop_layer.
+    if !ctx.suppress_matte {
+        if let Some(matte) = node.matte.as_ref() {
+            enum MatteDraw {
+                Native,
+                Cached(Option<CachedEffect>),
+                Degrade,
+            }
+            let how = if !ctx.web {
+                MatteDraw::Native
+            } else if let Some(imgs) = ctx.matte_images {
+                if ctx.matte_idx < imgs.len() {
+                    let c = imgs[ctx.matte_idx].clone();
+                    ctx.matte_idx += 1;
+                    MatteDraw::Cached(c)
+                } else {
+                    MatteDraw::Degrade
+                }
+            } else {
+                MatteDraw::Degrade
+            };
+
+            let blended = node.blend != BlendMode::Normal;
+            if blended {
+                vscene.push_layer(
+                    blend_mix(node.blend),
+                    1.0,
+                    Affine::IDENTITY,
+                    &Rect::new(-1.0e7, -1.0e7, 1.0e7, 1.0e7),
+                );
+            }
+            let clipped = node.clip.is_some();
+            if let Some(clip) = &node.clip {
+                vscene.push_layer(Mix::Clip, 1.0, affine, &shape_path(clip));
+            }
+            match how {
+                MatteDraw::Native => {
+                    render_matte_subtree(vscene, ctx, node, matte, affine, opacity)
+                }
+                MatteDraw::Cached(Some(c)) => draw_effect_image(
+                    vscene, affine, opacity, c.rgba, c.width, c.height, c.x0, c.y0,
+                ),
+                // Degenerate matte (nothing captured) or web cache miss → the matted
+                // content is hidden (drawing nothing is safer than an un-matted,
+                // shape-overflowing image), never a crash.
+                MatteDraw::Cached(None) | MatteDraw::Degrade => {}
+            }
+            if clipped {
+                vscene.pop_layer();
+            }
+            if blended {
+                vscene.pop_layer();
+            }
+            return;
+        }
+    }
 
     // Render-to-texture effect chain (e.g. blur): if this node carries effects,
     // rasterize its subtree to its own texture *in local space* (transform and
@@ -798,14 +980,17 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
         // the local-space capture.
         blend: BlendMode::Normal,
         clip: None,
+        matte: None,
         ..node.clone()
     };
     let mut sub = VelloScene::new();
-    // Suppress backdrop-blur resolution inside the captured subtree — a nested glass
-    // panel renders clear (its content) rather than trying to sample a backdrop that
-    // doesn't exist in this local-space capture.
-    let saved_suppress = ctx.suppress_backdrop;
+    // Suppress backdrop/matte resolution inside the captured subtree — a nested glass
+    // panel renders clear, a nested matte renders its content un-matted, rather than
+    // recursing into machinery that doesn't fit this local-space capture.
+    let saved_sb = ctx.suppress_backdrop;
+    let saved_sm = ctx.suppress_matte;
     ctx.suppress_backdrop = true;
+    ctx.suppress_matte = true;
     build(
         &mut sub,
         ctx,
@@ -813,7 +998,8 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
         Affine::translate((-x0, -y0)),
         1.0,
     );
-    ctx.suppress_backdrop = saved_suppress;
+    ctx.suppress_backdrop = saved_sb;
+    ctx.suppress_matte = saved_sm;
 
     let mut texture = render_vscene_to_texture(ctx.device, ctx.queue, ctx.renderer, &sub, tw, th);
 
@@ -978,6 +1164,12 @@ fn has_subtree_effect(node: &Node) -> bool {
 /// its descendants are never reached at the top level). Keeps the web pre-pass's
 /// `backdrop_idx` order aligned with `build`'s consumption.
 fn collect_backdrop_nodes<'a>(node: &'a Node, out: &mut Vec<&'a Node>) {
+    // A matte node wins in `build` and returns without descending (its backdrop, if
+    // any, is never resolved; its content is captured separately) — skip it entirely
+    // so `backdrop_idx` stays aligned.
+    if node.matte.is_some() {
+        return;
+    }
     if backdrop_blur_of(node).is_some() {
         out.push(node);
     } else if has_subtree_effect(node) {
@@ -1035,19 +1227,23 @@ fn build_backdrop_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, 
     }
 
     // Re-walk from the root into a fresh scene, stopping the moment we reach this
-    // node — what's appended is the backdrop. Suppress nested glass (renders clear).
+    // node — what's appended is the backdrop. Suppress nested glass + mattes in the
+    // prefix (a nested glass renders clear, a nested matte renders its content).
     let saved_stop = ctx.backdrop_stop;
     let saved_done = ctx.backdrop_done;
-    let saved_suppress = ctx.suppress_backdrop;
+    let saved_sb = ctx.suppress_backdrop;
+    let saved_sm = ctx.suppress_matte;
     ctx.backdrop_stop = Some(node as *const Node);
     ctx.backdrop_done = false;
     ctx.suppress_backdrop = true;
+    ctx.suppress_matte = true;
     let root = ctx.root;
     let mut prefix = VelloScene::new();
     build(&mut prefix, ctx, root, Affine::IDENTITY, 1.0);
     ctx.backdrop_stop = saved_stop;
     ctx.backdrop_done = saved_done;
-    ctx.suppress_backdrop = saved_suppress;
+    ctx.suppress_backdrop = saved_sb;
+    ctx.suppress_matte = saved_sm;
 
     let mut texture = render_vscene_to_texture(ctx.device, ctx.queue, ctx.renderer, &prefix, w, h);
 
@@ -1151,6 +1347,128 @@ fn composite_backdrop(
         );
     }
     vscene.pop_layer();
+}
+
+/// Capture a matte node's CONTENT subtree and its MATTE subtree to two
+/// pixel-aligned textures over a shared window, then alpha-combine them (content
+/// rgb; content alpha × the matte's coverage). Returns the combined texture, its
+/// size, and the `(x0, y0)` local top-left — like `build_effect_texture` — so it
+/// feeds the existing `draw_effect_image` composite. The media-through-type move.
+fn build_matte_texture(
+    ctx: &mut Ctx,
+    node: &Node,
+    matte: &Matte,
+) -> Option<(wgpu::Texture, u32, u32, f64, f64)> {
+    // Shared window = union of the content subtree's local bounds (node's own kind
+    // at identity + children) and the matte subtree's bounds (through its own
+    // transform). Both must exist — no content, or an empty matte, reveals nothing.
+    let cb = subtree_local_bounds(ctx.fonts, node)?;
+    let mb_local = subtree_local_bounds(ctx.fonts, &matte.source)?;
+    let mb = to_affine(&matte.source.transform).transform_rect_bbox(mb_local);
+    let x0 = cb.x0.min(mb.x0).floor();
+    let y0 = cb.y0.min(mb.y0).floor();
+    let x1 = cb.x1.max(mb.x1).ceil();
+    let y1 = cb.y1.max(mb.y1).ceil();
+    let w = (x1 - x0) as i64;
+    let h = (y1 - y0) as i64;
+    if w <= 0 || h <= 0 {
+        return None;
+    }
+    const MAX_DIM: i64 = 8192;
+    if w > MAX_DIM || h > MAX_DIM {
+        return None;
+    }
+    let (tw, th) = (w as u32, h as u32);
+
+    // Suppress nested backdrop/matte resolution inside both captures.
+    let saved_sb = ctx.suppress_backdrop;
+    let saved_sm = ctx.suppress_matte;
+    ctx.suppress_backdrop = true;
+    ctx.suppress_matte = true;
+
+    // CONTENT: node's children at identity, transform/opacity/effects/blend/clip/
+    // matte neutralized so the recursion terminates — like the effect capture's
+    // local_root. (A matted node's own subtree effects are dropped for v1.)
+    let content_root = Node {
+        transform: Transform::IDENTITY,
+        opacity: 1.0,
+        effects: Vec::new(),
+        blend: BlendMode::Normal,
+        clip: None,
+        matte: None,
+        ..node.clone()
+    };
+    let mut content_scene = VelloScene::new();
+    build(
+        &mut content_scene,
+        ctx,
+        &content_root,
+        Affine::translate((-x0, -y0)),
+        1.0,
+    );
+    let content_tex =
+        render_vscene_to_texture(ctx.device, ctx.queue, ctx.renderer, &content_scene, tw, th);
+
+    // MATTE: the matte source positioned by its OWN transform, into the SAME window
+    // (so it's pixel-aligned with the content).
+    let mut matte_scene = VelloScene::new();
+    build(
+        &mut matte_scene,
+        ctx,
+        &matte.source,
+        Affine::translate((-x0, -y0)),
+        1.0,
+    );
+    let matte_tex =
+        render_vscene_to_texture(ctx.device, ctx.queue, ctx.renderer, &matte_scene, tw, th);
+
+    ctx.suppress_backdrop = saved_sb;
+    ctx.suppress_matte = saved_sm;
+
+    // Alpha-combine on the GPU: content.rgb, content.a × the matte's coverage.
+    let mode = match matte.mode {
+        MatteMode::Alpha => 0u32,
+        MatteMode::Luminance => 1u32,
+    };
+    let pipe = ctx
+        .matte_pipeline
+        .get_or_insert_with(|| AlphaMatte::new(ctx.device));
+    let combined = pipe.run(
+        ctx.device,
+        ctx.queue,
+        &content_tex,
+        &matte_tex,
+        tw,
+        th,
+        mode,
+    );
+    Some((combined, tw, th, x0, y0))
+}
+
+/// Native inline matte path: capture + alpha-combine, read back synchronously
+/// (native only), and composite at the node's affine/opacity.
+fn render_matte_subtree(
+    vscene: &mut VelloScene,
+    ctx: &mut Ctx,
+    node: &Node,
+    matte: &Matte,
+    affine: Affine,
+    opacity: f32,
+) {
+    let Some((texture, tw, th, x0, y0)) = build_matte_texture(ctx, node, matte) else {
+        return;
+    };
+    let frame = read_back(ctx.device, ctx.queue, &texture, tw, th);
+    draw_effect_image(
+        vscene,
+        affine,
+        opacity,
+        std::sync::Arc::new(frame.pixels),
+        tw,
+        th,
+        x0,
+        y0,
+    );
 }
 
 /// Axis-aligned bounds of a node's subtree in the node's **own local space**

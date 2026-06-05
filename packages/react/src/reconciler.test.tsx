@@ -5,6 +5,7 @@ import {
   Ellipse,
   Flex,
   Group,
+  Img,
   Path,
   Rect,
   Svg,
@@ -457,6 +458,53 @@ describe('renderToScene', () => {
       </Composition>,
     )
     expect(scene.root.children?.[0]?.effects).toBeUndefined()
+  })
+
+  it('emits a matte from the `matte` prop-element (mode defaults to alpha)', () => {
+    const scene = renderToScene(
+      <Composition width={200} height={200} fps={1} durationInFrames={1}>
+        <Group matte={<Rect width={120} height={48} fill="#ffffff" />}>
+          <Img src="photo.jpg" width={200} height={200} fit="cover" />
+        </Group>
+      </Composition>,
+    )
+    const group = scene.root.children?.[0]
+    expect(group?.matte).toEqual({
+      mode: 'alpha',
+      source: {
+        kind: {
+          type: 'shape',
+          geometry: { shape: 'rect', size: { width: 120, height: 48 } },
+          fill: { r: 1, g: 1, b: 1 },
+        },
+      },
+    })
+    // The content (the node's own children) is untouched by the matte.
+    expect(group?.children?.[0]?.kind).toMatchObject({ type: 'image', src: 'photo.jpg' })
+  })
+
+  it('carries matteMode="luminance" onto the matte', () => {
+    const scene = renderToScene(
+      <Composition width={50} height={50} fps={1} durationInFrames={1}>
+        <Group matte={<Text>REVEAL</Text>} matteMode="luminance">
+          <Rect width={50} height={50} fill="#000" />
+        </Group>
+      </Composition>,
+    )
+    const group = scene.root.children?.[0]
+    expect(group?.matte?.mode).toBe('luminance')
+    expect(group?.matte?.source.kind).toEqual({ type: 'text', content: 'REVEAL' })
+  })
+
+  it('omits the matte key when there is no matte prop', () => {
+    const scene = renderToScene(
+      <Composition width={50} height={50} fps={1} durationInFrames={1}>
+        <Group>
+          <Rect width={50} height={50} fill="#000" />
+        </Group>
+      </Composition>,
+    )
+    expect(scene.root.children?.[0]?.matte).toBeUndefined()
   })
 
   it('requires a single Composition root', () => {
