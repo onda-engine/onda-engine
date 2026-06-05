@@ -278,6 +278,11 @@ struct Options {
     progress: bool,
     /// Paths from `--font`, loaded and selectable by family on a `Text` run.
     fonts: Vec<PathBuf>,
+    /// Motion-blur sub-frames per output frame (`export-frames` only): the input
+    /// carries `K×` scenes and each group of `K` rendered frames is averaged into
+    /// one output frame (temporal supersampling — a 180° shutter when the producer
+    /// spread the sub-frames across half the frame). 1 = off (the default).
+    motion_blur: u32,
 }
 
 /// Parse the shared `[--backend ...] [--system-fonts] [--font <path>]...` +
@@ -289,11 +294,24 @@ fn parse_io(args: &[String], verb: &str) -> Result<Options> {
     let mut encoder = EncoderChoice::Auto;
     let mut progress = false;
     let mut fonts: Vec<PathBuf> = Vec::new();
+    let mut motion_blur: u32 = 1;
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
             "--system-fonts" => font = FontMode::System,
             "--progress" => progress = true,
+            "--motion-blur" => {
+                let value = iter
+                    .next()
+                    .with_context(|| format!("--motion-blur needs a value\n\n{USAGE}"))?;
+                motion_blur = value
+                    .parse::<u32>()
+                    .ok()
+                    .filter(|k| *k >= 1)
+                    .with_context(|| {
+                        format!("--motion-blur needs a positive integer\n\n{USAGE}")
+                    })?;
+            }
             "--encoder" => {
                 let value = iter
                     .next()
@@ -343,6 +361,7 @@ fn parse_io(args: &[String], verb: &str) -> Result<Options> {
         encoder,
         progress,
         fonts,
+        motion_blur,
     })
 }
 
@@ -363,6 +382,7 @@ fn render_command(args: &[String]) -> Result<()> {
         encoder: _,
         progress: _,
         fonts,
+        motion_blur: _,
     } = parse_io(args, "render")?;
     let fonts = load_font_bytes(&fonts)?;
     let (width, height, used) =
@@ -788,6 +808,7 @@ fn export_command(args: &[String]) -> Result<()> {
         encoder,
         progress,
         fonts,
+        motion_blur: _,
     } = parse_io(args, "export")?;
     let fonts = load_font_bytes(&fonts)?;
     EMIT_PROGRESS.store(progress, Ordering::Relaxed);
@@ -820,6 +841,7 @@ fn export_frames_command(args: &[String]) -> Result<()> {
         encoder,
         progress,
         fonts,
+        motion_blur,
     } = parse_io(args, "export-frames")?;
     let fonts = load_font_bytes(&fonts)?;
     EMIT_PROGRESS.store(progress, Ordering::Relaxed);
@@ -830,12 +852,13 @@ fn export_frames_command(args: &[String]) -> Result<()> {
 
     // mp4 streams (render+pipe in bounded-memory chunks — long videos that would
     // OOM if every frame were buffered). gif needs every frame, so it stays
-    // buffered (gifs are short).
+    // buffered (gifs are short). Motion blur also needs every frame buffered (it
+    // averages K consecutive sub-frames), so it skips the streaming path.
     let is_mp4 = out
         .extension()
         .and_then(|e| e.to_str())
         .is_some_and(|e| e.eq_ignore_ascii_case("mp4"));
-    if is_mp4 {
+    if is_mp4 && motion_blur <= 1 {
         return stream_frames_to_mp4(
             &json,
             &input,
@@ -851,10 +874,40 @@ fn export_frames_command(args: &[String]) -> Result<()> {
 
     let (scenes, fps) = frames_scenes(&json, base_dir_of(&input))
         .with_context(|| format!("reading frames '{input}'"))?;
-    let (frames, used) = render_scenes(&scenes, backend, font, &fonts)
+    let (mut frames, used) = render_scenes(&scenes, backend, font, &fonts)
         .with_context(|| format!("rendering frames '{input}'"))?;
-    // Mux any <Audio> nodes carried in the scene (the soundtrack).
-    let audio_tracks = collect_audio_tracks(&scenes, fps);
+
+    // Motion blur (temporal supersampling): the producer emitted K sub-frames per
+    // output frame, spread across the shutter; average each group of K into one
+    // frame. Straight-alpha RGBA mean — exact for the opaque frames a full-bleed
+    // composition produces (every pixel alpha 1), where premultiplied == straight.
+    if motion_blur > 1 {
+        let k = motion_blur as usize;
+        if frames.is_empty() || frames.len() % k != 0 {
+            bail!(
+                "--motion-blur {k}: got {} rendered frame(s), not a positive multiple of {k} \
+                 (the producer must emit exactly K sub-frames per output frame)",
+                frames.len()
+            );
+        }
+        frames = average_frame_groups(&frames, k);
+    }
+
+    // Mux any <Audio> nodes carried in the scene (the soundtrack). Under motion
+    // blur the scene list is K× oversampled, so collect from the output-frame
+    // scenes (every K-th) to avoid K-fold duplicate tracks.
+    let audio_owned: Vec<Scene>;
+    let audio_scenes: &[Scene] = if motion_blur > 1 {
+        audio_owned = scenes
+            .iter()
+            .step_by(motion_blur as usize)
+            .cloned()
+            .collect();
+        &audio_owned
+    } else {
+        &scenes
+    };
+    let audio_tracks = collect_audio_tracks(audio_scenes, fps);
     let base_dir = base_dir_of(&input);
     let duration_secs = frames.len() as f32 / fps.max(1.0);
     let audio = if audio_tracks.is_empty() {
@@ -867,6 +920,31 @@ fn export_frames_command(args: &[String]) -> Result<()> {
         }
     };
     encode_movie(&frames, fps, out, &output, &input, used, encoder, audio)
+}
+
+/// Average each consecutive group of `k` framebuffers into one — temporal
+/// supersampling for motion blur. All frames share dimensions; `k` divides the
+/// count (the caller guarantees both). Accumulates each RGBA byte in a `u32` and
+/// rounds the mean (straight-alpha; exact for the opaque output a full-bleed
+/// composition produces).
+fn average_frame_groups(frames: &[Framebuffer], k: usize) -> Vec<Framebuffer> {
+    frames
+        .chunks(k)
+        .map(|group| {
+            let (w, h) = (group[0].width(), group[0].height());
+            let n = (w as usize) * (h as usize) * 4;
+            let mut acc = vec![0u32; n];
+            for fb in group {
+                for (a, &b) in acc.iter_mut().zip(fb.as_bytes()) {
+                    *a += b as u32;
+                }
+            }
+            let k = k as u32;
+            let half = k / 2;
+            let pixels: Vec<u8> = acc.iter().map(|&s| ((s + half) / k) as u8).collect();
+            Framebuffer::from_rgba(w, h, pixels)
+        })
+        .collect()
 }
 
 /// `onda lint` — the structural geometry lint (agent-vision Layer 0). The engine
