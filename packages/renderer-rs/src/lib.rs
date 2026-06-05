@@ -932,11 +932,14 @@ impl Renderer {
         // MATTE: the matte source positioned by its OWN transform, into the SAME
         // window so it's pixel-aligned with the content.
         let mut temp_m = Framebuffer::new(tw, th);
+        // Honor the matte source ROOT's own opacity (a faded matte reveals less),
+        // matching the GPU path where `build` folds `matte.source.opacity` into the
+        // matte's drawn alpha — so an animated fade-in matte agrees CPU==GPU.
         self.draw_subtree_local(
             &mut temp_m,
             &matte.source,
             into_temp.then(&matte.source.transform),
-            1.0,
+            matte.source.opacity,
         );
 
         // Alpha-combine: content.alpha ×= matte coverage. Coverage is the matte's
