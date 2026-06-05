@@ -9,6 +9,98 @@ export interface PropSpec {
 }
 
 export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
+  KineticText: [
+    {
+      name: 'text',
+      required: false,
+      type: 'string',
+      description: 'The line to animate, one glyph at a time.',
+    },
+    { name: 'fontSize', required: false, type: 'number', description: 'Font size in px.' },
+    {
+      name: 'preset',
+      required: false,
+      type: "'rise' | 'fade' | 'scale' | 'blur' | 'wave'",
+      description:
+        'Per-glyph entrance style. `blur` is a real per-glyph render-to-texture focus pull.',
+    },
+    {
+      name: 'stagger',
+      required: false,
+      type: 'number',
+      description: 'Frames between each glyph (default the house STAGGER).',
+    },
+    {
+      name: 'durationInFrames',
+      required: false,
+      type: 'number',
+      description: 'Per-glyph entrance duration in frames.',
+    },
+    {
+      name: 'delay',
+      required: false,
+      type: 'number',
+      description: 'Frames before the first glyph begins.',
+    },
+    {
+      name: 'align',
+      required: false,
+      type: "'left' | 'center' | 'right'",
+      description: 'Horizontal alignment of the line. Default `center`.',
+    },
+    {
+      name: 'color',
+      required: false,
+      type: 'string',
+      description: 'Text color (default: theme text).',
+    },
+    { name: 'fontFamily', required: false, type: 'string', description: 'Loaded font family.' },
+    { name: 'fontWeight', required: false, type: 'number', description: 'CSS weight 1..1000.' },
+  ],
+  FilmGrade: [
+    {
+      name: 'look',
+      required: false,
+      type: "'warm' | 'cool' | 'noir' | 'teal-orange' | 'vibrant' | 'film' | 'faded'",
+      description: 'The named cinematic look applied to the whole subtree. Default `film`.',
+    },
+    {
+      name: 'intensity',
+      required: false,
+      type: 'number',
+      description: 'Strength of the look, `0..1` (lerps every param from neutral). Default `1`.',
+    },
+    {
+      name: 'exposure',
+      required: false,
+      type: 'number',
+      description: 'Explicit linear-exposure override (`2^exposure`), applied on top of the look.',
+    },
+    {
+      name: 'contrast',
+      required: false,
+      type: 'number',
+      description: 'Explicit contrast override (1 = identity), on top of the look.',
+    },
+    {
+      name: 'saturation',
+      required: false,
+      type: 'number',
+      description: 'Explicit saturation override (1 = identity, 0 = grayscale), on top.',
+    },
+    {
+      name: 'temperature',
+      required: false,
+      type: 'number',
+      description: 'Explicit warm/cool override (positive = warm), on top of the look.',
+    },
+    {
+      name: 'tint',
+      required: false,
+      type: 'number',
+      description: 'Explicit green/magenta override (positive = green), on top.',
+    },
+  ],
   AudioClip: [
     {
       name: 'src',
