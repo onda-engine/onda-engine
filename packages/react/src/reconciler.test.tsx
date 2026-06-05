@@ -356,6 +356,37 @@ describe('renderToScene', () => {
     ])
   })
 
+  it('emits a color_grade effect from the `grade` sugar prop (fields default to identity)', () => {
+    const scene = renderToScene(
+      <Composition width={50} height={50} fps={1} durationInFrames={1}>
+        <Group grade={{ exposure: 0.2, contrast: 1.2, temperature: 0.5 }}>
+          <Text>clip</Text>
+        </Group>
+      </Composition>,
+    )
+    expect(scene.root.children?.[0]?.effects).toEqual([
+      {
+        effect: 'color_grade',
+        exposure: 0.2,
+        contrast: 1.2,
+        saturation: 1,
+        temperature: 0.5,
+        tint: 0,
+      },
+    ])
+  })
+
+  it('omits a neutral `grade` (a no-op identity stays a zero-diff)', () => {
+    const scene = renderToScene(
+      <Composition width={50} height={50} fps={1} durationInFrames={1}>
+        <Group grade={{}}>
+          <Text>plain</Text>
+        </Group>
+      </Composition>,
+    )
+    expect(scene.root.children?.[0]?.effects).toBeUndefined()
+  })
+
   it('requires a single Composition root', () => {
     expect(() => renderToScene(<Group />)).toThrow(/Composition/)
   })

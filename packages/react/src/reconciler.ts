@@ -134,6 +134,8 @@ function toNode(node: HostNode): SceneNode {
     effects.unshift({ effect: 'blur', sigma: props.blur })
   const bloom = parseBloom(props.bloom)
   if (bloom) effects.push(bloom)
+  const grade = parseGrade(props.grade)
+  if (grade) effects.push(grade)
   if (effects.length) base.effects = effects
   if (props.layout !== undefined) base.layout = parseLayout(props.layout as Layout)
   const children = node.children.map(toNode)
@@ -323,6 +325,32 @@ function parseBloom(input: unknown): Extract<Effect, { effect: 'bloom' }> | unde
     }
   }
   return undefined
+}
+
+/** Resolve the `grade` sugar prop into a `{ effect: 'color_grade', ... }` effect,
+ *  or `undefined` when absent or a neutral identity (which would be a render
+ *  no-op). Each field defaults to the neutral identity (exposure 0, contrast 1,
+ *  saturation 1, temperature 0, tint 0). */
+function parseGrade(input: unknown): Extract<Effect, { effect: 'color_grade' }> | undefined {
+  if (!input || typeof input !== 'object') return undefined
+  const g = input as {
+    exposure?: number
+    contrast?: number
+    saturation?: number
+    temperature?: number
+    tint?: number
+  }
+  const exposure = typeof g.exposure === 'number' ? g.exposure : 0
+  const contrast = typeof g.contrast === 'number' ? g.contrast : 1
+  const saturation = typeof g.saturation === 'number' ? g.saturation : 1
+  const temperature = typeof g.temperature === 'number' ? g.temperature : 0
+  const tint = typeof g.tint === 'number' ? g.tint : 0
+  // The neutral identity is a no-op — omit it so a plain `grade={{}}` stays a
+  // zero-diff (matching the engine's neutral fast path).
+  if (exposure === 0 && contrast === 1 && saturation === 1 && temperature === 0 && tint === 0) {
+    return undefined
+  }
+  return { effect: 'color_grade', exposure, contrast, saturation, temperature, tint }
 }
 
 function parseLayout(layout: Layout): Layout {
