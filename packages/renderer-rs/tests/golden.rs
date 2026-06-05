@@ -21,7 +21,7 @@ use std::path::PathBuf;
 
 use onda_core::{Color, Size, Transform, Vec2};
 use onda_renderer::Renderer;
-use onda_scene::{Composition, Gradient, GradientStop, Node, NodeKind, Scene, Shape, Text};
+use onda_scene::{Composition, Effect, Gradient, GradientStop, Node, NodeKind, Scene, Shape, Text};
 
 fn text_node(content: &str, size: f32, color: Color) -> Node {
     Node::new(NodeKind::Text(
@@ -171,6 +171,47 @@ fn fixtures() -> Vec<(&'static str, Scene)> {
                     .with_transform(translate(20.0, 40.0)),
                     text_node("ONDA", 40.0, Color::WHITE).with_transform(translate(40.0, 58.0)),
                 ]),
+            ),
+        ),
+        // RTT Phase 1: a blurred text node (soft glyphs over transparency).
+        (
+            "blur_text",
+            scene(
+                Node::group().with_child(
+                    text_node("Onda", 56.0, Color::WHITE)
+                        .with_transform(translate(20.0, 45.0))
+                        .with_effect(Effect::Blur { sigma: 6.0 }),
+                ),
+            ),
+        ),
+        // RTT Phase 1: a blurred filled shape (soft-edged rounded rect).
+        (
+            "blur_shape",
+            scene(
+                Node::group().with_child(
+                    Node::shape(Shape::rect(Size::new(120.0, 90.0)).with_fill(rose))
+                        .with_transform(translate(40.0, 30.0))
+                        .with_effect(Effect::Blur { sigma: 5.0 }),
+                ),
+            ),
+        ),
+        // RTT Phase 1: blur on a group with several children — the whole subtree is
+        // captured, blurred, and composited as one (effect-on-group semantics).
+        (
+            "blur_nested",
+            scene(
+                Node::group().with_child(
+                    Node::group()
+                        .with_transform(translate(30.0, 20.0))
+                        .with_effect(Effect::Blur { sigma: 4.0 })
+                        .with_children([
+                            Node::shape(Shape::ellipse(Size::new(70.0, 70.0)).with_fill(rose)),
+                            Node::shape(Shape::rect(Size::new(60.0, 60.0)).with_fill(ink))
+                                .with_transform(translate(60.0, 30.0)),
+                            text_node("hi", 36.0, Color::WHITE)
+                                .with_transform(translate(20.0, 80.0)),
+                        ]),
+                ),
             ),
         ),
     ]

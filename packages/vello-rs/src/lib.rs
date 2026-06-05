@@ -13,8 +13,8 @@ use std::collections::HashMap;
 
 use onda_core::{Color, Transform};
 use onda_scene::{
-    BlendMode, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Node, NodeKind,
-    Scene, Shadow, ShapeGeometry, Text,
+    BlendMode, Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Node,
+    NodeKind, Scene, Shadow, ShapeGeometry, Text,
 };
 use onda_typography::{FontContext, StyledRun};
 use vello::kurbo::{Affine, BezPath, Cap, Ellipse, Join, Rect, RoundedRect, Shape, Stroke};
@@ -23,6 +23,9 @@ use vello::peniko::{
     Image as PenikoImage, Mix,
 };
 use vello::{wgpu, AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene as VelloScene};
+
+mod effects;
+use effects::GaussianBlur;
 
 /// A rendered frame: straight-alpha RGBA8, row-major, top-left origin.
 pub struct Frame {
@@ -41,6 +44,9 @@ pub struct VelloRenderer {
     /// demand from the face bytes the layout reports. Keeps Vello's glyph cache
     /// warm across frames.
     font_cache: HashMap<u64, Font>,
+    /// Gaussian-blur compute pipeline (render-to-texture effect chain). Built
+    /// lazily the first time a node carries a `Blur` effect, then reused.
+    blur_pipeline: Option<GaussianBlur>,
 }
 
 impl VelloRenderer {
@@ -105,6 +111,7 @@ impl VelloRenderer {
             renderer,
             fonts: FontContext::with_default_font(),
             font_cache: HashMap::new(),
+            blur_pipeline: None,
         })
     }
 
@@ -128,62 +135,141 @@ impl VelloRenderer {
         let height = scene.composition.height.max(1);
 
         let mut vscene = VelloScene::new();
-        // Disjoint field borrows: `fonts` (shaping) + `font_cache` (built fonts).
+        // Disjoint field borrows so the recursive walk can render *effect*
+        // subtrees to their own textures while `fonts`/`font_cache` stay borrowed:
+        // `fonts` (shaping) + `font_cache` (built fonts) for text, plus
+        // `device`/`queue`/`renderer`/`blur_pipeline` for the render-to-texture
+        // effect path. `&mut self` is never re-borrowed inside the walk.
         build(
             &mut vscene,
-            &mut self.fonts,
-            &mut self.font_cache,
+            &mut Ctx {
+                device: &self.device,
+                queue: &self.queue,
+                renderer: &mut self.renderer,
+                fonts: &mut self.fonts,
+                font_cache: &mut self.font_cache,
+                blur_pipeline: &mut self.blur_pipeline,
+            },
             &scene.root,
             Affine::IDENTITY,
             1.0,
         );
 
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("onda-vello target"),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        });
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-        self.renderer
-            .render_to_texture(
-                &self.device,
-                &self.queue,
-                &vscene,
-                &view,
-                &RenderParams {
-                    base_color: PenikoColor::TRANSPARENT,
-                    width,
-                    height,
-                    antialiasing_method: AaConfig::Area,
-                },
-            )
-            .expect("vello render");
-
+        let texture = render_vscene_to_texture(
+            &self.device,
+            &self.queue,
+            &mut self.renderer,
+            &vscene,
+            width,
+            height,
+        );
         (texture, width, height)
     }
 }
 
+/// The renderer state the scene walk needs as **disjoint field borrows** — kept
+/// in one struct so a node carrying effects can render its subtree to a texture
+/// (needs `device`/`queue`/`renderer`/`blur_pipeline`) while the text path keeps
+/// `fonts`/`font_cache` borrowed. Holding these separately (not `&mut self`)
+/// lets the recursive effect path reborrow them down the tree.
+struct Ctx<'a> {
+    device: &'a wgpu::Device,
+    queue: &'a wgpu::Queue,
+    renderer: &'a mut Renderer,
+    fonts: &'a mut FontContext,
+    font_cache: &'a mut HashMap<u64, Font>,
+    blur_pipeline: &'a mut Option<GaussianBlur>,
+}
+
+/// Rasterize an already-built `VelloScene` to a fresh `Rgba8Unorm` texture of the
+/// given size. Shared by the top-level frame path and the per-subtree effect path
+/// (effects render their subtree here, in local space, before post-processing).
+///
+/// The texture also carries `TEXTURE_BINDING` so an effect compute pass can sample
+/// it; that's harmless for the frame path (which only reads it back).
+fn render_vscene_to_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    renderer: &mut Renderer,
+    vscene: &VelloScene,
+    width: u32,
+    height: u32,
+) -> wgpu::Texture {
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("onda-vello target"),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::STORAGE_BINDING
+            | wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+    renderer
+        .render_to_texture(
+            device,
+            queue,
+            vscene,
+            &view,
+            &RenderParams {
+                base_color: PenikoColor::TRANSPARENT,
+                width,
+                height,
+                antialiasing_method: AaConfig::Area,
+            },
+        )
+        .expect("vello render");
+
+    texture
+}
+
 /// Walk the scene graph, appending fills/strokes/text to the Vello scene.
-fn build(
-    vscene: &mut VelloScene,
-    fonts: &mut FontContext,
-    font_cache: &mut HashMap<u64, Font>,
-    node: &Node,
-    parent: Affine,
-    parent_opacity: f32,
-) {
+fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, parent_opacity: f32) {
     let affine = parent * to_affine(&node.transform);
     let opacity = (parent_opacity * node.opacity).clamp(0.0, 1.0);
+
+    // Render-to-texture effect chain (e.g. blur): if this node carries effects,
+    // rasterize its subtree to its own texture *in local space* (transform and
+    // opacity neutralized, effects cleared so the recursion terminates), run the
+    // effect compute passes, then composite the result back at this node's
+    // `affine`/`opacity` via the existing `draw_image_data` path — which keeps it
+    // honoring `blend`/`clip` through the surrounding push_layer/pop_layer.
+    if !node.effects.is_empty() {
+        // Blend/clip wrap the composited (post-effect) image, exactly as they
+        // would wrap normal drawing, so push them here and let the early return
+        // below fall through their pops.
+        let blended = node.blend != BlendMode::Normal;
+        if blended {
+            vscene.push_layer(
+                blend_mix(node.blend),
+                1.0,
+                Affine::IDENTITY,
+                &Rect::new(-1.0e7, -1.0e7, 1.0e7, 1.0e7),
+            );
+        }
+        let clipped = node.clip.is_some();
+        if let Some(clip) = &node.clip {
+            vscene.push_layer(Mix::Clip, 1.0, affine, &shape_path(clip));
+        }
+
+        render_effects_subtree(vscene, ctx, node, affine, opacity);
+
+        if clipped {
+            vscene.pop_layer();
+        }
+        if blended {
+            vscene.pop_layer();
+        }
+        return;
+    }
 
     // A blend mode composites this node's whole subtree against the backdrop
     // (CSS mix-blend-mode). Push a canvas-covering blend layer around everything,
@@ -243,8 +329,12 @@ fn build(
                 // identically across backends; stroke counts are tiny, so the CPU
                 // expansion is cheap.
                 const STROKE_TOL: f64 = 0.1;
-                let outline =
-                    vello::kurbo::stroke(path.path_elements(STROKE_TOL), &sk, &Default::default(), STROKE_TOL);
+                let outline = vello::kurbo::stroke(
+                    path.path_elements(STROKE_TOL),
+                    &sk,
+                    &Default::default(),
+                    STROKE_TOL,
+                );
                 vscene.fill(
                     Fill::NonZero,
                     affine,
@@ -254,7 +344,7 @@ fn build(
                 );
             }
         }
-        NodeKind::Text(text) => draw_text(vscene, fonts, font_cache, text, affine, opacity),
+        NodeKind::Text(text) => draw_text(vscene, ctx.fonts, ctx.font_cache, text, affine, opacity),
         // Image and Video draw decoded RGBA the same way (a video frame is just
         // an image); pixels are attached by a decode pass and skipped if absent.
         NodeKind::Image(image) => {
@@ -287,7 +377,7 @@ fn build(
     }
 
     for child in &node.children {
-        build(vscene, fonts, font_cache, child, affine, opacity);
+        build(vscene, ctx, child, affine, opacity);
     }
 
     if clipped {
@@ -296,6 +386,237 @@ fn build(
     if blended {
         vscene.pop_layer();
     }
+}
+
+/// Render a node's subtree to an offscreen texture in **local space**, run its
+/// effect chain (currently Gaussian blur), and composite the result back into
+/// `vscene` at `affine`/`opacity` via the normal `draw_image_data` path.
+///
+/// "Local space" means the subtree is rendered with this node's own transform and
+/// opacity neutralized (identity affine, full opacity, effects cleared) into a
+/// texture sized to the subtree's local bounds grown by the blur margin (`3σ`).
+/// The texture's top-left maps to local `(x0, y0)`, so we draw it at
+/// `affine * translate(x0, y0)` and the blurred pixels land exactly where the
+/// sharp subtree would have, just softened and spread by the margin.
+fn render_effects_subtree(
+    vscene: &mut VelloScene,
+    ctx: &mut Ctx,
+    node: &Node,
+    affine: Affine,
+    opacity: f32,
+) {
+    // Total blur margin = the largest σ in the chain × 3 (the kernel's reach),
+    // so blurred edges aren't clipped by the texture border.
+    let max_sigma = node
+        .effects
+        .iter()
+        .map(|e| match e {
+            Effect::Blur { sigma } => *sigma,
+        })
+        .fold(0.0_f32, f32::max);
+    let margin = (3.0 * max_sigma).ceil().max(0.0) as f64;
+
+    // Local-space bounds of the subtree (this node's own drawing + descendants),
+    // grown by the margin. Empty/degenerate → nothing to do.
+    let Some(bounds) = subtree_local_bounds(ctx.fonts, node) else {
+        return;
+    };
+    let x0 = (bounds.x0 - margin).floor();
+    let y0 = (bounds.y0 - margin).floor();
+    let x1 = (bounds.x1 + margin).ceil();
+    let y1 = (bounds.y1 + margin).ceil();
+    let w = (x1 - x0) as i64;
+    let h = (y1 - y0) as i64;
+    if w <= 0 || h <= 0 {
+        return;
+    }
+    // Clamp to a sane ceiling so a pathological scene can't request a giant
+    // texture (the frame itself is the natural upper bound on useful size).
+    const MAX_DIM: i64 = 8192;
+    if w > MAX_DIM || h > MAX_DIM {
+        return;
+    }
+    let (tw, th) = (w as u32, h as u32);
+
+    // Build the subtree in local space: shift by `-(x0, y0)` so local bounds map
+    // to the texture's top-left, neutralize this node's transform/opacity, and
+    // clear effects so the recursion terminates (a nested-effect child still
+    // renders its own sub-texture via the normal `build` branch).
+    let local_root = Node {
+        transform: Transform::IDENTITY,
+        opacity: 1.0,
+        effects: Vec::new(),
+        // Drop this node's own blend/clip — they apply to the *composited* image
+        // back in the caller (where the layers were already pushed), not inside
+        // the local-space capture.
+        blend: BlendMode::Normal,
+        clip: None,
+        ..node.clone()
+    };
+    let mut sub = VelloScene::new();
+    build(
+        &mut sub,
+        ctx,
+        &local_root,
+        Affine::translate((-x0, -y0)),
+        1.0,
+    );
+
+    let mut texture = render_vscene_to_texture(ctx.device, ctx.queue, ctx.renderer, &sub, tw, th);
+
+    // Run the ordered effect chain. Each effect consumes the previous texture and
+    // produces the next (ping-pong is internal to the blur). The compute pass is
+    // its own encoder+submit — bracketed between the Vello render above and the
+    // readback below; it never injects into Vello's pass.
+    for effect in &node.effects {
+        match effect {
+            Effect::Blur { sigma } if *sigma > 0.0 => {
+                let blur = ctx
+                    .blur_pipeline
+                    .get_or_insert_with(|| GaussianBlur::new(ctx.device));
+                texture = blur.run(ctx.device, ctx.queue, &texture, tw, th, *sigma);
+            }
+            // sigma <= 0 is a no-op (leave the texture sharp).
+            Effect::Blur { .. } => {}
+        }
+    }
+
+    // Read the post-effect texture back to straight-alpha RGBA and composite it at
+    // the node's transform/opacity, offset so local `(x0, y0)` lands correctly.
+    let frame = read_back(ctx.device, ctx.queue, &texture, tw, th);
+    let data = ImageData {
+        width: tw,
+        height: th,
+        rgba: std::sync::Arc::new(frame.pixels),
+    };
+    let place = affine * Affine::translate((x0, y0));
+    draw_image_data(
+        vscene,
+        place,
+        opacity,
+        Some(&data),
+        None,
+        None,
+        ImageFit::Fill,
+    );
+}
+
+/// Axis-aligned bounds of a node's subtree in the node's **own local space**
+/// (its transform NOT applied; children's transforms ARE). `None` if the subtree
+/// draws nothing measurable. Used to size the offscreen effect texture.
+///
+/// Geometry is exact for shapes/clips; text falls back to a measured box via the
+/// font context (cheap and good enough for blur margins). Unknown/empty kinds
+/// contribute only through their children.
+fn subtree_local_bounds(fonts: &mut FontContext, node: &Node) -> Option<Rect> {
+    // `at` is the accumulated transform of `node` *relative to the effect node's
+    // local space* — so the effect node itself contributes at IDENTITY (its own
+    // transform is applied later at composite-back), and each descendant adds its
+    // own transform on top.
+    fn walk(fonts: &mut FontContext, node: &Node, at: Affine, acc: &mut Option<Rect>) {
+        if let Some(local) = node_self_bounds(fonts, node) {
+            let t = at.transform_rect_bbox(local);
+            *acc = Some(match *acc {
+                Some(r) => r.union(t),
+                None => t,
+            });
+        }
+        for child in &node.children {
+            walk(fonts, child, at * to_affine(&child.transform), acc);
+        }
+    }
+    let mut acc = None;
+    walk(fonts, node, Affine::IDENTITY, &mut acc);
+    acc
+}
+
+/// The local-space drawn bounds of a single node (no children), or `None` if it
+/// draws nothing measurable.
+fn node_self_bounds(fonts: &mut FontContext, node: &Node) -> Option<Rect> {
+    match &node.kind {
+        NodeKind::Shape(shape) => {
+            let mut b = shape_path(&shape.geometry).bounding_box();
+            if let Some(stroke) = &shape.stroke {
+                let half = stroke.width as f64 / 2.0;
+                b = b.inflate(half, half);
+            }
+            if let Some(shadow) = &shape.shadow {
+                let (rect, _) = shadow_box(&shape.geometry, &shape_path(&shape.geometry), shadow);
+                let grown = rect.inflate(shadow.blur.max(0.0) as f64, shadow.blur.max(0.0) as f64);
+                b = b.union(grown);
+            }
+            Some(b)
+        }
+        NodeKind::Text(text) => text_local_bounds(fonts, text),
+        NodeKind::Image(image) => {
+            image_local_bounds(image.data.as_ref(), image.width, image.height)
+        }
+        NodeKind::Video(video) => {
+            image_local_bounds(video.data.as_ref(), video.width, video.height)
+        }
+        NodeKind::Group | NodeKind::Audio(_) | NodeKind::Svg(_) => None,
+    }
+}
+
+/// Local box of an image/video node: the `box_width`×`box_height` if given, else
+/// the decoded intrinsic size. `None` if there's nothing to draw.
+fn image_local_bounds(
+    data: Option<&ImageData>,
+    box_width: Option<f32>,
+    box_height: Option<f32>,
+) -> Option<Rect> {
+    match (box_width, box_height) {
+        (Some(bw), Some(bh)) if bw > 0.0 && bh > 0.0 => {
+            Some(Rect::new(0.0, 0.0, bw as f64, bh as f64))
+        }
+        _ => {
+            let d = data?;
+            if d.width == 0 || d.height == 0 {
+                return None;
+            }
+            Some(Rect::new(0.0, 0.0, d.width as f64, d.height as f64))
+        }
+    }
+}
+
+/// Local box of a text node, measured through the font context (the layout's
+/// glyph extents). Origin is the text's local `(0, 0)`, matching `draw_text`.
+fn text_local_bounds(fonts: &mut FontContext, text: &Text) -> Option<Rect> {
+    let resolved = text.resolved_runs();
+    let styled: Vec<StyledRun> = resolved
+        .iter()
+        .map(|r| StyledRun {
+            text: &r.text,
+            font_size: r.font_size,
+            color: [r.color.r, r.color.g, r.color.b, r.color.a],
+            family: r.font_family.as_deref(),
+            weight: r.weight,
+            italic: r.italic,
+            letter_spacing: text.letter_spacing,
+        })
+        .collect();
+    let layout = fonts.layout_rich(&styled);
+    if layout.glyphs.is_empty() {
+        return None;
+    }
+    let max_x = layout.glyphs.iter().map(|g| g.x).fold(0.0_f32, f32::max);
+    let max_size = resolved.iter().map(|r| r.font_size).fold(0.0_f32, f32::max);
+    // `draw_text` places glyphs through Vello at the node's local origin, with
+    // each glyph's `y` being its **baseline** measured DOWN from the text box top
+    // (positive). So the drawn box runs from the box top (~0, with ascenders a
+    // touch above) down past the deepest baseline by a descender's worth. We take
+    // the max baseline and pad ~0.3em below for descenders + a small headroom
+    // above for ascenders/diacritics. Width = furthest pen x + ~0.6em for the last
+    // glyph's body (mirrors `measure_text` in the wasm crate).
+    let max_baseline = layout.glyphs.iter().map(|g| g.y).fold(0.0_f32, f32::max);
+    let top = -max_size * 0.1;
+    let bottom = max_baseline + max_size * 0.3;
+    Some(Rect::new(
+        0.0,
+        top as f64,
+        (max_x + max_size * 0.6) as f64,
+        bottom as f64,
+    ))
 }
 
 /// Draw decoded RGBA pixels into the optional `box_width`×`box_height` box per

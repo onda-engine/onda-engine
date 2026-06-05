@@ -21,8 +21,8 @@
 use kurbo::{BezPath, PathEl, Shape as _};
 use onda_core::{Color, Transform, Vec2};
 use onda_scene::{
-    Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Node, NodeKind, Scene, Shape,
-    ShapeGeometry, Text,
+    Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Node, NodeKind, Scene,
+    Shape, ShapeGeometry, Text,
 };
 pub use onda_typography::{FontContext, TextMetrics, TextRaster};
 use tiny_skia as tsk;
@@ -204,6 +204,158 @@ pub fn encode_gif<W: std::io::Write>(
     Ok(())
 }
 
+/// Quantization total for the integer Gaussian kernel. Weights are scaled to sum
+/// to exactly this fixed value so the convolution divides by a constant — keeping
+/// the hot loop pure integer math (no platform-varying float reduction), which is
+/// what makes the blur byte-identical across runs and architectures.
+const BLUR_WEIGHT_TOTAL: u32 = 1 << 16;
+
+/// Build the 1-D Gaussian kernel for `sigma`, quantized to integer weights that
+/// sum to exactly [`BLUR_WEIGHT_TOTAL`]. Returns `(radius, weights)` where
+/// `weights.len() == 2*radius + 1` (index 0 = `-radius`, center at `radius`).
+///
+/// Determinism: the f32 weights are computed once, normalized, scaled to the
+/// fixed total and rounded to `u32`; any rounding remainder is folded into the
+/// center weight so the sum is *exactly* `BLUR_WEIGHT_TOTAL`. The convolution
+/// itself never touches floats.
+fn blur_kernel(sigma: f32) -> (usize, Vec<u32>) {
+    // 3σ cutoff (per the RTT spec); always at least radius 1 so a tiny σ still
+    // produces a real 3-tap blur rather than a degenerate identity.
+    let radius = (3.0 * sigma).ceil().max(1.0) as usize;
+    let len = 2 * radius + 1;
+
+    // f32 Gaussian samples, then normalize to sum 1.0.
+    let inv_two_sigma_sq = 1.0 / (2.0 * sigma * sigma);
+    let mut samples = Vec::with_capacity(len);
+    let mut sum = 0.0f32;
+    for i in 0..len {
+        let x = i as f32 - radius as f32;
+        let w = (-(x * x) * inv_two_sigma_sq).exp();
+        samples.push(w);
+        sum += w;
+    }
+
+    // Quantize to integers summing to exactly BLUR_WEIGHT_TOTAL. Round each weight
+    // independently, then push the (small) remainder onto the center tap so the
+    // total is exact and the kernel stays symmetric-ish around its peak.
+    let scale = BLUR_WEIGHT_TOTAL as f32 / sum;
+    let mut weights: Vec<u32> = samples
+        .iter()
+        .map(|&w| (w * scale).round() as u32)
+        .collect();
+    let quantized_sum: u32 = weights.iter().sum();
+    // Fold the rounding remainder into the center (the largest weight), clamping so
+    // we never underflow if rounding overshot.
+    let center = &mut weights[radius];
+    if quantized_sum <= BLUR_WEIGHT_TOTAL {
+        *center += BLUR_WEIGHT_TOTAL - quantized_sum;
+    } else {
+        *center = center.saturating_sub(quantized_sum - BLUR_WEIGHT_TOTAL);
+    }
+    debug_assert_eq!(weights.iter().sum::<u32>(), BLUR_WEIGHT_TOTAL);
+
+    (radius, weights)
+}
+
+/// Apply a deterministic separable Gaussian blur (std-dev `sigma`, in pixels) to
+/// `fb` in place. Two passes (horizontal then vertical) over premultiplied-alpha
+/// channels with clamp-to-edge borders; integer-quantized weights and `u32`
+/// accumulation make it byte-identical across runs and architectures.
+///
+/// `sigma <= 0` is a no-op. The framebuffer's straight-alpha contract is
+/// preserved: each pixel is premultiplied on read and un-premultiplied on write.
+pub fn blur_framebuffer(fb: &mut Framebuffer, sigma: f32) {
+    if sigma <= 0.0 || fb.width == 0 || fb.height == 0 {
+        return;
+    }
+    let (radius, weights) = blur_kernel(sigma);
+    let w = fb.width as usize;
+    let h = fb.height as usize;
+
+    // Work in premultiplied alpha so the blur doesn't bleed color from fully
+    // transparent texels (their RGB is undefined in straight-alpha). Stored as
+    // u16 per channel (0..=255 fits) for compact, exact accumulation.
+    let mut premul = vec![0u16; w * h * 4];
+    for (dst, src) in premul.chunks_exact_mut(4).zip(fb.pixels.chunks_exact(4)) {
+        let a = src[3] as u32;
+        // Premultiply with round-to-nearest, /255, so it round-trips with the
+        // demultiply below (both use +127 .. /255).
+        dst[0] = ((src[0] as u32 * a + 127) / 255) as u16;
+        dst[1] = ((src[1] as u32 * a + 127) / 255) as u16;
+        dst[2] = ((src[2] as u32 * a + 127) / 255) as u16;
+        dst[3] = a as u16;
+    }
+
+    // Horizontal pass: premul -> tmp. Vertical pass: tmp -> premul.
+    let mut tmp = vec![0u16; w * h * 4];
+    blur_pass_h(&premul, &mut tmp, w, h, radius, &weights);
+    blur_pass_v(&tmp, &mut premul, w, h, radius, &weights);
+
+    // Un-premultiply back into the straight-alpha framebuffer.
+    for (dst, src) in fb.pixels.chunks_exact_mut(4).zip(premul.chunks_exact(4)) {
+        let a = src[3] as u32;
+        if a == 0 {
+            dst.copy_from_slice(&[0, 0, 0, 0]);
+            continue;
+        }
+        dst[0] = (((src[0] as u32 * 255 + a / 2) / a).min(255)) as u8;
+        dst[1] = (((src[1] as u32 * 255 + a / 2) / a).min(255)) as u8;
+        dst[2] = (((src[2] as u32 * 255 + a / 2) / a).min(255)) as u8;
+        dst[3] = a as u8;
+    }
+}
+
+/// One horizontal separable-blur pass over premultiplied u16 channels, clamping
+/// sample indices to the row's edges. `src`/`dst` are `w*h*4` premultiplied
+/// buffers. Accumulation is `u32`; the divide by [`BLUR_WEIGHT_TOTAL`] is the
+/// only reduction and it's exact.
+fn blur_pass_h(src: &[u16], dst: &mut [u16], w: usize, h: usize, radius: usize, weights: &[u32]) {
+    for y in 0..h {
+        let row = y * w;
+        for x in 0..w {
+            let mut acc = [0u32; 4];
+            for (k, &weight) in weights.iter().enumerate() {
+                let sx =
+                    (x as isize + k as isize - radius as isize).clamp(0, w as isize - 1) as usize;
+                let i = (row + sx) * 4;
+                acc[0] += src[i] as u32 * weight;
+                acc[1] += src[i + 1] as u32 * weight;
+                acc[2] += src[i + 2] as u32 * weight;
+                acc[3] += src[i + 3] as u32 * weight;
+            }
+            let o = (row + x) * 4;
+            dst[o] = (acc[0] / BLUR_WEIGHT_TOTAL) as u16;
+            dst[o + 1] = (acc[1] / BLUR_WEIGHT_TOTAL) as u16;
+            dst[o + 2] = (acc[2] / BLUR_WEIGHT_TOTAL) as u16;
+            dst[o + 3] = (acc[3] / BLUR_WEIGHT_TOTAL) as u16;
+        }
+    }
+}
+
+/// One vertical separable-blur pass (mirror of [`blur_pass_h`], clamping to the
+/// column's edges).
+fn blur_pass_v(src: &[u16], dst: &mut [u16], w: usize, h: usize, radius: usize, weights: &[u32]) {
+    for y in 0..h {
+        for x in 0..w {
+            let mut acc = [0u32; 4];
+            for (k, &weight) in weights.iter().enumerate() {
+                let sy =
+                    (y as isize + k as isize - radius as isize).clamp(0, h as isize - 1) as usize;
+                let i = (sy * w + x) * 4;
+                acc[0] += src[i] as u32 * weight;
+                acc[1] += src[i + 1] as u32 * weight;
+                acc[2] += src[i + 2] as u32 * weight;
+                acc[3] += src[i + 3] as u32 * weight;
+            }
+            let o = (y * w + x) * 4;
+            dst[o] = (acc[0] / BLUR_WEIGHT_TOTAL) as u16;
+            dst[o + 1] = (acc[1] / BLUR_WEIGHT_TOTAL) as u16;
+            dst[o + 2] = (acc[2] / BLUR_WEIGHT_TOTAL) as u16;
+            dst[o + 3] = (acc[3] / BLUR_WEIGHT_TOTAL) as u16;
+        }
+    }
+}
+
 /// Straight-alpha "source over destination" Porter-Duff compositing.
 fn over(src: Color, dst: Color) -> Color {
     let out_a = src.a + dst.a * (1.0 - src.a);
@@ -278,6 +430,15 @@ impl Renderer {
     ) {
         let transform = parent.then(&node.transform);
         let opacity = parent_opacity * node.opacity;
+
+        // A node carrying effects renders its subtree to an offscreen surface in
+        // LOCAL space, runs the effect chain (blur), then composites the result
+        // back at this node's transform/opacity (CSS filter semantics: blur first,
+        // node opacity after). This branch returns — the normal draw is skipped.
+        if !node.effects.is_empty() {
+            self.render_effects_subtree(fb, node, transform, opacity);
+            return;
+        }
 
         match &node.kind {
             NodeKind::Group => {}
@@ -375,6 +536,283 @@ impl Renderer {
                     fb.blend(px as u32, py as u32, src);
                 }
             }
+        }
+    }
+
+    /// Render a node's subtree into a temp framebuffer in LOCAL space, run its
+    /// effect chain, then composite the result back into `fb` at `transform`
+    /// (translate+scale; rotation dropped per the CPU contract) with `opacity`.
+    ///
+    /// `transform`/`opacity` are this node's *composed* (parent-inherited) values;
+    /// the subtree is captured at identity/full-opacity so the effect operates on
+    /// clean pixels (CSS filter semantics: blur first, opacity at composite-back).
+    fn render_effects_subtree(
+        &mut self,
+        fb: &mut Framebuffer,
+        node: &Node,
+        transform: Transform,
+        opacity: f32,
+    ) {
+        // Local-space bounds of the subtree, inflated by the effect margin (the
+        // largest 3σ across the chain) so the blur has room to spread; fall back to
+        // the framebuffer size when nothing is bounded.
+        let margin = node
+            .effects
+            .iter()
+            .map(|e| match e {
+                Effect::Blur { sigma } => (3.0 * sigma.max(0.0)).ceil(),
+            })
+            .fold(0.0f32, f32::max);
+        let bounds = self.subtree_local_bounds(node, Transform::IDENTITY);
+        let (lx0, ly0, lx1, ly1) = match bounds {
+            Some(b) => (b.0 - margin, b.1 - margin, b.2 + margin, b.3 + margin),
+            // Unbounded (e.g. text without fonts) — capture the whole composition.
+            None => (0.0, 0.0, fb.width() as f32, fb.height() as f32),
+        };
+        let ox = lx0.floor();
+        let oy = ly0.floor();
+        let tw = (lx1.ceil() - ox).max(1.0) as u32;
+        let th = (ly1.ceil() - oy).max(1.0) as u32;
+        // Guard against pathological sizes (e.g. a huge unbounded fallback already
+        // matches the framebuffer; this just bounds memory for runaway inputs).
+        if tw == 0 || th == 0 {
+            return;
+        }
+
+        // Capture the subtree at identity, shifted so local point (ox, oy) lands at
+        // the temp origin. Children draw via their own transforms; the node's own
+        // composed transform is applied only at composite-back.
+        let mut temp = Framebuffer::new(tw, th);
+        let into_temp = Transform {
+            translate: Vec2::new(-ox, -oy),
+            ..Transform::IDENTITY
+        };
+        self.draw_subtree_local(&mut temp, node, into_temp, 1.0);
+
+        // Run the effect chain on the captured surface.
+        for effect in &node.effects {
+            match effect {
+                Effect::Blur { sigma } => blur_framebuffer(&mut temp, *sigma),
+            }
+        }
+
+        // Composite the temp back at the node's transform/opacity. Each temp pixel
+        // (tx, ty) is local point (ox + tx, oy + ty); map it through `transform`
+        // (translate + scale) to a canvas box and blit nearest-neighbor, the same
+        // straight-alpha src-over loop shapes use. Rotation is dropped (CPU
+        // contract). `transform.apply` folds scale-about-origin into translate.
+        let sx = transform.scale.x;
+        let sy = transform.scale.y;
+        // Skip degenerate scales (would map the whole surface to nothing).
+        if sx == 0.0 || sy == 0.0 {
+            return;
+        }
+        // Destination canvas box of the temp surface.
+        let c0 = transform.apply(Vec2::new(ox, oy));
+        let c1 = transform.apply(Vec2::new(ox + tw as f32, oy + th as f32));
+        let (cx0, cx1) = (c0.x.min(c1.x), c0.x.max(c1.x));
+        let (cy0, cy1) = (c0.y.min(c1.y), c0.y.max(c1.y));
+        let px_min = cx0.floor().max(0.0) as i64;
+        let py_min = cy0.floor().max(0.0) as i64;
+        let px_max = (cx1.ceil() as i64).min(fb.width() as i64);
+        let py_max = (cy1.ceil() as i64).min(fb.height() as i64);
+
+        for py in py_min..py_max {
+            for px in px_min..px_max {
+                // Map this canvas pixel center back into the temp surface.
+                let canvas = Vec2::new(px as f32 + 0.5, py as f32 + 0.5);
+                let local_x = (canvas.x - transform.translate.x) / sx;
+                let local_y = (canvas.y - transform.translate.y) / sy;
+                let tx = (local_x - ox).floor();
+                let ty = (local_y - oy).floor();
+                if tx < 0.0 || ty < 0.0 || tx >= tw as f32 || ty >= th as f32 {
+                    continue;
+                }
+                let [r, g, b, a] = temp.pixel(tx as u32, ty as u32);
+                if a == 0 {
+                    continue;
+                }
+                let color = Color::new(
+                    r as f32 / 255.0,
+                    g as f32 / 255.0,
+                    b as f32 / 255.0,
+                    (a as f32 / 255.0) * opacity,
+                );
+                fb.blend(px as u32, py as u32, color);
+            }
+        }
+    }
+
+    /// Draw `node`'s own kind plus its children into `fb` at `parent` (no effect
+    /// handling — the effect-carrying node was already captured at identity by its
+    /// parent's [`Self::render_effects_subtree`]). Mirrors [`Self::render_node`]'s
+    /// draw arm but never re-enters the effects branch (avoiding self-recursion);
+    /// nested effects deeper in the subtree are still honored.
+    fn draw_subtree_local(
+        &mut self,
+        fb: &mut Framebuffer,
+        node: &Node,
+        transform: Transform,
+        opacity: f32,
+    ) {
+        match &node.kind {
+            NodeKind::Group => {}
+            NodeKind::Shape(shape) => rasterize_shape(fb, shape, transform, opacity),
+            NodeKind::Text(text) => self.rasterize_text(fb, text, transform, opacity),
+            NodeKind::Image(image) => rasterize_image(
+                fb,
+                image.data.as_ref(),
+                image.width,
+                image.height,
+                image.fit,
+                transform,
+                opacity,
+            ),
+            NodeKind::Video(video) => rasterize_image(
+                fb,
+                video.data.as_ref(),
+                video.width,
+                video.height,
+                video.fit,
+                transform,
+                opacity,
+            ),
+            NodeKind::Audio(_) | NodeKind::Svg(_) => {}
+        }
+        // Children render through the normal path so nested effects still apply.
+        for child in &node.children {
+            let child_t = transform.then(&child.transform);
+            let child_o = opacity * child.opacity;
+            if child.effects.is_empty() {
+                self.draw_subtree_local(fb, child, child_t, child_o);
+            } else {
+                self.render_effects_subtree(fb, child, child_t, child_o);
+            }
+        }
+    }
+
+    /// Union of the subtree's drawable bounds in the space defined by `parent`
+    /// (for the top-level call, `parent = IDENTITY`, i.e. the node's local space).
+    /// Returns `(x0, y0, x1, y1)` or `None` when nothing in the subtree has a
+    /// determinable box (e.g. text with no font context). Generalizes the
+    /// per-shape transformed-bounds logic over the whole subtree.
+    fn subtree_local_bounds(
+        &mut self,
+        node: &Node,
+        parent: Transform,
+    ) -> Option<(f32, f32, f32, f32)> {
+        let transform = parent.then(&node.transform);
+        let mut acc: Option<(f32, f32, f32, f32)> = None;
+        let mut push = |x0: f32, y0: f32, x1: f32, y1: f32| {
+            acc = Some(match acc {
+                Some((ax0, ay0, ax1, ay1)) => (ax0.min(x0), ay0.min(y0), ax1.max(x1), ay1.max(y1)),
+                None => (x0, y0, x1, y1),
+            });
+        };
+
+        // Local box of this node's own kind, mapped through `transform`.
+        if let Some((w, h)) = node_local_size(node) {
+            // Inflate a shape's box by half its (scaled) stroke width + 1px AA, the
+            // same fringe rasterize_shape uses, so the blur capture never clips it.
+            let stroke_inflate = match &node.kind {
+                NodeKind::Shape(s) => {
+                    let max_scale = transform.scale.x.abs().max(transform.scale.y.abs());
+                    s.stroke.as_ref().map_or(0.0, |st| st.width.max(0.0)) * max_scale * 0.5 + 1.0
+                }
+                _ => 0.0,
+            };
+            let a = transform.apply(Vec2::new(0.0, 0.0));
+            let b = transform.apply(Vec2::new(w, h));
+            push(
+                a.x.min(b.x) - stroke_inflate,
+                a.y.min(b.y) - stroke_inflate,
+                a.x.max(b.x) + stroke_inflate,
+                a.y.max(b.y) + stroke_inflate,
+            );
+        } else if let NodeKind::Text(text) = &node.kind {
+            // Text has no intrinsic box; rasterize to recover its inked bounds (the
+            // same raster the draw uses), placed at the node's translation.
+            if let Some(b) = self.text_local_bounds(text, transform) {
+                push(b.0, b.1, b.2, b.3);
+            }
+        }
+
+        for child in &node.children {
+            if let Some((x0, y0, x1, y1)) = self.subtree_local_bounds(child, transform) {
+                push(x0, y0, x1, y1);
+            }
+        }
+        acc
+    }
+
+    /// Inked bounds of a text node in `transform`'s space, recovered by
+    /// rasterizing it (the same coverage mask the draw path produces). `None`
+    /// without a font context or for empty text.
+    fn text_local_bounds(
+        &mut self,
+        text: &Text,
+        transform: Transform,
+    ) -> Option<(f32, f32, f32, f32)> {
+        let fonts = self.fonts.as_mut()?;
+        let content = if text.runs.is_empty() {
+            text.content.clone()
+        } else {
+            text.runs
+                .iter()
+                .map(|r| r.text.as_str())
+                .collect::<String>()
+        };
+        let raster = fonts.rasterize_with(
+            &content,
+            text.font_size,
+            text.font_family.as_deref(),
+            text.weight.unwrap_or(400),
+            text.italic.unwrap_or(false),
+        )?;
+        // Draw places the raster at round(translate) + raster offsets; mirror that.
+        let origin_x = transform.translate.x.round();
+        let origin_y = transform.translate.y.round();
+        let x0 = origin_x + raster.offset_x as f32;
+        let y0 = origin_y + raster.offset_y as f32;
+        Some((x0, y0, x0 + raster.width as f32, y0 + raster.height as f32))
+    }
+}
+
+/// The local-space `(width, height)` box of a node's own kind, or `None` when it
+/// has no intrinsic box (group, text, audio, unexpanded svg). Shapes report their
+/// geometry size; images/videos their layout box (falling back to decoded pixel
+/// size). Used by the subtree-bounds walk to size the blur capture.
+fn node_local_size(node: &Node) -> Option<(f32, f32)> {
+    match &node.kind {
+        NodeKind::Shape(shape) => match &shape.geometry {
+            ShapeGeometry::Rect { size, .. } | ShapeGeometry::Ellipse { size } => {
+                Some((size.width, size.height))
+            }
+            // SVG path data: bound it via kurbo's bounding box (local space).
+            ShapeGeometry::Path { data } => {
+                let bez = BezPath::from_svg(data).ok()?;
+                let bb = bez.bounding_box();
+                Some((bb.x1 as f32, bb.y1 as f32))
+            }
+        },
+        NodeKind::Image(image) => image_box(image.data.as_ref(), image.width, image.height),
+        NodeKind::Video(video) => image_box(video.data.as_ref(), video.width, video.height),
+        _ => None,
+    }
+}
+
+/// The layout box of an image/video: its explicit `width`×`height` box, else its
+/// decoded pixel size, else `None` (unresolved — nothing to bound).
+fn image_box(
+    data: Option<&ImageData>,
+    box_w: Option<f32>,
+    box_h: Option<f32>,
+) -> Option<(f32, f32)> {
+    match (box_w, box_h) {
+        (Some(w), Some(h)) if w > 0.0 && h > 0.0 => Some((w, h)),
+        _ => {
+            let d = data?;
+            (d.width > 0 && d.height > 0).then_some((d.width as f32, d.height as f32))
         }
     }
 }
@@ -1044,6 +1482,88 @@ mod tests {
             (0..4).all(|x| fb.pixel(x, 1)[3] == 255),
             "contain fills the middle band"
         );
+    }
+
+    use onda_scene::Effect;
+
+    fn blurred_scene() -> Scene {
+        // A shape + a text node under a blurred group — exercises both raster paths
+        // through the effect capture/composite seam.
+        Scene::new(comp(120, 80)).with_root(
+            Node::group().with_child(
+                Node::group()
+                    .with_effect(Effect::Blur { sigma: 5.0 })
+                    .with_transform(translate(20.0, 15.0))
+                    .with_children([
+                        Node::shape(Shape::rect(Size::new(60.0, 40.0)).with_fill(Color::WHITE)),
+                        Node::text("Hi").with_transform(translate(10.0, 30.0)),
+                    ]),
+            ),
+        )
+    }
+
+    #[test]
+    fn blur_is_deterministic() {
+        // Two independent renders of the same blurred scene must be byte-identical
+        // (the integer-quantized kernel + u32 accumulation guarantee it).
+        let a = Renderer::with_default_font().render(&blurred_scene());
+        let b = Renderer::with_default_font().render(&blurred_scene());
+        assert_eq!(
+            a.as_bytes(),
+            b.as_bytes(),
+            "blur render must be reproducible"
+        );
+        // Sanity: the blur actually drew something (not an empty/no-op surface).
+        assert!(inked_pixels(&a) > 0, "blurred subtree should ink pixels");
+    }
+
+    #[test]
+    fn blur_framebuffer_is_a_noop_for_zero_sigma() {
+        let mut fb = Framebuffer::filled(8, 8, Color::rgb(1.0, 0.0, 0.0));
+        let before = fb.as_bytes().to_vec();
+        blur_framebuffer(&mut fb, 0.0);
+        assert_eq!(fb.as_bytes(), before.as_slice());
+    }
+
+    #[test]
+    fn blur_kernel_sums_to_fixed_total_and_is_symmetric() {
+        for &sigma in &[0.5f32, 1.0, 3.0, 6.0, 12.5] {
+            let (radius, weights) = blur_kernel(sigma);
+            assert_eq!(weights.len(), 2 * radius + 1);
+            assert_eq!(
+                weights.iter().sum::<u32>(),
+                BLUR_WEIGHT_TOTAL,
+                "kernel for sigma={sigma} must sum to the fixed total"
+            );
+            // The remainder is folded into the center, so the kernel stays
+            // mirror-symmetric on the taps either side of it.
+            for k in 0..radius {
+                assert_eq!(
+                    weights[k],
+                    weights[2 * radius - k],
+                    "kernel for sigma={sigma} must be symmetric"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn blur_spreads_a_single_inked_block_outward() {
+        // A small opaque square on a transparent field: after blur, pixels just
+        // outside the original square gain partial alpha (the spread), proving the
+        // kernel convolves rather than copies.
+        let mut fb = Framebuffer::new(32, 32);
+        for y in 12..20 {
+            for x in 12..20 {
+                fb.blend(x, y, Color::rgb(1.0, 1.0, 1.0));
+            }
+        }
+        blur_framebuffer(&mut fb, 3.0);
+        // A pixel two px outside the square edge should now be partly inked.
+        let outside = fb.pixel(10, 16)[3];
+        assert!(outside > 0, "blur should spread alpha outside the source");
+        // The center stays the most opaque region.
+        assert!(fb.pixel(16, 16)[3] >= outside);
     }
 
     #[cfg(feature = "parallel")]
