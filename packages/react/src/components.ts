@@ -110,6 +110,51 @@ export function AbsoluteFill(props: AbsoluteFillProps) {
   return Flex({ direction: 'column', ...props, width, height })
 }
 
+export interface CameraProps {
+  /** The world — children laid out in absolute WORLD-pixel coordinates. */
+  children?: ReactNode
+  /** World x (px) to center in the viewport. Default: viewport center (no pan). */
+  focusX?: number
+  /** World y (px) to center in the viewport. Default: viewport center (no pan). */
+  focusY?: number
+  /** Zoom about the focus point. 1 = neutral, >1 = pushed in. */
+  zoom?: number
+  /** Camera roll in degrees (2D rotation about the focus point). GPU-only. */
+  rotate?: number
+  /** Viewport size; defaults to the composition canvas. */
+  viewportWidth?: number
+  viewportHeight?: number
+}
+
+/**
+ * A 2D camera: frames an oversized "world" (its children, laid out in world-pixel
+ * coordinates) by centering a world point in the viewport at a given zoom + roll —
+ * pans across a grid larger than the canvas, push-in fly-overs, focus moves.
+ *
+ * Pure translate/scale/rotate — a STACK OF {@link Group}s, no new scene node:
+ * `translate(vw/2,vh/2) ∘ [scale·rotate about origin] ∘ translate(-focus)`, so the
+ * world point `focus` lands at the viewport center, scaled by `zoom`. (`rotate`
+ * renders on the GPU/Vello backend only, like {@link NodeProps.rotation}.) Animate
+ * focus/zoom per frame ({@link useCurrentFrame} + interpolate) for a moving camera.
+ */
+export function Camera(props: CameraProps) {
+  const { children, focusX, focusY, zoom = 1, rotate = 0, viewportWidth, viewportHeight } = props
+  const { width, height } = useVideoConfig()
+  const vw = viewportWidth ?? width
+  const vh = viewportHeight ?? height
+  const fx = focusX ?? vw / 2
+  const fy = focusY ?? vh / 2
+  return createElement(
+    Group,
+    { x: vw / 2, y: vh / 2 },
+    createElement(
+      Group,
+      { rotation: rotate, scaleX: zoom, scaleY: zoom, originX: 0, originY: 0 },
+      createElement(Group, { x: -fx, y: -fy }, children),
+    ),
+  )
+}
+
 export interface RectProps extends NodeProps, PaintProps {
   width: number
   height: number
