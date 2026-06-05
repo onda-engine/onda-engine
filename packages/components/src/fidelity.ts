@@ -46,9 +46,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'both',
   },
   BlurReveal: {
-    fidelity: 'degraded',
-    engineNative: false,
-    needsFeature: 'content blur (text)',
+    fidelity: 'first_class',
+    engineNative: true,
+    needsFeature: null,
     backend: 'both',
   },
   BoundingBox: {
@@ -117,9 +117,9 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
     backend: 'gpu_only',
   },
   EndCard: {
-    fidelity: 'degraded',
-    engineNative: false,
-    needsFeature: 'content blur (text)',
+    fidelity: 'first_class',
+    engineNative: true,
+    needsFeature: null,
     backend: 'both',
   },
   FadeIn: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
@@ -319,8 +319,8 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
 }
 
 export const FIDELITY_SUMMARY = {
-  firstClass: 68,
-  degraded: 2,
+  firstClass: 70,
+  degraded: 0,
   apesRemotion: 0,
 } as const
 
@@ -331,6 +331,7 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'AudioVisualizer',
   'BentoGrid',
   'BarChart',
+  'BlurReveal',
   'BoundingBox',
   'Button',
   'BrowserFrame',
@@ -346,6 +347,7 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'DeviceFrame',
   'DrawOn',
   'DynamicGrid',
+  'EndCard',
   'FadeIn',
   'FadeOut',
   'GradientShift',
@@ -417,14 +419,15 @@ export const ENGINE_CAPABILITIES = {
     'procedural film grain (onda-noise source + overlay blend, GPU)',
     'drop-shadow / glow (analytic blurred rounded-rect)',
     'animated image blur — gaussian focus-pull in the image pass (CPU+GPU+native byte-identical)',
+    'content/text blur — screen-space gaussian over an arbitrary subtree (Group/Text/…) via the render-to-texture pass; the `blur` sugar prop, ramps for soft→sharp reveals (CPU+GPU)',
     'no-Chromium export (ffmpeg / GIF / PNG)',
   ],
   unsupported: [
     {
-      feature: 'content/text blur (screen-space gaussian over an arbitrary subtree) + backdrop-filter',
-      status: 'deferred-render-to-texture',
+      feature: 'backdrop-filter (frosted-glass blur of what is BEHIND a node)',
+      status: 'deferred-render-to-texture-phase-2',
       guidance:
-        'Image blur IS supported (Image.blur). A live blur over text/shapes needs the render-to-texture pass; for now reveal text by fade/scale/slide, not blur.',
+        'Content blur over a subtree IS supported (the `blur` prop / Image.blur). Sampling what is behind a node (backdrop) is the next render-to-texture phase; not available yet.',
     },
     { feature: '3D / perspective transforms', status: '2d-affine-only' },
     { feature: 'SVG filters / embedded text+image / gradient paint', status: 'flattened-to-solid' },
