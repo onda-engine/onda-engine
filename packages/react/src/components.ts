@@ -8,12 +8,12 @@
 //! </Composition>
 //! ```
 
-import { type ReactNode, createElement } from 'react'
+import { type ReactElement, type ReactNode, createElement } from 'react'
 import type { ClipInput } from './clip.js'
 import type { ColorInput } from './color.js'
 import { useCurrentFrame, useVideoConfig } from './frame.js'
 import type { GradientInput } from './gradient.js'
-import type { BlendMode, Effect, ImageFit, Layout } from './scene.js'
+import type { BlendMode, Effect, ImageFit, Layout, MatteMode } from './scene.js'
 
 /** Properties shared by every scene node: identity, placement, opacity, clip. */
 export interface NodeProps {
@@ -39,6 +39,18 @@ export interface NodeProps {
   blendMode?: BlendMode
   /** Clip this node and its subtree to a region (local space). */
   clip?: ClipInput
+  /** Matte (track matte / mask): a stencil SUBTREE, passed as a React element,
+   *  through which this node's content is revealed. The matte's alpha — or its
+   *  luminance, per `matteMode` — multiplies the content's alpha, so the content
+   *  (this node's children) shows only where the matte covers. The
+   *  strictly-more-powerful sibling of `clip`: the matte is a fully rendered,
+   *  animatable subtree (giant text, a gradient, a shape) — the signature
+   *  "media-through-type" move (a photo seen only through animated type). */
+  matte?: ReactElement
+  /** Which channel of the {@link NodeProps.matte} subtree drives the reveal (CSS
+   *  `mask-mode`). `'alpha'` (default): content alpha ×= matte alpha. `'luminance'`:
+   *  content alpha ×= luma(matte) × matte alpha (white reveals, black hides). */
+  matteMode?: MatteMode
   /** Ordered, low-level screen-space effects on this node + subtree (render-to-texture). */
   effects?: Effect[]
   /** Gaussian blur std-dev in output px; sugar for `effects: [{ effect: 'blur', sigma }]`.

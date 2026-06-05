@@ -430,6 +430,7 @@ export const ENGINE_CAPABILITIES = {
     'animated image blur — gaussian focus-pull in the image pass (CPU+GPU+native byte-identical)',
     'content/text blur — screen-space gaussian over an arbitrary subtree (Group/Text/…) via the render-to-texture pass; the `blur` sugar prop, ramps for soft→sharp reveals (CPU+GPU)',
     'backdrop blur — frosted-glass blur of what is BEHIND a node (CSS `backdrop-filter`); the `backdropBlur` node prop samples the already-composited backdrop, blurs + tints + brightens it, and draws it as the node’s backing (Vello samples the rendered backdrop, the CPU reference its live framebuffer)',
+    "mattes / masks — reveal one subtree THROUGH another's shape (CSS mask-image / SVG mask): the `matte` node prop (+ matteMode 'alpha'|'luminance') renders content + matte to textures and multiplies alpha — media-through-type, shape wipes, gradient reveals (render-to-texture)",
     'no-Chromium export (ffmpeg / GIF / PNG)',
   ],
   unsupported: [

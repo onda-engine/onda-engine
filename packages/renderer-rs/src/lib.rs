@@ -21,8 +21,8 @@
 use kurbo::{BezPath, PathEl, Shape as _};
 use onda_core::{Color, Size, Transform, Vec2};
 use onda_scene::{
-    Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Node, NodeKind, Scene,
-    Shape, ShapeGeometry, Text,
+    Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Matte, MatteMode, Node,
+    NodeKind, Scene, Shape, ShapeGeometry, Text,
 };
 pub use onda_typography::{FontContext, TextMetrics, TextRaster};
 use tiny_skia as tsk;
@@ -209,6 +209,10 @@ pub fn encode_gif<W: std::io::Write>(
 /// the hot loop pure integer math (no platform-varying float reduction), which is
 /// what makes the blur byte-identical across runs and architectures.
 const BLUR_WEIGHT_TOTAL: u32 = 1 << 16;
+
+/// Upper bound on a matte's capture-window dimension, so a pathological scene
+/// (e.g. a huge content box) can't request a giant temp framebuffer.
+const MAX_MATTE_DIM: u32 = 8192;
 
 /// Build the 1-D Gaussian kernel for `sigma`, quantized to integer weights that
 /// sum to exactly [`BLUR_WEIGHT_TOTAL`]. Returns `(radius, weights)` where
@@ -684,6 +688,15 @@ impl Renderer {
         let transform = parent.then(&node.transform);
         let opacity = parent_opacity * node.opacity;
 
+        // A MATTE reveals this node's content only through a second subtree's
+        // alpha/luminance — it replaces the node's whole draw (capture content +
+        // matte, combine, composite), so it runs first and returns. (A matted node
+        // ignores any co-located backdrop/subtree effects for now.)
+        if let Some(matte) = &node.matte {
+            self.render_matte(fb, node, matte, transform, opacity);
+            return;
+        }
+
         // Frosted glass (`Effect::BackdropBlur`) is the odd effect: it samples the
         // backdrop ALREADY in `fb` behind this node, blurs/tints it, clips it to the
         // node's region, and composites it UNDER the node's own content. So it runs
@@ -872,6 +885,116 @@ impl Renderer {
                     continue;
                 }
                 fb.blend(ox + tx, oy + ty, Color::new(c.r, c.g, c.b, final_alpha));
+            }
+        }
+    }
+
+    /// Matte (track matte / mask): reveal `node`'s content subtree only through
+    /// `matte.source`'s alpha or luminance — the signature media-through-type move.
+    /// Captures the content and the matte to two pixel-aligned temp framebuffers
+    /// over a shared window, multiplies the content's alpha by the matte's coverage
+    /// (integer Rec.601 luma for luminance mode, so it stays byte-deterministic),
+    /// then composites the result at the node's transform/opacity. Mirrors the GPU
+    /// `AlphaMatte` pass.
+    fn render_matte(
+        &mut self,
+        fb: &mut Framebuffer,
+        node: &Node,
+        matte: &Matte,
+        transform: Transform,
+        opacity: f32,
+    ) {
+        if opacity <= 0.0 {
+            return;
+        }
+        // Shared capture window = union of the content subtree's bounds (this node
+        // at identity + children, like the effect capture) and the matte subtree's
+        // bounds (the matte source through its own transform), in node-local space.
+        // Both must exist — no content or an empty matte reveals nothing.
+        let (Some(cb), Some(mb)) = (
+            self.captured_local_bounds(node),
+            self.subtree_local_bounds(&matte.source, Transform::IDENTITY),
+        ) else {
+            return;
+        };
+        let ox = cb.0.min(mb.0).floor();
+        let oy = cb.1.min(mb.1).floor();
+        let tw = ((cb.2.max(mb.2).ceil() - ox).max(1.0) as u32).min(MAX_MATTE_DIM);
+        let th = ((cb.3.max(mb.3).ceil() - oy).max(1.0) as u32).min(MAX_MATTE_DIM);
+
+        let into_temp = Transform {
+            translate: Vec2::new(-ox, -oy),
+            ..Transform::IDENTITY
+        };
+        // CONTENT: this node's kind + children, captured at identity in the window.
+        let mut temp_c = Framebuffer::new(tw, th);
+        self.draw_subtree_local(&mut temp_c, node, into_temp, 1.0);
+        // MATTE: the matte source positioned by its OWN transform, into the SAME
+        // window so it's pixel-aligned with the content.
+        let mut temp_m = Framebuffer::new(tw, th);
+        self.draw_subtree_local(
+            &mut temp_m,
+            &matte.source,
+            into_temp.then(&matte.source.transform),
+            1.0,
+        );
+
+        // Alpha-combine: content.alpha ×= matte coverage. Coverage is the matte's
+        // alpha (Alpha mode) or its Rec.601 luma × alpha (Luminance mode) — integer
+        // math (the same 77/150/29 >> 8 weights the grade/bloom use), round-nearest
+        // /255, so the matte is byte-identical across runs/architectures.
+        let luminance = matches!(matte.mode, MatteMode::Luminance);
+        for (c, m) in temp_c
+            .pixels
+            .chunks_exact_mut(4)
+            .zip(temp_m.pixels.chunks_exact(4))
+        {
+            let ma = m[3] as u32;
+            let cov = if luminance {
+                let luma = (m[0] as u32 * 77 + m[1] as u32 * 150 + m[2] as u32 * 29) >> 8;
+                (luma * ma + 127) / 255
+            } else {
+                ma
+            };
+            c[3] = ((c[3] as u32 * cov + 127) / 255) as u8;
+        }
+
+        // Composite the matted content back at the node's transform/opacity (the
+        // same nearest-neighbor straight-alpha map the effect path uses).
+        let sx = transform.scale.x;
+        let sy = transform.scale.y;
+        if sx == 0.0 || sy == 0.0 {
+            return;
+        }
+        let c0 = transform.apply(Vec2::new(ox, oy));
+        let c1 = transform.apply(Vec2::new(ox + tw as f32, oy + th as f32));
+        let (cx0, cx1) = (c0.x.min(c1.x), c0.x.max(c1.x));
+        let (cy0, cy1) = (c0.y.min(c1.y), c0.y.max(c1.y));
+        let px_min = cx0.floor().max(0.0) as i64;
+        let py_min = cy0.floor().max(0.0) as i64;
+        let px_max = (cx1.ceil() as i64).min(fb.width() as i64);
+        let py_max = (cy1.ceil() as i64).min(fb.height() as i64);
+        for py in py_min..py_max {
+            for px in px_min..px_max {
+                let canvas = Vec2::new(px as f32 + 0.5, py as f32 + 0.5);
+                let local_x = (canvas.x - transform.translate.x) / sx;
+                let local_y = (canvas.y - transform.translate.y) / sy;
+                let tx = (local_x - ox).floor();
+                let ty = (local_y - oy).floor();
+                if tx < 0.0 || ty < 0.0 || tx >= tw as f32 || ty >= th as f32 {
+                    continue;
+                }
+                let [r, g, b, a] = temp_c.pixel(tx as u32, ty as u32);
+                if a == 0 {
+                    continue;
+                }
+                let color = Color::new(
+                    r as f32 / 255.0,
+                    g as f32 / 255.0,
+                    b as f32 / 255.0,
+                    (a as f32 / 255.0) * opacity,
+                );
+                fb.blend(px as u32, py as u32, color);
             }
         }
     }

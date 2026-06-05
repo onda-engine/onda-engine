@@ -753,6 +753,178 @@ impl ColorGrade {
     }
 }
 
+/// Compute shader: the **alpha matte** combine. Reads the content texture and the
+/// matte texture (rendered over the same window) and writes the content's RGB with
+/// its alpha multiplied by the matte's coverage — the matte's alpha (mode 0) or its
+/// Rec.601 luminance × alpha (mode 1). Content RGB is passed through untouched, so
+/// the revealed media's color is pixel-identical to the un-matted media; only
+/// coverage is gated. Straight-alpha throughout (no premultiply needed — it's a
+/// per-pixel multiply, like ColorGrade/Goo). Mirrors the CPU `render_matte` combine.
+const ALPHA_MATTE_WGSL: &str = r#"
+struct Params {
+    mode: u32,   // 0 = alpha matte, 1 = luminance matte
+    width: u32,
+    height: u32,
+    _pad: u32,
+};
+
+@group(0) @binding(0) var content: texture_2d<f32>;
+@group(0) @binding(1) var matte: texture_2d<f32>;
+@group(0) @binding(2) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(3) var<uniform> params: Params;
+
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let x = gid.x;
+    let y = gid.y;
+    if (x >= params.width || y >= params.height) {
+        return;
+    }
+    let p = vec2<i32>(i32(x), i32(y));
+    let c = textureLoad(content, p, 0);
+    let m = textureLoad(matte, p, 0);
+    // Coverage from the matte: its alpha, or its luminance gated by its own alpha
+    // (so transparent matte pixels never reveal — CSS mask-mode). Rec.601 luma to
+    // match the CPU reference (77/150/29 >> 8).
+    var cov = m.a;
+    if (params.mode == 1u) {
+        let luma = dot(m.rgb, vec3<f32>(0.299, 0.587, 0.114));
+        cov = luma * m.a;
+    }
+    textureStore(dst, p, vec4<f32>(c.rgb, c.a * cov));
+}
+"#;
+
+/// Lazily-built alpha-matte compute pipeline (a single per-pixel pass over two
+/// sampled inputs — content + matte — no ping-pong). Cached on the renderer.
+pub struct AlphaMatte {
+    pipeline: wgpu::ComputePipeline,
+    layout: wgpu::BindGroupLayout,
+}
+
+/// Byte size of the alpha-matte params uniform (4 × u32 = 16, std140-safe).
+const ALPHA_MATTE_PARAMS_SIZE: u64 = 16;
+
+impl AlphaMatte {
+    /// Build the compute pipeline + bind-group layout (two sampled textures, one
+    /// storage out, one uniform). Cache on the renderer.
+    pub fn new(device: &wgpu::Device) -> Self {
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("onda-alpha-matte-wgsl"),
+            source: wgpu::ShaderSource::Wgsl(ALPHA_MATTE_WGSL.into()),
+        });
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("onda-alpha-matte-bgl"),
+            entries: &[
+                sampled_texture_entry(0),
+                sampled_texture_entry(1),
+                storage_texture_entry(2),
+                uniform_entry(3),
+            ],
+        });
+        let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("onda-alpha-matte-pl"),
+            bind_group_layouts: &[&layout],
+            push_constant_ranges: &[],
+        });
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("onda-alpha-matte-pipeline"),
+            layout: Some(&pl),
+            module: &module,
+            entry_point: "main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+        AlphaMatte { pipeline, layout }
+    }
+
+    /// Combine `content` and `matte` (same size, pixel-aligned) → a new
+    /// `Rgba8Unorm` texture (`COPY_SRC`, ready for readback): `content.rgb` with
+    /// `content.a` ×= the matte's coverage. `mode` is 0 (alpha) or 1 (luminance).
+    /// Its own encoder + submit — never injects into Vello's pass.
+    #[allow(clippy::too_many_arguments)]
+    pub fn run(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        content: &wgpu::Texture,
+        matte: &wgpu::Texture,
+        width: u32,
+        height: u32,
+        mode: u32,
+    ) -> wgpu::Texture {
+        let out = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("onda-alpha-matte-out"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let content_view = content.create_view(&wgpu::TextureViewDescriptor::default());
+        let matte_view = matte.create_view(&wgpu::TextureViewDescriptor::default());
+        let out_view = out.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut bytes = Vec::with_capacity(ALPHA_MATTE_PARAMS_SIZE as usize);
+        bytes.extend_from_slice(&mode.to_le_bytes());
+        bytes.extend_from_slice(&width.to_le_bytes());
+        bytes.extend_from_slice(&height.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        let params = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("onda-alpha-matte-params"),
+            size: ALPHA_MATTE_PARAMS_SIZE,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(&params, 0, &bytes);
+
+        let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("onda-alpha-matte-bg"),
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&content_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&matte_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(&out_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: params.as_entire_binding(),
+                },
+            ],
+        });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("onda-alpha-matte-encoder"),
+        });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("onda-alpha-matte"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &bg, &[]);
+            pass.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
+        }
+        queue.submit(Some(encoder.finish()));
+        out
+    }
+}
+
 /// Compute shader: the gooey-morph **alpha threshold**. Reads the blurred subtree
 /// texture and sharpens its alpha around `threshold` with a steep smoothstep
 /// (half-width `ramp`) — alpha well above the cutoff snaps to opaque, well below

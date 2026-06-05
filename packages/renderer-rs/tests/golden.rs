@@ -21,7 +21,10 @@ use std::path::PathBuf;
 
 use onda_core::{Color, Size, Transform, Vec2};
 use onda_renderer::Renderer;
-use onda_scene::{Composition, Effect, Gradient, GradientStop, Node, NodeKind, Scene, Shape, Text};
+use onda_scene::{
+    Composition, Effect, Gradient, GradientStop, Matte, MatteMode, Node, NodeKind, Scene, Shape,
+    Text,
+};
 
 fn text_node(content: &str, size: f32, color: Color) -> Node {
     Node::new(NodeKind::Text(
@@ -370,6 +373,75 @@ fn fixtures() -> Vec<(&'static str, Scene)> {
                         brightness: 1.05,
                         saturation: 1.10,
                     }),
+                ]),
+            ),
+        ),
+        // MATTE: media-through-type. A diagonal gradient is revealed ONLY where
+        // the white "ONDA" matte text inks (an alpha matte) — the signature
+        // reveal-media-through-shape. The content node (the gradient rect) carries
+        // `matte`; the matte source is the headline. Content RGB survives; only its
+        // alpha is gated by the matte's coverage, integer-combined → byte-stable.
+        (
+            "matte_text",
+            scene(
+                Node::group().with_children([
+                    Node::shape(
+                        Shape::rect(Size::new(W as f32, H as f32))
+                            .with_fill(Color::from_rgba8(0x0A, 0x0A, 0x0C, 0xFF)),
+                    ),
+                    Node::shape(Shape::rect(Size::new(W as f32, H as f32)).with_gradient(
+                        Gradient::Linear {
+                            start: Vec2::new(0.0, 0.0),
+                            end: Vec2::new(W as f32, H as f32),
+                            stops: vec![
+                                GradientStop::new(0.0, Color::from_rgba8(0xFF, 0x4D, 0x8D, 0xFF)),
+                                GradientStop::new(1.0, Color::from_rgba8(0x3D, 0xD6, 0xFF, 0xFF)),
+                            ],
+                        },
+                    ))
+                    .with_matte(
+                        text_node("ONDA", 64.0, Color::WHITE).with_transform(translate(6.0, 100.0)),
+                    ),
+                ]),
+            ),
+        ),
+        // MATTE (luminance): the same gradient content revealed through a white→black
+        // horizontal gradient in LUMINANCE mode — a soft luma wipe (bright reveals,
+        // dark hides). Locks the integer Rec.601 luma path.
+        (
+            "matte_luma",
+            scene(
+                Node::group().with_children([
+                    Node::shape(
+                        Shape::rect(Size::new(W as f32, H as f32))
+                            .with_fill(Color::from_rgba8(0x0A, 0x0A, 0x0C, 0xFF)),
+                    ),
+                    Node::shape(Shape::rect(Size::new(W as f32, H as f32)).with_gradient(
+                        Gradient::Linear {
+                            start: Vec2::new(0.0, 0.0),
+                            end: Vec2::new(W as f32, 0.0),
+                            stops: vec![
+                                GradientStop::new(0.0, Color::from_rgba8(0xFF, 0x4D, 0x8D, 0xFF)),
+                                GradientStop::new(1.0, Color::from_rgba8(0x3D, 0xD6, 0xFF, 0xFF)),
+                            ],
+                        },
+                    ))
+                    .with_matte_mode(
+                        Node::shape(Shape::rect(Size::new(W as f32, H as f32)).with_gradient(
+                            Gradient::Linear {
+                                start: Vec2::new(0.0, 0.0),
+                                end: Vec2::new(W as f32, 0.0),
+                                stops: vec![
+                                    GradientStop::new(0.0, Color::WHITE),
+                                    GradientStop::new(
+                                        1.0,
+                                        Color::from_rgba8(0x00, 0x00, 0x00, 0xFF),
+                                    ),
+                                ],
+                            },
+                        )),
+                        MatteMode::Luminance,
+                    ),
                 ]),
             ),
         ),
