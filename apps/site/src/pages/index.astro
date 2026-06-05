@@ -49,8 +49,12 @@ const year = new Date().getFullYear()
       }
     </script>
     {/* react-grab (dev only): hover any element + ⌘C / Ctrl+C to copy its
-        file / component / source for a coding agent. Never ships to prod. */}
-    {import.meta.env.DEV && <script type="module">{`import("react-grab")`}</script>}
+        file / component / source for a coding agent. A plain Astro <script> so
+        Vite bundles it and the bare import resolves; the DEV guard tree-shakes it
+        out of the production build. */}
+    <script>
+      if (import.meta.env.DEV) import('react-grab')
+    </script>
   </head>
   <body>
     <div class="onda-landing">
