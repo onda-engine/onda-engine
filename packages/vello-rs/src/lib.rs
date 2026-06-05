@@ -1388,7 +1388,11 @@ fn build_matte_texture(
 
     // CONTENT: node's children at identity, transform/opacity/effects/blend/clip/
     // matte neutralized so the recursion terminates — like the effect capture's
-    // local_root. (A matted node's own subtree effects are dropped for v1.)
+    // local_root. (A matted node's own subtree effects are dropped for v1. v1 LIMIT:
+    // a subtree effect on a DESCENDANT inside the content renders effected on native
+    // export but degrades to un-effected in WebGPU preview, since this capture runs
+    // with effect_images=None — a known preview≠export edge; threading the effect
+    // cache through here is the long-term fix.)
     let content_root = Node {
         transform: Transform::IDENTITY,
         opacity: 1.0,
