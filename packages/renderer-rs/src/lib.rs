@@ -435,6 +435,73 @@ pub fn bloom_framebuffer(fb: &mut Framebuffer, threshold: f32, intensity: f32, s
     }
 }
 
+/// Half-width of the alpha-threshold ramp for the gooey morph, as a fraction of
+/// the full 0..1 alpha range. A few percent gives a crisp-but-anti-aliased edge:
+/// blurred alpha within `±GOO_RAMP` of the cutoff smoothsteps from transparent to
+/// opaque; outside it snaps to 0 / 255. Small enough that overlapping blurred
+/// halos fuse into one solid form, wide enough that the fused edge isn't aliased.
+const GOO_RAMP: f32 = 0.06;
+
+/// Apply a deterministic gooey / metaball morph to `fb` in place: blur with
+/// `sigma` (the shared integer kernel), then sharpen the blurred alpha around
+/// `threshold` so overlapping shapes — whose halos merge in the blur — fuse into
+/// solid forms joined by smooth necks.
+///
+/// 1. **Blur.** [`blur_framebuffer`] spreads each shape's alpha; where two shapes
+///    are close, their halos sum past the cutoff in the gap between them.
+/// 2. **Alpha threshold.** Each pixel's blurred alpha is remapped through a steep
+///    smoothstep centered on `threshold` (half-width [`GOO_RAMP`]): alpha well
+///    above the cutoff → ~opaque (255), well below → ~transparent (0), with a
+///    few-percent anti-aliased ramp between. RGB is left untouched (the straight-
+///    alpha color the blur produced), so a colored blob keeps its color; only the
+///    coverage is re-shaped into the fused metaball silhouette.
+///
+/// The remap is a 256-entry `u8` LUT built once (round-to-nearest f32 → u8) and
+/// indexed per pixel, so the per-pixel work is an integer table lookup — the
+/// result is byte-identical across runs and architectures (matching the blur's
+/// determinism contract). `threshold` is clamped to `0..1`. A non-positive
+/// `sigma` skips the blur but still thresholds (a hard alpha edge); the same 3σ
+/// capture margin as a plain blur applies upstream.
+pub fn goo_framebuffer(fb: &mut Framebuffer, sigma: f32, threshold: f32) {
+    if fb.width == 0 || fb.height == 0 {
+        return;
+    }
+    // 1) Blur the captured subtree so neighboring shapes' alpha halos overlap.
+    blur_framebuffer(fb, sigma);
+
+    // 2) Build the alpha remap LUT: a steep smoothstep around `threshold`. Below
+    //    `lo` → 0, above `hi` → 255, smoothstep in between (so the fused edge is
+    //    anti-aliased rather than a hard 1px step). NaN threshold → clamps to 0.
+    let cutoff = threshold.clamp(0.0, 1.0);
+    let lo = (cutoff - GOO_RAMP).max(0.0);
+    let hi = (cutoff + GOO_RAMP).min(1.0);
+    let span = hi - lo;
+    let mut alpha_lut = [0u8; GRADE_LUT_LEN];
+    for (i, slot) in alpha_lut.iter_mut().enumerate() {
+        let a = i as f32 / 255.0;
+        let t = if span <= 0.0 {
+            // Degenerate ramp (threshold at an edge) → a hard step at the cutoff.
+            if a >= cutoff {
+                1.0
+            } else {
+                0.0
+            }
+        } else {
+            ((a - lo) / span).clamp(0.0, 1.0)
+        };
+        // Smoothstep 3t² − 2t³ for an eased, symmetric edge.
+        let s = t * t * (3.0 - 2.0 * t);
+        *slot = (s * 255.0).round() as u8;
+    }
+
+    // Remap each pixel's alpha through the LUT. RGB is preserved as-is: it's the
+    // straight-alpha color the blur produced; re-thresholding only the coverage
+    // sculpts the fused silhouette while every blob keeps its own color.
+    for px in fb.pixels.chunks_exact_mut(4) {
+        px[3] = alpha_lut[px[3] as usize];
+    }
+}
+
 /// Fixed-point shift for the color-grade per-channel lookup table. The grade is a
 /// pure per-channel function of the input byte, so we precompute a 256-entry `u8`
 /// LUT per channel once and index it per pixel — the hot loop is a table lookup,
@@ -742,6 +809,10 @@ impl Renderer {
                 Effect::Bloom { sigma, .. } => (3.0 * sigma.max(0.0)).ceil(),
                 // ColorGrade is a per-pixel remap (no spread) — it needs no margin.
                 Effect::ColorGrade { .. } => 0.0,
+                // Goo blurs the subtree with `sigma` before thresholding; it needs
+                // the same 3σ headroom so the spread (and the fused neck) isn't
+                // clipped at the capture edge.
+                Effect::Goo { sigma, .. } => (3.0 * sigma.max(0.0)).ceil(),
             })
             .fold(0.0f32, f32::max);
         let bounds = self.captured_local_bounds(node);
@@ -793,6 +864,7 @@ impl Renderer {
                     *temperature,
                     *tint,
                 ),
+                Effect::Goo { sigma, threshold } => goo_framebuffer(&mut temp, *sigma, *threshold),
             }
         }
 
@@ -1887,6 +1959,82 @@ mod tests {
             dim.as_bytes(),
             before.as_slice(),
             "below-threshold pixels should not bloom"
+        );
+    }
+
+    #[test]
+    fn goo_framebuffer_is_deterministic() {
+        // Goo = blur (integer kernel) + an integer alpha LUT → byte-identical runs.
+        let base = || {
+            let mut fb = Framebuffer::new(32, 32);
+            for y in 10..22 {
+                for x in 10..22 {
+                    fb.blend(x, y, Color::rgb(0.9, 0.3, 0.5));
+                }
+            }
+            fb
+        };
+        let mut a = base();
+        let mut b = base();
+        goo_framebuffer(&mut a, 4.0, 0.5);
+        goo_framebuffer(&mut b, 4.0, 0.5);
+        assert_eq!(a.as_bytes(), b.as_bytes(), "goo must be reproducible");
+    }
+
+    #[test]
+    fn goo_thresholds_blurred_alpha_to_near_binary() {
+        // A solid square, blurred then thresholded: the core stays fully opaque,
+        // the far field stays transparent, and the soft blurred ramp is sharpened —
+        // away from the cutoff edge, alpha snaps to 0 or 255 (the metaball look).
+        let mut fb = Framebuffer::new(40, 40);
+        for y in 14..26 {
+            for x in 14..26 {
+                fb.blend(x, y, Color::rgb(1.0, 1.0, 1.0));
+            }
+        }
+        goo_framebuffer(&mut fb, 5.0, 0.5);
+        assert_eq!(fb.pixel(20, 20)[3], 255, "the core should snap to opaque");
+        assert_eq!(fb.pixel(0, 0)[3], 0, "the far field should snap to clear");
+        // Every pixel is either near-clear or near-opaque (no broad soft gradient):
+        // only the thin AA ramp around the cutoff sits in between.
+        let mid = fb
+            .as_bytes()
+            .chunks_exact(4)
+            .filter(|p| p[3] > 32 && p[3] < 223)
+            .count();
+        let inked = fb.as_bytes().chunks_exact(4).filter(|p| p[3] > 0).count();
+        assert!(
+            (mid as f64) < 0.5 * inked as f64,
+            "most inked pixels should be near-binary alpha (mid={mid}, inked={inked})"
+        );
+    }
+
+    #[test]
+    fn goo_fuses_two_overlapping_blobs_into_a_neck() {
+        // Two opaque circles with a gap between them. After goo, the blurred halos
+        // sum past the cutoff in the gap, so the midpoint — clear before — becomes
+        // solid: the fused metaball neck.
+        let mut fb = Framebuffer::new(80, 40);
+        let circle = |fb: &mut Framebuffer, cx: i32, cy: i32, r: i32| {
+            for y in (cy - r)..=(cy + r) {
+                for x in (cx - r)..=(cx + r) {
+                    if (x - cx) * (x - cx) + (y - cy) * (y - cy) <= r * r && x >= 0 && y >= 0 {
+                        fb.blend(x as u32, y as u32, Color::rgb(0.9, 0.4, 0.6));
+                    }
+                }
+            }
+        };
+        // Centers 24px apart, radius 11 → an ~2px gap at the midpoint (x=40).
+        circle(&mut fb, 28, 20, 11);
+        circle(&mut fb, 52, 20, 11);
+        // The midpoint is transparent before goo (the gap).
+        assert_eq!(fb.pixel(40, 20)[3], 0, "the gap is clear before goo");
+        goo_framebuffer(&mut fb, 6.0, 0.5);
+        // After goo, the halos merge and the midpoint snaps opaque — the neck.
+        assert_eq!(
+            fb.pixel(40, 20)[3],
+            255,
+            "overlapping blobs should fuse into a solid neck"
         );
     }
 

@@ -66,6 +66,12 @@ export interface NodeProps {
     /** Green/magenta shift on G (positive = green); 0 = neutral. */
     tint?: number
   }
+  /** Gooey / liquid / metaball-morph sugar for `effects: [{ effect: 'goo', ... }]`:
+   *  the subtree is blurred with `sigma`, then its alpha is sharpened around
+   *  `threshold` (the 0..1 cutoff, default 0.5) so overlapping shapes fuse into
+   *  solid forms joined by smooth necks (the "drops of liquid coalescing" look).
+   *  A bare number is the `sigma`. Honored by Vello AND the CPU reference. */
+  goo?: number | { sigma: number; threshold?: number }
   children?: ReactNode
 }
 

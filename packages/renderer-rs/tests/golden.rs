@@ -300,6 +300,29 @@ fn fixtures() -> Vec<(&'static str, Scene)> {
                     ]),
             ),
         ),
+        // RTT Phase 3: gooey / metaball morph — two overlapping filled circles on a
+        // group with `Goo`. The blur spreads each circle's alpha; the alpha-threshold
+        // sharpens it, so the gap between them fuses into a smooth solid neck (the
+        // liquid "two drops coalescing" look). Same machinery as bloom (blur the
+        // capture, then a per-pixel pass), locking the deterministic threshold math.
+        (
+            "goo_blobs",
+            scene(
+                Node::group()
+                    .with_effect(Effect::Goo {
+                        sigma: 7.0,
+                        threshold: 0.5,
+                    })
+                    .with_children([
+                        Node::shape(Shape::ellipse(Size::new(80.0, 80.0)).with_fill(rose))
+                            .with_transform(translate(40.0, 35.0)),
+                        // A ~14px gap to the first (edges at x=120 and x=134): the
+                        // sigma-7 blur bridges it, so the threshold fuses a neck.
+                        Node::shape(Shape::ellipse(Size::new(80.0, 80.0)).with_fill(rose))
+                            .with_transform(translate(134.0, 35.0)),
+                    ]),
+            ),
+        ),
     ]
 }
 

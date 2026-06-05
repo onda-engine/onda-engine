@@ -25,7 +25,7 @@ use vello::peniko::{
 use vello::{wgpu, AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene as VelloScene};
 
 mod effects;
-use effects::{Bloom, ColorGrade, GaussianBlur};
+use effects::{Bloom, ColorGrade, GaussianBlur, Goo};
 
 /// A rendered frame: straight-alpha RGBA8, row-major, top-left origin.
 pub struct Frame {
@@ -54,6 +54,10 @@ pub struct VelloRenderer {
     /// Color-grade compute pipeline (a single per-pixel remap — no blur). Built
     /// lazily the first time a node carries a `ColorGrade` effect, then reused.
     grade_pipeline: Option<ColorGrade>,
+    /// Gooey-morph threshold pipeline (alpha-sharpen after a blur). Built lazily
+    /// the first time a node carries a `Goo` effect; reuses `blur_pipeline` for the
+    /// spread before the threshold.
+    goo_pipeline: Option<Goo>,
 }
 
 impl VelloRenderer {
@@ -121,6 +125,7 @@ impl VelloRenderer {
             blur_pipeline: None,
             bloom_pipeline: None,
             grade_pipeline: None,
+            goo_pipeline: None,
         })
     }
 
@@ -160,6 +165,7 @@ impl VelloRenderer {
                 blur_pipeline: &mut self.blur_pipeline,
                 bloom_pipeline: &mut self.bloom_pipeline,
                 grade_pipeline: &mut self.grade_pipeline,
+                goo_pipeline: &mut self.goo_pipeline,
             },
             &scene.root,
             Affine::IDENTITY,
@@ -192,6 +198,7 @@ struct Ctx<'a> {
     blur_pipeline: &'a mut Option<GaussianBlur>,
     bloom_pipeline: &'a mut Option<Bloom>,
     grade_pipeline: &'a mut Option<ColorGrade>,
+    goo_pipeline: &'a mut Option<Goo>,
 }
 
 /// Rasterize an already-built `VelloScene` to a fresh `Rgba8Unorm` texture of the
@@ -430,6 +437,9 @@ fn render_effects_subtree(
             Effect::Bloom { sigma, .. } => *sigma,
             // ColorGrade is a per-pixel remap (no spread) — it needs no margin.
             Effect::ColorGrade { .. } => 0.0,
+            // Goo blurs the subtree with `sigma` before thresholding; it needs the
+            // same headroom as a blur so the spread (and fused neck) isn't clipped.
+            Effect::Goo { sigma, .. } => *sigma,
         })
         .fold(0.0_f32, f32::max);
     let margin = (3.0 * max_sigma).ceil().max(0.0) as f64;
@@ -538,6 +548,21 @@ fn render_effects_subtree(
                     *saturation,
                     *temperature,
                     *tint,
+                );
+            }
+            Effect::Goo { sigma, threshold } => {
+                // Goo reuses the blur compute for the spread; ensure both pipelines
+                // exist, then borrow them disjointly (distinct `Ctx` fields).
+                if ctx.blur_pipeline.is_none() {
+                    *ctx.blur_pipeline = Some(GaussianBlur::new(ctx.device));
+                }
+                if ctx.goo_pipeline.is_none() {
+                    *ctx.goo_pipeline = Some(Goo::new(ctx.device));
+                }
+                let blur = ctx.blur_pipeline.as_ref().unwrap();
+                let goo = ctx.goo_pipeline.as_ref().unwrap();
+                texture = goo.run(
+                    ctx.device, ctx.queue, blur, &texture, tw, th, *sigma, *threshold,
                 );
             }
         }

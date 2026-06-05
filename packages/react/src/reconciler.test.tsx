@@ -387,6 +387,30 @@ describe('renderToScene', () => {
     expect(scene.root.children?.[0]?.effects).toBeUndefined()
   })
 
+  it('emits a goo effect from the `goo` sugar prop (number = sigma, threshold defaults to 0.5)', () => {
+    const scene = renderToScene(
+      <Composition width={50} height={50} fps={1} durationInFrames={1}>
+        <Group goo={8}>
+          <Text>blob</Text>
+        </Group>
+      </Composition>,
+    )
+    expect(scene.root.children?.[0]?.effects).toEqual([{ effect: 'goo', sigma: 8, threshold: 0.5 }])
+  })
+
+  it('honors the `goo` object form (threshold override)', () => {
+    const scene = renderToScene(
+      <Composition width={50} height={50} fps={1} durationInFrames={1}>
+        <Group goo={{ sigma: 10, threshold: 0.6 }}>
+          <Text>blob</Text>
+        </Group>
+      </Composition>,
+    )
+    expect(scene.root.children?.[0]?.effects).toEqual([
+      { effect: 'goo', sigma: 10, threshold: 0.6 },
+    ])
+  })
+
   it('requires a single Composition root', () => {
     expect(() => renderToScene(<Group />)).toThrow(/Composition/)
   })

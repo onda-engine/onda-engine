@@ -753,6 +753,180 @@ impl ColorGrade {
     }
 }
 
+/// Compute shader: the gooey-morph **alpha threshold**. Reads the blurred subtree
+/// texture and sharpens its alpha around `threshold` with a steep smoothstep
+/// (half-width `ramp`) — alpha well above the cutoff snaps to opaque, well below
+/// to transparent, with a narrow anti-aliased ramp between. RGB is passed through
+/// untouched (the straight-alpha color the blur produced), so each blob keeps its
+/// color while overlapping halos fuse into one solid metaball form. Mirrors the
+/// CPU `goo_framebuffer` LUT so both backends share the look.
+const GOO_THRESHOLD_WGSL: &str = r#"
+struct Params {
+    threshold: f32,
+    ramp: f32,
+    width: u32,
+    height: u32,
+};
+
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var<uniform> params: Params;
+
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let x = gid.x;
+    let y = gid.y;
+    if (x >= params.width || y >= params.height) {
+        return;
+    }
+    let p = vec2<i32>(i32(x), i32(y));
+    let texel = textureLoad(src, p, 0);
+
+    // Smoothstep the alpha across [threshold - ramp, threshold + ramp]. `smoothstep`
+    // handles a degenerate (zero-width) edge as a hard step at the cutoff.
+    let lo = params.threshold - params.ramp;
+    let hi = params.threshold + params.ramp;
+    let a = smoothstep(lo, hi, texel.a);
+    // RGB preserved; only coverage is re-shaped into the fused silhouette.
+    textureStore(dst, p, vec4<f32>(texel.rgb, a));
+}
+"#;
+
+/// Lazily-built gooey-morph pipeline: an alpha-threshold compute pass that runs
+/// *after* the shared [`GaussianBlur`] spread. Cached on the renderer; the
+/// per-call texture/uniform are allocated in [`Goo::run`].
+pub struct Goo {
+    pipeline: wgpu::ComputePipeline,
+    layout: wgpu::BindGroupLayout,
+}
+
+/// Byte size of the goo-threshold params uniform (2 × f32 + 2 × u32 = 16).
+const GOO_PARAMS_SIZE: u64 = 16;
+
+/// Half-width of the alpha-threshold ramp (fraction of the 0..1 alpha range).
+/// Matches the CPU `goo_framebuffer`'s `GOO_RAMP` so both backends fuse alike.
+const GOO_RAMP: f32 = 0.06;
+
+impl Goo {
+    /// Build the threshold compute pipeline + bind-group layout. Cache on the
+    /// renderer (the spread reuses the shared [`GaussianBlur`]).
+    pub fn new(device: &wgpu::Device) -> Self {
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("onda-goo-threshold-wgsl"),
+            source: wgpu::ShaderSource::Wgsl(GOO_THRESHOLD_WGSL.into()),
+        });
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("onda-goo-bgl"),
+            entries: &[
+                sampled_texture_entry(0),
+                storage_texture_entry(1),
+                uniform_entry(2),
+            ],
+        });
+        let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("onda-goo-pl"),
+            bind_group_layouts: &[&layout],
+            push_constant_ranges: &[],
+        });
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("onda-goo-pipeline"),
+            layout: Some(&pl),
+            module: &module,
+            entry_point: "main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+        Goo { pipeline, layout }
+    }
+
+    /// Goo `source` (the captured subtree texture): Gaussian blur (via the shared
+    /// `blur` pipeline) → alpha-threshold compute pass. Returns a new `Rgba8Unorm`
+    /// texture (`COPY_SRC`, ready for readback) where overlapping shapes have fused
+    /// into smooth metaball forms. Runs as its own command encoder + submit — like
+    /// the blur/bloom, it never injects into Vello's pass.
+    pub fn run(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        blur: &GaussianBlur,
+        source: &wgpu::Texture,
+        width: u32,
+        height: u32,
+        sigma: f32,
+        threshold: f32,
+    ) -> wgpu::Texture {
+        // 1) Blur the captured subtree so neighboring shapes' alpha halos overlap.
+        //    A non-positive sigma is a no-op copy (the blur returns a clean texture).
+        let blurred = blur.run(device, queue, source, width, height, sigma);
+
+        // 2) Threshold the blurred alpha into the fused metaball silhouette.
+        let out = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("onda-goo-out"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let src_view = blurred.create_view(&wgpu::TextureViewDescriptor::default());
+        let out_view = out.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut bytes = Vec::with_capacity(GOO_PARAMS_SIZE as usize);
+        bytes.extend_from_slice(&threshold.clamp(0.0, 1.0).to_le_bytes());
+        bytes.extend_from_slice(&GOO_RAMP.to_le_bytes());
+        bytes.extend_from_slice(&width.to_le_bytes());
+        bytes.extend_from_slice(&height.to_le_bytes());
+        let params = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("onda-goo-params"),
+            size: GOO_PARAMS_SIZE,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(&params, 0, &bytes);
+
+        let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("onda-goo-bg"),
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&src_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&out_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: params.as_entire_binding(),
+                },
+            ],
+        });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("onda-goo-encoder"),
+        });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("onda-goo-threshold"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &bg, &[]);
+            pass.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
+        }
+        queue.submit(Some(encoder.finish()));
+        out
+    }
+}
+
 /// A sampled (read-only) `texture_2d<f32>` bind-group-layout entry at `binding`.
 fn sampled_texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {

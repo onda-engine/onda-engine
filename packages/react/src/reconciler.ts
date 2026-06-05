@@ -136,6 +136,8 @@ function toNode(node: HostNode): SceneNode {
   if (bloom) effects.push(bloom)
   const grade = parseGrade(props.grade)
   if (grade) effects.push(grade)
+  const goo = parseGoo(props.goo)
+  if (goo) effects.push(goo)
   if (effects.length) base.effects = effects
   if (props.layout !== undefined) base.layout = parseLayout(props.layout as Layout)
   const children = node.children.map(toNode)
@@ -351,6 +353,27 @@ function parseGrade(input: unknown): Extract<Effect, { effect: 'color_grade' }> 
     return undefined
   }
   return { effect: 'color_grade', exposure, contrast, saturation, temperature, tint }
+}
+
+/** Resolve the `goo` sugar prop into a `{ effect: 'goo', ... }` effect, or
+ *  `undefined` when absent/degenerate. A bare number is the `sigma`; the object
+ *  form overrides `threshold` (default 0.5). A non-positive `sigma` is dropped
+ *  (no blur → nothing to fuse). */
+function parseGoo(input: unknown): Extract<Effect, { effect: 'goo' }> | undefined {
+  if (typeof input === 'number') {
+    return input > 0 ? { effect: 'goo', sigma: input, threshold: 0.5 } : undefined
+  }
+  if (input && typeof input === 'object') {
+    const g = input as { sigma?: number; threshold?: number }
+    if (typeof g.sigma === 'number' && g.sigma > 0) {
+      return {
+        effect: 'goo',
+        sigma: g.sigma,
+        threshold: typeof g.threshold === 'number' ? g.threshold : 0.5,
+      }
+    }
+  }
+  return undefined
 }
 
 function parseLayout(layout: Layout): Layout {
