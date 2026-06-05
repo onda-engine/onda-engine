@@ -393,6 +393,14 @@ const CASES: { name: string; frame: number; props: Record<string, unknown> }[] =
     },
   },
   {
+    name: 'FilmGrade',
+    frame: 0,
+    props: {
+      look: 'teal-orange',
+      intensity: 0.85,
+    },
+  },
+  {
     name: 'GradientShift',
     frame: 45,
     props: {
