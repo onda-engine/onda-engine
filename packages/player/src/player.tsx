@@ -69,9 +69,10 @@ export interface PlayerProps {
   /** Show a small backend indicator (WebGPU/CPU/Canvas2D). Default `true`. */
   showStatus?: boolean
   /** Control visibility. `'auto'` (default) reveals the controls on hover / focus
-   *  / when paused; `'always'` keeps them visible (good for a gallery/showcase,
-   *  where the player isn't the hovered element). */
-  controls?: 'auto' | 'always'
+   *  / when paused; `'always'` keeps them visible; `'none'` hides them entirely
+   *  (no overlay, no fullscreen button, no click-to-toggle) — a chrome-free
+   *  thumbnail (e.g. a gallery tile that plays on hover + clicks through to a link). */
+  controls?: 'auto' | 'always' | 'none'
   /** Accessible label for the player region. Default `"ONDA composition player"`. */
   label?: string
   /** Optional className on the root for app-level layout/overrides. */
@@ -634,6 +635,7 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
         'onda-player',
         playing ? '' : 'is-paused',
         controls === 'always' ? 'is-controls' : '',
+        controls === 'none' ? 'is-controls-none' : '',
         className,
       ]
         .filter(Boolean)
@@ -658,7 +660,7 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
           height={config.height}
           className="onda-player__canvas"
           style={styles.canvas}
-          onClick={togglePlay}
+          onClick={controls === 'none' ? undefined : togglePlay}
           aria-label={`composition preview, ${config.width}×${config.height} at ${config.fps}fps — click to ${playing ? 'pause' : 'play'}`}
         />
 
@@ -1082,6 +1084,12 @@ const PLAYER_CSS = `
 .onda-player.is-paused .onda-player__overlay,
 .onda-player.is-controls .onda-player__overlay {
   opacity: 1; transform: none; pointer-events: auto;
+}
+/* controls:none — a chrome-free thumbnail: no overlay, no fullscreen button
+   (overrides the hover/focus/paused reveal above). */
+.onda-player.is-controls-none .onda-player__overlay,
+.onda-player.is-controls-none .onda-player__fs {
+  display: none;
 }
 .onda-player__row { display: flex; align-items: center; gap: 14px; }
 .onda-player__spacer { flex: 1 1 auto; }
