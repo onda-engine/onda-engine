@@ -1,56 +1,55 @@
-//! Confetti — a celebratory particle burst over the whole canvas. Ported from ondajs.
+//! Confetti — a soft, slow particle BLOOM, not a party popper. Translucent motes
+//! rise and drift outward from an origin on an eased path that decelerates,
+//! gently growing and fading. Ported from ondajs, then premium-tuned.
 //!
-//! Pieces launch from an origin, fan outward, arc back under gravity, tumble
-//! (rotate + size-jitter) and fade. Every per-piece value (angle, speed, spin,
-//! color, size) is drawn from the deterministic `random(seed)` hash so the same
-//! seed renders the same burst on every frame and every machine (§1) — no
-//! `Math.random`, no wall-clock.
+//! Deterministic: every per-piece value (angle, reach, opacity, size, sway,
+//! colour) is drawn from the pure `random(seed)` hash (§1), so the same seed
+//! renders the same bloom on every frame and every machine — no `Math.random`,
+//! no wall-clock.
 //!
-//! ondajs renders each piece as an absolutely-positioned `<div>` with a CSS
-//! `transform: translate(...) rotate(...)`. Here each piece is a small `<Rect>`
-//! placed inside a per-piece `<Group>` translated to the piece centre, with the
-//! `<Rect>` offset by `-w/2, -h/2` so rotation tumbles about its own centre
-//! (scene scale/rotation pivot on the LOCAL origin, not the node centre — §3).
+//! Each piece is a soft CIRCLE (`<Rect>` with `cornerRadius = r/2`) inside a
+//! per-piece `<Group>` translated to its centre and carrying the piece opacity.
 //! The whole field lives in one full-canvas `<Group>`; nothing uses `<Flex>`, so
 //! the per-frame position/size changes never trigger a layout reflow (§2).
 //!
-//! Backend caveat: `rotation` renders only on the Vello/GPU backend — the CPU
-//! reference rasterizer ignores it, so the tumble is a GPU-only effect (the
-//! ballistic arc, fade and size-jitter still read on the CPU reference).
+//! Premium notes: round translucent dots (not slim tumbling strips), a muted
+//! accent-led palette at low opacity, an eased outward drift (HOUSE_EASE — it
+//! decelerates rather than flying ballistically), a slow sway, and NO rotation —
+//! so it reads as ambient celebratory light, and renders identically on the CPU
+//! reference and the Vello/GPU backend (no GPU-only tumble).
 
 import { Group, Rect, interpolate, random, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { HOUSE_EASE } from '../easing.js'
 import { useTheme } from '../theme.js'
 
 export interface ConfettiProps {
-  /** Seed for every per-piece random (angle, velocity, spin, colour, size) — the
-   *  same seed always produces the same burst (§1). */
+  /** Seed for every per-piece random (angle, reach, opacity, size, colour) — the
+   *  same seed always produces the same bloom (§1). */
   seed?: number
-  /** Number of confetti pieces. ~80 reads full without thrashing the render. */
+  /** Number of motes. ~80 reads full without thrashing the render. */
   count?: number
-  /** Palette pieces are picked from. Defaults to the Onda accent plus tasteful
-   *  neutrals (default: theme `accent`, theme `text`, theme `textMuted`, theme
-   *  `border`). */
+  /** Palette motes are picked from. Defaults to the theme accent plus a soft
+   *  accent tint and tasteful neutrals; all rendered translucent. */
   colors?: string[]
-  /** Burst origin X, as a fraction of canvas width (0 = left, 1 = right). */
+  /** Bloom origin X, as a fraction of canvas width (0 = left, 1 = right). */
   originX?: number
-  /** Burst origin Y, as a fraction of canvas height (0 = top, 1 = bottom). */
+  /** Bloom origin Y, as a fraction of canvas height (0 = top, 1 = bottom). */
   originY?: number
-  /** Frames before the burst launches. */
+  /** Frames before the bloom begins. */
   delay?: number
-  /** Frames over which a piece travels, tumbles and fades out. */
+  /** Frames over which a mote drifts and fades out. */
   duration?: number
-  /** Launch spread, in degrees, around straight up. Wider = more fan-out. */
+  /** Drift spread, in degrees, around straight up. Wider = more fan-out. */
   spread?: number
-  /** Downward acceleration. Higher = pieces fall back faster. */
+  /** Gentle downward bias added over the drift (0 = pure rise; 1 = a soft settle). */
   gravity?: number
-  /** Base piece size in pixels — each piece varies around this. */
+  /** Base mote size in pixels — each varies around this (small motes .. soft bokeh). */
   pieceSize?: number
 }
 
-/** Onda accent + neutrals — the ondajs CSS-var defaults resolved to hex, since
- *  the scene graph has no CSS custom properties. */
-const DEFAULT_COLORS = ['#d96b82', '#e89aab', '#f2f2f4', '#8e8e98', '#26262e']
+/** Onda accent + a soft tint + neutrals — resolved to hex (the scene graph has no
+ *  CSS custom properties). Used translucent, so they read as light, not paper. */
+const DEFAULT_COLORS = ['#e85494', '#f2b8cf', '#f2f2f4', '#8e8e98']
 
 export function Confetti({
   seed = 7,
@@ -68,24 +67,23 @@ export function Confetti({
   const { width, height, fps } = useVideoConfig()
   const theme = useTheme()
   const colors = colorsProp ?? [
-    theme.accent ?? '#d96b82',
-    '#e89aab',
+    theme.accent ?? '#e85494',
+    '#f2b8cf',
     theme.text ?? '#f2f2f4',
     theme.textMuted ?? '#8e8e98',
-    theme.border ?? '#26262e',
   ]
-  const cornerRadius = theme.radius ?? 1
 
   const local = frame - delay
   const ox = originX * width
   const oy = originY * height
 
-  // Speed scaled to canvas + fps so the burst looks the same at any resolution.
+  // Distances/speeds scaled to canvas + fps so the bloom looks the same at any
+  // resolution and framerate.
   const speedScale = (Math.min(width, height) / 1080) * (30 / fps)
   const spreadRad = (spread * Math.PI) / 180
 
-  // Nothing has launched yet — emit an empty field rather than null so the host
-  // node is stable across frames.
+  // Nothing has begun yet — emit an empty field rather than null so the host node
+  // is stable across frames.
   if (local < 0) {
     return <Group />
   }
@@ -96,15 +94,14 @@ export function Confetti({
     // Each draw gets its OWN unique seed key (`random(seed)` here is a pure hash,
     // not a stateful generator), so piece order never shifts any value.
     const aJit = random(`${seed}-${i}-angle`)
-    const speed = 9 + random(`${seed}-${i}-speed`) * 13 // launch velocity (px/frame @ baseline)
-    const spin = (random(`${seed}-${i}-spin`) - 0.5) * 28 // degrees/frame
-    const spin0 = random(`${seed}-${i}-spin0`) * 360 // initial rotation
+    const reach = 90 + random(`${seed}-${i}-reach`) * 180 // px of outward travel @1080 baseline
+    const peak = 0.22 + random(`${seed}-${i}-peak`) * 0.34 // max (translucent) opacity
+    const sizeJit = 0.5 + random(`${seed}-${i}-size`) * 1.7 // small motes .. soft bokeh
+    const lifeJit = 0.75 + random(`${seed}-${i}-life`) * 0.5 // per-piece duration variation
+    const swayAmp = (random(`${seed}-${i}-sway`) - 0.5) * 26 // slow horizontal sway
+
     const color =
       palette[Math.floor(random(`${seed}-${i}-color`) * palette.length)] ?? palette[0] ?? '#f2f2f4'
-    const wf = 0.7 + random(`${seed}-${i}-wf`) * 0.6 // width factor (slim rectangles)
-    const sizeJit = 0.7 + random(`${seed}-${i}-size`) * 0.8 // per-piece size variation
-    const lifeJit = 0.8 + random(`${seed}-${i}-life`) * 0.4 // per-piece duration variation
-    const drift = (random(`${seed}-${i}-drift`) - 0.5) * 4 // horizontal sway amplitude
 
     const life = duration * lifeJit
     if (local > life) {
@@ -112,32 +109,34 @@ export function Confetti({
     }
 
     const t = local // frames since launch (already >= 0)
+
+    // Eased outward drift that decelerates — confident, not ballistic.
+    const prog = interpolate(t, [0, life], [0, 1], {
+      extrapolateRight: 'clamp',
+      easing: HOUSE_EASE,
+    })
     // Aim around straight up (-90deg), fanned by spread.
     const angle = -Math.PI / 2 + (aJit - 0.5) * spreadRad
-    const vx = Math.cos(angle) * speed * speedScale
-    const vy = Math.sin(angle) * speed * speedScale
-    const g = 0.55 * gravity * speedScale
+    const dist = reach * speedScale * prog
+    const sway = Math.sin(t * 0.06 + i) * swayAmp * speedScale * prog
+    // A gentle downward bias that grows over the drift (soft settle, not a fall).
+    const fall = 0.16 * gravity * speedScale * t * prog
 
-    // Ballistic path: gravity pulls pieces back down over time, plus a small
-    // horizontal sway (phase-offset per piece so the field shimmers).
-    const x = ox + vx * t + Math.sin(t * 0.18 + i) * drift
-    const y = oy + vy * t + 0.5 * g * t * t
+    const x = ox + Math.cos(angle) * dist + sway
+    const y = oy + Math.sin(angle) * dist + fall
 
-    const opacity = interpolate(t, [0, life * 0.15, life * 0.7, life], [0, 1, 1, 0], {
+    const opacity = interpolate(t, [0, life * 0.3, life * 0.6, life], [0, peak, peak, 0], {
       extrapolateLeft: 'clamp',
       extrapolateRight: 'clamp',
       easing: HOUSE_EASE,
     })
 
-    const rotate = spin0 + spin * t
-    const w = pieceSize * sizeJit * wf
-    const h = pieceSize * sizeJit
+    // Soft round mote; grows slightly as it rises (a subtle bloom).
+    const r = pieceSize * sizeJit * (0.85 + 0.3 * prog)
 
-    // Translate the Group to the piece CENTRE, then offset the Rect by -w/2,-h/2
-    // so the GPU rotation tumbles about the centre (pivot is the local origin).
     return (
-      <Group key={i} x={x} y={y} rotation={rotate} opacity={opacity}>
-        <Rect x={-w / 2} y={-h / 2} width={w} height={h} cornerRadius={cornerRadius} fill={color} />
+      <Group key={i} x={x} y={y} opacity={opacity}>
+        <Rect x={-r / 2} y={-r / 2} width={r} height={r} cornerRadius={r / 2} fill={color} />
       </Group>
     )
   })
