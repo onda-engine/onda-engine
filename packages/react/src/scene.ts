@@ -77,6 +77,13 @@ export interface GradientStop {
 export type Gradient =
   | { gradient: 'linear'; start: Vec2; end: Vec2; stops: GradientStop[] }
   | { gradient: 'radial'; center: Vec2; radius: number; stops: GradientStop[] }
+  | {
+      gradient: 'fbm'
+      stops: GradientStop[]
+      scale?: number
+      time?: number
+      warp?: number
+    }
 
 /** One styled run of rich text (mirrors onda-scene's `TextRun`). */
 export interface SceneTextRun {

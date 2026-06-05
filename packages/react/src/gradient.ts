@@ -16,6 +16,18 @@ export interface GradientStopInput {
 export type GradientInput =
   | { type: 'linear'; start: Point; end: Point; stops: GradientStopInput[] }
   | { type: 'radial'; center: Point; radius: number; stops: GradientStopInput[] }
+  | {
+      /** Fractal-noise ("expensive") gradient — fBm over Simplex noise. The field
+       *  value 0..1 samples the stops; `scale` ~0.8–1.2 + `warp` ~0.4–0.6 gives the
+       *  soft Stripe/Linear register (higher = busier turbulence). Animate `time`
+       *  per frame for a living gradient. Rendered natively (full quality on
+       *  `onda export`); the browser preview degrades to a smooth gradient. */
+      type: 'fbm'
+      stops: GradientStopInput[]
+      scale?: number
+      time?: number
+      warp?: number
+    }
 
 function toVec2(point: Point): Vec2 {
   return Array.isArray(point) ? { x: point[0], y: point[1] } : point
@@ -33,6 +45,15 @@ export function parseGradient(input: GradientInput): Gradient {
       start: toVec2(input.start),
       end: toVec2(input.end),
       stops: stops(input.stops),
+    }
+  }
+  if (input.type === 'fbm') {
+    return {
+      gradient: 'fbm',
+      stops: stops(input.stops),
+      scale: input.scale ?? 1.0,
+      time: input.time ?? 0,
+      warp: input.warp ?? 0.5,
     }
   }
   return {
@@ -59,4 +80,14 @@ export function radialGradient(
   stops: GradientStopInput[],
 ): GradientInput {
   return { type: 'radial', center, radius, stops }
+}
+
+/** Build an fBm fractal-noise ("expensive") gradient — the soft, flowing
+ *  Stripe/Linear backdrop. `scale` ~0.8–1.2 + `warp` ~0.4–0.6 reads premium;
+ *  animate `time` (e.g. `frame / fps * speed`) for a living gradient. */
+export function fbmGradient(
+  stops: GradientStopInput[],
+  opts: { scale?: number; time?: number; warp?: number } = {},
+): GradientInput {
+  return { type: 'fbm', stops, ...opts }
 }

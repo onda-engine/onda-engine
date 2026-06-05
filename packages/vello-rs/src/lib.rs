@@ -25,7 +25,7 @@ use vello::peniko::{
 use vello::{wgpu, AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene as VelloScene};
 
 mod effects;
-use effects::{AlphaMatte, Bloom, ColorGrade, GaussianBlur, Goo};
+use effects::{AlphaMatte, Bloom, ColorGrade, FbmGradient, GaussianBlur, Goo};
 
 /// A rendered frame: straight-alpha RGBA8, row-major, top-left origin.
 pub struct Frame {
@@ -61,6 +61,9 @@ pub struct VelloRenderer {
     /// Alpha-matte combine pipeline (content × matte coverage). Built lazily the
     /// first time a node carries a `matte`, then reused.
     matte_pipeline: Option<AlphaMatte>,
+    /// fBm fractal-noise gradient generator (the "expensive" Stripe/Linear gradient).
+    /// Built lazily the first time a shape carries a `Gradient::Fbm`, then reused.
+    fbm_pipeline: Option<FbmGradient>,
     /// True on the WebGPU (browser) backend, where buffer mapping is async-only.
     /// The effect path can't read a texture back synchronously mid-build there, so
     /// on the web effects are resolved up front by `prepare_effect_images` (async
@@ -139,6 +142,7 @@ impl VelloRenderer {
             grade_pipeline: None,
             goo_pipeline: None,
             matte_pipeline: None,
+            fbm_pipeline: None,
             web,
         })
     }
@@ -229,6 +233,7 @@ impl VelloRenderer {
                     grade_pipeline: &mut self.grade_pipeline,
                     goo_pipeline: &mut self.goo_pipeline,
                     matte_pipeline: &mut self.matte_pipeline,
+                    fbm_pipeline: &mut self.fbm_pipeline,
                     web: true,
                     // Nested effects inside this subtree degrade (no cache here).
                     effect_images: None,
@@ -304,6 +309,7 @@ impl VelloRenderer {
                     grade_pipeline: &mut self.grade_pipeline,
                     goo_pipeline: &mut self.goo_pipeline,
                     matte_pipeline: &mut self.matte_pipeline,
+                    fbm_pipeline: &mut self.fbm_pipeline,
                     web: true,
                     // Effect nodes BEHIND the glass resolve from the cache (computed
                     // just before this pre-pass); a fresh cursor per backdrop node,
@@ -370,6 +376,7 @@ impl VelloRenderer {
                         grade_pipeline: &mut self.grade_pipeline,
                         goo_pipeline: &mut self.goo_pipeline,
                         matte_pipeline: &mut self.matte_pipeline,
+                        fbm_pipeline: &mut self.fbm_pipeline,
                         web: true,
                         effect_images: None,
                         effect_idx: 0,
@@ -449,6 +456,7 @@ impl VelloRenderer {
                 grade_pipeline: &mut self.grade_pipeline,
                 goo_pipeline: &mut self.goo_pipeline,
                 matte_pipeline: &mut self.matte_pipeline,
+                fbm_pipeline: &mut self.fbm_pipeline,
                 web: self.web,
                 effect_images,
                 effect_idx: 0,
@@ -496,6 +504,7 @@ struct Ctx<'a> {
     grade_pipeline: &'a mut Option<ColorGrade>,
     goo_pipeline: &'a mut Option<Goo>,
     matte_pipeline: &'a mut Option<AlphaMatte>,
+    fbm_pipeline: &'a mut Option<FbmGradient>,
     /// WebGPU backend — the effect path's synchronous readback can't run mid-build
     /// here, so effects are resolved by an async PRE-PASS into `effect_images`
     /// instead; if that cache is absent/exhausted the node draws un-effected
@@ -833,8 +842,26 @@ fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, pa
                     shadow.blur.max(0.0) as f64,
                 );
             }
-            if let Some(brush) = fill_brush(shape.fill, shape.gradient.as_ref(), opacity) {
-                vscene.fill(Fill::NonZero, affine, &brush, None, &path);
+            // fBm fractal-noise gradient: a GPU compute pass generates the field,
+            // reads it back, and draws it clipped to the shape (native only — the
+            // sync readback can't run on WebGPU mid-build). The WebGPU preview + CPU
+            // reference degrade to the smooth fallback in `fill_brush`.
+            match shape.gradient.as_ref() {
+                Some(Gradient::Fbm {
+                    stops,
+                    scale,
+                    time,
+                    warp,
+                }) if !ctx.web => {
+                    draw_fbm_fill(
+                        vscene, ctx, &path, affine, opacity, stops, *scale, *time, *warp,
+                    );
+                }
+                _ => {
+                    if let Some(brush) = fill_brush(shape.fill, shape.gradient.as_ref(), opacity) {
+                        vscene.fill(Fill::NonZero, affine, &brush, None, &path);
+                    }
+                }
             }
             if let Some(stroke) = &shape.stroke {
                 let mut sk = Stroke::new(stroke.width as f64)
@@ -1138,6 +1165,67 @@ fn draw_effect_image(
         None,
         ImageFit::Fill,
     );
+}
+
+/// Fill a shape with an fBm fractal-noise gradient (the "expensive" Stripe/Linear
+/// gradient): generate the field on the GPU at the shape's pixel bounds, read it
+/// back, and draw it clipped to the shape path. Native-only — the synchronous
+/// readback can't run on WebGPU mid-build (the preview degrades to `fill_brush`'s
+/// smooth fallback). The field texture is sized to the shape's local bounding box
+/// (capped) and placed at that origin, so it lines up under the affine/clip.
+#[allow(clippy::too_many_arguments)]
+fn draw_fbm_fill(
+    vscene: &mut VelloScene,
+    ctx: &mut Ctx,
+    path: &BezPath,
+    affine: Affine,
+    opacity: f32,
+    stops: &[GradientStop],
+    scale: f32,
+    time: f32,
+    warp: f32,
+) {
+    let bounds = path.bounding_box();
+    let w = (bounds.width().ceil() as u32).clamp(1, 4096);
+    let h = (bounds.height().ceil() as u32).clamp(1, 4096);
+    let ramp: Vec<([f32; 4], f32)> = stops
+        .iter()
+        .map(|s| {
+            let [r, g, b, a] = s.color.to_rgba8();
+            (
+                [
+                    r as f32 / 255.0,
+                    g as f32 / 255.0,
+                    b as f32 / 255.0,
+                    a as f32 / 255.0,
+                ],
+                s.offset,
+            )
+        })
+        .collect();
+    let pipe = ctx
+        .fbm_pipeline
+        .get_or_insert_with(|| FbmGradient::new(ctx.device));
+    let texture = pipe.run(ctx.device, ctx.queue, w, h, scale, time, warp, &ramp);
+    let frame = read_back(ctx.device, ctx.queue, &texture, w, h);
+    // Clip to the shape, then draw the field at the shape's local bounds origin.
+    vscene.push_layer(Mix::Clip, 1.0, affine, path);
+    let data = ImageData {
+        width: w,
+        height: h,
+        rgba: std::sync::Arc::new(frame.pixels),
+    };
+    let place = affine * Affine::translate((bounds.x0, bounds.y0));
+    draw_image_data(
+        vscene,
+        place,
+        opacity,
+        Some(&data),
+        None,
+        None,
+        ImageFit::Fill,
+    );
+    vscene.pop_layer();
 }
 
 /// The first `Effect::BackdropBlur` in a node's chain (frosted glass), if any.
@@ -1770,6 +1858,11 @@ fn peniko_gradient(gradient: &Gradient, opacity: f32) -> PenikoGradient {
             radius,
             stops,
         } => PenikoGradient::new_radial((center.x as f64, center.y as f64), *radius)
+            .with_stops(color_stops(stops, opacity).as_slice()),
+        // FBM is rendered by the compute pass in the Shape branch (native). This is
+        // only reached as a FALLBACK (WebGPU preview, which can't sync-read the
+        // pass): a smooth diagonal of the same stops — the colors without the noise.
+        Gradient::Fbm { stops, .. } => PenikoGradient::new_linear((0.0, 0.0), (1600.0, 900.0))
             .with_stops(color_stops(stops, opacity).as_slice()),
     }
 }
