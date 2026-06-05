@@ -25,7 +25,7 @@ use vello::peniko::{
 use vello::{wgpu, AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene as VelloScene};
 
 mod effects;
-use effects::GaussianBlur;
+use effects::{Bloom, GaussianBlur};
 
 /// A rendered frame: straight-alpha RGBA8, row-major, top-left origin.
 pub struct Frame {
@@ -47,6 +47,10 @@ pub struct VelloRenderer {
     /// Gaussian-blur compute pipeline (render-to-texture effect chain). Built
     /// lazily the first time a node carries a `Blur` effect, then reused.
     blur_pipeline: Option<GaussianBlur>,
+    /// Bloom compute pipelines (bright-pass + additive composite). Built lazily the
+    /// first time a node carries a `Bloom` effect; reuses `blur_pipeline` for the
+    /// spread in between.
+    bloom_pipeline: Option<Bloom>,
 }
 
 impl VelloRenderer {
@@ -112,6 +116,7 @@ impl VelloRenderer {
             fonts: FontContext::with_default_font(),
             font_cache: HashMap::new(),
             blur_pipeline: None,
+            bloom_pipeline: None,
         })
     }
 
@@ -149,6 +154,7 @@ impl VelloRenderer {
                 fonts: &mut self.fonts,
                 font_cache: &mut self.font_cache,
                 blur_pipeline: &mut self.blur_pipeline,
+                bloom_pipeline: &mut self.bloom_pipeline,
             },
             &scene.root,
             Affine::IDENTITY,
@@ -179,6 +185,7 @@ struct Ctx<'a> {
     fonts: &'a mut FontContext,
     font_cache: &'a mut HashMap<u64, Font>,
     blur_pipeline: &'a mut Option<GaussianBlur>,
+    bloom_pipeline: &'a mut Option<Bloom>,
 }
 
 /// Rasterize an already-built `VelloScene` to a fresh `Rgba8Unorm` texture of the
@@ -412,6 +419,9 @@ fn render_effects_subtree(
         .iter()
         .map(|e| match e {
             Effect::Blur { sigma } => *sigma,
+            // Bloom blurs its bright-pass with `sigma`; the halo needs the same
+            // headroom as a blur so the glow isn't clipped at the texture edge.
+            Effect::Bloom { sigma, .. } => *sigma,
         })
         .fold(0.0_f32, f32::max);
     let margin = (3.0 * max_sigma).ceil().max(0.0) as f64;
@@ -478,6 +488,27 @@ fn render_effects_subtree(
             }
             // sigma <= 0 is a no-op (leave the texture sharp).
             Effect::Blur { .. } => {}
+            Effect::Bloom {
+                threshold,
+                intensity,
+                sigma,
+            } if *sigma > 0.0 && *intensity > 0.0 => {
+                // Bloom reuses the blur compute for the spread; ensure both pipelines
+                // exist, then borrow them disjointly (distinct `Ctx` fields).
+                if ctx.blur_pipeline.is_none() {
+                    *ctx.blur_pipeline = Some(GaussianBlur::new(ctx.device));
+                }
+                if ctx.bloom_pipeline.is_none() {
+                    *ctx.bloom_pipeline = Some(Bloom::new(ctx.device));
+                }
+                let blur = ctx.blur_pipeline.as_ref().unwrap();
+                let bloom = ctx.bloom_pipeline.as_ref().unwrap();
+                texture = bloom.run(
+                    ctx.device, ctx.queue, blur, &texture, tw, th, *threshold, *intensity, *sigma,
+                );
+            }
+            // Degenerate bloom (no spread or no intensity) is a no-op.
+            Effect::Bloom { .. } => {}
         }
     }
 

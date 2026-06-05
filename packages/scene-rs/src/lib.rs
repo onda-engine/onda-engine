@@ -100,6 +100,16 @@ pub enum Effect {
     /// Screen-space Gaussian blur; `sigma` is the std-dev in OUTPUT px (matching
     /// CSS `blur()`).
     Blur { sigma: f32 },
+    /// Glow / bloom: the subtree's bright regions (luminance above `threshold`,
+    /// scaled by `intensity`) are blurred with a large `sigma` and composited
+    /// *additively* over the sharp subtree. The single biggest "premium" tell —
+    /// a bright accent (neon text, a lit shape) blooms a soft halo. Reuses the
+    /// blur kernel; `threshold`/`intensity` are in straight-alpha luminance.
+    Bloom {
+        threshold: f32,
+        intensity: f32,
+        sigma: f32,
+    },
 }
 
 /// A node in the scene graph: shared properties plus a kind-specific payload and
@@ -1315,6 +1325,19 @@ mod tests {
         let back: Node = serde_json::from_str(&json).unwrap();
         assert_eq!(node, back);
         assert_eq!(back.effects, vec![Effect::Blur { sigma: 6.0 }]);
+
+        // A bloom effect serializes snake_case with all three fields and round-trips.
+        let glow = Node::text("Onda").with_effect(Effect::Bloom {
+            threshold: 0.6,
+            intensity: 1.5,
+            sigma: 12.0,
+        });
+        let json = serde_json::to_string(&glow).unwrap();
+        assert!(json.contains(
+            r#""effects":[{"effect":"bloom","threshold":0.6,"intensity":1.5,"sigma":12.0}]"#
+        ));
+        let back: Node = serde_json::from_str(&json).unwrap();
+        assert_eq!(glow, back);
     }
 
     #[test]

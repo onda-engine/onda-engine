@@ -162,7 +162,11 @@ export interface Layout {
  *  composites back at the node's transform/opacity/blend/clip. */
 export type Effect =
   /** Gaussian blur; `sigma` = std-dev in OUTPUT px (CSS `blur()`). */
-  { effect: 'blur'; sigma: number }
+  | { effect: 'blur'; sigma: number }
+  /** Glow / bloom: bright regions (luminance above `threshold`, scaled by
+   *  `intensity`) are blurred with `sigma` and composited *additively* over the
+   *  sharp subtree — a bright accent glows a soft halo. */
+  | { effect: 'bloom'; threshold: number; intensity: number; sigma: number }
 
 /** Compositing blend mode (CSS `mix-blend-mode`). Vello renders the full set;
  *  the CPU reference composites `normal` only. */

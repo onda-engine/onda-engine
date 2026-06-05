@@ -132,6 +132,8 @@ function toNode(node: HostNode): SceneNode {
   const effects: Effect[] = Array.isArray(props.effects) ? [...(props.effects as Effect[])] : []
   if (typeof props.blur === 'number' && props.blur > 0)
     effects.unshift({ effect: 'blur', sigma: props.blur })
+  const bloom = parseBloom(props.bloom)
+  if (bloom) effects.push(bloom)
   if (effects.length) base.effects = effects
   if (props.layout !== undefined) base.layout = parseLayout(props.layout as Layout)
   const children = node.children.map(toNode)
@@ -302,6 +304,27 @@ const normAlign = (v: unknown): unknown =>
   typeof v === 'string' && v in ALIGN_ALIASES ? ALIGN_ALIASES[v] : v
 
 /** Copy the defined layout fields (names/values already match the scene JSON). */
+/** Resolve the `bloom` sugar prop into a `{ effect: 'bloom', ... }` effect, or
+ *  `undefined` when absent/degenerate. A bare number is the `sigma`; the object
+ *  form overrides `threshold` (default 0.7) / `intensity` (default 1). */
+function parseBloom(input: unknown): Extract<Effect, { effect: 'bloom' }> | undefined {
+  if (typeof input === 'number') {
+    return input > 0 ? { effect: 'bloom', threshold: 0.7, intensity: 1, sigma: input } : undefined
+  }
+  if (input && typeof input === 'object') {
+    const b = input as { sigma?: number; threshold?: number; intensity?: number }
+    if (typeof b.sigma === 'number' && b.sigma > 0) {
+      return {
+        effect: 'bloom',
+        threshold: typeof b.threshold === 'number' ? b.threshold : 0.7,
+        intensity: typeof b.intensity === 'number' ? b.intensity : 1,
+        sigma: b.sigma,
+      }
+    }
+  }
+  return undefined
+}
+
 function parseLayout(layout: Layout): Layout {
   const out: Layout = {}
   if (layout.direction !== undefined) out.direction = layout.direction

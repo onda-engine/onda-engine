@@ -44,6 +44,11 @@ export interface NodeProps {
   /** Gaussian blur std-dev in output px; sugar for `effects: [{ effect: 'blur', sigma }]`.
    *  Honored by Vello AND the CPU reference once Phase 1 lands. */
   blur?: number
+  /** Glow / bloom sugar for `effects: [{ effect: 'bloom', ... }]`: bright regions
+   *  (luminance above `threshold`, default 0.7; scaled by `intensity`, default 1)
+   *  blur with `sigma` and composite additively over the sharp subtree. Honored by
+   *  Vello AND the CPU reference. */
+  bloom?: number | { sigma: number; threshold?: number; intensity?: number }
   children?: ReactNode
 }
 

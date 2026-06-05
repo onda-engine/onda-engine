@@ -356,6 +356,85 @@ fn blur_pass_v(src: &[u16], dst: &mut [u16], w: usize, h: usize, radius: usize, 
     }
 }
 
+/// Fixed-point shift for the bloom intensity multiplier — `intensity` is encoded
+/// as `round(intensity * 256)` so the bright-pass scale stays integer math
+/// (`channel * mul >> 8`), keeping bloom byte-identical across runs/architectures.
+const BLOOM_INTENSITY_SHIFT: u32 = 8;
+
+/// Apply a deterministic bloom/glow to `fb` in place: bright-pass → large-σ blur →
+/// additive composite over the original sharp pixels.
+///
+/// 1. **Bright-pass.** Each pixel's Rec. 601 luminance (integer 0..255, computed on
+///    its straight-alpha RGB) is compared to `threshold` (mapped once to a 0..255
+///    cutoff). Pixels at/above it are kept, their RGB scaled by `intensity`
+///    (fixed-point, clamped to 255) at full alpha; the rest become transparent.
+/// 2. **Blur.** The bright copy is blurred with [`blur_framebuffer`] (`sigma`) — the
+///    same deterministic integer kernel — spreading each highlight into a soft halo.
+/// 3. **Additive composite.** The blurred halo is added (per channel, clamped to
+///    255) onto the sharp pixels, weighted by the halo's alpha, so a bright accent
+///    glows without washing out the dark background.
+///
+/// All arithmetic is integer/fixed-point, so the result is byte-identical across
+/// runs and architectures (matching the blur's determinism contract). A
+/// non-positive `sigma` or `intensity` is a no-op (nothing to spread/add).
+pub fn bloom_framebuffer(fb: &mut Framebuffer, threshold: f32, intensity: f32, sigma: f32) {
+    if sigma <= 0.0 || intensity <= 0.0 || fb.width() == 0 || fb.height() == 0 {
+        return;
+    }
+    // Threshold → 0..255 luminance cutoff (clamped; NaN → no pixels pass).
+    let cutoff = (threshold.clamp(0.0, 1.0) * 255.0).round() as u32;
+    // Intensity → fixed-point multiplier (round-to-nearest, integer).
+    let mul = (intensity.max(0.0) * (1u32 << BLOOM_INTENSITY_SHIFT) as f32).round() as u32;
+
+    // Bright-pass copy: a separate framebuffer holding only the scaled highlights.
+    let mut bright = Framebuffer::new(fb.width(), fb.height());
+    for (src, dst) in fb
+        .pixels
+        .chunks_exact(4)
+        .zip(bright.pixels.chunks_exact_mut(4))
+    {
+        let (r, g, b, a) = (src[0] as u32, src[1] as u32, src[2] as u32, src[3] as u32);
+        if a == 0 {
+            continue; // fully transparent → contributes no light
+        }
+        // Rec. 601 luminance on straight-alpha RGB, integer weights /256.
+        let luma = (r * 77 + g * 150 + b * 29) >> 8;
+        if luma < cutoff {
+            continue; // below threshold → no bloom from this pixel
+        }
+        // Keep the (scaled, clamped) color at full alpha so the blur spreads a
+        // solid highlight; the original alpha gates *whether* a pixel blooms.
+        dst[0] = ((r * mul) >> BLOOM_INTENSITY_SHIFT).min(255) as u8;
+        dst[1] = ((g * mul) >> BLOOM_INTENSITY_SHIFT).min(255) as u8;
+        dst[2] = ((b * mul) >> BLOOM_INTENSITY_SHIFT).min(255) as u8;
+        dst[3] = 255;
+    }
+
+    // Spread the highlights into a soft halo (same deterministic integer kernel).
+    blur_framebuffer(&mut bright, sigma);
+
+    // Additive composite: add the halo (weighted by its alpha) onto the sharp
+    // pixels, clamping each channel to 255. Additive blending is what makes bloom
+    // read as *light* rather than a flat overlay.
+    for (dst, halo) in fb
+        .pixels
+        .chunks_exact_mut(4)
+        .zip(bright.pixels.chunks_exact(4))
+    {
+        let ha = halo[3] as u32;
+        if ha == 0 {
+            continue;
+        }
+        // Premultiply the halo's straight-alpha color by its coverage (round /255),
+        // then add. The destination alpha grows toward opaque where light lands.
+        let add = |c: u32| (c * ha + 127) / 255;
+        dst[0] = (dst[0] as u32 + add(halo[0] as u32)).min(255) as u8;
+        dst[1] = (dst[1] as u32 + add(halo[1] as u32)).min(255) as u8;
+        dst[2] = (dst[2] as u32 + add(halo[2] as u32)).min(255) as u8;
+        dst[3] = (dst[3] as u32 + ha).min(255) as u8;
+    }
+}
+
 /// Straight-alpha "source over destination" Porter-Duff compositing.
 fn over(src: Color, dst: Color) -> Color {
     let out_a = src.a + dst.a * (1.0 - src.a);
@@ -561,9 +640,12 @@ impl Renderer {
             .iter()
             .map(|e| match e {
                 Effect::Blur { sigma } => (3.0 * sigma.max(0.0)).ceil(),
+                // Bloom blurs its bright-pass with `sigma`; the halo needs the same
+                // 3σ headroom around the subtree so the glow isn't clipped.
+                Effect::Bloom { sigma, .. } => (3.0 * sigma.max(0.0)).ceil(),
             })
             .fold(0.0f32, f32::max);
-        let bounds = self.subtree_local_bounds(node, Transform::IDENTITY);
+        let bounds = self.captured_local_bounds(node);
         let (lx0, ly0, lx1, ly1) = match bounds {
             Some(b) => (b.0 - margin, b.1 - margin, b.2 + margin, b.3 + margin),
             // Unbounded (e.g. text without fonts) — capture the whole composition.
@@ -593,6 +675,11 @@ impl Renderer {
         for effect in &node.effects {
             match effect {
                 Effect::Blur { sigma } => blur_framebuffer(&mut temp, *sigma),
+                Effect::Bloom {
+                    threshold,
+                    intensity,
+                    sigma,
+                } => bloom_framebuffer(&mut temp, *threshold, *intensity, *sigma),
             }
         }
 
@@ -739,6 +826,47 @@ impl Renderer {
 
         for child in &node.children {
             if let Some((x0, y0, x1, y1)) = self.subtree_local_bounds(child, transform) {
+                push(x0, y0, x1, y1);
+            }
+        }
+        acc
+    }
+
+    /// Local-space bounds of an effect node's CAPTURED subtree — exactly what
+    /// [`Self::draw_subtree_local`] draws: the effect node's own kind at IDENTITY
+    /// (its own transform is applied only at composite-back, NOT inside the
+    /// capture) and each child through its own transform. This must mirror the
+    /// draw, or the node's transform is double-counted (once in the bounds window,
+    /// once at composite-back), which mis-places / clips the captured subtree.
+    /// Matches the GPU path, which contributes the effect node at identity.
+    fn captured_local_bounds(&mut self, node: &Node) -> Option<(f32, f32, f32, f32)> {
+        let mut acc: Option<(f32, f32, f32, f32)> = None;
+        let mut push = |x0: f32, y0: f32, x1: f32, y1: f32| {
+            acc = Some(match acc {
+                Some((ax0, ay0, ax1, ay1)) => (ax0.min(x0), ay0.min(y0), ax1.max(x1), ay1.max(y1)),
+                None => (x0, y0, x1, y1),
+            });
+        };
+
+        // The effect node's own kind at IDENTITY (scale 1 → the AA/stroke fringe
+        // matches a capture at native resolution; the node's real transform applies
+        // at composite-back).
+        if let Some((w, h)) = node_local_size(node) {
+            let stroke_inflate = match &node.kind {
+                NodeKind::Shape(s) => s.stroke.as_ref().map_or(0.0, |st| st.width.max(0.0)) * 0.5 + 1.0,
+                _ => 0.0,
+            };
+            push(-stroke_inflate, -stroke_inflate, w + stroke_inflate, h + stroke_inflate);
+        } else if let NodeKind::Text(text) = &node.kind {
+            if let Some(b) = self.text_local_bounds(text, Transform::IDENTITY) {
+                push(b.0, b.1, b.2, b.3);
+            }
+        }
+
+        // Children through their OWN transforms (subtree_local_bounds applies
+        // child.transform when called with an IDENTITY parent).
+        for child in &node.children {
+            if let Some((x0, y0, x1, y1)) = self.subtree_local_bounds(child, Transform::IDENTITY) {
                 push(x0, y0, x1, y1);
             }
         }
@@ -1564,6 +1692,82 @@ mod tests {
         assert!(outside > 0, "blur should spread alpha outside the source");
         // The center stays the most opaque region.
         assert!(fb.pixel(16, 16)[3] >= outside);
+    }
+
+    #[test]
+    fn bloom_framebuffer_is_deterministic() {
+        // Bloom is integer/fixed-point throughout, so two independent runs over the
+        // same input must be byte-identical (the determinism contract bloom shares
+        // with blur).
+        let base = || {
+            let mut fb = Framebuffer::new(32, 32);
+            for y in 12..20 {
+                for x in 12..20 {
+                    fb.blend(x, y, Color::rgb(1.0, 0.9, 0.2)); // a bright square
+                }
+            }
+            fb
+        };
+        let mut a = base();
+        let mut b = base();
+        bloom_framebuffer(&mut a, 0.3, 1.5, 4.0);
+        bloom_framebuffer(&mut b, 0.3, 1.5, 4.0);
+        assert_eq!(a.as_bytes(), b.as_bytes(), "bloom must be reproducible");
+    }
+
+    #[test]
+    fn bloom_is_a_noop_for_zero_sigma_or_intensity() {
+        let make = || Framebuffer::filled(8, 8, Color::rgb(1.0, 1.0, 1.0));
+        let mut fb = make();
+        bloom_framebuffer(&mut fb, 0.1, 1.5, 0.0); // no spread
+        assert_eq!(fb.as_bytes(), make().as_bytes());
+        let mut fb = make();
+        bloom_framebuffer(&mut fb, 0.1, 0.0, 5.0); // no intensity
+        assert_eq!(fb.as_bytes(), make().as_bytes());
+    }
+
+    #[test]
+    fn bloom_spreads_a_halo_and_brightens_bright_pixels() {
+        // A bright square on a dark (opaque) field: after bloom, the dark area just
+        // outside the square gains light (the additive halo), and the dark stays
+        // strictly darker than the bright core.
+        let mut fb = Framebuffer::filled(40, 40, Color::rgb(0.02, 0.02, 0.03));
+        for y in 16..24 {
+            for x in 16..24 {
+                fb.blend(x, y, Color::rgb(1.0, 0.95, 0.3)); // a bright accent
+            }
+        }
+        let dark_before = fb.pixel(8, 20)[0];
+        bloom_framebuffer(&mut fb, 0.3, 1.4, 4.0);
+        let dark_after = fb.pixel(8, 20)[0];
+        // Far-from-square dark pixel still picks up some glow (halo spread).
+        assert!(
+            fb.pixel(11, 20)[0] > dark_before,
+            "bloom should add light around the highlight"
+        );
+        // The remote dark pixel didn't go *below* its original (additive only).
+        assert!(dark_after >= dark_before);
+        // The bright core stays brighter than the surrounding dark.
+        assert!(fb.pixel(20, 20)[0] > fb.pixel(8, 20)[0]);
+    }
+
+    #[test]
+    fn bloom_skips_below_threshold_pixels() {
+        // A dim square below the threshold contributes no halo: a high cutoff means
+        // nothing passes the bright-pass, so bloom is a visual no-op here.
+        let mut dim = Framebuffer::filled(24, 24, Color::rgb(0.0, 0.0, 0.0));
+        for y in 8..16 {
+            for x in 8..16 {
+                dim.blend(x, y, Color::rgb(0.1, 0.1, 0.1)); // luminance ~26/255
+            }
+        }
+        let before = dim.as_bytes().to_vec();
+        bloom_framebuffer(&mut dim, 0.5, 1.5, 4.0); // cutoff ~128 → nothing passes
+        assert_eq!(
+            dim.as_bytes(),
+            before.as_slice(),
+            "below-threshold pixels should not bloom"
+        );
     }
 
     #[cfg(feature = "parallel")]

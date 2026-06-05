@@ -195,6 +195,28 @@ fn fixtures() -> Vec<(&'static str, Scene)> {
                 ),
             ),
         ),
+        // RTT Phase 3: bloom/glow — bright accent text on a dark card blooms a soft
+        // halo (bright-pass → large-σ blur → additive composite over the sharp text).
+        (
+            "bloom_text",
+            scene(
+                Node::group().with_children([
+                    // Dark backdrop so the additive glow reads as light.
+                    Node::shape(
+                        Shape::rect(Size::new(W as f32, H as f32))
+                            .with_fill(Color::from_rgba8(0x08, 0x08, 0x0A, 0xFF)),
+                    ),
+                    // A bright accent that blooms.
+                    text_node("ONDA", 56.0, rose)
+                        .with_transform(translate(20.0, 45.0))
+                        .with_effect(Effect::Bloom {
+                            threshold: 0.25,
+                            intensity: 1.6,
+                            sigma: 8.0,
+                        }),
+                ]),
+            ),
+        ),
         // RTT Phase 1: blur on a group with several children — the whole subtree is
         // captured, blurred, and composited as one (effect-on-group semantics).
         (
@@ -211,6 +233,19 @@ fn fixtures() -> Vec<(&'static str, Scene)> {
                             text_node("hi", 36.0, Color::WHITE)
                                 .with_transform(translate(20.0, 80.0)),
                         ]),
+                ),
+            ),
+        ),
+        // RTT Phase 1 regression: a blurred shape on a node with a LARGE translate.
+        // Locks the fix for the effect node's own transform being applied exactly
+        // once (at composite-back); a double-apply would mis-place / clip this.
+        (
+            "blur_translated",
+            scene(
+                Node::group().with_child(
+                    Node::shape(Shape::rect(Size::new(70.0, 45.0)).with_fill(rose))
+                        .with_transform(translate(130.0, 55.0))
+                        .with_effect(Effect::Blur { sigma: 5.0 }),
                 ),
             ),
         ),
