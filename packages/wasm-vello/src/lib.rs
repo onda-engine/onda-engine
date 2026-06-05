@@ -123,6 +123,17 @@ impl VelloEngine {
         }
     }
 
+    /// Load an additional font (`.ttf`/`.otf` bytes) so text can select it by
+    /// family (e.g. a premium display face for Apple-tier type). Returns the
+    /// family name(s) it provides, newline-joined. Loaded into BOTH the renderer
+    /// (which draws the glyphs) and the layout/measurement font context, so the
+    /// in-browser preview's text metrics match what it draws.
+    pub fn load_font(&mut self, data: Vec<u8>) -> String {
+        let families = self.renderer.load_font(data.clone());
+        self.fonts.borrow_mut().load_font(data);
+        families.join("\n")
+    }
+
     /// Render a scene-graph JSON document (onda-scene format) to a frame.
     /// Resolves `data:` images and flex layout first (the same pre-passes the
     /// CLI runs), so an in-browser preview matches `onda export`. Async: the GPU
