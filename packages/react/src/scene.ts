@@ -179,6 +179,10 @@ export type Effect =
       temperature: number
       tint: number
     }
+  /** Gooey / liquid / metaball morph: the subtree is blurred with `sigma`, then
+   *  its alpha is sharpened around `threshold` (0..1 cutoff) so overlapping shapes
+   *  fuse into solid forms joined by smooth necks (the "drops coalescing" look). */
+  | { effect: 'goo'; sigma: number; threshold: number }
 
 /** Compositing blend mode (CSS `mix-blend-mode`). Vello renders the full set;
  *  the CPU reference composites `normal` only. */

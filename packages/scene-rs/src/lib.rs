@@ -127,6 +127,16 @@ pub enum Effect {
         temperature: f32,
         tint: f32,
     },
+    /// Gooey / liquid / metaball morph: the subtree is blurred with `sigma`
+    /// (reusing the blur kernel), then its alpha is sharpened around `threshold`
+    /// (a steep smoothstep) so overlapping shapes — whose blurred halos merge —
+    /// fuse into solid forms joined by smooth necks. `threshold` is the alpha
+    /// cutoff in `0..1` (default ~`0.5`): blurred alpha above it snaps toward
+    /// opaque, below it toward transparent, with a few-percent ramp for AA. RGB
+    /// is kept (un-premultiply-aware), so a colored blob stays its color. The
+    /// classic "drops of liquid coalescing" look — same machinery as `Bloom`
+    /// (blur the capture, then a per-pixel pass), proving the ordered chain.
+    Goo { sigma: f32, threshold: f32 },
 }
 
 impl Effect {
@@ -1383,6 +1393,16 @@ mod tests {
         ));
         let back: Node = serde_json::from_str(&json).unwrap();
         assert_eq!(graded, back);
+
+        // A goo effect serializes snake_case ("goo") with both fields and round-trips.
+        let goo = Node::group().with_effect(Effect::Goo {
+            sigma: 8.0,
+            threshold: 0.5,
+        });
+        let json = serde_json::to_string(&goo).unwrap();
+        assert!(json.contains(r#""effects":[{"effect":"goo","sigma":8.0,"threshold":0.5}]"#));
+        let back: Node = serde_json::from_str(&json).unwrap();
+        assert_eq!(goo, back);
 
         // The neutral grade is the documented identity.
         assert_eq!(
