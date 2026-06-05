@@ -58,6 +58,13 @@ pub struct VelloRenderer {
     /// the first time a node carries a `Goo` effect; reuses `blur_pipeline` for the
     /// spread before the threshold.
     goo_pipeline: Option<Goo>,
+    /// True on the WebGPU (browser) backend, where buffer mapping is async-only.
+    /// The render-to-texture effect path reads a texture back to the CPU mid-build
+    /// (a *synchronous* map), which can't work on WebGPU — so on the web the effect
+    /// chain is skipped (the subtree renders normally, un-effected) rather than
+    /// crashing. Native export keeps full-fidelity effects. (A future async
+    /// effect pre-pass will bring effects to the browser too.)
+    web: bool,
 }
 
 impl VelloRenderer {
@@ -116,6 +123,9 @@ impl VelloRenderer {
             },
         )
         .map_err(|e| format!("Renderer::new failed: {e}"))?;
+        // WebGPU (browser) can't synchronously map buffers; the effect path's
+        // mid-build readback only works on native backends.
+        let web = adapter.get_info().backend == wgpu::Backend::BrowserWebGpu;
         Ok(VelloRenderer {
             device,
             queue,
@@ -126,6 +136,7 @@ impl VelloRenderer {
             bloom_pipeline: None,
             grade_pipeline: None,
             goo_pipeline: None,
+            web,
         })
     }
 
@@ -166,6 +177,7 @@ impl VelloRenderer {
                 bloom_pipeline: &mut self.bloom_pipeline,
                 grade_pipeline: &mut self.grade_pipeline,
                 goo_pipeline: &mut self.goo_pipeline,
+                web: self.web,
             },
             &scene.root,
             Affine::IDENTITY,
@@ -199,6 +211,9 @@ struct Ctx<'a> {
     bloom_pipeline: &'a mut Option<Bloom>,
     grade_pipeline: &'a mut Option<ColorGrade>,
     goo_pipeline: &'a mut Option<Goo>,
+    /// WebGPU backend — the effect path's synchronous readback can't run here, so
+    /// effects are skipped (subtree renders un-effected) instead of crashing.
+    web: bool,
 }
 
 /// Rasterize an already-built `VelloScene` to a fresh `Rgba8Unorm` texture of the
@@ -262,7 +277,10 @@ fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, pa
     // effect compute passes, then composite the result back at this node's
     // `affine`/`opacity` via the existing `draw_image_data` path — which keeps it
     // honoring `blend`/`clip` through the surrounding push_layer/pop_layer.
-    if !node.effects.is_empty() {
+    // On the WebGPU backend the effect path's mid-build CPU readback can't run
+    // (async-only buffer mapping), so skip it and let the node render normally
+    // below — un-effected, but visible (not a crash). Native keeps full effects.
+    if !node.effects.is_empty() && !ctx.web {
         // Blend/clip wrap the composited (post-effect) image, exactly as they
         // would wrap normal drawing, so push them here and let the early return
         // below fall through their pops.
