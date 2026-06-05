@@ -8,10 +8,10 @@ import { z } from 'zod'
 export const bentoGridSchema = z.object({
   items: z.any().optional().describe("The cells, laid out left-to-right, top-to-bottom; each has title, optional value/caption, colSpan, rowSpan, and accent. Spans drive the rhythm."),
   columns: z.number().int().default(3).describe("Number of grid columns."),
-  gap: z.number().default(20).describe("Gap between cells in px."),
+  gap: z.number().default(24).describe("Gap between cells in px."),
   width: z.number().default(960).describe("Overall grid width in px."),
   rowHeight: z.number().optional().describe("Row-track height in px. Defaults to the column-track width (square cells)."),
-  padding: z.number().default(28).describe("Inner padding of each cell in px."),
+  padding: z.number().default(34).describe("Inner padding of each cell in px."),
   delay: z.number().int().default(0).describe("Frames before the first cell enters."),
   stagger: z.number().int().optional().describe("Frames between successive cells rising in. House stagger is 4."),
   fontSize: z.number().default(30).describe("Base title font size in px (value and caption sizes derive from it)."),

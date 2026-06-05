@@ -20,7 +20,9 @@ import { type ReactNode, createContext, createElement, useContext } from 'react'
 export interface Theme {
   /** Primary brand color — the earned accent (bars, rules, highlights, glows). */
   accent: string
-  /** A soft, translucent accent for fills/washes behind content. */
+  /** A soft, translucent accent for fills/washes behind content. Must be an
+   *  engine color (`#rrggbbaa`), not a CSS `rgba()` string — it is used directly
+   *  as a scene fill. */
   accentSoft: string
   /** Primary text. */
   text: string
@@ -49,7 +51,7 @@ export interface Theme {
 /** The Onda house theme — the values components shipped with before theming. */
 export const defaultTheme: Theme = {
   accent: '#e85494',
-  accentSoft: 'rgba(232, 84, 148, 0.18)',
+  accentSoft: '#e854942e',
   text: '#f2f2f4',
   textMuted: '#8e8e98',
   background: '#0a0d17',

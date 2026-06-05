@@ -8,7 +8,7 @@ import { z } from 'zod'
 export const skeletonCardSchema = z.object({
   lines: z.number().int().default(3).describe("Number of placeholder text bars below the (optional) thumbnail."),
   thumbnail: z.boolean().default(true).describe("Show the leading thumbnail block above the bars."),
-  shimmerSpeed: z.number().int().default(48).describe("Frames for one shimmer pass across the card. Lower = faster sweep."),
+  shimmerSpeed: z.number().int().default(96).describe("Frames for one shimmer pass across the card. Lower = faster sweep. The default runs slow on purpose — a settled, premium loading state."),
   shimmerColor: z.string().optional().describe("The travelling highlight color \u2014 a soft sheen over the bars (default: theme border)."),
   barColor: z.string().optional().describe("Resting fill of the placeholder bars / thumbnail (default: theme surface)."),
   cardColor: z.string().optional().describe("Card (panel) background \u2014 the translucent glass fill (default: theme background)."),

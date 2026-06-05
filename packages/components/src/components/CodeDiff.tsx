@@ -54,7 +54,7 @@ export interface CodeDiffProps {
   revealLines?: boolean
   /** Frames before the first line appears. */
   delay?: number
-  /** Frames between consecutive line reveals (default canonical `STAGGER` = 4). */
+  /** Frames between consecutive line reveals (default canonical `STAGGER` = 5). */
   lineDelay?: number
   /** Monospace font stack for code (and the title) (default: theme `monoFamily ?? fontFamily`). */
   fontFamily?: string
@@ -64,9 +64,9 @@ export interface CodeDiffProps {
   width?: number
   /** Default (context) text color (default: theme `textMuted`). */
   textColor?: string
-  /** Added-line color (default: theme `palette[3]`). */
+  /** Added-line color — a restrained green (default: theme `palette[3]`). */
   addColor?: string
-  /** Removed-line color (default: theme `accent`). */
+  /** Removed-line color — a restrained red tinted toward bg (default: `#cf6f7e`). */
   removeColor?: string
   /** Panel surface (glass) fill (default: theme `surface`). */
   surfaceColor?: string
@@ -76,7 +76,8 @@ export interface CodeDiffProps {
   cornerRadius?: number
   /** Window-chrome traffic-light dot color (default: theme `border`). */
   chromeDotsColor?: string
-  /** Window-chrome title (filename) color (default: theme `textMuted`). */
+  /** Window-chrome title (filename) color — the one earned accent: it names the
+   *  file under change (default: theme `accent`). */
   chromeTitleColor?: string
 }
 
@@ -92,6 +93,11 @@ const TINT_ALPHA = '14'
 // Two-hex alpha suffix (~80%) for the dimmed gutter glyph — the scene
 // equivalent of ondajs's `opacity: 0.8` (0xcc / 0xff ≈ 0.8).
 const GUTTER_ALPHA = 'cc'
+
+// Removed-line default — a restrained, desaturated red pulled toward the dark bg
+// (not a garish diff-tool neon), paired with the muted `palette[3]` green for
+// adds. The theme accent is freed for the ONE earned highlight (the filename).
+const RESTRAINED_RED = '#cf6f7e'
 
 /** Strip a leading `#` and any trailing alpha, yielding a clean 6-digit
  *  `rrggbb` so an alpha suffix can be appended without tripping the engine's
@@ -132,12 +138,13 @@ export function CodeDiff({
   const fontFamily = fontFamilyProp ?? theme.monoFamily ?? theme.fontFamily
   const textColor = textColorProp ?? theme.textMuted
   const addColor = addColorProp ?? theme.palette[3] ?? '#7fb58c'
-  const removeColor = removeColorProp ?? theme.accent
+  const removeColor = removeColorProp ?? RESTRAINED_RED
   const surfaceColor = surfaceColorProp ?? theme.surface
   const borderColor = borderColorProp ?? theme.border
   const cornerRadius = cornerRadiusProp ?? theme.radius
   const chromeDotsColor = chromeDotsColorProp ?? theme.border
-  const chromeTitleColor = chromeTitleColorProp ?? theme.textMuted
+  // The one earned accent: the filename names the subject under change.
+  const chromeTitleColor = chromeTitleColorProp ?? theme.accent
 
   // Monospace line box height (CSS line-height 1.6 in ondajs).
   const lineHeight = Math.round(fontSize * 1.6)
@@ -167,7 +174,8 @@ export function CodeDiff({
 
   return (
     <Group x={originX} y={originY}>
-      {/* Glass surface. */}
+      {/* Glass surface. A soft, large-radius, low-opacity drop shadow tinted
+          toward the dark bg (not hard black) lifts the panel off the canvas. */}
       <Rect
         x={0}
         y={0}
@@ -177,6 +185,7 @@ export function CodeDiff({
         fill={surfaceColor}
         stroke={borderColor}
         strokeWidth={1}
+        shadow={{ color: `#${rgbHex(theme.background)}66`, blur: 36, offsetY: 18 }}
       />
 
       {chrome ? (
@@ -192,11 +201,14 @@ export function CodeDiff({
               fill={chromeDotsColor}
             />
           ))}
-          {/* Filename label, to the right of the dots. */}
+          {/* Filename label, to the right of the dots — the earned accent. Tight
+              negative tracking + a touch more weight give it a little authority. */}
           <Text
             x={24 + 3 * (dotRadius * 2 + dotGap) + 10}
             y={Math.round((chromeHeight - fontSize * 0.6) / 2)}
             fontSize={Math.round(fontSize * 0.6)}
+            letterSpacing={Math.round(fontSize * 0.6) * -0.02}
+            fontWeight={500}
             color={chromeTitleColor}
             fontFamily={fontFamily}
           >
@@ -216,14 +228,15 @@ export function CodeDiff({
           const gutter = gutterFor(type)
           const rgb = rgbHex(c)
 
-          // Per-line staggered rise (ondajs uses a 'rise' entrance, distance 6).
+          // Per-line staggered rise — a confident settled lift on the house
+          // spring (`entryFadeRise` is SPRING_SMOOTH), one line per STAGGER beat.
           const motion = revealLines
             ? entryFadeRise({
                 frame,
                 fps,
                 delay: delay + staggerFrames(i, lineDelay),
                 durationInFrames: DURATION.base,
-                travelPx: 6,
+                travelPx: 10,
               })
             : { opacity: 1, y: 0 }
 
@@ -248,12 +261,14 @@ export function CodeDiff({
                 </>
               ) : null}
 
-              {/* Gutter symbol (+/−), dimmed slightly via alpha. */}
+              {/* Gutter symbol (+/−), dimmed slightly via alpha, weighted a touch
+                  heavier so the change reads at a glance against the code text. */}
               {gutter !== '' ? (
                 <Text
                   x={padLeft}
                   y={textY}
                   fontSize={fontSize}
+                  fontWeight={600}
                   color={`#${rgb}${GUTTER_ALPHA}`}
                   fontFamily={fontFamily}
                 >

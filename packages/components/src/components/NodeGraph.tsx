@@ -43,7 +43,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { HOUSE_EASE } from '../easing.js'
-import { SPRING_SMOOTH, STAGGER } from '../motion.js'
+import { DURATION, SPRING_SMOOTH, staggerFrames } from '../motion.js'
 import { useTheme } from '../theme.js'
 
 /** One orbiting satellite node in the constellation. */
@@ -174,15 +174,16 @@ export function NodeGraph({
   const anchorX = centerX * width
   const anchorY = centerY * height
 
-  // Hub entrance — a single calm scale-rise on the house spring.
+  // Hub entrance — a single calm scale-rise on the house spring, settled on the
+  // `slow` token (hero move).
   const hubP = spring({
     frame: Math.max(0, frame - delay),
     fps,
     config: SPRING_SMOOTH,
-    durationInFrames: 24,
+    durationInFrames: DURATION.slow,
   })
   const hubScale = interpolate(hubP, [0, 1], [0.7, 1])
-  const hubOpacity = interpolate(frame - delay, [0, 14], [0, 1], {
+  const hubOpacity = interpolate(frame - delay, [0, DURATION.base], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
     easing: HOUSE_EASE,
@@ -200,7 +201,7 @@ export function NodeGraph({
     // Connection-line pulse phase — seeded so siblings don't blink in unison.
     const pulsePhase = random(`${seed}-pulse-${i}`) * Math.PI * 2
 
-    const localDelay = delay + i * STAGGER
+    const localDelay = delay + staggerFrames(i)
     const t = frame - localDelay
 
     // Settled orbital position (elliptical: y squashed by `ellipse`).
@@ -208,17 +209,18 @@ export function NodeGraph({
     const orbitX = Math.cos(angle) * sat.radius
     const orbitY = Math.sin(angle) * sat.radius * ellipse
 
-    // Fly-in blends start → orbit on the house spring (no overshoot).
+    // Fly-in blends start → orbit on the house spring (no overshoot), settled on
+    // the `slower` token so each satellite decelerates calmly into its orbit.
     const p = spring({
       frame: Math.max(0, t),
       fps,
       config: SPRING_SMOOTH,
-      durationInFrames: 30,
+      durationInFrames: DURATION.slower,
     })
     const x = interpolate(p, [0, 1], [startX, orbitX])
     const y = interpolate(p, [0, 1], [startY, orbitY])
 
-    const opacity = interpolate(t, [0, 16], [0, 1], {
+    const opacity = interpolate(t, [0, DURATION.base], [0, 1], {
       extrapolateLeft: 'clamp',
       extrapolateRight: 'clamp',
       easing: HOUSE_EASE,
@@ -277,6 +279,20 @@ export function NodeGraph({
     }
   })
 
+  // The ONE earned accent among the satellites: the node whose connection is
+  // currently most lit reads as "active" this frame — it gets an accent rim and
+  // a faint accent glow while every other node stays on the restrained surface
+  // palette. Deterministic (a pure function of frame), so it's stable across
+  // renderers; -1 until at least one satellite has flown in.
+  let activeIndex = -1
+  let activeLit = 0.04
+  nodes.forEach((n, i) => {
+    if (n.opacity > 0.5 && n.lineLit > activeLit) {
+      activeLit = n.lineLit
+      activeIndex = i
+    }
+  })
+
   // Soft halo behind the hub, approximating ondajs's blur/box-shadow glow.
   const glowRadius = Math.min(width, height) * 0.35
   const glowColor = `${rgbHex(accent)}59` // ~0.22 alpha at center
@@ -307,7 +323,9 @@ export function NodeGraph({
 
         {/* Connection lines (behind the nodes), hub rim → each satellite's near
             (hub-facing) pill edge — so the line meets the pill cleanly instead
-            of running through it. Path/stroke is GPU-only; CPU skips it. */}
+            of running through it. Path/stroke is GPU-only; CPU skips it. Each
+            edge is drawn twice: a wide, low-opacity accent underlay that reads
+            as a soft glow, then the crisp stroke on top. */}
         {nodes.map(({ opacity, lineLit, edgeStartX, edgeStartY, edgeEndX, edgeEndY }, i) => {
           // Every edge shares one accent stroke at a consistent opacity/width —
           // the pulse only *adds* a brief brighten/thicken on top of that floor,
@@ -317,14 +335,16 @@ export function NodeGraph({
           const lineOpacity = opacity * interpolate(lineLit, [0, 1], [0.6, 0.9])
           const lineWidth = interpolate(lineLit, [0, 1], [1.6, 2.4])
           if (lineOpacity <= 0.001) return null
+          const d = `M${edgeStartX.toFixed(2)} ${edgeStartY.toFixed(2)} L${edgeEndX.toFixed(2)} ${edgeEndY.toFixed(2)}`
+          // Soft glow underlay: much wider, low-opacity accent that swells with
+          // the pulse — a halo around the live line without a CSS blur.
+          const glowOpacity = opacity * interpolate(lineLit, [0, 1], [0.1, 0.22])
+          const glowWidth = interpolate(lineLit, [0, 1], [5, 9])
           return (
-            <Path
-              key={`edge-${i}`}
-              d={`M${edgeStartX.toFixed(2)} ${edgeStartY.toFixed(2)} L${edgeEndX.toFixed(2)} ${edgeEndY.toFixed(2)}`}
-              stroke={accent}
-              strokeWidth={lineWidth}
-              opacity={lineOpacity}
-            />
+            <Group key={`edge-${i}`}>
+              <Path d={d} stroke={accent} strokeWidth={glowWidth} opacity={glowOpacity} />
+              <Path d={d} stroke={accent} strokeWidth={lineWidth} opacity={lineOpacity} />
+            </Group>
           )
         })}
 
@@ -332,9 +352,29 @@ export function NodeGraph({
             sized from an estimated label width (engine measurement can't be
             read back here). Positioned so the pill's center sits on (x, y). */}
         {nodes.map(({ sat, x, y, opacity, pillW, pillH, labelW }, i) => {
+          // The one active node (§ accent above) earns the accent rim + a faint
+          // accent halo behind its pill; the rest stay on the surface palette.
+          const isActive = i === activeIndex
+          const haloW = pillW + 36
+          const haloH = pillH + 36
           return (
             <Group key={`node-${i}`} x={x} y={y} opacity={opacity}>
-              {/* Center the pill on the orbit point. */}
+              {/* Faint accent halo behind the active node only. */}
+              {isActive ? (
+                <Ellipse
+                  x={-haloW / 2}
+                  y={-haloH / 2}
+                  width={haloW}
+                  height={haloH}
+                  opacity={interpolate(activeLit, [0, 1], [0.12, 0.3])}
+                  gradient={radialGradient([haloW / 2, haloH / 2], haloW / 2, [
+                    { offset: 0, color: `${rgbHex(accent)}66` },
+                    { offset: 1, color: transparent },
+                  ])}
+                />
+              ) : null}
+              {/* Center the pill on the orbit point. The active node takes the
+                  accent rim; every other node stays on the hairline border. */}
               <Rect
                 x={-pillW / 2}
                 y={-pillH / 2}
@@ -342,8 +382,8 @@ export function NodeGraph({
                 height={pillH}
                 cornerRadius={pillH / 2}
                 fill={surface}
-                stroke={borderColor}
-                strokeWidth={1}
+                stroke={isActive ? accent : borderColor}
+                strokeWidth={isActive ? 1.5 : 1}
               />
               <Text
                 x={-labelW / 2}
