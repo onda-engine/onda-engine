@@ -1,14 +1,5 @@
 import { Player } from '@onda/player'
-import {
-  AbsoluteFill,
-  Composition,
-  Ellipse,
-  Group,
-  Rect,
-  Text,
-  interpolate,
-  useCurrentFrame,
-} from '@onda/react'
+import { Composition, Ellipse, Group, Rect, Text, interpolate, useCurrentFrame } from '@onda/react'
 import velloWasmUrl from '@onda/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
 import cpuWasmUrl from '@onda/wasm/pkg/onda_wasm_bg.wasm?url'
 import {
@@ -24,12 +15,17 @@ import { CodeBlock } from './CodeBlock.js'
 
 // The render-to-texture EFFECTS showcase — blur / bloom / grade / goo are node
 // PROPS (not components), so they live here (the way transitions get their own
-// page) rather than in the component gallery. Each effect plays live, animated,
-// rendered by the real engine (Vello/WebGPU, CPU fallback). Mounted client-only
+// page) rather than in the component gallery. Each effect is shown as a BEFORE ↔
+// AFTER split: the SAME content is drawn twice, side by side — the left half
+// plain ("OFF"), the right half wrapped in the effect ("ON") — so a viewer reads
+// the exact transformation at a glance. The strength gently breathes for life,
+// but both halves always share the same underlying content (an honest compare).
+// Rendered by the real engine (Vello/WebGPU, CPU fallback). Mounted client-only
 // so wasm/WebGPU never touches SSR.
 
 const W = 960
 const H = 540
+const HALF = W / 2 // 480 — width of each comparison region
 
 const ACCENT = '#e85494'
 const INK = '#f4f3f7'
@@ -37,112 +33,227 @@ const INK = '#f4f3f7'
 const loop = (f: number, lo: number, hi: number): number =>
   interpolate(f, [0, 45, 90], [lo, hi, lo], { extrapolateRight: 'clamp' })
 
-/** blur — a focus pull: the title resolves soft → sharp and softens again. */
+// Shared split chrome: the centre divider + the "OFF" / "ON" corner labels. The
+// two content copies sit beneath it; this draws on top so the labels stay crisp.
+function SplitChrome(): ReactElement {
+  // A dark rounded backing chip keeps each label legible over any content
+  // (e.g. the bright grade gradient), without tinting the comparison itself.
+  const chip = (x: number): ReactElement =>
+    createElement(Rect, {
+      x,
+      y: 18,
+      width: 62,
+      height: 32,
+      cornerRadius: 7,
+      fill: '#06060a',
+      opacity: 0.66,
+    })
+  return createElement(
+    Group,
+    null,
+    createElement(Rect, { x: HALF - 1, y: 0, width: 2, height: H, fill: '#ffffff', opacity: 0.5 }),
+    chip(18),
+    chip(HALF + 18),
+    createElement(
+      Text,
+      { x: 28, y: 21, fontSize: 22, color: INK, fontWeight: 700, letterSpacing: 1, opacity: 0.85 },
+      'OFF',
+    ),
+    createElement(
+      Text,
+      { x: HALF + 28, y: 21, fontSize: 22, color: ACCENT, fontWeight: 700, letterSpacing: 1 },
+      'ON',
+    ),
+  )
+}
+
+// A split demo: the same `content(originX)` drawn at x=0 (plain) and x=HALF
+// (wrapped in `effectProps`), over a shared `bg`, with the divider + labels.
+function Split(
+  bg: ReactElement,
+  content: (originX: number) => ReactElement[],
+  effectProps: Record<string, unknown>,
+): ReactElement {
+  return createElement(
+    Group,
+    null,
+    bg,
+    createElement(Group, { x: 0, y: 0 }, ...content(0)),
+    createElement(Group, { x: HALF, y: 0, ...effectProps }, ...content(0)),
+    createElement(SplitChrome),
+  )
+}
+
+/** blur — depth-of-field: a sharp word over a busy field. ON = lens defocus. */
 function BlurDemo(): ReactElement {
   const f = useCurrentFrame()
-  const blur = interpolate(f, [0, 26, 64, 90], [16, 0, 0, 16], { extrapolateRight: 'clamp' })
-  return createElement(
-    Group,
-    null,
-    createElement(Rect, { width: W, height: H, fill: '#0a0d17' }),
-    createElement(
-      Group,
-      { blur },
-      createElement(
-        AbsoluteFill,
-        { justify: 'center', align: 'center' },
-        createElement(
-          Text,
-          { fontSize: 168, color: INK, fontWeight: 700, letterSpacing: -4 },
-          'ONDA',
-        ),
-      ),
+  const blur = loop(f, 4, 13)
+  // A busy background (scattered chips) so "ON" reads as a real defocus, plus a
+  // bold foreground word. Both halves get the identical scene; only ON is blurred.
+  const chips = [
+    { x: 40, y: 90, w: 70, h: 70, c: '#2d6cdf' },
+    { x: 150, y: 360, w: 90, h: 60, c: '#27b78d' },
+    { x: 300, y: 70, w: 80, h: 80, c: '#e8a04a' },
+    { x: 360, y: 410, w: 76, h: 76, c: '#8b5cf6' },
+    { x: 60, y: 250, w: 60, h: 100, c: '#e2566f' },
+    { x: 250, y: 230, w: 64, h: 64, c: '#4ec3e0' },
+  ]
+  const content = (_o: number): ReactElement[] => [
+    ...chips.map((c, i) =>
+      createElement(Rect, {
+        key: `chip${i}`,
+        x: c.x,
+        y: c.y,
+        width: c.w,
+        height: c.h,
+        cornerRadius: 12,
+        fill: c.c,
+        opacity: 0.85,
+      }),
     ),
-  )
+    createElement(Rect, {
+      key: 'bar',
+      x: 36,
+      y: 286,
+      width: 300,
+      height: 96,
+      cornerRadius: 14,
+      fill: '#11131c',
+      opacity: 0.82,
+    }),
+    createElement(
+      Text,
+      { key: 'word', x: 56, y: 296, fontSize: 76, color: INK, fontWeight: 700, letterSpacing: -2 },
+      'FOCUS',
+    ),
+  ]
+  return Split(createElement(Rect, { width: W, height: H, fill: '#0a0d17' }), content, { blur })
 }
 
-/** bloom — a bright accent blooms a soft halo that swells and recedes. */
+/** bloom — bright accents on near-black. ON glows a soft halo. */
 function BloomDemo(): ReactElement {
   const f = useCurrentFrame()
-  const sigma = loop(f, 2, 18)
-  return createElement(
-    Group,
-    null,
-    createElement(Rect, { width: W, height: H, fill: '#08080c' }),
+  const sigma = loop(f, 8, 18)
+  const content = (_o: number): ReactElement[] => [
+    createElement(Ellipse, {
+      key: 'orb',
+      x: HALF / 2 - 44,
+      y: 110,
+      width: 88,
+      height: 88,
+      fill: '#ffd5e6',
+    }),
+    createElement(Ellipse, {
+      key: 'core',
+      x: HALF / 2 - 26,
+      y: 128,
+      width: 52,
+      height: 52,
+      fill: ACCENT,
+    }),
     createElement(
-      Group,
-      { bloom: { sigma, threshold: 0.25, intensity: 1.7 } },
-      createElement(
-        AbsoluteFill,
-        { justify: 'center', align: 'center' },
-        createElement(
-          Text,
-          { fontSize: 168, color: ACCENT, fontWeight: 700, letterSpacing: -4 },
-          'ONDA',
-        ),
-      ),
+      Text,
+      {
+        key: 'word',
+        x: 64,
+        y: 280,
+        fontSize: 110,
+        color: ACCENT,
+        fontWeight: 700,
+        letterSpacing: -3,
+      },
+      'GLOW',
     ),
-  )
+    createElement(Rect, {
+      key: 'line',
+      x: 70,
+      y: 410,
+      width: 320,
+      height: 8,
+      cornerRadius: 4,
+      fill: '#ff7fb0',
+    }),
+  ]
+  return Split(createElement(Rect, { width: W, height: H, fill: '#070709' }), content, {
+    bloom: { sigma, threshold: 0.25, intensity: 1.7 },
+  })
 }
 
-/** grade — a per-pixel color grade swings the same content cool → warm → cool. */
+/** grade — raw "footage" → one cinematic look. ON warms + lifts contrast. */
 function GradeDemo(): ReactElement {
   const f = useCurrentFrame()
-  const temperature = loop(f, -0.3, 0.3)
-  return createElement(
-    Group,
-    null,
-    createElement(Rect, { width: W, height: H, fill: '#14141c' }),
-    createElement(
-      Group,
-      { grade: { temperature, contrast: 1.1, saturation: 0.96 } },
-      createElement(Rect, {
-        x: 150,
-        y: 150,
-        width: 280,
-        height: 240,
-        cornerRadius: 18,
-        fill: '#4a90d9',
-      }),
-      createElement(Rect, {
-        x: 530,
-        y: 150,
-        width: 280,
-        height: 240,
-        cornerRadius: 18,
-        fill: '#e8a04a',
-      }),
-    ),
-  )
+  const temperature = loop(f, 0.16, 0.32)
+  // Footage-like content: a sky→ground gradient plus a couple of colored cards,
+  // so OFF reads raw and ON reads graded (warmer, punchier, unified).
+  const content = (_o: number): ReactElement[] => [
+    createElement(Rect, {
+      key: 'sky',
+      x: 24,
+      y: 30,
+      width: HALF - 48,
+      height: H - 60,
+      cornerRadius: 16,
+      gradient: {
+        type: 'linear',
+        start: [0, 30],
+        end: [0, H - 30],
+        stops: [
+          { offset: 0, color: '#5b86c9' },
+          { offset: 0.55, color: '#b7c2cf' },
+          { offset: 1, color: '#3f4a52' },
+        ],
+      },
+    }),
+    createElement(Rect, {
+      key: 'cardA',
+      x: 60,
+      y: 300,
+      width: 150,
+      height: 170,
+      cornerRadius: 14,
+      fill: '#d96a4a',
+    }),
+    createElement(Rect, {
+      key: 'cardB',
+      x: 240,
+      y: 250,
+      width: 170,
+      height: 220,
+      cornerRadius: 14,
+      fill: '#4a8f7b',
+    }),
+    createElement(Ellipse, { key: 'sun', x: 290, y: 70, width: 84, height: 84, fill: '#f3e7c8' }),
+  ]
+  return Split(createElement(Rect, { width: W, height: H, fill: '#14141c' }), content, {
+    grade: { temperature, contrast: 1.12, saturation: 0.95 },
+  })
 }
 
-/** goo — two accent blobs drift together and fuse into one metaball, then part. */
+/** goo — two overlapping blobs. OFF = separate; ON = fused metaball. */
 function GooDemo(): ReactElement {
   const f = useCurrentFrame()
-  const gap = loop(f, 90, -20)
-  return createElement(
-    Group,
-    null,
-    createElement(Rect, { width: W, height: H, fill: '#0a0d17' }),
-    createElement(
-      Group,
-      { goo: { sigma: 13, threshold: 0.5 } },
-      createElement(Ellipse, {
-        x: W / 2 - 170 - gap,
-        y: H / 2 - 90,
-        width: 180,
-        height: 180,
-        fill: ACCENT,
-      }),
-      createElement(Ellipse, {
-        x: W / 2 - 10 + gap,
-        y: H / 2 - 75,
-        width: 150,
-        height: 150,
-        fill: ACCENT,
-      }),
-    ),
-  )
+  const sigma = loop(f, 11, 15)
+  const content = (_o: number): ReactElement[] => [
+    createElement(Ellipse, {
+      key: 'a',
+      x: HALF / 2 - 130,
+      y: H / 2 - 95,
+      width: 170,
+      height: 170,
+      fill: ACCENT,
+    }),
+    createElement(Ellipse, {
+      key: 'b',
+      x: HALF / 2 - 5,
+      y: H / 2 - 80,
+      width: 140,
+      height: 140,
+      fill: ACCENT,
+    }),
+  ]
+  return Split(createElement(Rect, { width: W, height: H, fill: '#0a0d17' }), content, {
+    goo: { sigma, threshold: 0.5 },
+  })
 }
 
 interface EffectDef {
@@ -157,31 +268,33 @@ const EFFECTS: EffectDef[] = [
     name: 'blur',
     Demo: BlurDemo,
     blurb:
-      'A real gaussian blur on any node — depth of field, soft reveals, focus pulls. The subtree is rendered to a texture, blurred, and composited back; deterministic on the CPU reference and identical on the GPU.',
-    snippet: ['<Group blur={8}>', '  <Title />', '</Group>'].join('\n'),
+      'Left, the raw scene. Right, the same nodes under a real gaussian blur — depth of field, soft reveals, focus pulls. The subtree is rendered to a texture, blurred, and composited back; deterministic on the CPU reference and identical on the GPU.',
+    snippet: ['<Group blur={9}>', '  <Scene />', '</Group>'].join('\n'),
   },
   {
     name: 'bloom',
     Demo: BloomDemo,
     blurb:
-      'Bright pixels bloom a soft halo — the single biggest “premium” tell. Bright-pass → large-σ blur → additive composite over the sharp subtree.',
-    snippet: ['<Group bloom={{ sigma: 12 }}>', '  <Accent />', '</Group>'].join('\n'),
+      'Same accents, left and right — but on the right the bright pixels bloom a soft halo, the single biggest “premium” tell. Bright-pass → large-σ blur → additive composite over the sharp subtree.',
+    snippet: ['<Group bloom={{ sigma: 14 }}>', '  <Accent />', '</Group>'].join('\n'),
   },
   {
     name: 'grade',
     Demo: GradeDemo,
     blurb:
-      'A per-pixel color grade — exposure, contrast, saturation, temperature, tint. Unifies mixed (AI-generated) media into one cinematographer’s look. See FilmGrade for named presets.',
-    snippet: ['<Group grade={{ temperature: 0.2, contrast: 1.1 }}>', '  <Footage />', '</Group>'].join(
-      '\n',
-    ),
+      'Left is raw footage; right is graded — a per-pixel color grade (exposure, contrast, saturation, temperature, tint) that unifies mixed, AI-generated media into one cinematographer’s look. See FilmGrade for named presets.',
+    snippet: [
+      '<Group grade={{ temperature: 0.28, contrast: 1.12, saturation: 0.95 }}>',
+      '  <Footage />',
+      '</Group>',
+    ].join('\n'),
   },
   {
     name: 'goo',
     Demo: GooDemo,
     blurb:
-      'Gooey / metaball morph — overlapping shapes fuse into liquid forms with smooth necks. Blur → alpha-threshold, the same texture seam as bloom.',
-    snippet: ['<Group goo={{ sigma: 12 }}>', '  <BlobA />', '  <BlobB />', '</Group>'].join('\n'),
+      'Two blobs — separate on the left, fused on the right. The gooey / metaball morph melts overlapping shapes into liquid forms with smooth necks. Blur → alpha-threshold, the same texture seam as bloom.',
+    snippet: ['<Group goo={{ sigma: 13 }}>', '  <BlobA />', '  <BlobB />', '</Group>'].join('\n'),
   },
 ]
 
