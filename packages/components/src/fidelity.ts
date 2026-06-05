@@ -124,6 +124,7 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
   },
   FadeIn: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   FadeOut: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
+  FilmGrade: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   GradientShift: {
     fidelity: 'first_class',
     engineNative: true,
@@ -325,7 +326,7 @@ export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
 }
 
 export const FIDELITY_SUMMARY = {
-  firstClass: 71,
+  firstClass: 72,
   degraded: 0,
   apesRemotion: 0,
 } as const
@@ -356,6 +357,7 @@ export const RECOMMENDED_PALETTE: readonly string[] = [
   'EndCard',
   'FadeIn',
   'FadeOut',
+  'FilmGrade',
   'GradientShift',
   'GrainOverlay',
   'Highlight',

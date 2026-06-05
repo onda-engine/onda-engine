@@ -35,6 +35,7 @@ import { dynamicGridSchema } from './components/DynamicGrid.schema.js'
 import { endCardSchema } from './components/EndCard.schema.js'
 import { fadeInSchema } from './components/FadeIn.schema.js'
 import { fadeOutSchema } from './components/FadeOut.schema.js'
+import { filmGradeSchema } from './components/FilmGrade.schema.js'
 import { gradientShiftSchema } from './components/GradientShift.schema.js'
 import { grainOverlaySchema } from './components/GrainOverlay.schema.js'
 import { highlightSchema } from './components/Highlight.schema.js'
@@ -3150,6 +3151,88 @@ const RAW: RawEntry[] = [
       },
     ],
     schema: fadeOutSchema,
+  },
+  {
+    slug: 'film-grade',
+    name: 'FilmGrade',
+    category: 'Effects',
+    title: 'Film Grade',
+    description:
+      'A one-prop cinematic color look over the engine’s per-node grade effect — wrap a whole composition in a single named film look (warm, cool, noir, teal-orange, vibrant, film, faded) to unify mismatched, especially AI-generated, media into one graded film.',
+    pickWhen:
+      'Reach for this to give an entire scene a consistent cinematic grade — most valuable over mixed AI-generated clips whose white balance and saturation clash, so they read as one film. Wrap the composition (or a subtree) in it and pick a `look`; dial `intensity` down for subtlety or set explicit exposure/contrast/saturation/temperature/tint overrides to fine-tune.',
+    composes: ['Vignette', 'GrainOverlay'],
+    sceneRole: 'overlay',
+    occlusion: 'full_frame',
+    example: { look: 'teal-orange', intensity: 0.85 },
+    props: [
+      {
+        name: 'look',
+        type: 'enum',
+        role: 'enum',
+        themeable: false,
+        required: false,
+        enumValues: ['warm', 'cool', 'noir', 'teal-orange', 'vibrant', 'film', 'faded'],
+        default: "'film'",
+        description:
+          'The named cinematic look applied to the whole subtree: warm, cool, noir (b&w), teal-orange (blockbuster split-tone), vibrant, film (subtle default), or faded (matte/washed).',
+      },
+      {
+        name: 'intensity',
+        type: 'number',
+        role: 'fraction',
+        themeable: false,
+        required: false,
+        default: '1',
+        description:
+          'Strength of the look, 0..1. Lerps every grade param from neutral toward the look: 0 = no grade (pass-through), 1 = the full look.',
+      },
+      {
+        name: 'exposure',
+        type: 'number',
+        role: 'number',
+        themeable: false,
+        required: false,
+        description:
+          'Explicit linear-exposure override (2^exposure; 0 = identity), applied on top of the look.',
+      },
+      {
+        name: 'contrast',
+        type: 'number',
+        role: 'number',
+        themeable: false,
+        required: false,
+        description: 'Explicit contrast override (1 = identity), applied on top of the look.',
+      },
+      {
+        name: 'saturation',
+        type: 'number',
+        role: 'number',
+        themeable: false,
+        required: false,
+        description:
+          'Explicit saturation override (1 = identity, 0 = grayscale), applied on top of the look.',
+      },
+      {
+        name: 'temperature',
+        type: 'number',
+        role: 'number',
+        themeable: false,
+        required: false,
+        description:
+          'Explicit warm/cool override (R up / B down for positive; 0 = neutral), applied on top.',
+      },
+      {
+        name: 'tint',
+        type: 'number',
+        role: 'number',
+        themeable: false,
+        required: false,
+        description:
+          'Explicit green/magenta override (positive = green; 0 = neutral), applied on top.',
+      },
+    ],
+    schema: filmGradeSchema,
   },
   {
     slug: 'gradient-shift',
