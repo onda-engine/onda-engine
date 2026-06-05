@@ -330,6 +330,32 @@ describe('renderToScene', () => {
     ])
   })
 
+  it('emits a bloom effect from the `bloom` sugar prop (number = sigma, with defaults)', () => {
+    const scene = renderToScene(
+      <Composition width={50} height={50} fps={1} durationInFrames={1}>
+        <Group bloom={10}>
+          <Text>glow</Text>
+        </Group>
+      </Composition>,
+    )
+    expect(scene.root.children?.[0]?.effects).toEqual([
+      { effect: 'bloom', threshold: 0.7, intensity: 1, sigma: 10 },
+    ])
+  })
+
+  it('honors the `bloom` object form (threshold/intensity overrides)', () => {
+    const scene = renderToScene(
+      <Composition width={50} height={50} fps={1} durationInFrames={1}>
+        <Group bloom={{ sigma: 12, threshold: 0.4, intensity: 1.8 }}>
+          <Text>neon</Text>
+        </Group>
+      </Composition>,
+    )
+    expect(scene.root.children?.[0]?.effects).toEqual([
+      { effect: 'bloom', threshold: 0.4, intensity: 1.8, sigma: 12 },
+    ])
+  })
+
   it('requires a single Composition root', () => {
     expect(() => renderToScene(<Group />)).toThrow(/Composition/)
   })

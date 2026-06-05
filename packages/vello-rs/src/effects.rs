@@ -291,6 +291,374 @@ impl GaussianBlur {
     }
 }
 
+/// Compute shader: the bloom **bright-pass**. Reads the sharp subtree texture and
+/// writes a texture holding only its highlights — pixels whose Rec. 709 luminance
+/// is at/above `threshold` keep their (intensity-scaled, clamped) color at full
+/// alpha; everything else is transparent. The result is then blurred (the reused
+/// Gaussian compute) and added back over the sharp pixels by [`BLOOM_COMPOSITE_WGSL`].
+const BLOOM_BRIGHT_WGSL: &str = r#"
+struct Params {
+    threshold: f32,
+    intensity: f32,
+    width: u32,
+    height: u32,
+};
+
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var<uniform> params: Params;
+
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let x = gid.x;
+    let y = gid.y;
+    if (x >= params.width || y >= params.height) {
+        return;
+    }
+    let texel = textureLoad(src, vec2<i32>(i32(x), i32(y)), 0);
+    // Luminance on straight-alpha RGB (Rec. 709). Transparent pixels emit no light.
+    let luma = dot(texel.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
+    var out = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    if (texel.a > 0.0 && luma >= params.threshold) {
+        // Keep the scaled color at full alpha so the blur spreads a solid highlight.
+        out = vec4<f32>(clamp(texel.rgb * params.intensity, vec3<f32>(0.0), vec3<f32>(1.0)), 1.0);
+    }
+    textureStore(dst, vec2<i32>(i32(x), i32(y)), out);
+}
+"#;
+
+/// Compute shader: the bloom **additive composite**. Adds the blurred halo
+/// (`bloom`, weighted by its alpha) onto the sharp subtree (`sharp`), clamping each
+/// channel — so a bright accent glows as *light* rather than a flat overlay.
+const BLOOM_COMPOSITE_WGSL: &str = r#"
+struct Dims {
+    width: u32,
+    height: u32,
+    _pad0: u32,
+    _pad1: u32,
+};
+
+@group(0) @binding(0) var sharp: texture_2d<f32>;
+@group(0) @binding(1) var bloom: texture_2d<f32>;
+@group(0) @binding(2) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(3) var<uniform> dims: Dims;
+
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let x = gid.x;
+    let y = gid.y;
+    if (x >= dims.width || y >= dims.height) {
+        return;
+    }
+    let p = vec2<i32>(i32(x), i32(y));
+    let s = textureLoad(sharp, p, 0);
+    let b = textureLoad(bloom, p, 0);
+    // Additive: the halo color, pre-weighted by its coverage, added to the sharp
+    // pixel and clamped. Alpha grows toward opaque where light lands.
+    let add = b.rgb * b.a;
+    let rgb = clamp(s.rgb + add, vec3<f32>(0.0), vec3<f32>(1.0));
+    let a = clamp(s.a + b.a, 0.0, 1.0);
+    textureStore(dst, p, vec4<f32>(rgb, a));
+}
+"#;
+
+/// Lazily-built bloom pipelines: a bright-pass + an additive composite, both reusing
+/// the cached [`GaussianBlur`] for the spread in between. Cached on the renderer.
+pub struct Bloom {
+    bright_pipeline: wgpu::ComputePipeline,
+    bright_layout: wgpu::BindGroupLayout,
+    composite_pipeline: wgpu::ComputePipeline,
+    composite_layout: wgpu::BindGroupLayout,
+}
+
+/// Byte size of the bloom bright-pass params (f32, f32, u32, u32).
+const BLOOM_BRIGHT_PARAMS_SIZE: u64 = 16;
+/// Byte size of the composite dims uniform (4 × u32, padded to 16 for std140).
+const BLOOM_DIMS_SIZE: u64 = 16;
+
+impl Bloom {
+    /// Build both compute pipelines + their bind-group layouts. Cache on the
+    /// renderer (call once); the per-call textures/buffers are allocated in `run`.
+    pub fn new(device: &wgpu::Device) -> Self {
+        // Bright-pass: src (sampled) → dst (storage) + params uniform.
+        let bright_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("onda-bloom-bright-wgsl"),
+            source: wgpu::ShaderSource::Wgsl(BLOOM_BRIGHT_WGSL.into()),
+        });
+        let bright_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("onda-bloom-bright-bgl"),
+            entries: &[
+                sampled_texture_entry(0),
+                storage_texture_entry(1),
+                uniform_entry(2),
+            ],
+        });
+        let bright_pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("onda-bloom-bright-pl"),
+            bind_group_layouts: &[&bright_layout],
+            push_constant_ranges: &[],
+        });
+        let bright_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("onda-bloom-bright-pipeline"),
+            layout: Some(&bright_pl),
+            module: &bright_module,
+            entry_point: "main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+
+        // Composite: sharp (sampled) + bloom (sampled) → dst (storage) + dims uniform.
+        let composite_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("onda-bloom-composite-wgsl"),
+            source: wgpu::ShaderSource::Wgsl(BLOOM_COMPOSITE_WGSL.into()),
+        });
+        let composite_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("onda-bloom-composite-bgl"),
+            entries: &[
+                sampled_texture_entry(0),
+                sampled_texture_entry(1),
+                storage_texture_entry(2),
+                uniform_entry(3),
+            ],
+        });
+        let composite_pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("onda-bloom-composite-pl"),
+            bind_group_layouts: &[&composite_layout],
+            push_constant_ranges: &[],
+        });
+        let composite_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("onda-bloom-composite-pipeline"),
+            layout: Some(&composite_pl),
+            module: &composite_module,
+            entry_point: "main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+
+        Bloom {
+            bright_pipeline,
+            bright_layout,
+            composite_pipeline,
+            composite_layout,
+        }
+    }
+
+    /// Bloom `source` (the sharp subtree texture): bright-pass → Gaussian blur (via
+    /// the shared `blur` pipeline) → additive composite over the sharp pixels.
+    /// Returns a new `Rgba8Unorm` texture (`COPY_SRC`, ready for readback). A
+    /// non-positive `sigma`/`intensity` yields the sharp source unchanged.
+    ///
+    /// Like the blur, this runs as its own command encoder(s) + submit — it never
+    /// injects into Vello's pass; ping-pong storage textures, never `read_write`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn run(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        blur: &GaussianBlur,
+        source: &wgpu::Texture,
+        width: u32,
+        height: u32,
+        threshold: f32,
+        intensity: f32,
+        sigma: f32,
+    ) -> wgpu::Texture {
+        let gx = width.div_ceil(8);
+        let gy = height.div_ceil(8);
+        let make_texture = |label: &str| {
+            device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::STORAGE_BINDING
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_SRC,
+                view_formats: &[],
+            })
+        };
+
+        // 1) Bright-pass: source → bright (highlights only).
+        let bright = make_texture("onda-bloom-bright");
+        let src_view = source.create_view(&wgpu::TextureViewDescriptor::default());
+        let bright_view = bright.create_view(&wgpu::TextureViewDescriptor::default());
+        let bright_params =
+            make_bloom_bright_params(device, queue, threshold, intensity, width, height);
+        let bright_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("onda-bloom-bright-bg"),
+            layout: &self.bright_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&src_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&bright_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: bright_params.as_entire_binding(),
+                },
+            ],
+        });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("onda-bloom-bright-encoder"),
+        });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("onda-bloom-bright"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.bright_pipeline);
+            pass.set_bind_group(0, &bright_bg, &[]);
+            pass.dispatch_workgroups(gx, gy, 1);
+        }
+        queue.submit(Some(encoder.finish()));
+
+        // 2) Blur the highlights into a soft halo (reuse the Gaussian compute).
+        let halo = blur.run(device, queue, &bright, width, height, sigma);
+
+        // 3) Additive composite: sharp source + halo → output.
+        let out = make_texture("onda-bloom-out");
+        let halo_view = halo.create_view(&wgpu::TextureViewDescriptor::default());
+        let out_view = out.create_view(&wgpu::TextureViewDescriptor::default());
+        let dims = make_bloom_dims(device, queue, width, height);
+        let composite_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("onda-bloom-composite-bg"),
+            layout: &self.composite_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&src_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&halo_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(&out_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: dims.as_entire_binding(),
+                },
+            ],
+        });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("onda-bloom-composite-encoder"),
+        });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("onda-bloom-composite"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.composite_pipeline);
+            pass.set_bind_group(0, &composite_bg, &[]);
+            pass.dispatch_workgroups(gx, gy, 1);
+        }
+        queue.submit(Some(encoder.finish()));
+
+        out
+    }
+}
+
+/// A sampled (read-only) `texture_2d<f32>` bind-group-layout entry at `binding`.
+fn sampled_texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
+    wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::COMPUTE,
+        ty: wgpu::BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Float { filterable: false },
+            view_dimension: wgpu::TextureViewDimension::D2,
+            multisampled: false,
+        },
+        count: None,
+    }
+}
+
+/// A write-only `Rgba8Unorm` storage-texture bind-group-layout entry (never
+/// `read_write`, for Dawn portability) at `binding`.
+fn storage_texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
+    wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::COMPUTE,
+        ty: wgpu::BindingType::StorageTexture {
+            access: wgpu::StorageTextureAccess::WriteOnly,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            view_dimension: wgpu::TextureViewDimension::D2,
+        },
+        count: None,
+    }
+}
+
+/// A uniform-buffer bind-group-layout entry at `binding`.
+fn uniform_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
+    wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::COMPUTE,
+        ty: wgpu::BindingType::Buffer {
+            ty: wgpu::BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: None,
+        },
+        count: None,
+    }
+}
+
+/// The bright-pass params uniform (threshold f32, intensity f32, width u32, height u32).
+fn make_bloom_bright_params(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    threshold: f32,
+    intensity: f32,
+    width: u32,
+    height: u32,
+) -> wgpu::Buffer {
+    let mut bytes = Vec::with_capacity(BLOOM_BRIGHT_PARAMS_SIZE as usize);
+    bytes.extend_from_slice(&threshold.to_le_bytes());
+    bytes.extend_from_slice(&intensity.to_le_bytes());
+    bytes.extend_from_slice(&width.to_le_bytes());
+    bytes.extend_from_slice(&height.to_le_bytes());
+    let buf = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("onda-bloom-bright-params"),
+        size: BLOOM_BRIGHT_PARAMS_SIZE,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+    queue.write_buffer(&buf, 0, &bytes);
+    buf
+}
+
+/// The composite dims uniform (width u32, height u32, + std140 padding to 16 bytes).
+fn make_bloom_dims(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    width: u32,
+    height: u32,
+) -> wgpu::Buffer {
+    let mut bytes = Vec::with_capacity(BLOOM_DIMS_SIZE as usize);
+    bytes.extend_from_slice(&width.to_le_bytes());
+    bytes.extend_from_slice(&height.to_le_bytes());
+    bytes.extend_from_slice(&0u32.to_le_bytes());
+    bytes.extend_from_slice(&0u32.to_le_bytes());
+    let buf = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("onda-bloom-dims"),
+        size: BLOOM_DIMS_SIZE,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+    queue.write_buffer(&buf, 0, &bytes);
+    buf
+}
+
 /// A `Params` uniform buffer (radius, direction, width, height), written via the
 /// queue.
 fn make_params(
