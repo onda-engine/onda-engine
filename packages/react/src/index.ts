@@ -12,6 +12,7 @@ export {
   type GradientInput,
   type GradientStopInput,
   type Point,
+  fbmGradient,
   linearGradient,
   parseGradient,
   radialGradient,

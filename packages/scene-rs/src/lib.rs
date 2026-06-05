@@ -1008,6 +1008,31 @@ pub enum Gradient {
         radius: f32,
         stops: Vec<GradientStop>,
     },
+    /// A procedural FRACTAL-NOISE gradient — fBm (fractal Brownian motion) over
+    /// Simplex noise: the "wispy, expensive" animated gradient (Stripe/Linear
+    /// tier), NOT smooth blobs. Several octaves of noise (each higher-frequency,
+    /// lower-amplitude) give detailed flowing structure; the field value `0..1`
+    /// samples the `stops` color ramp. `scale` is the base spatial frequency
+    /// (cycles across the shape), `time` advances the flow (animate per frame for
+    /// a living gradient), `warp` domain-warps the field for richer organic
+    /// structure. Rendered by Vello via a GPU compute pass; the CPU reference and
+    /// the WebGPU PREVIEW degrade to the first stop's color — author it for native
+    /// export (the premium-hero path).
+    Fbm {
+        stops: Vec<GradientStop>,
+        #[serde(default = "Gradient::default_fbm_scale")]
+        scale: f32,
+        #[serde(default)]
+        time: f32,
+        #[serde(default)]
+        warp: f32,
+    },
+}
+
+impl Gradient {
+    fn default_fbm_scale() -> f32 {
+        2.0
+    }
 }
 
 /// The geometric form of a [`Shape`]. Booleans and morphing arrive later (which
@@ -1330,6 +1355,42 @@ mod tests {
         assert!(json.contains(r#""gradient":"linear""#));
         let back: Scene = serde_json::from_str(&json).unwrap();
         assert_eq!(scene, back);
+    }
+
+    #[test]
+    fn fbm_gradient_round_trips_and_defaults() {
+        let scene = Scene::new(hd()).with_root(Node::group().with_child(Node::shape(
+            Shape::rect(Size::new(1280.0, 720.0)).with_gradient(Gradient::Fbm {
+                stops: vec![
+                    GradientStop::new(0.0, Color::rgb(0.04, 0.04, 0.10)),
+                    GradientStop::new(1.0, Color::rgb(1.0, 0.69, 0.48)),
+                ],
+                scale: 1.0,
+                time: 4.0,
+                warp: 0.5,
+            }),
+        )));
+        let json = serde_json::to_string(&scene).unwrap();
+        assert!(json.contains(r#""gradient":"fbm""#));
+        let back: Scene = serde_json::from_str(&json).unwrap();
+        assert_eq!(scene, back);
+
+        // Minimal fBm JSON: only stops → scale defaults to 2.0, time/warp to 0.
+        let json = r#"{ "composition": { "width": 1280, "height": 720, "fps": 30.0, "duration_in_frames": 1 },
+            "root": { "kind": { "type": "shape",
+                "geometry": { "shape": "rect", "size": { "width": 8, "height": 8 } },
+                "gradient": { "gradient": "fbm", "stops": [
+                    { "offset": 0.0, "color": { "r": 0.0, "g": 0.0, "b": 0.0, "a": 1.0 } } ] } } } }"#;
+        let scene: Scene = serde_json::from_str(json).unwrap();
+        match &scene.root.kind {
+            NodeKind::Shape(s) => match s.gradient.as_ref().unwrap() {
+                Gradient::Fbm {
+                    scale, time, warp, ..
+                } => assert_eq!((*scale, *time, *warp), (2.0, 0.0, 0.0)),
+                _ => panic!("expected fbm"),
+            },
+            _ => panic!("expected shape"),
+        }
     }
 
     #[test]

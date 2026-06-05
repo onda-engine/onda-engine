@@ -1561,6 +1561,12 @@ fn gradient_shader(gradient: &Gradient) -> Option<tsk::Shader<'static>> {
             tsk::SpreadMode::Pad,
             tsk::Transform::identity(),
         ),
+        // fBm fractal-noise gradient: the CPU reference degrades to the first
+        // stop's color (the field is a Vello GPU-compute pass — see the
+        // `Gradient::Fbm` doc). A flat solid fill of stop 0.
+        Gradient::Fbm { stops, .. } => Some(tsk::Shader::SolidColor(skia_color(
+            stops.first().map_or(Color::BLACK, |s| s.color),
+        ))),
     }
 }
 

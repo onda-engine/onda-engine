@@ -1099,6 +1099,257 @@ impl Goo {
     }
 }
 
+/// Compute shader: a **fractal-noise gradient** (fBm — fractal Brownian motion —
+/// over 2D Simplex noise), the "wispy, expensive" animated gradient (Stripe/Linear
+/// tier). Five octaves of Simplex noise (each higher-frequency, half-amplitude) are
+/// summed for detail, then DOMAIN-WARPED (the field samples itself, twice — the
+/// Iñigo-Quílez warp) for organic, flowing structure. `time` evolves the warp so the
+/// field drifts like ink in water; the final value `0..1` samples the color ramp.
+/// Pure generator — no input texture; writes straight to the storage target.
+/// Simplex noise is the Ashima/McEwan/Gustavson `snoise` (the canonical GLSL port).
+const FBM_GRADIENT_WGSL: &str = r#"
+struct Stop {
+    color: vec4<f32>,
+    offset: f32,
+    _p0: f32, _p1: f32, _p2: f32,
+};
+struct Params {
+    width: u32,
+    height: u32,
+    stop_count: u32,
+    _pad0: u32,
+    scale: f32,
+    time: f32,
+    warp: f32,
+    _pad1: f32,
+    stops: array<Stop, 8>,
+};
+
+@group(0) @binding(0) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(1) var<uniform> params: Params;
+
+fn mod289_2(x: vec2<f32>) -> vec2<f32> { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+fn mod289_3(x: vec3<f32>) -> vec3<f32> { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+fn permute3(x: vec3<f32>) -> vec3<f32> { return mod289_3(((x * 34.0) + 1.0) * x); }
+
+// 2D Simplex noise, range ~[-1, 1].
+fn snoise(v: vec2<f32>) -> f32 {
+    let C = vec4<f32>(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+    var i = floor(v + dot(v, C.yy));
+    let x0 = v - i + dot(i, C.xx);
+    var i1 = vec2<f32>(0.0, 1.0);
+    if (x0.x > x0.y) { i1 = vec2<f32>(1.0, 0.0); }
+    var x12 = x0.xyxy + C.xxzz;
+    x12 = vec4<f32>(x12.xy - i1, x12.zw);
+    i = mod289_2(i);
+    let p = permute3(permute3(i.y + vec3<f32>(0.0, i1.y, 1.0)) + i.x + vec3<f32>(0.0, i1.x, 1.0));
+    var m = max(0.5 - vec3<f32>(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), vec3<f32>(0.0));
+    m = m * m;
+    m = m * m;
+    let x = 2.0 * fract(p * C.www) - 1.0;
+    let h = abs(x) - 0.5;
+    let ox = floor(x + 0.5);
+    let a0 = x - ox;
+    m = m * (1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h));
+    var g: vec3<f32>;
+    g.x = a0.x * x0.x + h.x * x0.y;
+    let gyz = a0.yz * x12.xz + h.yz * x12.yw;
+    g.y = gyz.x;
+    g.z = gyz.y;
+    return 130.0 * dot(m, g);
+}
+
+// Five octaves of Simplex noise: detail without the smooth-blob look.
+fn fbm(p_in: vec2<f32>) -> f32 {
+    var p = p_in;
+    var sum = 0.0;
+    var amp = 0.5;
+    for (var i = 0; i < 5; i = i + 1) {
+        sum = sum + amp * snoise(p);
+        p = p * 2.0;
+        amp = amp * 0.5;
+    }
+    return sum;
+}
+
+// Sample the color ramp at t (0..1): piecewise-linear over the sorted stops.
+fn ramp(t: f32) -> vec3<f32> {
+    let n = params.stop_count;
+    if (n == 0u) { return vec3<f32>(0.0); }
+    if (t <= params.stops[0].offset) { return params.stops[0].color.rgb; }
+    for (var i = 1u; i < n; i = i + 1u) {
+        if (t <= params.stops[i].offset) {
+            let a = params.stops[i - 1u];
+            let b = params.stops[i];
+            let span = max(b.offset - a.offset, 1e-5);
+            let k = clamp((t - a.offset) / span, 0.0, 1.0);
+            return mix(a.color.rgb, b.color.rgb, k);
+        }
+    }
+    return params.stops[n - 1u].color.rgb;
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let x = gid.x;
+    let y = gid.y;
+    if (x >= params.width || y >= params.height) {
+        return;
+    }
+    // Aspect-correct coords (divide both axes by height) so the noise cells are
+    // square regardless of canvas ratio. `scale` = noise cells across the height.
+    let uv = vec2<f32>(f32(x), f32(y)) / f32(params.height);
+    var p = uv * params.scale;
+    let t = params.time;
+
+    // Domain warp: the field samples itself twice (q then r), each layer adding
+    // swirl; `time` slides the warp octaves so the structure FLOWS rather than
+    // scrolls. `warp` scales how violently the field folds (0 = plain fBm).
+    let q = vec2<f32>(
+        fbm(p + vec2<f32>(0.0, 0.0) + 0.10 * t),
+        fbm(p + vec2<f32>(5.2, 1.3) - 0.08 * t),
+    );
+    let r = vec2<f32>(
+        fbm(p + params.warp * q + vec2<f32>(1.7, 9.2) + 0.12 * t),
+        fbm(p + params.warp * q + vec2<f32>(8.3, 2.8) + 0.10 * t),
+    );
+    var f = fbm(p + params.warp * r);
+    f = clamp(f * 0.5 + 0.5, 0.0, 1.0);
+
+    let rgb = ramp(f);
+    textureStore(dst, vec2<i32>(i32(x), i32(y)), vec4<f32>(rgb, 1.0));
+}
+"#;
+
+/// Lazily-built fBm-gradient compute pipeline (a pure generator — no input texture,
+/// one storage out + a params uniform carrying the color ramp). Cached on the
+/// renderer; the per-call texture/uniform are allocated in [`FbmGradient::run`].
+pub struct FbmGradient {
+    pipeline: wgpu::ComputePipeline,
+    layout: wgpu::BindGroupLayout,
+}
+
+/// Byte size of the fBm params uniform: 32-byte header + 8 stops × 32 bytes.
+const FBM_PARAMS_SIZE: u64 = 32 + 8 * 32;
+/// Max color stops the ramp uniform carries (must match the WGSL `array<Stop, 8>`).
+const FBM_MAX_STOPS: usize = 8;
+
+impl FbmGradient {
+    /// Build the compute pipeline + bind-group layout (one storage out, one
+    /// uniform). Cache on the renderer.
+    pub fn new(device: &wgpu::Device) -> Self {
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("onda-fbm-gradient-wgsl"),
+            source: wgpu::ShaderSource::Wgsl(FBM_GRADIENT_WGSL.into()),
+        });
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("onda-fbm-gradient-bgl"),
+            entries: &[storage_texture_entry(0), uniform_entry(1)],
+        });
+        let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("onda-fbm-gradient-pl"),
+            bind_group_layouts: &[&layout],
+            push_constant_ranges: &[],
+        });
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("onda-fbm-gradient-pipeline"),
+            layout: Some(&pl),
+            module: &module,
+            entry_point: "main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+        FbmGradient { pipeline, layout }
+    }
+
+    /// Generate the fBm gradient into a fresh `Rgba8Unorm` texture (`COPY_SRC`,
+    /// ready for readback). `stops` is the color ramp as `(rgba 0..1, offset)`
+    /// pairs, sorted by offset (up to [`FBM_MAX_STOPS`]; extras are ignored).
+    #[allow(clippy::too_many_arguments)]
+    pub fn run(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        width: u32,
+        height: u32,
+        scale: f32,
+        time: f32,
+        warp: f32,
+        stops: &[([f32; 4], f32)],
+    ) -> wgpu::Texture {
+        let out = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("onda-fbm-gradient-out"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let out_view = out.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let count = stops.len().min(FBM_MAX_STOPS);
+        let mut bytes = Vec::with_capacity(FBM_PARAMS_SIZE as usize);
+        bytes.extend_from_slice(&width.to_le_bytes());
+        bytes.extend_from_slice(&height.to_le_bytes());
+        bytes.extend_from_slice(&(count as u32).to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        bytes.extend_from_slice(&scale.to_le_bytes());
+        bytes.extend_from_slice(&time.to_le_bytes());
+        bytes.extend_from_slice(&warp.to_le_bytes());
+        bytes.extend_from_slice(&0f32.to_le_bytes());
+        for i in 0..FBM_MAX_STOPS {
+            let ([r, g, b, a], off) = stops.get(i).copied().unwrap_or(([0.0; 4], 0.0));
+            for c in [r, g, b, a, off, 0.0, 0.0, 0.0] {
+                bytes.extend_from_slice(&c.to_le_bytes());
+            }
+        }
+        let params = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("onda-fbm-gradient-params"),
+            size: FBM_PARAMS_SIZE,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(&params, 0, &bytes);
+
+        let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("onda-fbm-gradient-bg"),
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&out_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: params.as_entire_binding(),
+                },
+            ],
+        });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("onda-fbm-gradient-encoder"),
+        });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("onda-fbm-gradient"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &bg, &[]);
+            pass.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
+        }
+        queue.submit(Some(encoder.finish()));
+        out
+    }
+}
+
 /// A sampled (read-only) `texture_2d<f32>` bind-group-layout entry at `binding`.
 fn sampled_texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {
