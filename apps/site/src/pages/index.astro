@@ -3,8 +3,10 @@
 // doc); the docs live under /guide, /api, etc. CTAs link into the docs. Brand
 // marks come from assets/brand (onda-studio): the rose-gradient wave (static in
 // nav/footer, animated in the hero). Styles are scoped to this component.
-import OndaShowcase from '../components/OndaShowcase.tsx'
 const REPO = 'https://github.com/degueba/onda-engine'
+// ONDA Studio — the hosted product on top of the open engine. Point this at the
+// live app (or a waitlist) when it ships; it's the only off-site, paid CTA.
+const STUDIO_URL = 'https://studio.onda.video'
 const year = new Date().getFullYear()
 ---
 
@@ -78,8 +80,8 @@ const year = new Date().getFullYear()
           <div class="hero__bg" aria-hidden="true">
             <div class="hero__wash"></div>
           </div>
-          <div class="container hero__grid">
-            <div class="hero__copy">
+          <div class="container hero__inner">
+            <div class="hero__copy hero__lede">
               <img
                 class="hero__mark"
                 src="/onda-mark-animated.svg"
@@ -89,12 +91,12 @@ const year = new Date().getFullYear()
               />
               <p class="eyebrow">Open source · Rust · GPU-native</p>
               <h1 id="hero-title" class="hero__title">
-                Motion graphics at <span class="accent-text">GPU speed</span>.<br />No browser.
+                Motion graphics at <span class="accent-text">GPU speed</span>. No browser.
               </h1>
               <p class="hero__sub">
-                ONDA is a programmatic motion-graphics engine written in Rust. Author
-                compositions in React, render them through a native GPU pipeline — with
-                <strong>zero Chromium</strong> anywhere in the loop.
+                Author compositions in React; render them through a native GPU pipeline —
+                <strong>zero Chromium</strong> anywhere in the loop. The hero below is rendered
+                <strong>live, on your GPU</strong>, by the very same engine.
               </p>
               <div class="hero__actions">
                 <a class="btn btn--primary" href="/guide/getting-started">Get started</a>
@@ -112,23 +114,23 @@ const year = new Date().getFullYear()
               </ul>
             </div>
 
-            <figure class="code-card hero__code" aria-label="ONDA composition written in React">
-              <figcaption class="code-card__bar">
-                <span class="code-card__dots" aria-hidden="true"><i></i><i></i><i></i></span>
-                <span class="code-card__file">Hello.tsx</span>
-                <button class="code-card__copy" type="button" data-copy="hero-code" aria-label="Copy code to clipboard">Copy</button>
+            <figure class="hero__stage" aria-label="An ONDA composition rendered by the engine">
+              <div class="live__frame hero__stage-frame">
+                <video
+                  class="hero__video"
+                  src="/hero.mp4"
+                  poster="/hero-poster.jpg"
+                  autoplay
+                  loop
+                  muted
+                  playsinline
+                  aria-label="ONDA — the wave: a composition rendered by the engine"
+                ></video>
+              </div>
+              <figcaption class="hero__stage-cap">
+                Rendered frame-for-frame by the <code>@onda</code> engine — GPU-native, no browser.
+                <strong>Authored in React. Exported to video.</strong>
               </figcaption>
-              <pre class="code-card__pre"><code id="hero-code"><span class="tok-kw">import</span> &#123; Composition, Rect, Text, Path, linearGradient &#125; <span class="tok-kw">from</span> <span class="tok-str">'@onda/react'</span>
-
-<span class="tok-kw">export const</span> <span class="tok-fn">Hello</span> = () =&gt; (
-  &lt;<span class="tok-tag">Composition</span> <span class="tok-attr">width</span>=&#123;<span class="tok-num">1920</span>&#125; <span class="tok-attr">height</span>=&#123;<span class="tok-num">1080</span>&#125; <span class="tok-attr">fps</span>=&#123;<span class="tok-num">30</span>&#125; <span class="tok-attr">durationInFrames</span>=&#123;<span class="tok-num">90</span>&#125;&gt;
-    &lt;<span class="tok-tag">Rect</span> <span class="tok-attr">width</span>=&#123;<span class="tok-num">1920</span>&#125; <span class="tok-attr">height</span>=&#123;<span class="tok-num">1080</span>&#125; <span class="tok-attr">fill</span>=<span class="tok-str">"#0a0d17"</span> /&gt;
-    &lt;<span class="tok-tag">Rect</span> <span class="tok-attr">x</span>=&#123;<span class="tok-num">160</span>&#125; <span class="tok-attr">y</span>=&#123;<span class="tok-num">840</span>&#125; <span class="tok-attr">width</span>=&#123;<span class="tok-num">900</span>&#125; <span class="tok-attr">height</span>=&#123;<span class="tok-num">12</span>&#125; <span class="tok-attr">cornerRadius</span>=&#123;<span class="tok-num">6</span>&#125;
-      <span class="tok-attr">gradient</span>=&#123;<span class="tok-fn">linearGradient</span>([<span class="tok-num">0</span>, <span class="tok-num">0</span>], [<span class="tok-num">900</span>, <span class="tok-num">0</span>],
-        [&#123; offset: <span class="tok-num">0</span>, color: <span class="tok-str">'#3b82f6'</span> &#125;, &#123; offset: <span class="tok-num">1</span>, color: <span class="tok-str">'#f25a8c'</span> &#125;])&#125; /&gt;
-    &lt;<span class="tok-tag">Text</span> <span class="tok-attr">x</span>=&#123;<span class="tok-num">160</span>&#125; <span class="tok-attr">y</span>=&#123;<span class="tok-num">420</span>&#125; <span class="tok-attr">fontSize</span>=&#123;<span class="tok-num">140</span>&#125; <span class="tok-attr">color</span>=<span class="tok-str">"#fff"</span>&gt;GPU-native&lt;/<span class="tok-tag">Text</span>&gt;
-  &lt;/<span class="tok-tag">Composition</span>&gt;
-)</code></pre>
             </figure>
           </div>
         </section>
@@ -304,24 +306,47 @@ const year = new Date().getFullYear()
           </div>
         </section>
 
-        <!-- ============ LIVE PLAYER ============ -->
-        <section class="section section--alt live" id="live" aria-labelledby="live-title">
+        <!-- ============ STUDIO (the product) ============ -->
+        <section class="section studio" id="studio" aria-labelledby="studio-title">
           <div class="container">
-            <header class="section__head live__head">
-              <p class="eyebrow">See it run</p>
-              <h2 id="live-title" class="section__title">A live composition, in your browser</h2>
-              <p class="section__lede">
-                Not a video — the ONDA promo, built entirely from <code>@onda/components</code> and
-                rendered live by the GPU engine (Vello over WebGPU). The very same scene graph
-                <code>onda export</code> writes to an MP4, playing here frame-for-frame. Press play,
-                scrub, loop — or go full screen.
-              </p>
-            </header>
-            <div class="live__stage" id="live-stage">
-              {/* Reserve the 16:9 box up front so the client-only island can't
-                  pop in from height 0 → full (no layout shift). */}
-              <div class="live__frame">
-                <OndaShowcase client:only="react" />
+            <div class="studio__card">
+              <div class="studio__copy">
+                <p class="eyebrow studio__eyebrow">ONDA Studio · the product</p>
+                <h2 id="studio-title" class="section__title studio__title">
+                  Don't build it. <span class="accent-text">Direct it.</span>
+                </h2>
+                <p class="section__lede studio__lede">
+                  The engine is the open canvas. <strong>ONDA Studio</strong> is the AI director on
+                  top: describe the video and Studio composes it from these same deterministic,
+                  on-brand components — combining motion graphics with AI video, image &amp; sound.
+                  No render farm, no re-rolls. <strong>What you preview is what you ship.</strong>
+                </p>
+                <ul class="studio__points">
+                  <li>A prompt in — a broadcast-quality video out, in your brand</li>
+                  <li>Deterministic &amp; reliable, not a slot-machine of AI re-rolls</li>
+                  <li>For ads, shorts &amp; launch films — cheap to make, easy to edit</li>
+                </ul>
+                <div class="studio__actions">
+                  <a class="btn btn--primary" href={STUDIO_URL} rel="noopener">Start creating with Studio →</a>
+                  <span class="studio__note">Engine: free &amp; open source. Studio: the hosted product on top.</span>
+                </div>
+              </div>
+
+              <div class="studio__visual" aria-hidden="true">
+                <div class="studio__prompt">
+                  <span class="studio__prompt-dot"></span>
+                  <span class="studio__prompt-text">"15-second launch film for our Series A — punchy, on-brand"</span>
+                </div>
+                <div class="studio__flow">
+                  <span class="studio__flow-line"></span>
+                  <span class="studio__flow-chip">ONDA Studio · directing</span>
+                  <span class="studio__flow-line"></span>
+                </div>
+                <div class="studio__out">
+                  <span class="studio__out-play" aria-hidden="true">▶</span>
+                  <span class="studio__out-word">ONDA</span>
+                  <span class="studio__out-meta">1920×1080 · 15s · MP4 · deterministic</span>
+                </div>
               </div>
             </div>
           </div>
@@ -419,13 +444,13 @@ const year = new Date().getFullYear()
           { opacity: [0, 1], y: [14, 0] },
           { delay: stagger(0.07), duration: 0.55, ease: EASE },
         )
-        const code = document.querySelector('.hero__code')
-        if (code) {
-          code.style.opacity = '0'
+        const stage = document.querySelector('.hero__stage')
+        if (stage) {
+          stage.style.opacity = '0'
           animate(
-            code,
-            { opacity: [0, 1], y: [22, 0], scale: [0.985, 1] },
-            { duration: 0.6, delay: 0.18, ease: EASE },
+            stage,
+            { opacity: [0, 1], y: [22, 0], scale: [0.99, 1] },
+            { duration: 0.7, delay: 0.22, ease: EASE },
           )
         }
 
@@ -768,7 +793,7 @@ const year = new Date().getFullYear()
 
       .hero {
         position: relative;
-        padding-block: var(--s-32) var(--s-32);
+        padding-block: var(--s-20) var(--s-32);
         overflow: hidden;
       }
       .hero__bg {
@@ -1197,21 +1222,7 @@ const year = new Date().getFullYear()
         font-size: var(--fs-sm);
       }
 
-      /* ---------- live player ---------- */
-      .live__toggle {
-        margin-top: var(--s-8);
-      }
-      .live__stage {
-        margin-top: var(--s-12);
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--r-card);
-        padding: var(--s-6);
-        box-shadow: var(--elev-card);
-      }
-      /* Reserve the player's 16:9 box before the client-only island hydrates,
-         so it can't pop in from height 0 → full (no layout shift). The player
-         (1280×720 = 16:9) fills this exactly. */
+      /* Reserve the hero stage's 16:9 box so the <video> can't shift layout. */
       .live__frame {
         aspect-ratio: 16 / 9;
         width: 100%;
@@ -1293,7 +1304,7 @@ const year = new Date().getFullYear()
       /* Pre-hide the above-the-fold hero before paint (the head inline script
          adds html.anim only when motion is allowed) so its entrance can't flash. */
       :global(html.anim) .hero__copy > *,
-      :global(html.anim) .hero__code {
+      :global(html.anim) .hero__stage {
         opacity: 0;
       }
 
@@ -1443,6 +1454,198 @@ const year = new Date().getFullYear()
         .code-card__pre {
           font-size: 0.8rem;
           padding: var(--s-4);
+        }
+      }
+
+      /* ===================== Hero (stacked: lede + live stage) ===================== */
+      .hero__inner {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--s-12);
+      }
+      .hero__lede {
+        max-width: 880px;
+        margin-inline: auto;
+        text-align: center;
+      }
+      .hero__lede .hero__mark,
+      .hero__lede .hero__sub {
+        margin-inline: auto;
+      }
+      .hero__lede .hero__actions,
+      .hero__lede .hero__chips {
+        justify-content: center;
+      }
+      .hero__stage {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .hero__stage-frame {
+        border-radius: var(--r-card);
+        overflow: hidden;
+        border: 1px solid var(--border);
+        background: #050509;
+        box-shadow: var(--elev-card), 0 30px 90px -24px rgba(176, 108, 255, 0.28);
+      }
+      .hero__video {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .hero__stage-cap {
+        margin-top: var(--s-4);
+        text-align: center;
+        color: var(--text-muted);
+        font-size: var(--fs-sm);
+      }
+      .hero__stage-cap code {
+        color: var(--text);
+        font-family: var(--font-code);
+      }
+
+      /* ===================== Studio (the product — one earned section) ============= */
+      .studio__card {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: var(--s-12) var(--s-16);
+        align-items: center;
+        padding: clamp(28px, 4vw, 56px);
+        border-radius: 20px;
+        background: linear-gradient(135deg, rgba(217, 107, 130, 0.08), rgba(176, 108, 255, 0.05)),
+          var(--surface);
+        border: 1px solid var(--border);
+        box-shadow: var(--elev-card), 0 0 100px -24px rgba(217, 107, 130, 0.2);
+      }
+      .studio__eyebrow {
+        color: var(--accent);
+      }
+      .studio__title {
+        margin-bottom: var(--s-6);
+      }
+      .studio__lede {
+        margin-bottom: var(--s-8);
+        max-width: 56ch;
+      }
+      .studio__points {
+        list-style: none;
+        margin: 0 0 var(--s-8);
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: var(--s-3);
+      }
+      .studio__points li {
+        position: relative;
+        padding-left: 28px;
+        color: var(--text-muted);
+        font-size: var(--fs-md);
+      }
+      .studio__points li::before {
+        content: '✓';
+        position: absolute;
+        left: 0;
+        color: var(--accent);
+        font-weight: 700;
+      }
+      .studio__actions {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--s-3);
+      }
+      .studio__note {
+        color: var(--text-dim);
+        font-size: var(--fs-sm);
+      }
+      .studio__visual {
+        display: flex;
+        flex-direction: column;
+        gap: var(--s-3);
+      }
+      .studio__prompt {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px;
+        border-radius: 12px;
+        background: var(--bg-deep);
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+      }
+      .studio__prompt-dot {
+        flex: none;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 12px var(--accent);
+      }
+      .studio__flow {
+        display: flex;
+        align-items: center;
+        gap: var(--s-3);
+        color: var(--text-dim);
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+      }
+      .studio__flow-line {
+        flex: 1;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--border), transparent);
+      }
+      .studio__flow-chip {
+        white-space: nowrap;
+        color: var(--accent);
+      }
+      .studio__out {
+        position: relative;
+        aspect-ratio: 16 / 9;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        display: grid;
+        place-items: center;
+        background: radial-gradient(120% 130% at 30% 8%, rgba(176, 108, 255, 0.38), transparent 55%),
+          radial-gradient(100% 120% at 92% 100%, rgba(69, 214, 255, 0.22), transparent 50%), #0a0a14;
+      }
+      .studio__out-play {
+        position: absolute;
+        top: 13px;
+        left: 16px;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 13px;
+      }
+      .studio__out-word {
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: clamp(2.4rem, 6vw, 3.6rem);
+        letter-spacing: -0.02em;
+        background: linear-gradient(100deg, #ff5d8d, #b06cff, #45d6ff);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .studio__out-meta {
+        position: absolute;
+        bottom: 13px;
+        left: 16px;
+        right: 16px;
+        color: var(--text-dim);
+        font-family: var(--font-code);
+        font-size: 0.72rem;
+      }
+      @media (max-width: 900px) {
+        .studio__card {
+          grid-template-columns: 1fr;
         }
       }
     </style>
