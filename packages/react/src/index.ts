@@ -17,6 +17,7 @@ export {
   parseGradient,
   radialGradient,
 } from './gradient.js'
+export { type MorphOptions, morphPath, morphPathSequence } from './morph.js'
 export {
   AbsoluteFill,
   type AbsoluteFillProps,
