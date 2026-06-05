@@ -318,24 +318,17 @@ const year = new Date().getFullYear()
           <div class="container">
             <div class="studio__card">
               <div class="studio__copy">
-                <p class="eyebrow studio__eyebrow">ONDA Studio · the product</p>
+                <p class="eyebrow studio__eyebrow">ONDA Studio · the AI director</p>
                 <h2 id="studio-title" class="section__title studio__title">
                   Don't build it. <span class="accent-text">Direct it.</span>
                 </h2>
                 <p class="section__lede studio__lede">
-                  The engine is the open canvas. <strong>ONDA Studio</strong> is the AI director on
-                  top: describe the video and Studio composes it from these same deterministic,
-                  on-brand components — combining motion graphics with AI video, image &amp; sound.
-                  No render farm, no re-rolls. <strong>What you preview is what you ship.</strong>
+                  Describe the video. Studio directs the engine and ships it —
+                  <strong>broadcast-ready, the first time.</strong>
                 </p>
-                <ul class="studio__points">
-                  <li>A prompt in — a broadcast-quality video out, in your brand</li>
-                  <li>Deterministic &amp; reliable, not a slot-machine of AI re-rolls</li>
-                  <li>For ads, shorts &amp; launch films — cheap to make, easy to edit</li>
-                </ul>
                 <div class="studio__actions">
-                  <a class="btn btn--primary" href={STUDIO_URL} rel="noopener">Start creating with Studio →</a>
-                  <span class="studio__note">Engine: free &amp; open source. Studio: the hosted product on top.</span>
+                  <a class="btn btn--primary" href={STUDIO_URL} rel="noopener">Start with Studio →</a>
+                  <span class="studio__note">Engine: free &amp; open source. Studio: the hosted director on top.</span>
                 </div>
               </div>
 
@@ -1539,27 +1532,6 @@ const year = new Date().getFullYear()
       .studio__lede {
         margin-bottom: var(--s-8);
         max-width: 56ch;
-      }
-      .studio__points {
-        list-style: none;
-        margin: 0 0 var(--s-8);
-        padding: 0;
-        display: flex;
-        flex-direction: column;
-        gap: var(--s-3);
-      }
-      .studio__points li {
-        position: relative;
-        padding-left: 28px;
-        color: var(--text-muted);
-        font-size: var(--fs-md);
-      }
-      .studio__points li::before {
-        content: '✓';
-        position: absolute;
-        left: 0;
-        color: var(--accent);
-        font-weight: 700;
       }
       .studio__actions {
         display: flex;
