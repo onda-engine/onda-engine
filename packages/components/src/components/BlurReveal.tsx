@@ -1,23 +1,17 @@
-//! BlurReveal — the reference Onda reveal: opacity + a small rise + a subtle
-//! focus-settle scale, all on the house spring (no overshoot). Ported from
+//! BlurReveal — the reference Onda reveal: opacity + a small rise + a real
+//! soft→sharp focus-pull, all on the house spring (no overshoot). Ported from
 //! ondajs.
 //!
-//! APPROXIMATION: the ondajs original also animates a CSS `blur(10px → 0)` so
-//! the text resolves from soft to sharp. The engine has no blur/filter pass, so
-//! the blur is DROPPED and the "focus in" sensation is suggested instead by a
-//! subtle scale settle (0.97 → 1) running in lockstep with the opacity + rise.
-//! When an engine blur pass lands, restore the literal blur ramp.
+//! The blur is FIRST-CLASS: the engine's render-to-texture pass blurs the
+//! subtree and composites it back, so the literal ondajs `blur(10px → 0)` ramp
+//! is reproduced directly (a `blur` prop on the inner motion `<Group>`) — no
+//! scale-settle stand-in. The text resolves from soft to sharp as it rises and
+//! fades in, on both backends.
 //!
 //! Self-positioning: an `<AbsoluteFill>` centers the content, and the motion
-//! (opacity + rise + scale) lives on a NESTED inner `<Group>` — the layout pass
+//! (opacity + rise + blur) lives on a NESTED inner `<Group>` — the layout pass
 //! owns the outer position, so a motion translate must not sit on a direct
 //! AbsoluteFill child.
-//!
-//! Caveat: scene scale pivots on the inner group's LOCAL ORIGIN (0,0), not its
-//! center, so the 0.97 → 1 settle drifts by a few px as it resolves. The
-//! magnitude is tiny by design (matches `ScaleIn`'s restraint); for a perfectly
-//! centered settle, anchor the subtree's origin at the pivot. (Per-node
-//! transform-origin is a planned engine feature.)
 
 import {
   AbsoluteFill,
@@ -57,9 +51,9 @@ export interface BlurRevealProps {
   placement?: 'center' | 'top' | 'bottom'
   /** Rise distance in px (the original's 16px envelope; small on purpose). */
   travelPx?: number
-  /** Starting scale for the focus-settle (the dropped-blur approximation).
-   *  Close to 1 by design — below ~0.92 it reads as a zoom, not a focus-in. */
-  fromScale?: number
+  /** Starting blur in px (gaussian sigma) for the soft→sharp focus-pull; ramps
+   *  to 0 as the reveal settles (the ondajs original's `blur(10px → 0)`). */
+  fromBlur?: number
 }
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
@@ -75,7 +69,7 @@ export function BlurReveal({
   fontWeight = 600,
   placement = 'center',
   travelPx = 16,
-  fromScale = 0.97,
+  fromBlur = 10,
 }: BlurRevealProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
@@ -83,9 +77,9 @@ export function BlurReveal({
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
 
-  // One house spring drives opacity, rise, and the focus-settle scale so they
-  // read as a single motion — mirrors the ondajs original, where opacity, blur,
-  // and the 16px rise all derive from one `SPRING_SMOOTH` progress.
+  // One house spring drives opacity, rise, and the focus-pull blur so they read
+  // as a single motion — mirrors the ondajs original, where opacity, blur, and
+  // the 16px rise all derive from one `SPRING_SMOOTH` progress.
   const progress = spring({
     frame: Math.max(0, frame - delay),
     fps,
@@ -95,9 +89,9 @@ export function BlurReveal({
 
   const opacity = interpolate(progress, [0, 1], [0, 1], CLAMP)
   const y = interpolate(progress, [0, 1], [travelPx, 0], CLAMP)
-  // Scale stands in for the dropped CSS blur: text "comes into focus" as it
-  // settles. Subtle by design.
-  const scale = interpolate(progress, [0, 1], [fromScale, 1], CLAMP)
+  // Real soft→sharp focus-pull: the engine's render-to-texture pass blurs the
+  // subtree by `blur` px, ramping fromBlur → 0 as the reveal settles.
+  const blur = interpolate(progress, [0, 1], [fromBlur, 0], CLAMP)
 
   const justify = placement === 'top' ? 'start' : placement === 'bottom' ? 'end' : 'center'
 
@@ -109,9 +103,9 @@ export function BlurReveal({
 
   return (
     <AbsoluteFill justify={justify} align="center">
-      {/* Inner group carries the motion translate/scale/opacity; the outer
+      {/* Inner group carries the motion translate/blur/opacity; the outer
           AbsoluteFill owns positioning (don't translate a direct layout child). */}
-      <Group y={y} scaleX={scale} scaleY={scale} opacity={opacity}>
+      <Group y={y} blur={blur} opacity={opacity}>
         {content}
       </Group>
     </AbsoluteFill>

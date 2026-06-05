@@ -7,7 +7,7 @@
 //! `Underline` motion inline (text fade + accent rule, two-phase) so the rule
 //! can be sized from the WHOLE title at the engine's per-glyph estimate (the
 //! `Underline` sibling's tighter factor under-spans a long hero CTA); when off
-//! it falls back to a bare `FadeIn` + `Text`. The handles row reproduces the
+//! it falls back to a bare blur-ramp `<Group>` + `Text`. The handles row reproduces the
 //! ondajs `StaggerGroup` directly — each handle is a `FadeIn`-wrapped `Text` on
 //! the canonical 4-frame stagger. No new motion is invented here; the card's
 //! job is sequencing, not animation.
@@ -21,10 +21,13 @@
 //! handles sit in their own row `<Flex>`; each item is a `FadeIn`, so the row's
 //! measured size is stable and never jiggles as the cascade runs.
 //!
-//! Approximation: the ondajs CTA reveals via a CSS blur-filter (BlurReveal) that
-//! resolves blurred -> sharp during the fade. The engine has no per-node blur,
-//! so the CTA reveals through the same opacity spring (entryFade) without the
-//! blur component — the closest faithful approximation.
+//! Soft→sharp CTA: the ondajs CTA reveals via a blur-filter (BlurReveal) that
+//! resolves blurred -> sharp during the fade. With the engine's render-to-texture
+//! blur this is first-class — the CTA reveals through the opacity spring
+//! (entryFade) AND a real `blur` ramp (CTA_FROM_BLUR -> 0) on the same progress,
+//! so it resolves soft -> sharp exactly as the original. The blur lives on a
+//! `<Group>` wrapping the CTA text (both the accent and bare branches), inside
+//! the column's fixed-size rows so the layout pass is never disturbed.
 
 import {
   AbsoluteFill,
@@ -37,7 +40,6 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from '@onda/react'
-import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { useTheme } from '../theme.js'
 import { FadeIn } from './FadeIn.js'
@@ -89,6 +91,9 @@ const LINE_RATIO = 1.2
 /** Rule geometry — mirrors the values previously passed to `Underline`. */
 const LINE_THICKNESS = 3
 const LINE_OFFSET = 6
+/** Starting blur (px) for the CTA's soft→sharp focus-pull — the ondajs CTA's
+ *  `blur(… → 0)`, ramped to 0 on the same entry spring as the opacity. */
+const CTA_FROM_BLUR = 10
 
 export function EndCard({
   cta = 'Made with Onda',
@@ -118,15 +123,25 @@ export function EndCard({
   // Horizontal gap between handle items — the metadata strip reads as one row.
   const handlesGap = Math.round(handlesFontSize * 1.3)
 
-  // CTA reveal + accent rule (only built when `accent` is on). Two-phase: the
-  // text fades on the house entry spring, then the rule draws beneath it. The
-  // rule's FULL width is estimated from the WHOLE `cta` at the engine's
-  // per-glyph factor so it spans every word of the title (not just the first).
-  const { opacity: ctaOpacity } = entryFade({
-    frame,
+  // CTA reveal + accent rule (only built when `accent` is on). The CTA resolves
+  // soft→sharp: one house entry spring drives BOTH the opacity fade and a real
+  // `blur` ramp (CTA_FROM_BLUR → 0) so they read as a single focus-pull (the
+  // ondajs BlurReveal). The rule then draws beneath it. The rule's FULL width is
+  // estimated from the WHOLE `cta` at the engine's per-glyph factor so it spans
+  // every word of the title (not just the first).
+  const ctaProgress = spring({
+    frame: Math.max(0, frame - delay),
     fps,
-    delay,
+    config: SPRING_SMOOTH,
     durationInFrames: DURATION.base,
+  })
+  const ctaOpacity = interpolate(ctaProgress, [0, 1], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  })
+  const ctaBlur = interpolate(ctaProgress, [0, 1], [CTA_FROM_BLUR, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
   })
   const fullRuleWidth = Math.max(0, cta.length) * ctaFontSize * CHAR_WIDTH_FACTOR
   const ruleProgress = spring({
@@ -151,24 +166,28 @@ export function EndCard({
   return (
     <AbsoluteFill justify="center" align="center">
       <Flex direction="column" align="center" gap={stackGap}>
-        {/* CTA — when accent is on, the headline reveals (text fade) and the
-            accent rule draws beneath it (two-phase, the `Underline` motion). The
-            rule is laid out inline here so its FULL width tracks the WHOLE title
-            (every word) at the engine's per-glyph estimate; a fixed-height row
-            (transparent spacer sized to the estimated title box) keeps the
-            animated rule width from reflowing the centered column. When accent
-            is off, a bare FadeIn'd Text reveals the CTA without the rule. */}
+        {/* CTA — the headline reveals soft→sharp (opacity + blur ramp). When
+            accent is on, the accent rule then draws beneath it (two-phase, the
+            `Underline` motion); the rule is laid out inline here so its FULL
+            width tracks the WHOLE title (every word) at the engine's per-glyph
+            estimate, and a fixed-height row (transparent spacer sized to the
+            estimated title box) keeps the animated rule width from reflowing the
+            centered column. When accent is off, the same blur-ramp CTA reveals
+            without the rule. */}
         {accent ? (
           <Flex direction="column" align="center">
-            <Text
-              opacity={ctaOpacity}
-              fontSize={ctaFontSize}
-              color={color}
-              fontFamily={fontFamily}
-              fontWeight={ctaFontWeight}
-            >
-              {cta}
-            </Text>
+            {/* CTA text resolves soft→sharp: opacity + real blur ramp on one
+                group (origin pinned, no translate, so the column never shifts). */}
+            <Group opacity={ctaOpacity} blur={ctaBlur}>
+              <Text
+                fontSize={ctaFontSize}
+                color={color}
+                fontFamily={fontFamily}
+                fontWeight={ctaFontWeight}
+              >
+                {cta}
+              </Text>
+            </Group>
             <Group>
               <Rect width={fullRuleWidth} height={ruleRowHeight} fill="#00000000" />
               {ruleWidth > 0 ? (
@@ -184,7 +203,9 @@ export function EndCard({
             </Group>
           </Flex>
         ) : (
-          <FadeIn delay={delay} durationInFrames={DURATION.base}>
+          // No accent rule, but the CTA still resolves soft→sharp: same
+          // opacity + blur ramp on the house entry spring (no rule beneath).
+          <Group opacity={ctaOpacity} blur={ctaBlur}>
             <Text
               fontSize={ctaFontSize}
               color={color}
@@ -193,7 +214,7 @@ export function EndCard({
             >
               {cta}
             </Text>
-          </FadeIn>
+          </Group>
         )}
 
         {/* Handles row — staggered, faint, the closing beat. Rendered as a
