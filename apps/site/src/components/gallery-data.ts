@@ -1192,4 +1192,37 @@ export const GALLERY: GalleryItem[] = [
     },
     themed: true,
   },
+  {
+    name: 'KineticText',
+    category: 'Text reveals',
+    blurb:
+      'per-glyph kinetic type — each letter animates in on the house stagger with a preset (rise / fade / scale / blur / wave). The blur preset is a real per-glyph focus pull.',
+    props: {
+      text: 'KINETIC',
+      fontSize: 130,
+      preset: 'blur',
+    },
+    themed: true,
+    controls: [
+      { prop: 'preset', label: 'Preset', options: ['rise', 'fade', 'scale', 'blur', 'wave'] },
+    ],
+  },
+  {
+    name: 'FilmGrade',
+    category: 'Backgrounds & FX',
+    blurb:
+      'a one-prop cinematic look (warm / cool / noir / teal-orange / vibrant / film / faded) over the engine color grade — unify a whole composition into one graded film.',
+    props: {
+      look: 'teal-orange',
+      intensity: 0.85,
+    },
+    child: true,
+    controls: [
+      {
+        prop: 'look',
+        label: 'Look',
+        options: ['film', 'warm', 'cool', 'noir', 'teal-orange', 'vibrant', 'faded'],
+      },
+    ],
+  },
 ]

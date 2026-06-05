@@ -1,8 +1,8 @@
 ---
-// The ONDA transitions showcase — every @onda/react TransitionSeries
-// presentation, played A→B live by the engine (Vello/WebGPU). Standalone page
-// (not a Starlight doc) so the player can use a full-width layout.
-import TransitionsGallery from '../components/TransitionsGallery.tsx'
+// The ONDA effects showcase — the render-to-texture node effects (blur, bloom,
+// grade, goo), each played live by the engine (Vello/WebGPU, CPU fallback).
+// Standalone page (not a Starlight doc) so the player can use a full-width layout.
+import EffectsGallery from '../components/EffectsGallery.tsx'
 const REPO = 'https://github.com/degueba/onda-engine'
 ---
 
@@ -11,10 +11,10 @@ const REPO = 'https://github.com/degueba/onda-engine'
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Transitions — ONDA</title>
+    <title>Effects — ONDA</title>
     <meta
       name="description"
-      content="Every @onda/react TransitionSeries presentation, played A→B live in your browser by the ONDA GPU engine."
+      content="Render-to-texture effects — blur, bloom, color grade, gooey morph — applied to any node and played live in your browser by the ONDA GPU engine."
     />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#0e0e12" />
@@ -41,8 +41,8 @@ const REPO = 'https://github.com/degueba/onda-engine'
         <nav class="gnav__links" aria-label="Primary">
           <a href="/">Home</a>
           <a href="/components">Components</a>
-          <a href="/transitions" aria-current="page">Transitions</a>
-          <a href="/effects">Effects</a>
+          <a href="/transitions">Transitions</a>
+          <a href="/effects" aria-current="page">Effects</a>
           <a href="/guide/introduction">Docs</a>
           <a href={REPO} rel="noopener">GitHub</a>
         </nav>
@@ -50,14 +50,15 @@ const REPO = 'https://github.com/degueba/onda-engine'
 
       <main class="gmain">
         <header class="ghead">
-          <p class="eyebrow">Motion</p>
-          <h1>Transitions, played by the engine.</h1>
+          <p class="eyebrow">Render-to-texture</p>
+          <h1>Effects, rendered by the engine.</h1>
           <p class="lede">
-            Every <code>@onda/react</code> <code>TransitionSeries</code> presentation, rendered live
-            A→B in your browser by the GPU engine. Pick one to see it play — and copy the code.
+            A <code>blur</code>, <code>bloom</code>, <code>grade</code> or <code>goo</code> prop on
+            any node — rendered to a texture, processed, and composited back, live in your browser by
+            the GPU engine. Pick one to see it play — and copy the code.
           </p>
         </header>
-        <TransitionsGallery client:only="react" />
+        <EffectsGallery client:only="react" />
       </main>
     </div>
 
