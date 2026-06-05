@@ -294,6 +294,42 @@ describe('renderToScene', () => {
     })
   })
 
+  it('emits a blur effect from the `blur` sugar prop', () => {
+    const scene = renderToScene(
+      <Composition width={50} height={50} fps={1} durationInFrames={1}>
+        <Group blur={6}>
+          <Text>soft</Text>
+        </Group>
+      </Composition>,
+    )
+    expect(scene.root.children?.[0]?.effects).toEqual([{ effect: 'blur', sigma: 6 }])
+  })
+
+  it('omits the effects key when there is no blur', () => {
+    const scene = renderToScene(
+      <Composition width={50} height={50} fps={1} durationInFrames={1}>
+        <Group>
+          <Text>sharp</Text>
+        </Group>
+      </Composition>,
+    )
+    expect(scene.root.children?.[0]?.effects).toBeUndefined()
+  })
+
+  it('prepends the blur sugar before explicit effects', () => {
+    const scene = renderToScene(
+      <Composition width={50} height={50} fps={1} durationInFrames={1}>
+        <Group blur={4} effects={[{ effect: 'blur', sigma: 2 }]}>
+          <Text>stacked</Text>
+        </Group>
+      </Composition>,
+    )
+    expect(scene.root.children?.[0]?.effects).toEqual([
+      { effect: 'blur', sigma: 4 },
+      { effect: 'blur', sigma: 2 },
+    ])
+  })
+
   it('requires a single Composition root', () => {
     expect(() => renderToScene(<Group />)).toThrow(/Composition/)
   })

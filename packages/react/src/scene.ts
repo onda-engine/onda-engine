@@ -156,6 +156,14 @@ export interface Layout {
   height?: number
 }
 
+/** An ordered, screen-space effect applied to a node + its subtree via
+ *  render-to-texture (mirrors onda-scene's internally-tagged `Effect` enum).
+ *  The subtree renders to an offscreen surface, the chain runs, then the result
+ *  composites back at the node's transform/opacity/blend/clip. */
+export type Effect =
+  /** Gaussian blur; `sigma` = std-dev in OUTPUT px (CSS `blur()`). */
+  { effect: 'blur'; sigma: number }
+
 /** Compositing blend mode (CSS `mix-blend-mode`). Vello renders the full set;
  *  the CPU reference composites `normal` only. */
 export type BlendMode =
@@ -184,6 +192,8 @@ export interface SceneNode {
   clip?: ShapeGeometry
   /** Blend this node's subtree against the backdrop (CSS mix-blend-mode). */
   blend?: BlendMode
+  /** Ordered screen-space effects applied to this node + subtree (render-to-texture). */
+  effects?: Effect[]
   /** Flex-lay-out this node's direct children. */
   layout?: Layout
   kind: NodeKind

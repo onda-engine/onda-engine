@@ -13,7 +13,7 @@ import type { ClipInput } from './clip.js'
 import type { ColorInput } from './color.js'
 import { useCurrentFrame, useVideoConfig } from './frame.js'
 import type { GradientInput } from './gradient.js'
-import type { BlendMode, ImageFit, Layout } from './scene.js'
+import type { BlendMode, Effect, ImageFit, Layout } from './scene.js'
 
 /** Properties shared by every scene node: identity, placement, opacity, clip. */
 export interface NodeProps {
@@ -39,6 +39,11 @@ export interface NodeProps {
   blendMode?: BlendMode
   /** Clip this node and its subtree to a region (local space). */
   clip?: ClipInput
+  /** Ordered, low-level screen-space effects on this node + subtree (render-to-texture). */
+  effects?: Effect[]
+  /** Gaussian blur std-dev in output px; sugar for `effects: [{ effect: 'blur', sigma }]`.
+   *  Honored by Vello AND the CPU reference once Phase 1 lands. */
+  blur?: number
   children?: ReactNode
 }
 

@@ -9,6 +9,7 @@ import { FrameContext, type VideoConfig } from './frame.js'
 import { type GradientInput, parseGradient } from './gradient.js'
 import { type HostNode, type RootContainer, hostConfig } from './host-config.js'
 import type {
+  Effect,
   Gradient,
   Layout,
   NodeKind,
@@ -128,6 +129,10 @@ function toNode(node: HostNode): SceneNode {
   if (typeof props.opacity === 'number') base.opacity = props.opacity
   if (props.clip !== undefined) base.clip = parseClip(props.clip as ClipInput)
   if (typeof props.blendMode === 'string') base.blend = props.blendMode as SceneNode['blend']
+  const effects: Effect[] = Array.isArray(props.effects) ? [...(props.effects as Effect[])] : []
+  if (typeof props.blur === 'number' && props.blur > 0)
+    effects.unshift({ effect: 'blur', sigma: props.blur })
+  if (effects.length) base.effects = effects
   if (props.layout !== undefined) base.layout = parseLayout(props.layout as Layout)
   const children = node.children.map(toNode)
   const withChildren = children.length ? { children } : {}
