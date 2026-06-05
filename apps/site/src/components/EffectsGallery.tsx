@@ -1,5 +1,14 @@
 import { Player } from '@onda/player'
-import { Composition, Ellipse, Group, Rect, Text, interpolate, useCurrentFrame } from '@onda/react'
+import {
+  Composition,
+  Ellipse,
+  Group,
+  Img,
+  Rect,
+  Text,
+  interpolate,
+  useCurrentFrame,
+} from '@onda/react'
 import velloWasmUrl from '@onda/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
 import cpuWasmUrl from '@onda/wasm/pkg/onda_wasm_bg.wasm?url'
 import {
@@ -179,53 +188,28 @@ function BloomDemo(): ReactElement {
   })
 }
 
-/** grade — raw "footage" → one cinematic look. ON warms + lifts contrast. */
+/** grade — REAL footage, ungraded vs graded. The whole point of a color grade:
+ *  the same shot reads raw/flat on the left and warm + cinematic on the right. */
 function GradeDemo(): ReactElement {
   const f = useCurrentFrame()
-  const temperature = loop(f, 0.16, 0.32)
-  // Footage-like content: a sky→ground gradient plus a couple of colored cards,
-  // so OFF reads raw and ON reads graded (warmer, punchier, unified).
+  // A clearly cinematic warm grade, gently breathing but always strong enough to
+  // read against the raw left half (the synthetic version was too subtle).
+  const temperature = loop(f, 0.24, 0.34)
+  // A bundled photo (a night skyline) so OFF is the raw clip and ON is the graded
+  // clip — exactly what "grade your footage into one look" means.
   const content = (_o: number): ReactElement[] => [
-    createElement(Rect, {
-      key: 'sky',
-      x: 24,
-      y: 30,
-      width: HALF - 48,
-      height: H - 60,
-      cornerRadius: 16,
-      gradient: {
-        type: 'linear',
-        start: [0, 30],
-        end: [0, H - 30],
-        stops: [
-          { offset: 0, color: '#5b86c9' },
-          { offset: 0.55, color: '#b7c2cf' },
-          { offset: 1, color: '#3f4a52' },
-        ],
-      },
+    createElement(Img, {
+      key: 'shot',
+      x: 0,
+      y: 0,
+      width: HALF,
+      height: H,
+      src: '/gallery-sample.jpg',
+      fit: 'cover',
     }),
-    createElement(Rect, {
-      key: 'cardA',
-      x: 60,
-      y: 300,
-      width: 150,
-      height: 170,
-      cornerRadius: 14,
-      fill: '#d96a4a',
-    }),
-    createElement(Rect, {
-      key: 'cardB',
-      x: 240,
-      y: 250,
-      width: 170,
-      height: 220,
-      cornerRadius: 14,
-      fill: '#4a8f7b',
-    }),
-    createElement(Ellipse, { key: 'sun', x: 290, y: 70, width: 84, height: 84, fill: '#f3e7c8' }),
   ]
-  return Split(createElement(Rect, { width: W, height: H, fill: '#14141c' }), content, {
-    grade: { temperature, contrast: 1.12, saturation: 0.95 },
+  return Split(createElement(Rect, { width: W, height: H, fill: '#000000' }), content, {
+    grade: { temperature, contrast: 1.24, saturation: 1.12, exposure: 0.03 },
   })
 }
 
@@ -284,8 +268,8 @@ const EFFECTS: EffectDef[] = [
     blurb:
       'Left is raw footage; right is graded — a per-pixel color grade (exposure, contrast, saturation, temperature, tint) that unifies mixed, AI-generated media into one cinematographer’s look. See FilmGrade for named presets.',
     snippet: [
-      '<Group grade={{ temperature: 0.28, contrast: 1.12, saturation: 0.95 }}>',
-      '  <Footage />',
+      '<Group grade={{ temperature: 0.3, contrast: 1.24, saturation: 1.12 }}>',
+      '  <Img src="clip.jpg" />',
       '</Group>',
     ].join('\n'),
   },
