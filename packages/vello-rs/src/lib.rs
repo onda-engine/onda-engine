@@ -59,11 +59,10 @@ pub struct VelloRenderer {
     /// spread before the threshold.
     goo_pipeline: Option<Goo>,
     /// True on the WebGPU (browser) backend, where buffer mapping is async-only.
-    /// The render-to-texture effect path reads a texture back to the CPU mid-build
-    /// (a *synchronous* map), which can't work on WebGPU — so on the web the effect
-    /// chain is skipped (the subtree renders normally, un-effected) rather than
-    /// crashing. Native export keeps full-fidelity effects. (A future async
-    /// effect pre-pass will bring effects to the browser too.)
+    /// The effect path can't read a texture back synchronously mid-build there, so
+    /// on the web effects are resolved up front by `prepare_effect_images` (async
+    /// readbacks) and drawn from that cache; a cache miss degrades to un-effected
+    /// rather than crashing. Native reads the effect texture back inline.
     web: bool,
 }
 
@@ -142,20 +141,90 @@ impl VelloRenderer {
 
     /// Render an ONDA scene to a [`Frame`] (blocking readback; native only).
     pub fn render(&mut self, scene: &Scene) -> Frame {
-        let (texture, width, height) = self.render_to_target(scene);
+        let (texture, width, height) = self.render_to_target(scene, None);
         read_back(&self.device, &self.queue, &texture, width, height)
     }
 
     /// Render an ONDA scene to a [`Frame`], awaiting the readback instead of
     /// blocking — required on the web (wasm), where buffer mapping is async.
     pub async fn render_async(&mut self, scene: &Scene) -> Frame {
-        let (texture, width, height) = self.render_to_target(scene);
+        // WebGPU can't map buffers synchronously mid-build, so resolve every effect
+        // subtree up front with async readbacks, then build using the cached images
+        // (`prepare_effect_images` is a no-op on native — effects read back inline).
+        let effect_images = self.prepare_effect_images(scene).await;
+        let (texture, width, height) = self.render_to_target(scene, Some(&effect_images));
         read_back_async(&self.device, &self.queue, &texture, width, height).await
     }
 
+    /// Resolve every effect node's image up front with ASYNC readbacks — required
+    /// on WebGPU, where a buffer can't be mapped synchronously mid-build. Walks the
+    /// scene in the same stop-at-effect-node DFS order `build` consumes, producing
+    /// one entry per effect node (`None` for a degenerate subtree). Nested effects
+    /// inside an effect subtree degrade (captured into the outer node's image, not
+    /// resolved separately). A no-op (empty) on native, where effects read back
+    /// inline.
+    async fn prepare_effect_images(&mut self, scene: &Scene) -> Vec<Option<CachedEffect>> {
+        if !self.web {
+            return Vec::new();
+        }
+        let mut out: Vec<Option<CachedEffect>> = Vec::new();
+        // Pre-order DFS over the ORIGINAL tree: descend into non-effect nodes; at an
+        // effect node render+process its subtree to a texture, async-read it back,
+        // and STOP (don't descend) — matching `build`'s consumption order exactly.
+        let mut stack: Vec<&Node> = vec![&scene.root];
+        while let Some(node) = stack.pop() {
+            if node.effects.is_empty() {
+                // Push children reversed so they pop (and resolve) in document order.
+                for child in node.children.iter().rev() {
+                    stack.push(child);
+                }
+                continue;
+            }
+            let built = build_effect_texture(
+                &mut Ctx {
+                    device: &self.device,
+                    queue: &self.queue,
+                    renderer: &mut self.renderer,
+                    fonts: &mut self.fonts,
+                    font_cache: &mut self.font_cache,
+                    blur_pipeline: &mut self.blur_pipeline,
+                    bloom_pipeline: &mut self.bloom_pipeline,
+                    grade_pipeline: &mut self.grade_pipeline,
+                    goo_pipeline: &mut self.goo_pipeline,
+                    web: true,
+                    // Nested effects inside this subtree degrade (no cache here).
+                    effect_images: None,
+                    effect_idx: 0,
+                },
+                node,
+            );
+            match built {
+                Some((texture, tw, th, x0, y0)) => {
+                    let frame = read_back_async(&self.device, &self.queue, &texture, tw, th).await;
+                    out.push(Some(CachedEffect {
+                        rgba: std::sync::Arc::new(frame.pixels),
+                        width: tw,
+                        height: th,
+                        x0,
+                        y0,
+                    }));
+                }
+                None => out.push(None),
+            }
+            // Don't descend — the whole subtree is captured in this one image.
+        }
+        out
+    }
+
     /// Build the scene and rasterize it to an offscreen RGBA texture (shared by
-    /// the sync and async render paths). Returns the texture and its size.
-    fn render_to_target(&mut self, scene: &Scene) -> (wgpu::Texture, u32, u32) {
+    /// the sync and async render paths). `effect_images` supplies pre-rendered
+    /// effect results for the web path (`None` natively — effects read back
+    /// inline). Returns the texture and its size.
+    fn render_to_target(
+        &mut self,
+        scene: &Scene,
+        effect_images: Option<&[Option<CachedEffect>]>,
+    ) -> (wgpu::Texture, u32, u32) {
         let width = scene.composition.width.max(1);
         let height = scene.composition.height.max(1);
 
@@ -178,6 +247,8 @@ impl VelloRenderer {
                 grade_pipeline: &mut self.grade_pipeline,
                 goo_pipeline: &mut self.goo_pipeline,
                 web: self.web,
+                effect_images,
+                effect_idx: 0,
             },
             &scene.root,
             Affine::IDENTITY,
@@ -211,9 +282,30 @@ struct Ctx<'a> {
     bloom_pipeline: &'a mut Option<Bloom>,
     grade_pipeline: &'a mut Option<ColorGrade>,
     goo_pipeline: &'a mut Option<Goo>,
-    /// WebGPU backend — the effect path's synchronous readback can't run here, so
-    /// effects are skipped (subtree renders un-effected) instead of crashing.
+    /// WebGPU backend — the effect path's synchronous readback can't run mid-build
+    /// here, so effects are resolved by an async PRE-PASS into `effect_images`
+    /// instead; if that cache is absent/exhausted the node draws un-effected
+    /// (graceful degrade, never a crash).
     web: bool,
+    /// Pre-rendered effect results (web path), one per effect node in `build`'s
+    /// stop-at-effect-node DFS order, consumed via `effect_idx`. `None` natively
+    /// (effects read back inline). A `None` entry — or running past the end —
+    /// means "no cached image" → the node renders un-effected.
+    effect_images: Option<&'a [Option<CachedEffect>]>,
+    /// Cursor into `effect_images`, advanced as each effect node is drawn.
+    effect_idx: usize,
+}
+
+/// A pre-rendered effect node's result (computed by the async effect pre-pass on
+/// the web path, drawn back during the synchronous build). `(x0, y0)` is the
+/// node-local top-left the image composites at, under the node's own affine.
+#[derive(Clone)]
+struct CachedEffect {
+    rgba: std::sync::Arc<Vec<u8>>,
+    width: u32,
+    height: u32,
+    x0: f64,
+    y0: f64,
 }
 
 /// Rasterize an already-built `VelloScene` to a fresh `Rgba8Unorm` texture of the
@@ -277,36 +369,65 @@ fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, pa
     // effect compute passes, then composite the result back at this node's
     // `affine`/`opacity` via the existing `draw_image_data` path — which keeps it
     // honoring `blend`/`clip` through the surrounding push_layer/pop_layer.
-    // On the WebGPU backend the effect path's mid-build CPU readback can't run
-    // (async-only buffer mapping), so skip it and let the node render normally
-    // below — un-effected, but visible (not a crash). Native keeps full effects.
-    if !node.effects.is_empty() && !ctx.web {
-        // Blend/clip wrap the composited (post-effect) image, exactly as they
-        // would wrap normal drawing, so push them here and let the early return
-        // below fall through their pops.
-        let blended = node.blend != BlendMode::Normal;
-        if blended {
-            vscene.push_layer(
-                blend_mix(node.blend),
-                1.0,
-                Affine::IDENTITY,
-                &Rect::new(-1.0e7, -1.0e7, 1.0e7, 1.0e7),
-            );
+    // On the WebGPU backend the mid-build CPU readback can't run (async-only
+    // buffer mapping), so effects are pre-rendered by an async pass into
+    // `ctx.effect_images` and consumed here in order; a cache miss degrades to
+    // un-effected (never a crash). Native reads back inline. Either way blend/clip
+    // wrap the composited result via the surrounding push_layer/pop_layer.
+    if !node.effects.is_empty() {
+        enum EffectDraw {
+            Native,
+            Cached(Option<CachedEffect>),
+            Degrade,
         }
-        let clipped = node.clip.is_some();
-        if let Some(clip) = &node.clip {
-            vscene.push_layer(Mix::Clip, 1.0, affine, &shape_path(clip));
-        }
+        let how = if !ctx.web {
+            EffectDraw::Native
+        } else if let Some(images) = ctx.effect_images {
+            if ctx.effect_idx < images.len() {
+                let cached = images[ctx.effect_idx].clone();
+                ctx.effect_idx += 1;
+                EffectDraw::Cached(cached)
+            } else {
+                EffectDraw::Degrade
+            }
+        } else {
+            EffectDraw::Degrade
+        };
 
-        render_effects_subtree(vscene, ctx, node, affine, opacity);
+        if !matches!(how, EffectDraw::Degrade) {
+            let blended = node.blend != BlendMode::Normal;
+            if blended {
+                vscene.push_layer(
+                    blend_mix(node.blend),
+                    1.0,
+                    Affine::IDENTITY,
+                    &Rect::new(-1.0e7, -1.0e7, 1.0e7, 1.0e7),
+                );
+            }
+            let clipped = node.clip.is_some();
+            if let Some(clip) = &node.clip {
+                vscene.push_layer(Mix::Clip, 1.0, affine, &shape_path(clip));
+            }
 
-        if clipped {
-            vscene.pop_layer();
+            match how {
+                EffectDraw::Native => render_effects_subtree(vscene, ctx, node, affine, opacity),
+                EffectDraw::Cached(Some(c)) => draw_effect_image(
+                    vscene, affine, opacity, c.rgba, c.width, c.height, c.x0, c.y0,
+                ),
+                // A degenerate effect node (no measurable subtree) drew nothing.
+                EffectDraw::Cached(None) => {}
+                EffectDraw::Degrade => {}
+            }
+
+            if clipped {
+                vscene.pop_layer();
+            }
+            if blended {
+                vscene.pop_layer();
+            }
+            return;
         }
-        if blended {
-            vscene.pop_layer();
-        }
-        return;
+        // Cache miss on the web → fall through and render the subtree un-effected.
     }
 
     // A blend mode composites this node's whole subtree against the backdrop
@@ -436,13 +557,7 @@ fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, pa
 /// The texture's top-left maps to local `(x0, y0)`, so we draw it at
 /// `affine * translate(x0, y0)` and the blurred pixels land exactly where the
 /// sharp subtree would have, just softened and spread by the margin.
-fn render_effects_subtree(
-    vscene: &mut VelloScene,
-    ctx: &mut Ctx,
-    node: &Node,
-    affine: Affine,
-    opacity: f32,
-) {
+fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u32, u32, f64, f64)> {
     // Total blur margin = the largest σ in the chain × 3 (the kernel's reach),
     // so blurred edges aren't clipped by the texture border.
     let max_sigma = node
@@ -464,9 +579,7 @@ fn render_effects_subtree(
 
     // Local-space bounds of the subtree (this node's own drawing + descendants),
     // grown by the margin. Empty/degenerate → nothing to do.
-    let Some(bounds) = subtree_local_bounds(ctx.fonts, node) else {
-        return;
-    };
+    let bounds = subtree_local_bounds(ctx.fonts, node)?;
     let x0 = (bounds.x0 - margin).floor();
     let y0 = (bounds.y0 - margin).floor();
     let x1 = (bounds.x1 + margin).ceil();
@@ -474,13 +587,13 @@ fn render_effects_subtree(
     let w = (x1 - x0) as i64;
     let h = (y1 - y0) as i64;
     if w <= 0 || h <= 0 {
-        return;
+        return None;
     }
     // Clamp to a sane ceiling so a pathological scene can't request a giant
     // texture (the frame itself is the natural upper bound on useful size).
     const MAX_DIM: i64 = 8192;
     if w > MAX_DIM || h > MAX_DIM {
-        return;
+        return None;
     }
     let (tw, th) = (w as u32, h as u32);
 
@@ -586,13 +699,52 @@ fn render_effects_subtree(
         }
     }
 
-    // Read the post-effect texture back to straight-alpha RGBA and composite it at
-    // the node's transform/opacity, offset so local `(x0, y0)` lands correctly.
+    Some((texture, tw, th, x0, y0))
+}
+
+/// Native inline effect path: build the effect texture, read it back synchronously
+/// (native only — WebGPU resolves effects via the async pre-pass), and composite
+/// it at the node's affine/opacity.
+fn render_effects_subtree(
+    vscene: &mut VelloScene,
+    ctx: &mut Ctx,
+    node: &Node,
+    affine: Affine,
+    opacity: f32,
+) {
+    let Some((texture, tw, th, x0, y0)) = build_effect_texture(ctx, node) else {
+        return;
+    };
     let frame = read_back(ctx.device, ctx.queue, &texture, tw, th);
+    draw_effect_image(
+        vscene,
+        affine,
+        opacity,
+        std::sync::Arc::new(frame.pixels),
+        tw,
+        th,
+        x0,
+        y0,
+    );
+}
+
+/// Composite a pre-rendered effect image (straight-alpha RGBA) at `affine`/
+/// `opacity`, offset so its node-local `(x0, y0)` lands correctly. Shared by the
+/// native inline path and the web cached (pre-pass) path.
+fn draw_effect_image(
+    vscene: &mut VelloScene,
+    affine: Affine,
+    opacity: f32,
+    rgba: std::sync::Arc<Vec<u8>>,
+    width: u32,
+    height: u32,
+    x0: f64,
+    y0: f64,
+) {
     let data = ImageData {
-        width: tw,
-        height: th,
-        rgba: std::sync::Arc::new(frame.pixels),
+        width,
+        height,
+        rgba,
     };
     let place = affine * Affine::translate((x0, y0));
     draw_image_data(
