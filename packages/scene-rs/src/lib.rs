@@ -88,6 +88,20 @@ impl BlendMode {
     }
 }
 
+/// One entry in a node's ordered, screen-space effect chain. Effects render the
+/// node's subtree to an offscreen surface and post-process it before
+/// compositing back (see the render-to-texture design). A `Vec<Effect>` (not a
+/// scalar) keeps the order explicit — sharp → blur → bloom — as later variants
+/// land. Both backends currently ignore a non-empty list; only the data model
+/// is wired up, so existing scene JSON and goldens stay byte-identical.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "effect", rename_all = "snake_case")]
+pub enum Effect {
+    /// Screen-space Gaussian blur; `sigma` is the std-dev in OUTPUT px (matching
+    /// CSS `blur()`).
+    Blur { sigma: f32 },
+}
+
 /// A node in the scene graph: shared properties plus a kind-specific payload and
 /// an ordered list of children. Children inherit nothing implicitly except draw
 /// order; transform/opacity composition is the renderer's job.
@@ -110,6 +124,12 @@ pub struct Node {
     /// `Normal` (src-over).
     #[serde(default, skip_serializing_if = "BlendMode::is_normal")]
     pub blend: BlendMode,
+    /// Ordered screen-space effect chain (e.g. blur). Empty (the default) leaves
+    /// the node untouched and is omitted from serialized JSON — so existing
+    /// scenes and goldens are byte-identical. Honored via render-to-texture;
+    /// backends that don't yet read it draw the subtree as-is.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effects: Vec<Effect>,
     /// Optional flex layout: when set, this node positions its direct children
     /// (sets their `transform.translate`) per the rules — resolved by the
     /// `onda-layout` pre-pass before rendering, so backends just draw.
@@ -158,6 +178,7 @@ impl Node {
             opacity: 1.0,
             clip: None,
             blend: BlendMode::Normal,
+            effects: Vec::new(),
             layout: None,
             kind,
             children: Vec::new(),
@@ -167,6 +188,12 @@ impl Node {
     /// Builder: set the node's blend mode (CSS `mix-blend-mode`).
     pub fn with_blend(mut self, blend: BlendMode) -> Self {
         self.blend = blend;
+        self
+    }
+
+    /// Builder: append an effect to this node's chain (applied in order).
+    pub fn with_effect(mut self, effect: Effect) -> Self {
+        self.effects.push(effect);
         self
     }
 
@@ -1271,6 +1298,23 @@ mod tests {
         assert!(json.contains(r#""clip""#));
         let back: Scene = serde_json::from_str(&json).unwrap();
         assert_eq!(scene, back);
+    }
+
+    #[test]
+    fn effects_skip_when_empty_and_round_trip() {
+        // No effects → the `effects` key is omitted entirely (skip-if-empty), so
+        // existing scenes and goldens serialize byte-identically.
+        let plain = Node::group();
+        let json = serde_json::to_string(&plain).unwrap();
+        assert!(!json.contains("effects"));
+
+        // A blur effect serializes with the serde tag shape and round-trips.
+        let node = Node::text("Onda").with_effect(Effect::Blur { sigma: 6.0 });
+        let json = serde_json::to_string(&node).unwrap();
+        assert!(json.contains(r#""effects":[{"effect":"blur","sigma":6.0}]"#));
+        let back: Node = serde_json::from_str(&json).unwrap();
+        assert_eq!(node, back);
+        assert_eq!(back.effects, vec![Effect::Blur { sigma: 6.0 }]);
     }
 
     #[test]
