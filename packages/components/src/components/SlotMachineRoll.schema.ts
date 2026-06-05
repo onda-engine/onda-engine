@@ -8,8 +8,8 @@ import { z } from 'zod'
 export const slotMachineRollSchema = z.object({
   text: z.string().default('2026').describe("The text that rolls into place. Best on short strings (years, counts)."),
   delay: z.number().int().default(0).describe("Frames before rolling starts."),
-  charDelay: z.number().int().default(4).describe("Frames between successive characters starting their roll."),
-  durationInFrames: z.number().int().optional().describe("Frames for each character's reel to settle (default DURATION.slow = 24)."),
+  charDelay: z.number().int().default(5).describe("Frames between successive characters starting their roll (default the house STAGGER = 5 - a settled, orchestrated wave left-to-right)."),
+  durationInFrames: z.number().int().optional().describe("Frames for each character's reel to settle (default DURATION.slower = 34 - a slow, hard-decelerating odometer drop, not a constant-velocity spin)."),
   reelLength: z.number().int().default(12).describe("How many filler glyphs spin past before the target lands."),
   seed: z.number().int().default(7).describe("Seed for the (deterministic) filler glyphs."),
   charset: z.string().default('0123456789').describe("Glyph pool the reel spins through."),

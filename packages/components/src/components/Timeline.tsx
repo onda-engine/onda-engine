@@ -1,12 +1,14 @@
 //! Timeline — a vertical event timeline. Ported from ondajs (`timeline`).
 //!
-//! A vertical line (`<Rect>`) draws on top-to-bottom first, then event dots
+//! A vertical line (`<Rect>`) draws on top-to-bottom first, then event markers
 //! (`<Ellipse>`) cascade in down the line with the canonical stagger, then each
-//! label (`<Text>`) fades in beside its dot. The final dot earns the dusty-rose
-//! accent — one focal moment, the rest neutral. This mirrors the ondajs
-//! choreography (line → dots → labels); ondajs lays the line out horizontally,
-//! this port runs it vertically (per the engine component spec) with an explicit
-//! `y` per event.
+//! label (`<Text>`) rises in beside its marker. The final marker is the playhead:
+//! it earns the dusty-rose accent and a soft accent glow — one focal moment, the
+//! rest neutral. Every marker sits on a soft, bg-tinted drop-shadow so the column
+//! reads with quiet depth above the line. This mirrors the ondajs choreography
+//! (line → markers → labels); ondajs lays the line out horizontally, this port
+//! runs it vertically (per the engine component spec) with an explicit `y` per
+//! event.
 //!
 //! Layout / scene caveats:
 //! - FIXED dimensions, centered by computing a top-left offset from the
@@ -30,11 +32,12 @@ import {
   Text,
   clipRect,
   interpolate,
+  radialGradient,
   spring,
   useCurrentFrame,
   useVideoConfig,
 } from '@onda/react'
-import { entryFade, entryScale } from '../choreography.js'
+import { entryScale, entrySlide } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { measureText, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
@@ -113,6 +116,17 @@ export function Timeline({
   const count = events.length
   const lastIndex = count - 1
 
+  // Depth tones. Markers sit on a soft, large-radius drop-shadow tinted toward
+  // the canvas (not hard black) so the column reads with quiet elevation above
+  // the line. The playhead (final marker) earns a soft accent glow — one focal
+  // halo, drawn behind the dot. `alphaHex` appends an 8-bit alpha to a #rrggbb
+  // tone; the accent is a known hex, so the glow stops are derived from it.
+  const markerShadow = { color: alphaHex(theme.background, 0x66), blur: 22, offsetY: 8 }
+  const glowCore = alphaHex(accentColor, 0x4d) // ~0.30 alpha at center
+  const glowEdge = alphaHex(accentColor, 0x00) // fade to transparent
+  // Glow radius scales with the dot — a soft bloom roughly 2.4× the diameter.
+  const glowRadius = dotSize * 1.2
+
   // Vertical extent the dots span: first dot at y=0, last at spacing*lastIndex.
   const dotsSpan = count > 1 ? spacing * lastIndex : 0
   // Pixels reserved between a dot's right edge and its label.
@@ -184,7 +198,8 @@ export function Timeline({
       {events.map((event, i) => {
         const thisDotDelay = delay + lineDuration + dotDelay + staggerFrames(i, dotStagger)
 
-        // Dot entrance — scale + fade from the canonical vocabulary.
+        // Marker entrance — scale + fade from the canonical vocabulary, settling
+        // on the house spring (no bounce; decelerates into rest).
         const dotMotion = entryScale({
           frame,
           fps,
@@ -192,12 +207,16 @@ export function Timeline({
           durationInFrames: dotDuration,
         })
 
-        // Label trails its dot by 2 frames — dot leads, label is its consequence.
-        const labelMotion = entryFade({
+        // Label trails its marker by 2 frames — the marker leads, the label is
+        // its consequence — and RISES in (opacity + a small translateY) rather
+        // than flat-fading, so the cascade reads as an orchestrated wave.
+        const labelMotion = entrySlide({
           frame,
           fps,
           delay: thisDotDelay + 2,
           durationInFrames: dotDuration,
+          direction: 'up',
+          distance: 10,
         })
 
         const isLast = i === lastIndex
@@ -209,8 +228,10 @@ export function Timeline({
 
         return (
           <Group key={`${i}-${event.label}`}>
-            {/* Dot. The subtree origin is moved to the dot CENTER so entryScale
-                grows from the center (scale pivots on the local origin). */}
+            {/* Marker. The subtree origin is moved to the dot CENTER so entryScale
+                grows from the center (scale pivots on the local origin). The whole
+                group carries the entrance opacity/scale, so the playhead glow
+                below blooms in as one unit with its dot. */}
             <Group
               x={dotCenterX}
               y={dotCenterY}
@@ -218,19 +239,37 @@ export function Timeline({
               scaleY={dotMotion.scaleY}
               opacity={dotMotion.opacity}
             >
+              {/* Playhead glow — the one earned accent halo, behind the final
+                  marker only (radial-gradient bloom). Drawn first so the dot
+                  sits on top. */}
+              {isLast ? (
+                <Ellipse
+                  x={-glowRadius}
+                  y={-glowRadius}
+                  width={glowRadius * 2}
+                  height={glowRadius * 2}
+                  gradient={radialGradient([glowRadius, glowRadius], glowRadius, [
+                    { offset: 0, color: glowCore },
+                    { offset: 1, color: glowEdge },
+                  ])}
+                />
+              ) : null}
+
               <Ellipse
                 x={-dotSize / 2}
                 y={-dotSize / 2}
                 width={dotSize}
                 height={dotSize}
                 fill={fillColor}
+                shadow={markerShadow}
               />
             </Group>
 
-            {/* Label — opacity-only motion, placed by explicit x/y. Vertically
+            {/* Label — opacity + small rise, placed by explicit x/y (the rise is
+                nested inside this positioned group, layout-safe). Vertically
                 centered against the dot (text is measured from its own origin,
                 so nudge up by half the font size). */}
-            <Group opacity={labelMotion.opacity}>
+            <Group opacity={labelMotion.opacity} y={labelMotion.y}>
               <Text
                 x={dotSize + labelGap}
                 y={dotCenterY - Math.round(fontSize / 2)}
@@ -247,4 +286,26 @@ export function Timeline({
       })}
     </Group>
   )
+}
+
+/** Append an 8-bit `alpha` (0–255) to a `#rgb`/`#rrggbb` tone, yielding a
+ *  `#rrggbbaa`. Used for the bg-tinted marker shadow and the accent glow stops —
+ *  derived from theme tones rather than hardcoded black/transparent. Non-hex
+ *  inputs fall through unchanged (the renderer still gets a valid color). */
+function alphaHex(color: string, alpha: number): string {
+  const a = Math.max(0, Math.min(255, Math.round(alpha)))
+    .toString(16)
+    .padStart(2, '0')
+  if (!color.startsWith('#')) return color
+  const hex = color.slice(1)
+  if (hex.length === 3) {
+    const r = hex[0] ?? '0'
+    const g = hex[1] ?? '0'
+    const b = hex[2] ?? '0'
+    return `#${r}${r}${g}${g}${b}${b}${a}`
+  }
+  if (hex.length === 6 || hex.length === 8) {
+    return `#${hex.slice(0, 6)}${a}`
+  }
+  return color
 }

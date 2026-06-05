@@ -28,7 +28,13 @@
 
 import { Group, Rect, clipRect, linearGradient, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFadeRise } from '../choreography.js'
+import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
+
+/** Default frames for one shimmer pass — a slow, settled sweep. Two `hold`
+ *  beats (≈3.2s @30fps) so the highlight glides rather than races; a fast sweep
+ *  reads cheap/anxious, a slow one reads premium and calm. */
+const SHIMMER_PASS = DURATION.hold * 2
 
 /** Deterministic bar widths as a fraction of the inner content width — a fixed
  *  repeating pattern keyed off the bar index (no PRNG; pure function of i). Reads
@@ -42,7 +48,8 @@ export interface SkeletonCardProps {
   lines?: number
   /** Show the leading thumbnail block above the bars. */
   thumbnail?: boolean
-  /** Frames for one shimmer pass across the card. Lower = faster sweep. */
+  /** Frames for one shimmer pass across the card. Lower = faster sweep. The
+   *  default runs slow on purpose — a settled, premium loading state. */
   shimmerSpeed?: number
   /** The travelling highlight color — a soft sheen over the bars (default: theme `border`). */
   shimmerColor?: string
@@ -67,7 +74,7 @@ export interface SkeletonCardProps {
 export function SkeletonCard({
   lines = 3,
   thumbnail = true,
-  shimmerSpeed = 48,
+  shimmerSpeed = SHIMMER_PASS,
   shimmerColor: shimmerColorProp,
   barColor: barColorProp,
   cardColor: cardColorProp,
@@ -81,18 +88,26 @@ export function SkeletonCard({
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
   const theme = useTheme()
-  const shimmerColor = shimmerColorProp ?? theme.border
   // Resting bar fill. The theme `surface` (`#121217`) sits barely above the
   // canvas `background` (`#0a0d17`), so raw surface bars vanish on a dark scene.
-  // Lift the *default* placeholder toward `text` so the card clearly reads as a
-  // skeleton; an explicit `barColor` is always honored as-is.
-  const barColor = barColorProp ?? mixHex(theme.surface, theme.text, 0.22)
+  // Lift the *default* placeholder toward `text` so the card reads as a
+  // skeleton — but only a near-surface lift, so the bars sit quiet and premium
+  // rather than glaring; an explicit `barColor` is always honored as-is.
+  const barColor = barColorProp ?? mixHex(theme.surface, theme.text, 0.16)
+  // The travelling sheen — a soft highlight just a touch above the resting bar
+  // tone (not the flat `border`), so the pass reads as a gentle wash of light
+  // over the skeleton rather than a hard edge sweeping through.
+  const shimmerColor = shimmerColorProp ?? mixHex(barColor, theme.text, 0.28)
   // The glass panel is the canvas background at ~80% alpha. Force `cc` onto a
   // 6-digit hex background; otherwise take the theme value as-is.
   const cardColor = cardColorProp ?? withGlassAlpha(theme.background)
   const borderColor = borderColorProp ?? theme.border
   // Shared corner radius for the card panel, thumbnail block, and clip mask.
   const cornerRadius = theme.radius
+  // Elevation shadow tinted toward the canvas background (not hard black) at a
+  // low alpha — a soft, large-radius pool under the panel reads as quiet depth,
+  // where pure black at high alpha would read as a harsh cutout.
+  const shadowColor = `${mixHex(theme.background, '#000000', 0.4)}40`
 
   const safeLines = Math.max(1, Math.floor(lines))
   const safeBarHeight = Math.max(1, barHeight)
@@ -128,7 +143,10 @@ export function SkeletonCard({
   const safeSpeed = Math.max(1, Math.floor(shimmerSpeed))
   const t = (((local % safeSpeed) + safeSpeed) % safeSpeed) / safeSpeed
   const center = -0.5 + t * 2 // ondajs: posX from -50% → 150%
-  const band = 0.2 // half-width of the bright zone in gradient-offset units
+  // Half-width of the bright zone in gradient-offset units. A *wide*, gentle
+  // band so the sheen fades in and out across a third of the card — broad and
+  // diffuse reads soft/premium; a narrow band would sweep as a hard edge.
+  const band = 0.32
   const lo = Math.max(0, Math.min(1, center - band))
   const mid = Math.max(0, Math.min(1, center))
   const hi = Math.max(0, Math.min(1, center + band))
@@ -136,8 +154,9 @@ export function SkeletonCard({
 
   // A gentle sine opacity breath on the bars so the placeholder reads "loading"
   // even on the CPU backend (where the gradient sheen collapses away). Oscillates
-  // ~0.7 → 1.0 over the same loop period — calm, never strobing.
-  const pulse = 0.85 + 0.15 * Math.sin(t * Math.PI * 2 - Math.PI / 2)
+  // ~0.82 → 1.0 over the same (now slow) loop period — a quiet, settled breath,
+  // tight amplitude and high floor so it never throbs or strobes.
+  const pulse = 0.91 + 0.09 * Math.sin(t * Math.PI * 2 - Math.PI / 2)
 
   // Sheen offsets must be strictly increasing and within [0, 1] for a valid
   // gradient; if the band is fully off one edge the three clamp together — nudge
@@ -159,7 +178,7 @@ export function SkeletonCard({
         fill={cardColor}
         stroke={borderColor}
         strokeWidth={1}
-        shadow={{ color: '#00000059', blur: 28, offsetY: 12 }}
+        shadow={{ color: shadowColor, blur: 40, offsetY: 16 }}
       />
 
       {/* Placeholder content, inset by the padding. */}
@@ -212,7 +231,7 @@ export function SkeletonCard({
               { offset: o3, color: transparent },
             ],
           )}
-          opacity={0.5}
+          opacity={0.32}
         />
       </Group>
     </Group>

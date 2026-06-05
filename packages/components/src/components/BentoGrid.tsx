@@ -49,13 +49,13 @@ export interface BentoGridProps {
   items?: BentoItem[]
   /** Number of grid columns (default 3). */
   columns?: number
-  /** Gap between cells in px (default 20). */
+  /** Gap between cells in px (default 24). */
   gap?: number
   /** Overall grid width in px (default 960). */
   width?: number
   /** Row-track height in px. Defaults to the column-track width (≈ square cells). */
   rowHeight?: number
-  /** Inner padding of each cell in px (default 28). */
+  /** Inner padding of each cell in px (default 34). */
   padding?: number
   /** Frames before the first cell enters (default 0). */
   delay?: number
@@ -230,10 +230,10 @@ function packCells(
 export function BentoGrid({
   items = DEFAULT_ITEMS,
   columns = 3,
-  gap = 20,
+  gap = 24,
   width = 960,
   rowHeight,
-  padding = 28,
+  padding = 34,
   delay = 0,
   stagger = STAGGER,
   fontSize = 30,

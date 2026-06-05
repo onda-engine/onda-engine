@@ -8,8 +8,8 @@ import { z } from 'zod'
 export const captionsSchema = z.object({
   captions: z.any().default([{ text: 'Onda', startMs: 0, endMs: 1500 }, { text: 'kinetic', startMs: 1500, endMs: 3000 }, { text: 'captions', startMs: 3000, endMs: 4500 }]).describe("The transcript timeline; each entry is a word plus its [startMs, endMs) activation window."),
   delay: z.number().int().default(0).describe("Frames before the timeline starts (shifts every startMs by this)."),
-  color: z.string().optional().describe("Inactive word color (defaults to theme textMuted); accepted for ondajs parity but not applied since only the active caption is drawn."),
-  accentColor: z.string().optional().describe("Active caption color (defaults to theme text); the contrast is brightness against the dim canvas, not a rose accent."),
+  color: z.string().optional().describe("Settled word color — the near-white tone a word relaxes to once the eye has landed past it (defaults to theme text)."),
+  accentColor: z.string().optional().describe("Active word color — the one earned accent carried by the word the eye is currently landing on as the line cascades in (defaults to theme accent)."),
   fontSize: z.number().default(96).describe("Font size in px."),
   fontFamily: z.string().optional().describe("Loaded font family (defaults to theme fontFamily)."),
   fontWeight: z.number().default(600).describe("Font weight (display default 600)."),

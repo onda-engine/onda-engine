@@ -28,7 +28,16 @@
 //! Color defaults: ondajs ships `var(--onda-…, #hex)` CSS-token defaults. The
 //! engine has no CSS variables, so the literal hex fallbacks are used directly.
 
-import { Ellipse, Group, Path, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
+import {
+  Ellipse,
+  Group,
+  Path,
+  Rect,
+  Text,
+  radialGradient,
+  useCurrentFrame,
+  useVideoConfig,
+} from '@onda/react'
 import type { TextRunInput } from '@onda/react'
 import { useStaggeredEntrance, useTextReveal } from '../hooks.js'
 import { STAGGER } from '../motion.js'
@@ -129,14 +138,18 @@ export function Terminal({
   const revealed = command.slice(0, Math.max(0, shown))
   const typing = shown < command.length
 
-  // Deterministic blink keyed purely off the frame: toggles every half second.
-  const half = Math.max(1, Math.round(fps / 2))
-  const blinkOn = Math.floor(frame / half) % 2 === 0
+  // Deterministic blink keyed purely off the frame — a calm, steady cadence:
+  // a ~0.62s period where the cursor rests visible for most of it and winks off
+  // only briefly, so it reads settled and confident rather than strobing.
+  const period = Math.max(2, Math.round(fps * 0.62))
+  const blinkOn = frame % period < Math.round(period * 0.66)
   const showCursor = typing && blinkOn
 
-  // Output lines fade in, staggered, after the command finishes typing.
+  // Output lines settle in on the house stagger after the command finishes
+  // typing — a small rise + fade (opacity + a few px of translateY) on the
+  // smooth spring, so each line decelerates into place instead of popping.
   const outputAt = useStaggeredEntrance({
-    type: 'fade',
+    type: 'rise',
     delay: delay + typeSpeed + outputDelay,
     increment: STAGGER,
   })
@@ -189,8 +202,54 @@ export function Terminal({
 
   return (
     <Group x={winX} y={winY}>
-      {/* Window panel. */}
-      <Rect width={width} height={windowHeight} cornerRadius={cornerRadius} fill={background} />
+      {/* Depth: a soft, large-radius drop shadow tinted toward the page
+          background (never hard black) — painted first so the window reads as a
+          surface lifted off the canvas. GPU-only (a canvas-local radial fading
+          to transparent), centered just below the panel. */}
+      <Rect
+        x={-width * 0.12}
+        y={windowHeight * 0.04}
+        width={width * 1.24}
+        height={windowHeight * 1.24}
+        gradient={radialGradient(
+          // Center in the Rect's local space so it sits beneath the panel mid.
+          [width * 0.62, windowHeight * 0.5],
+          width * 0.6,
+          [
+            { offset: 0, color: withAlpha(theme.background, 0x66) },
+            { offset: 1, color: withAlpha(theme.background, 0x00) },
+          ],
+        )}
+      />
+
+      {/* A subtle accent glow bleeding from the window's top edge — the one
+          earned flourish, kept faint so it warms the panel without shouting. */}
+      <Rect
+        x={-width * 0.1}
+        y={-windowHeight * 0.14}
+        width={width * 1.2}
+        height={windowHeight * 0.6}
+        gradient={radialGradient(
+          // Centered on the panel's top edge, in the Rect's local space.
+          [width * 0.6, windowHeight * 0.14],
+          width * 0.5,
+          [
+            { offset: 0, color: withAlpha(promptColor, 0x1c) },
+            { offset: 1, color: withAlpha(promptColor, 0x00) },
+          ],
+        )}
+      />
+
+      {/* Window panel — a near-black surface with a hairline border so its edge
+          reads crisply against the canvas. */}
+      <Rect
+        width={width}
+        height={windowHeight}
+        cornerRadius={cornerRadius}
+        fill={background}
+        stroke={theme.border}
+        strokeWidth={1}
+      />
 
       {/* Title bar: dots + optional label + a hairline separator that divides the
           bar from the body, so the chrome reads as a real terminal window. */}
@@ -251,9 +310,9 @@ export function Terminal({
         const text = hasCheck ? line.replace(CHECK_GLYPHS, '') : line
         const rowY = bodyTop + (i + 1) * lineBox
         const textX = hasCheck ? bodyPadX + checkBox + checkGap : bodyPadX
-        const { opacity } = outputAt(i)
+        const { opacity, y: riseY } = outputAt(i)
         return (
-          <Group key={i} opacity={opacity}>
+          <Group key={i} y={riseY} opacity={opacity}>
             {hasCheck ? (
               <Group
                 x={bodyPadX}
@@ -278,4 +337,27 @@ export function Terminal({
       })}
     </Group>
   )
+}
+
+/** Return `color` (`#rrggbb` / `#rrggbbaa` / `#rgb`) with its alpha channel set
+ *  to the given byte (0..255), preserving RGB so a glow fades the tone itself
+ *  rather than toward black. Falls back to the input unchanged on an unknown
+ *  format. */
+function withAlpha(color: string, alpha: number): string {
+  const a = Math.max(0, Math.min(255, Math.round(alpha)))
+    .toString(16)
+    .padStart(2, '0')
+  if (color.startsWith('#')) {
+    const hex = color.slice(1)
+    if (hex.length === 6 || hex.length === 8) {
+      return `#${hex.slice(0, 6)}${a}`
+    }
+    if (hex.length === 3) {
+      const r = hex[0] ?? '0'
+      const g = hex[1] ?? '0'
+      const b = hex[2] ?? '0'
+      return `#${r}${r}${g}${g}${b}${b}${a}`
+    }
+  }
+  return color
 }

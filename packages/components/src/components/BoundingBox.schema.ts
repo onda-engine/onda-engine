@@ -13,7 +13,7 @@ export const boundingBoxSchema = z.object({
   label: z.string().default('').describe("Optional label tag pinned to the box's top-left corner; empty string hides it."),
   color: z.string().optional().describe("Outline, tick, and tag color; defaults to the theme accent."),
   delay: z.number().default(0).describe("Frames before the outline starts revealing."),
-  drawDuration: z.number().optional().describe("Frames to reveal the full outline (default 24)."),
+  drawDuration: z.number().optional().describe("Frames to reveal the full outline (default 28)."),
   strokeWidth: z.number().default(3).describe("Outline stroke width in px."),
   cornerRadius: z.number().default(0).describe("Corner rounding for the outline rectangle in px (sharp by default)."),
   labelColor: z.string().default('#08080a').describe("Label text color; a dark for contrast on the accent tag by default."),

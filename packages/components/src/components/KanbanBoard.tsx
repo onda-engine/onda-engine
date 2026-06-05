@@ -115,6 +115,12 @@ export function KanbanBoard({
   const columnStroke = columnStrokeProp ?? theme.border
   const cardFill = cardFillProp ?? theme.surface
 
+  // Soft elevation shadows: tinted toward the canvas bg (never hard black) so
+  // cards read as panels floating above the near-surface column. The active
+  // card swaps the neutral tint for a faint accent-tinted glow.
+  const shadowTint = withAlpha(theme.background, 0.45)
+  const shadowGlow = withAlpha(accent, 0.28)
+
   const headerSize = fontSize
   const cardSize = Math.round(headerSize * 0.82)
 
@@ -164,8 +170,6 @@ export function KanbanBoard({
         const hasAccent = col.accent != null
         const dotColor = hasAccent ? colAccent : faintColor
         const countColor = hasAccent ? colAccent : faintColor
-        const stripeColor = hasAccent ? colAccent : faintColor
-        const stripeOpacity = hasAccent ? 0.9 : 0.4
         const cards = col.cards ?? []
         const colX = ci * (colWidth + gap)
 
@@ -221,6 +225,13 @@ export function KanbanBoard({
             {/* Ticket cards — each rises + fades in on the flat running stagger. */}
             <Group x={pad} y={pad + headerH + gap}>
               {cards.map((label, ti) => {
+                // One earned accent: the active/priority card is the FIRST card
+                // of the accented column. It alone gets the live accent stripe +
+                // a soft accent glow; every other card stays calm and faint.
+                const isActive = hasAccent && ti === 0
+                const stripeColor = isActive ? colAccent : faintColor
+                const stripeOpacity = isActive ? 1 : 0.35
+
                 const cardDelay = delay + staggerFrames(cardIndex, stagger)
                 cardIndex += 1
 
@@ -235,7 +246,7 @@ export function KanbanBoard({
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
                 })
-                const rise = interpolate(progress, [0, 1], [12, 0], {
+                const rise = interpolate(progress, [0, 1], [16, 0], {
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
                 })
@@ -249,6 +260,9 @@ export function KanbanBoard({
                   // layout-positioned node.
                   <Group key={`${ti}-${label}`} x={0} y={cardY}>
                     <Group y={rise} opacity={opacity}>
+                      {/* Soft elevation shadow tinted toward the canvas bg (not
+                          hard black) so cards read as floating above the column.
+                          The active card earns a faint accent-tinted glow. */}
                       <Rect
                         x={0}
                         y={0}
@@ -256,8 +270,15 @@ export function KanbanBoard({
                         height={cardH}
                         cornerRadius={8}
                         fill={cardFill}
+                        stroke={columnStroke}
+                        strokeWidth={1}
+                        shadow={
+                          isActive
+                            ? { color: shadowGlow, blur: 26, offsetY: 8, spread: -2 }
+                            : { color: shadowTint, blur: 22, offsetY: 8, spread: -4 }
+                        }
                       />
-                      {/* Left accent stripe. */}
+                      {/* Left accent stripe — live accent only on the active card. */}
                       <Rect
                         x={cardPad}
                         y={cardPad}
@@ -271,9 +292,9 @@ export function KanbanBoard({
                         x={cardPad + stripeW + stripeGap}
                         y={cardPad}
                         fontSize={cardSize}
-                        color={cardTextColor}
+                        color={isActive ? textColor : cardTextColor}
                         fontFamily={fontFamily}
-                        fontWeight={400}
+                        fontWeight={isActive ? 500 : 400}
                       >
                         {label}
                       </Text>
@@ -287,4 +308,40 @@ export function KanbanBoard({
       })}
     </Group>
   )
+}
+
+/** Parse a 2-char hex byte to 0..255, defaulting to 0. */
+function hx(byte: string): number {
+  const v = Number.parseInt(byte, 16)
+  return Number.isNaN(v) ? 0 : v
+}
+
+/** Two-digit hex for a 0..255 channel. */
+function toHexByte(v: number): string {
+  const c = Math.max(0, Math.min(255, Math.round(v)))
+  return c.toString(16).padStart(2, '0')
+}
+
+/** Parse `#rgb` / `#rrggbb` / `#rrggbbaa` to an RGB triple. */
+function parseRgb(color: string): [number, number, number] {
+  if (color.startsWith('#')) {
+    const hex = color.slice(1)
+    if (hex.length === 3) {
+      const r = hex[0] ?? '0'
+      const g = hex[1] ?? '0'
+      const b = hex[2] ?? '0'
+      return [hx(`${r}${r}`), hx(`${g}${g}`), hx(`${b}${b}`)]
+    }
+    if (hex.length === 6 || hex.length === 8) {
+      return [hx(hex.slice(0, 2)), hx(hex.slice(2, 4)), hx(hex.slice(4, 6))]
+    }
+  }
+  return [0, 0, 0]
+}
+
+/** Return `color`'s RGB with the given alpha (0..1) as `#rrggbbaa`. */
+function withAlpha(color: string, alpha: number): string {
+  const [r, g, b] = parseRgb(color)
+  const a = Math.max(0, Math.min(1, alpha)) * 255
+  return `#${toHexByte(r)}${toHexByte(g)}${toHexByte(b)}${toHexByte(a)}`
 }

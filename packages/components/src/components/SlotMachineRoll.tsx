@@ -1,6 +1,16 @@
 //! SlotMachineRoll — each character spins down a reel of glyphs and lands on its
-//! target, settling on the house spring, staggered left-to-right. Ported from
-//! ondajs.
+//! target with an odometer settle: the reel decelerates hard into place on the
+//! house spring, kicks a hair past the target, then eases back — staggered
+//! left-to-right on the house cadence. Ported from ondajs, retuned premium.
+//!
+//! Premium notes (vs the original linear roll): the reel rides `SPRING_SMOOTH`
+//! over `DURATION.slower` for a slow, settled deceleration (no constant-velocity
+//! spin), with a small odometer over-roll near the landing that resolves back —
+//! the glyph drops in, overshoots a sliver, and settles, the way a real reel
+//! does. Columns sit on the house stagger; the cell advance is a touch airier so
+//! the digits breathe. One earned accent: a soft, low-opacity accent glow blooms
+//! behind the landed row as the reels settle — the only color in the piece, the
+//! digits stay near-white.
 //!
 //! Engine port notes (vs the ondajs/CSS original):
 //!  - ondajs nests `overflow:hidden` spans and translates an inner block. Here
@@ -32,6 +42,7 @@
 //! the local-origin pivot rule doesn't bite.
 
 import {
+  Ellipse,
   Flex,
   Group,
   Text,
@@ -42,22 +53,31 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from '@onda/react'
-import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { useTheme } from '../theme.js'
 
 /** Estimated cell advance as a fraction of font size — the per-character column
  *  width. Tuned for a monospace/display stack (matches the spirit of `Marquee`'s
- *  `AVG_CHAR_W`); only needs to be roughly proportional to keep reels aligned. */
-const CELL_W = 0.62
+ *  `AVG_CHAR_W`); only needs to be roughly proportional to keep reels aligned.
+ *  Bumped a touch over the original `0.62` so the landed digits breathe — premium
+ *  display type wants air between columns, not a cramped odometer. */
+const CELL_W = 0.7
+
+/** Odometer over-roll: how far past the target the reel kicks (as a fraction of a
+ *  cell) before easing back. A sliver — the glyph drops in, overshoots a hair,
+ *  and settles, the way a real reel does. Subtle by design (no cartoon bounce). */
+const OVER_ROLL = 0.12
 
 export interface SlotMachineRollProps {
   /** The text that rolls into place. Best on short strings (years, counts). */
   text?: string
   /** Frames before rolling starts. */
   delay?: number
-  /** Frames between successive characters starting their roll. */
+  /** Frames between successive characters starting their roll (default the house
+   *  `STAGGER` = 5 — a settled, orchestrated wave left-to-right). */
   charDelay?: number
-  /** Frames for each character's reel to settle (default `DURATION.slow` = 24). */
+  /** Frames for each character's reel to settle (default `DURATION.slower` = 34 —
+   *  a slow, hard-decelerating odometer drop, not a constant-velocity spin). */
   durationInFrames?: number
   /** How many filler glyphs spin past before the target lands. */
   reelLength?: number
@@ -87,8 +107,8 @@ export interface SlotMachineRollProps {
 export function SlotMachineRoll({
   text = '2026',
   delay = 0,
-  charDelay = 4,
-  durationInFrames = DURATION.slow,
+  charDelay = STAGGER,
+  durationInFrames = DURATION.slower,
   reelLength = 12,
   seed = 7,
   charset = '0123456789',
@@ -133,15 +153,46 @@ export function SlotMachineRoll({
 
   const local = frame - delay
 
+  // One earned accent: a soft, low-opacity glow that blooms behind the landed row
+  // as the reels settle — the only color in the piece (the digits stay near-white).
+  // It eases in on the house spring once the LAST column has nominally landed, so
+  // the bloom reads as the payoff of the roll, not a competing entrance.
+  const lastStart = staggerFrames(Math.max(0, placed.length - 1), charDelay)
+  const glowP = spring({
+    frame: local - lastStart - durationInFrames + 8,
+    fps,
+    config: SPRING_SMOOTH,
+    durationInFrames: DURATION.base,
+  })
+  const glowOpacity = interpolate(glowP, [0, 1], [0, 0.5], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  })
+  const glowW = totalWidth + cell * 0.9
+  const glowH = cell * 1.35
+
   return (
     <Group x={originX} y={originY}>
+      {/* Accent bloom behind the row — drawn first so the digits read on top of it.
+          Centered on the block; a wide, soft, low-opacity wash, not a hard fill. */}
+      <Ellipse
+        x={totalWidth / 2 - glowW / 2}
+        y={cell / 2 - glowH / 2}
+        width={glowW}
+        height={glowH}
+        fill={theme.accentSoft}
+        opacity={glowOpacity}
+        shadow={{ color: theme.accent, blur: cell * 0.7, offsetY: 0 }}
+      />
       {placed.map(({ ch, i, localX }) => {
         // Spaces occupy advance but render nothing — no reel, no window.
         if (ch === ' ') return null
 
         // Build this column's reel: `reelLength` deterministic fillers from the
-        // charset, then the target glyph as the final (bottom) row. Each filler
-        // gets a distinct composite seed so the sequence is stable per render.
+        // charset, then the target glyph, then ONE trailing sacrificial filler
+        // below it. The trailing row is what the odometer over-roll briefly
+        // reveals — the digit drops in a hair low (next glyph creeping up) before
+        // settling. Each filler gets a distinct composite seed (stable per render).
         const pool = [...charset]
         const reel: string[] = []
         for (let k = 0; k < reelLength; k++) {
@@ -150,20 +201,38 @@ export function SlotMachineRoll({
           reel.push(pool[idx] ?? ch)
         }
         reel.push(ch)
+        const trailing = random(seed + i * 7919 + reelLength * 31 + 13)
+        reel.push(pool[Math.min(pool.length - 1, Math.floor(trailing * pool.length))] ?? ch)
 
-        // House spring, staggered per character. Reel translates from showing
-        // the top filler (ty = 0) down to landing on the target at the bottom
-        // (ty = -reelLength*cell), so the window settles on the target glyph.
+        // House spring, staggered per character on the house cadence. The reel
+        // translates from the top filler (ty = 0) down to landing on the target
+        // (ty = -reelLength*cell). The spring decelerates HARD into rest — a slow
+        // odometer drop, never constant-velocity — so the digit settles, not spins.
+        const charStart = staggerFrames(i, charDelay)
+        const localChar = local - charStart
         const p = spring({
-          frame: local - i * charDelay,
+          frame: localChar,
           fps,
           config: SPRING_SMOOTH,
           durationInFrames,
         })
-        const ty = interpolate(p, [0, 1], [0, -reelLength * cell], {
+        const landTy = interpolate(p, [0, 1], [0, -reelLength * cell], {
           extrapolateLeft: 'clamp',
           extrapolateRight: 'clamp',
         })
+
+        // Odometer over-roll: a triangle wave that nudges the reel a sliver PAST
+        // the target (revealing the trailing row) just before it settles, then
+        // eases back to the target. Kicks off a few frames before the spring
+        // nominally completes so the over-roll and settle read as one landing.
+        const overStart = durationInFrames - 6
+        const overY = interpolate(
+          localChar,
+          [overStart, overStart + 4, overStart + 10],
+          [0, -OVER_ROLL * cell, 0],
+          { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
+        )
+        const ty = landTy + overY
 
         // Window is EXACTLY one cell tall, anchored at the column origin, so the
         // block stays vertically centered via `originY`. The reel translates
