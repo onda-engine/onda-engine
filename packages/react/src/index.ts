@@ -19,6 +19,8 @@ export {
 export {
   AbsoluteFill,
   type AbsoluteFillProps,
+  Camera,
+  type CameraProps,
   Composition,
   type CompositionProps,
   Ellipse,
