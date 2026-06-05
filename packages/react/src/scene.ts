@@ -183,6 +183,19 @@ export type Effect =
    *  its alpha is sharpened around `threshold` (0..1 cutoff) so overlapping shapes
    *  fuse into solid forms joined by smooth necks (the "drops coalescing" look). */
   | { effect: 'goo'; sigma: number; threshold: number }
+  /** Frosted glass (CSS `backdrop-filter`). The ODD ONE OUT: instead of capturing
+   *  this node's OWN subtree, it samples the already-composited BACKDROP *behind*
+   *  the node, blurs it by `sigma` (output px, like CSS `blur()`), scales its
+   *  `brightness`/`saturation` (CSS-style, `1` = identity), and tints it toward
+   *  `tint` by that color's ALPHA (alpha 0 = no tint). The blurred backdrop is
+   *  drawn as the node's backing; the node's own content composites on top. */
+  | {
+      effect: 'backdrop_blur'
+      sigma: number
+      tint: Color
+      brightness: number
+      saturation: number
+    }
 
 /** Compositing blend mode (CSS `mix-blend-mode`). Vello renders the full set;
  *  the CPU reference composites `normal` only. */

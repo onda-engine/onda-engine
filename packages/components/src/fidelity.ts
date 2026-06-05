@@ -429,15 +429,10 @@ export const ENGINE_CAPABILITIES = {
     'drop-shadow / glow (analytic blurred rounded-rect)',
     'animated image blur — gaussian focus-pull in the image pass (CPU+GPU+native byte-identical)',
     'content/text blur — screen-space gaussian over an arbitrary subtree (Group/Text/…) via the render-to-texture pass; the `blur` sugar prop, ramps for soft→sharp reveals (CPU+GPU)',
+    'backdrop blur — frosted-glass blur of what is BEHIND a node (CSS `backdrop-filter`); the `backdropBlur` node prop samples the already-composited backdrop, blurs + tints + brightens it, and draws it as the node’s backing (Vello samples the rendered backdrop, the CPU reference its live framebuffer)',
     'no-Chromium export (ffmpeg / GIF / PNG)',
   ],
   unsupported: [
-    {
-      feature: 'backdrop-filter (frosted-glass blur of what is BEHIND a node)',
-      status: 'deferred-render-to-texture-phase-2',
-      guidance:
-        'Content blur over a subtree IS supported (the `blur` prop / Image.blur). Sampling what is behind a node (backdrop) is the next render-to-texture phase; not available yet.',
-    },
     { feature: '3D / perspective transforms', status: '2d-affine-only' },
     { feature: 'SVG filters / embedded text+image / gradient paint', status: 'flattened-to-solid' },
     { feature: 'color / emoji glyphs / variable fonts', status: 'outline-only' },

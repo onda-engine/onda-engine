@@ -18,9 +18,9 @@
 //! absolutely-positioned content group, never on a Flex child).
 //!
 //! APPROXIMATIONS:
-//! - The ondajs surface is a CSS frosted-glass panel (backdrop blur + faint
-//!   border). The engine has no backdrop-filter, so this is a flat dark fill
-//!   with a 1px stroke — the closest faithful look.
+//! - The ondajs surface is a CSS frosted-glass panel. This renders a flat dark
+//!   fill + 1px stroke; the engine now also ships a `backdropBlur` node prop
+//!   (real frosted glass) this Surface could adopt in a follow-up.
 //! - Per-token colors render on the GPU (Vello) `runs` path. The CPU reference
 //!   rasterizer draws a line's concatenated run text in the node style, so the
 //!   syntax highlighting collapses to `textColor` there. GPU is the primary

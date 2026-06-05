@@ -72,6 +72,16 @@ export interface NodeProps {
    *  solid forms joined by smooth necks (the "drops of liquid coalescing" look).
    *  A bare number is the `sigma`. Honored by Vello AND the CPU reference. */
   goo?: number | { sigma: number; threshold?: number }
+  /** Frosted-glass sugar for `effects: [{ effect: 'backdrop_blur', ... }]`: samples
+   *  the already-composited BACKDROP *behind* this node (not its own subtree),
+   *  blurs it by `sigma` (output px), and draws it as the node's backing — then the
+   *  node's own content (e.g. a translucent panel `fill`) composites on top. A bare
+   *  number is just the `sigma`; the object form adds a `tint` (its alpha = tint
+   *  strength), a `brightness` and a `saturation` (CSS-style, `1` = identity).
+   *  Honored by Vello AND the CPU reference. */
+  backdropBlur?:
+    | number
+    | { sigma: number; tint?: ColorInput; brightness?: number; saturation?: number }
   children?: ReactNode
 }
 

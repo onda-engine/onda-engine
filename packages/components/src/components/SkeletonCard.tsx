@@ -18,9 +18,10 @@
 //!
 //! Approximations vs ondajs:
 //!  - The glass `Surface` uses CSS `backdrop-filter: blur` + a drop shadow + a 1px
-//!    top sheen; the engine has no backdrop blur or shadow, so the card is a flat
-//!    translucent panel (the dark glass fill `#0e0e12` + a 1px border). No blur,
-//!    no drop shadow, no top sheen overlay.
+//!    top sheen. This card renders a flat translucent panel (the dark glass fill
+//!    `#0e0e12` + a 1px border) with no top-sheen overlay. NOTE: the engine now
+//!    ships both a real `backdropBlur` node prop AND `shadow`, so a follow-up could
+//!    upgrade this Surface to true frosted glass with elevation.
 //!  - The moving-gradient sheen renders only on the Vello/GPU backend; the CPU
 //!    reference collapses a gradient to its first stop (here transparent), so on
 //!    CPU the sweep is invisible — the sine opacity pulse on the bars carries the

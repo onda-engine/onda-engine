@@ -3,12 +3,13 @@
 import { type ReactElement, createElement } from 'react'
 import Reconciler from 'react-reconciler'
 import { type ClipInput, parseClip } from './clip.js'
-import { parseColor } from './color.js'
+import { type ColorInput, parseColor } from './color.js'
 import { Composition, type TextRunInput } from './components.js'
 import { FrameContext, type VideoConfig } from './frame.js'
 import { type GradientInput, parseGradient } from './gradient.js'
 import { type HostNode, type RootContainer, hostConfig } from './host-config.js'
 import type {
+  Color,
   Effect,
   Gradient,
   Layout,
@@ -138,6 +139,8 @@ function toNode(node: HostNode): SceneNode {
   if (grade) effects.push(grade)
   const goo = parseGoo(props.goo)
   if (goo) effects.push(goo)
+  const backdropBlur = parseBackdropBlur(props.backdropBlur)
+  if (backdropBlur) effects.push(backdropBlur)
   if (effects.length) base.effects = effects
   if (props.layout !== undefined) base.layout = parseLayout(props.layout as Layout)
   const children = node.children.map(toNode)
@@ -370,6 +373,41 @@ function parseGoo(input: unknown): Extract<Effect, { effect: 'goo' }> | undefine
         effect: 'goo',
         sigma: g.sigma,
         threshold: typeof g.threshold === 'number' ? g.threshold : 0.5,
+      }
+    }
+  }
+  return undefined
+}
+
+/** Resolve the `backdropBlur` sugar prop into a `{ effect: 'backdrop_blur', ... }`
+ *  effect, or `undefined` when absent/degenerate. A bare number is the `sigma`; the
+ *  object form adds a `tint` (any {@link ColorInput} — its alpha is the strength),
+ *  a `brightness` and a `saturation` (both default to the `1` identity). An omitted
+ *  tint emits transparent `{r:0,g:0,b:0,a:0}`. A non-positive `sigma` is dropped (no
+ *  blur → nothing to frost). */
+function parseBackdropBlur(
+  input: unknown,
+): Extract<Effect, { effect: 'backdrop_blur' }> | undefined {
+  const TRANSPARENT: Color = { r: 0, g: 0, b: 0, a: 0 }
+  if (typeof input === 'number') {
+    return input > 0
+      ? { effect: 'backdrop_blur', sigma: input, tint: TRANSPARENT, brightness: 1, saturation: 1 }
+      : undefined
+  }
+  if (input && typeof input === 'object') {
+    const b = input as {
+      sigma?: number
+      tint?: ColorInput
+      brightness?: number
+      saturation?: number
+    }
+    if (typeof b.sigma === 'number' && b.sigma > 0) {
+      return {
+        effect: 'backdrop_blur',
+        sigma: b.sigma,
+        tint: b.tint !== undefined ? parseColor(b.tint) : TRANSPARENT,
+        brightness: typeof b.brightness === 'number' ? b.brightness : 1,
+        saturation: typeof b.saturation === 'number' ? b.saturation : 1,
       }
     }
   }

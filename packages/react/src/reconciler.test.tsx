@@ -411,6 +411,54 @@ describe('renderToScene', () => {
     ])
   })
 
+  it('emits a backdrop_blur effect from the `backdropBlur` sugar prop (number = sigma, transparent tint, unit gains)', () => {
+    const scene = renderToScene(
+      <Composition width={50} height={50} fps={1} durationInFrames={1}>
+        <Rect width={40} height={40} fill="#ffffff22" backdropBlur={14} />
+      </Composition>,
+    )
+    expect(scene.root.children?.[0]?.effects).toEqual([
+      {
+        effect: 'backdrop_blur',
+        sigma: 14,
+        tint: { r: 0, g: 0, b: 0, a: 0 },
+        brightness: 1,
+        saturation: 1,
+      },
+    ])
+  })
+
+  it('honors the `backdropBlur` object form (tint color + brightness/saturation)', () => {
+    const scene = renderToScene(
+      <Composition width={50} height={50} fps={1} durationInFrames={1}>
+        <Rect
+          width={40}
+          height={40}
+          fill="#ffffff22"
+          backdropBlur={{ sigma: 10, tint: '#0000ff80', brightness: 1.1, saturation: 0.8 }}
+        />
+      </Composition>,
+    )
+    expect(scene.root.children?.[0]?.effects).toEqual([
+      {
+        effect: 'backdrop_blur',
+        sigma: 10,
+        tint: { r: 0, g: 0, b: 1, a: 0.5019607843137255 },
+        brightness: 1.1,
+        saturation: 0.8,
+      },
+    ])
+  })
+
+  it('drops a `backdropBlur` with non-positive sigma (a no-op)', () => {
+    const scene = renderToScene(
+      <Composition width={50} height={50} fps={1} durationInFrames={1}>
+        <Rect width={40} height={40} fill="#ffffff22" backdropBlur={0} />
+      </Composition>,
+    )
+    expect(scene.root.children?.[0]?.effects).toBeUndefined()
+  })
+
   it('requires a single Composition root', () => {
     expect(() => renderToScene(<Group />)).toThrow(/Composition/)
   })

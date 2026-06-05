@@ -323,6 +323,56 @@ fn fixtures() -> Vec<(&'static str, Scene)> {
                     ]),
             ),
         ),
+        // RTT: frosted glass — a translucent panel carrying `BackdropBlur` over a
+        // busy gradient-and-accents backdrop. Unlike the other effects (which
+        // capture the node's OWN subtree), this samples the backdrop ALREADY drawn
+        // behind the panel, blurs/grades/tints it, clips it to the rounded rect, and
+        // composites it under the panel's own fill+stroke. The sharp accents outside
+        // the panel vs. their softened selves inside it lock the backdrop-sample +
+        // deterministic blur/grade math.
+        (
+            "frosted_glass",
+            scene(
+                Node::group().with_children([
+                    // Busy backdrop: a gradient field plus two bright accents, so the
+                    // blur (and brightness/saturation) are visibly different under glass.
+                    Node::shape(Shape::rect(Size::new(W as f32, H as f32)).with_gradient(
+                        Gradient::Linear {
+                            start: Vec2::new(0.0, 0.0),
+                            end: Vec2::new(W as f32, H as f32),
+                            stops: vec![
+                                GradientStop::new(0.0, Color::from_rgba8(0x24, 0x12, 0x4a, 0xFF)),
+                                GradientStop::new(1.0, Color::from_rgba8(0x0c, 0x32, 0x3e, 0xFF)),
+                            ],
+                        },
+                    )),
+                    Node::shape(
+                        Shape::ellipse(Size::new(70.0, 70.0))
+                            .with_fill(Color::from_rgba8(0xFF, 0x4D, 0x8D, 0xFF)),
+                    )
+                    .with_transform(translate(20.0, 20.0)),
+                    Node::shape(
+                        Shape::ellipse(Size::new(60.0, 60.0))
+                            .with_fill(Color::from_rgba8(0x3D, 0xD6, 0xFF, 0xFF)),
+                    )
+                    .with_transform(translate(150.0, 60.0)),
+                    // The glass panel: backdrop blur frosts what's behind it; the panel's
+                    // own low-alpha white fill + hairline stroke draw on top as the sheen.
+                    Node::shape(
+                        Shape::rounded_rect(Size::new(150.0, 96.0), 18.0)
+                            .with_fill(Color::new(1.0, 1.0, 1.0, 0.12))
+                            .with_stroke(Color::new(1.0, 1.0, 1.0, 0.5), 1.5),
+                    )
+                    .with_transform(translate(60.0, 30.0))
+                    .with_effect(Effect::BackdropBlur {
+                        sigma: 6.0,
+                        tint: Color::new(1.0, 1.0, 1.0, 0.10),
+                        brightness: 1.05,
+                        saturation: 1.10,
+                    }),
+                ]),
+            ),
+        ),
     ]
 }
 

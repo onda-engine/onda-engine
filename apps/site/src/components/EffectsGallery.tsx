@@ -240,6 +240,84 @@ function GooDemo(): ReactElement {
   })
 }
 
+/** frostedGlass — a translucent panel over a PHOTO. OFF = the photo is sharp
+ *  through the glass; ON = the panel frosts (blurs + tints) the photo behind it.
+ *  Unlike the other effects, `backdropBlur` samples the rendered BACKDROP, so it
+ *  sits on the PANEL node itself — its own backdrop region is what gets frosted. */
+function FrostedGlassDemo(): ReactElement {
+  const f = useCurrentFrame()
+  const sigma = loop(f, 8, 18)
+  // A glass card centred in each HALF, low enough so the photo reads around it.
+  const PW = 320
+  const PH = 300
+  const px = (HALF - PW) / 2
+  const py = (H - PH) / 2
+  // The panel that both halves share — a translucent white card with a hairline
+  // stroke. `extra` carries the `backdropBlur` only on the ON copy.
+  const panel = (key: string, extra: Record<string, unknown>): ReactElement[] => [
+    createElement(Rect, {
+      key: `${key}-glass`,
+      x: px,
+      y: py,
+      width: PW,
+      height: PH,
+      cornerRadius: 24,
+      fill: '#ffffff26', // ~0.15 alpha white — a frosted sheen
+      stroke: '#ffffff66',
+      strokeWidth: 1.5,
+      ...extra,
+    }),
+    createElement(
+      Text,
+      {
+        key: `${key}-title`,
+        x: px + 28,
+        y: py + 34,
+        fontSize: 34,
+        color: INK,
+        fontWeight: 700,
+        letterSpacing: -1,
+      },
+      'Frosted',
+    ),
+    createElement(
+      Text,
+      { key: `${key}-sub`, x: px + 28, y: py + 84, fontSize: 17, color: '#e9e7f0', opacity: 0.82 },
+      'backdrop blur',
+    ),
+    createElement(Rect, {
+      key: `${key}-pill`,
+      x: px + 28,
+      y: py + PH - 60,
+      width: 132,
+      height: 34,
+      cornerRadius: 17,
+      fill: ACCENT,
+    }),
+  ]
+  // A full-bleed photo as the shared backdrop BEHIND both panels, so each panel
+  // samples the real rendered scene (the photo) — not a flat fill.
+  return createElement(
+    Group,
+    null,
+    createElement(Img, {
+      x: 0,
+      y: 0,
+      width: W,
+      height: H,
+      src: '/gallery-sample.jpg',
+      fit: 'cover',
+    }),
+    createElement(Group, { x: 0, y: 0 }, ...panel('off', {})),
+    createElement(
+      Group,
+      { x: HALF, y: 0 },
+      ...panel('on', { backdropBlur: { sigma, brightness: 1.05 } }),
+    ),
+    createElement(SplitChrome),
+  )
+}
+
 interface EffectDef {
   name: string
   Demo: () => ReactElement
@@ -279,6 +357,13 @@ const EFFECTS: EffectDef[] = [
     blurb:
       'Two blobs — separate on the left, fused on the right. The gooey / metaball morph melts overlapping shapes into liquid forms with smooth necks. Blur → alpha-threshold, the same texture seam as bloom.',
     snippet: ['<Group goo={{ sigma: 13 }}>', '  <BlobA />', '  <BlobB />', '</Group>'].join('\n'),
+  },
+  {
+    name: 'frostedGlass',
+    Demo: FrostedGlassDemo,
+    blurb:
+      'A translucent card over a photo. Left, the panel is plain glass — the photo stays sharp through it. Right, the same panel carries backdropBlur: real backdrop blur sampled from the rendered scene, composited under the glass — the new render-to-texture backdrop pass. Unlike the other effects it samples what is BEHIND the node, not its own subtree, so it lives on the panel itself.',
+    snippet: ['<Rect backdropBlur={14} fill="#ffffff22" cornerRadius={22} />'].join('\n'),
   },
 ]
 

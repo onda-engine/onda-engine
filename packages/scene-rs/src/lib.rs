@@ -137,6 +137,32 @@ pub enum Effect {
     /// classic "drops of liquid coalescing" look — same machinery as `Bloom`
     /// (blur the capture, then a per-pixel pass), proving the ordered chain.
     Goo { sigma: f32, threshold: f32 },
+    /// Frosted glass (CSS `backdrop-filter`). The ODD ONE OUT: every other effect
+    /// captures and post-processes this node's OWN subtree; `BackdropBlur` instead
+    /// samples the ALREADY-COMPOSITED backdrop *behind* the node — within the
+    /// node's `clip` region, or its own `Shape` geometry, or (failing both) its
+    /// subtree bounds — blurs it by `sigma` (output px, like CSS `blur()`),
+    /// optionally scales `brightness`/`saturation` (CSS-style, `1.0` = identity),
+    /// and tints it toward `tint` by that color's alpha. The result is drawn as the
+    /// node's backing; the node's own content (e.g. a translucent panel fill) then
+    /// composites on top. Vello samples the rendered backdrop; the CPU reference
+    /// samples its live framebuffer. A node carrying `BackdropBlur` ignores any
+    /// other (subtree-capture) effects in the same list for now.
+    BackdropBlur {
+        /// Gaussian std-dev of the backdrop blur, in OUTPUT px (CSS `blur()`).
+        sigma: f32,
+        /// Tint laid over the blurred backdrop; the color's ALPHA is the strength
+        /// (alpha 0 = no tint). Default = transparent (no tint).
+        #[serde(default)]
+        tint: Color,
+        /// CSS `brightness()` multiplier on the blurred backdrop; `1.0` = identity.
+        #[serde(default = "Effect::default_unit")]
+        brightness: f32,
+        /// CSS `saturate()` multiplier (lerp toward Rec.601 luma); `1.0` = identity,
+        /// `0.0` = grayscale.
+        #[serde(default = "Effect::default_unit")]
+        saturation: f32,
+    },
 }
 
 impl Effect {
@@ -150,6 +176,11 @@ impl Effect {
         temperature: 0.0,
         tint: 0.0,
     };
+
+    /// Serde default for unit-gain effect fields (`brightness`/`saturation` = 1.0).
+    fn default_unit() -> f32 {
+        1.0
+    }
 }
 
 /// A node in the scene graph: shared properties plus a kind-specific payload and

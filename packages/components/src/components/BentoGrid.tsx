@@ -13,11 +13,11 @@
 //! reflow. Because the cards are absolutely placed (not Flex children), the
 //! entrance TRANSLATE is applied on a nested inner `<Group>` and is layout-safe.
 //!
-//! Glass approximation: ondajs uses a CSS `backdrop-filter: blur()` glass
-//! `Surface`. The engine has no backdrop blur, so glass is approximated with a
-//! translucent dark fill (`#0e0e128c` ≈ rgba(14,14,18,0.55)) + a subtle 1px
-//! stroke, plus a faint top "sheen" gradient on the Vello/GPU backend. There is
-//! no blur of the content behind the card and no drop shadow.
+//! Glass: this card uses a translucent dark fill (`#0e0e128c` ≈
+//! rgba(14,14,18,0.55)) + a subtle 1px stroke + a faint top "sheen" gradient.
+//! NOTE: the engine now ships real frosted glass via the `backdropBlur` node
+//! prop (blurs what's BEHIND the node) — a follow-up can opt this Surface into it
+//! for true glass instead of the flat translucent approximation.
 //!
 //! Backend caveat: the sheen uses a `linearGradient`, which renders only on the
 //! Vello/GPU backend; the CPU reference collapses it to its first (transparent)
@@ -336,7 +336,8 @@ export function BentoGrid({
             {/* Inner Group: entrance opacity + rise translate (layout-safe here
                 because the parent is not a layout container). */}
             <Group y={entrance.y} opacity={entrance.opacity}>
-              {/* Glass card: translucent fill + 1px stroke (no backdrop blur). */}
+              {/* Glass card: translucent fill + 1px stroke. (Could adopt the new
+                  `backdropBlur` prop for true frosted glass.) */}
               <Rect
                 width={cell.w}
                 height={cell.h}

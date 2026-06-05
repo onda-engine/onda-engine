@@ -19,7 +19,7 @@
 //! the node's (composed) transform places it on the canvas.
 
 use kurbo::{BezPath, PathEl, Shape as _};
-use onda_core::{Color, Transform, Vec2};
+use onda_core::{Color, Size, Transform, Vec2};
 use onda_scene::{
     Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Node, NodeKind, Scene,
     Shape, ShapeGeometry, Text,
@@ -599,6 +599,16 @@ pub fn color_grade_framebuffer(
     }
 }
 
+/// The first [`Effect::BackdropBlur`] in a node's chain (frosted glass), if any.
+/// Backdrop blur is handled separately from the subtree-capture effects because
+/// it samples the backdrop behind the node rather than the node's own subtree.
+fn backdrop_blur_of(node: &Node) -> Option<Effect> {
+    node.effects
+        .iter()
+        .copied()
+        .find(|e| matches!(e, Effect::BackdropBlur { .. }))
+}
+
 /// Straight-alpha "source over destination" Porter-Duff compositing.
 fn over(src: Color, dst: Color) -> Color {
     let out_a = src.a + dst.a * (1.0 - src.a);
@@ -674,11 +684,19 @@ impl Renderer {
         let transform = parent.then(&node.transform);
         let opacity = parent_opacity * node.opacity;
 
-        // A node carrying effects renders its subtree to an offscreen surface in
-        // LOCAL space, runs the effect chain (blur), then composites the result
-        // back at this node's transform/opacity (CSS filter semantics: blur first,
-        // node opacity after). This branch returns — the normal draw is skipped.
-        if !node.effects.is_empty() {
+        // Frosted glass (`Effect::BackdropBlur`) is the odd effect: it samples the
+        // backdrop ALREADY in `fb` behind this node, blurs/tints it, clips it to the
+        // node's region, and composites it UNDER the node's own content. So it runs
+        // first, then we fall through to the normal draw (the panel's fill/stroke/
+        // children paint on top of the frost). A node with backdrop blur ignores any
+        // co-located subtree effects for now.
+        if let Some(backdrop) = backdrop_blur_of(node) {
+            self.render_backdrop_blur(fb, node, transform, opacity, backdrop);
+        } else if !node.effects.is_empty() {
+            // A node carrying (subtree-capture) effects renders its subtree to an
+            // offscreen surface in LOCAL space, runs the effect chain (blur), then
+            // composites the result back at this node's transform/opacity (CSS
+            // filter semantics). This branch returns — the normal draw is skipped.
             self.render_effects_subtree(fb, node, transform, opacity);
             return;
         }
@@ -717,6 +735,144 @@ impl Renderer {
 
         for child in &node.children {
             self.render_node(fb, child, transform, opacity);
+        }
+    }
+
+    /// Frosted glass (`Effect::BackdropBlur`): sample the backdrop already in `fb`
+    /// behind `node`, blur it (and optionally adjust brightness/saturation, then
+    /// lay a `tint` over it), clip it to the node's region (its `clip`, its own
+    /// `Shape` geometry, or — for a bare container — its subtree bounds), and
+    /// composite that frosted backdrop into `fb`. The caller then draws the node's
+    /// own content on top of the frost. Uses the same deterministic
+    /// [`blur_framebuffer`] / [`color_grade_framebuffer`] kernels as the other
+    /// effects, and mirrors the GPU (Vello) backdrop pass.
+    fn render_backdrop_blur(
+        &mut self,
+        fb: &mut Framebuffer,
+        node: &Node,
+        transform: Transform,
+        opacity: f32,
+        effect: Effect,
+    ) {
+        let Effect::BackdropBlur {
+            sigma,
+            tint,
+            brightness,
+            saturation,
+        } = effect
+        else {
+            return;
+        };
+        // Nothing visible → leave `fb` untouched and let the node draw normally.
+        if opacity <= 0.0
+            || (sigma <= 0.0 && tint.a <= 0.0 && brightness == 1.0 && saturation == 1.0)
+        {
+            return;
+        }
+
+        // The frosted region, in the node's LOCAL space, plus a local offset
+        // (a `clip`/own-`Shape` sits at the local origin; a bare container falls
+        // back to its subtree bounds, which carry an offset from the origin).
+        let (geometry, offset) = if let Some(clip) = &node.clip {
+            (clip.clone(), Vec2::new(0.0, 0.0))
+        } else if let NodeKind::Shape(shape) = &node.kind {
+            (shape.geometry.clone(), Vec2::new(0.0, 0.0))
+        } else {
+            let Some((bx0, by0, bx1, by1)) = self.captured_local_bounds(node) else {
+                return;
+            };
+            let (w, h) = (bx1 - bx0, by1 - by0);
+            if !(w > 0.0 && h > 0.0) {
+                return;
+            }
+            (
+                ShapeGeometry::Rect {
+                    size: Size::new(w, h),
+                    corner_radius: 0.0,
+                },
+                Vec2::new(bx0, by0),
+            )
+        };
+
+        let Some(path) = build_path(&geometry) else {
+            return;
+        };
+        let ts = skia_transform(transform);
+        // local (shifted by the region offset) → device.
+        let region_xf = ts.pre_concat(tsk::Transform::from_translate(offset.x, offset.y));
+        let Some(dev_path) = path.clone().transform(region_xf) else {
+            return;
+        };
+
+        // Inflate the sampled region by the 3σ blur margin so the kernel reads real
+        // backdrop neighbours instead of clamping to a hard edge; clamp to the fb.
+        let bounds = dev_path.bounds();
+        let margin = (3.0 * sigma).ceil().max(0.0);
+        let x0 = (bounds.left() - margin).floor().max(0.0);
+        let y0 = (bounds.top() - margin).floor().max(0.0);
+        let x1 = (bounds.right() + margin).ceil().min(fb.width() as f32);
+        let y1 = (bounds.bottom() + margin).ceil().min(fb.height() as f32);
+        if x1 <= x0 || y1 <= y0 {
+            return; // fully off-canvas
+        }
+        let (ox, oy) = (x0 as u32, y0 as u32);
+        let (rw, rh) = ((x1 - x0) as u32, (y1 - y0) as u32);
+        if rw == 0 || rh == 0 {
+            return;
+        }
+
+        // Copy the backdrop out of the live framebuffer, blur + grade it.
+        let mut backdrop = fb.crop(ox, oy, rw, rh);
+        blur_framebuffer(&mut backdrop, sigma);
+        if brightness != 1.0 || saturation != 1.0 {
+            // brightness is a linear multiply → encode as exposure (2^exposure).
+            let exposure = if brightness > 0.0 {
+                brightness.log2()
+            } else {
+                f32::NEG_INFINITY
+            };
+            color_grade_framebuffer(&mut backdrop, exposure, 1.0, saturation, 0.0, 0.0);
+        }
+
+        // Per-pixel coverage mask for the glass shape (AA), in the cropped frame.
+        let Some(mut mask) = tsk::Pixmap::new(rw, rh) else {
+            return;
+        };
+        let into_temp = tsk::Transform::from_translate(-x0, -y0).pre_concat(region_xf);
+        let mask_paint = tsk::Paint {
+            shader: tsk::Shader::SolidColor(tsk::Color::WHITE),
+            anti_alias: true,
+            ..Default::default()
+        };
+        mask.fill_path(&path, &mask_paint, tsk::FillRule::Winding, into_temp, None);
+
+        // Composite the frosted backdrop back, clipped to the shape (and tinted).
+        // NOTE: the blurred crop is composited (src-over) on top of the sharp
+        // backdrop still in `fb`. For an OPAQUE backdrop (the normal case — glass
+        // over a filled scene) over(blurred@1, sharp@1) == blurred, so it replaces
+        // exactly. Over a partially-transparent region the frost reads slightly
+        // denser than the true backdrop; both backends behave identically here, and
+        // proper "replace-within-mask" semantics are deferred to the matte work.
+        for ty in 0..rh {
+            for tx in 0..rw {
+                let Some(m) = mask.pixel(tx, ty) else {
+                    continue;
+                };
+                let cov = m.alpha();
+                if cov == 0 {
+                    continue;
+                }
+                let [r, g, b, a] = backdrop.pixel(tx, ty);
+                let mut c = Color::from_rgba8(r, g, b, a);
+                if tint.a > 0.0 {
+                    c = over(tint, c); // lay the tint over the blurred backdrop
+                }
+                let final_alpha = c.a * (cov as f32 / 255.0) * opacity;
+                if final_alpha <= 0.0 {
+                    continue;
+                }
+                fb.blend(ox + tx, oy + ty, Color::new(c.r, c.g, c.b, final_alpha));
+            }
         }
     }
 
@@ -813,6 +969,9 @@ impl Renderer {
                 // the same 3σ headroom so the spread (and the fused neck) isn't
                 // clipped at the capture edge.
                 Effect::Goo { sigma, .. } => (3.0 * sigma.max(0.0)).ceil(),
+                // BackdropBlur is handled before this subtree path (it samples the
+                // backdrop, not the subtree), so it contributes no capture margin.
+                Effect::BackdropBlur { .. } => 0.0,
             })
             .fold(0.0f32, f32::max);
         let bounds = self.captured_local_bounds(node);
@@ -865,6 +1024,9 @@ impl Renderer {
                     *tint,
                 ),
                 Effect::Goo { sigma, threshold } => goo_framebuffer(&mut temp, *sigma, *threshold),
+                // Handled in `render_backdrop_blur` (samples the backdrop, not this
+                // captured subtree) — a no-op within the subtree chain.
+                Effect::BackdropBlur { .. } => {}
             }
         }
 
