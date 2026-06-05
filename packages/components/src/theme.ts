@@ -48,8 +48,8 @@ export interface Theme {
 
 /** The Onda house theme — the values components shipped with before theming. */
 export const defaultTheme: Theme = {
-  accent: '#d96b82',
-  accentSoft: 'rgba(217, 107, 130, 0.16)',
+  accent: '#e85494',
+  accentSoft: 'rgba(232, 84, 148, 0.18)',
   text: '#f2f2f4',
   textMuted: '#8e8e98',
   background: '#0a0d17',
