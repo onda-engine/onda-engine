@@ -8,7 +8,7 @@ import { z } from 'zod'
 export const titleCardSchema = z.object({
   title: z.string().describe("The hero headline rendered as the large centered title."),
   subtitle: z.string().optional().describe("Optional smaller phrase shown beneath the title, fading in one stagger step later."),
-  titleSize: z.number().default(96).describe("Title font size in px."),
+  titleSize: z.number().default(120).describe("Title font size in px."),
   subtitleSize: z.number().default(36).describe("Subtitle font size in px."),
   titleColor: z.string().optional().describe("Title color (defaults to theme text)."),
   subtitleColor: z.string().optional().describe("Subtitle color (defaults to theme textMuted)."),

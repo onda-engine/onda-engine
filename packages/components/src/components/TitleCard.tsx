@@ -14,7 +14,7 @@ import { FadeIn } from './FadeIn.js'
 export interface TitleCardProps {
   title: string
   subtitle?: string
-  /** Title font size in px (default 96). */
+  /** Title font size in px (default 120). */
   titleSize?: number
   /** Subtitle font size in px (default 36). */
   subtitleSize?: number
@@ -31,7 +31,7 @@ export interface TitleCardProps {
 export function TitleCard({
   title,
   subtitle,
-  titleSize = 96,
+  titleSize = 120,
   subtitleSize = 36,
   titleColor,
   subtitleColor,
@@ -47,7 +47,13 @@ export function TitleCard({
     <AbsoluteFill justify="center" align="center">
       <Flex direction="column" align="center" gap={Math.round(subtitleSize * 0.8)}>
         <FadeIn delay={delay} durationInFrames={DURATION.slow}>
-          <Text fontSize={titleSize} color={titleCol} fontFamily={family} fontWeight={700}>
+          <Text
+            fontSize={titleSize}
+            color={titleCol}
+            fontFamily={family}
+            fontWeight={700}
+            letterSpacing={Math.round(titleSize * -0.02)}
+          >
             {title}
           </Text>
         </FadeIn>

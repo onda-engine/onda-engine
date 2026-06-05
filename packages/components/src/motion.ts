@@ -14,26 +14,31 @@
  *
  * - `instant` (6f / 0.20s) — micro shifts
  * - `fast`    (10f / 0.33s) — exits, small moves
- * - `base`    (18f / 0.60s) — default entrance
- * - `slow`    (24f / 0.80s) — large entrances, hero moves
- * - `slower`  (30f / 1.00s) — full scene transitions
- * - `hold`    (45f / 1.50s) — minimum settled hold
+ * - `base`    (22f / 0.73s) — default entrance
+ * - `slow`    (28f / 0.93s) — large entrances, hero moves
+ * - `slower`  (34f / 1.13s) — full scene transitions
+ * - `hold`    (48f / 1.60s) — minimum settled hold
+ *
+ * Pacing note: entrances run on the slower side and every reveal is meant to
+ * *settle and hold* before the next move — confidence reads as stillness, not
+ * constant motion. Keep one primary move per beat.
  */
 export const DURATION = {
   instant: 6,
   fast: 10,
-  base: 18,
-  slow: 24,
-  slower: 30,
-  hold: 45,
+  base: 22,
+  slow: 28,
+  slower: 34,
+  hold: 48,
 } as const
 
 /** Keys of {@link DURATION} — useful for typed props that pick a duration. */
 export type DurationToken = keyof typeof DURATION
 
 /** Canonical stagger between sibling elements (lists, words, grouped reveals).
- *  `4` frames @ 30fps ≈ 0.13s. One value, used everywhere. */
-export const STAGGER = 4
+ *  `5` frames @ 30fps ≈ 0.17s — a pronounced, orchestrated wave that choreographs
+ *  the eye. One value, used everywhere. */
+export const STAGGER = 5
 
 /** Hero-landing overshoot magnitude — a 3% scale bump that settles back to 1.
  *  Reserved for the two-phase landing pattern (see `heroReveal`). */

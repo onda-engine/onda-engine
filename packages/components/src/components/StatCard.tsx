@@ -33,7 +33,7 @@ export interface StatCardProps {
 export function StatCard({
   value = "—",
   label = "",
-  valueSize = 140,
+  valueSize = 180,
   labelSize = 34,
   valueColor,
   labelColor,
@@ -55,7 +55,13 @@ export function StatCard({
     <AbsoluteFill justify="center" align="center">
       <Flex direction="column" align="center" gap={Math.round(labelSize * 0.7)}>
         <FadeIn delay={delay} durationInFrames={DURATION.slow}>
-          <Text fontSize={valueSize} color={valueCol} fontFamily={family} fontWeight={700}>
+          <Text
+            fontSize={valueSize}
+            color={valueCol}
+            fontFamily={family}
+            fontWeight={700}
+            letterSpacing={Math.round(valueSize * -0.02)}
+          >
             {String(value)}
           </Text>
         </FadeIn>
