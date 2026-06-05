@@ -43,6 +43,7 @@ import { imageRevealSchema } from './components/ImageReveal.schema.js'
 import { inputFieldSchema } from './components/InputField.schema.js'
 import { kanbanBoardSchema } from './components/KanbanBoard.schema.js'
 import { kenBurnsSchema } from './components/KenBurns.schema.js'
+import { kineticTextSchema } from './components/KineticText.schema.js'
 import { lineChartSchema } from './components/LineChart.schema.js'
 import { logoStingSchema } from './components/LogoSting.schema.js'
 import { lowerThirdSchema } from './components/LowerThird.schema.js'
@@ -4136,6 +4137,121 @@ const RAW: RawEntry[] = [
       },
     ],
     schema: kenBurnsSchema,
+  },
+  {
+    slug: 'kinetic-text',
+    name: 'KineticText',
+    category: 'Text',
+    title: 'Kinetic Text',
+    description:
+      'An opinionated per-glyph kinetic-type entrance: each glyph of a single line is placed absolutely by its real shaped advance and animates in on the house stagger with a chosen preset (rise, fade, scale, blur focus-pull, or a traveling wave).',
+    pickWhen:
+      'Use for a hero headline or single line of copy that should choreograph in letter-by-letter (the kinetic-type signature move) rather than as a block; reach for the blur preset for a per-glyph soft→sharp focus-pull, or wave for a rippling entrance.',
+    composes: [],
+    sceneRole: 'block',
+    occlusion: 'centered',
+    example: {
+      text: 'kinetic',
+      fontSize: 140,
+      preset: 'rise',
+      align: 'center',
+      stagger: 5,
+      durationInFrames: 22,
+    },
+    props: [
+      {
+        name: 'text',
+        type: 'string',
+        role: 'text',
+        themeable: false,
+        required: false,
+        default: "'kinetic'",
+        description: 'The line to choreograph; laid out as one row of absolutely-placed glyphs.',
+      },
+      {
+        name: 'fontSize',
+        type: 'number',
+        role: 'fontSize',
+        themeable: false,
+        required: false,
+        default: '96',
+        description: 'Font size in px.',
+      },
+      {
+        name: 'preset',
+        type: 'enum',
+        role: 'enum',
+        themeable: false,
+        required: false,
+        enumValues: ['rise', 'fade', 'scale', 'blur', 'wave'],
+        default: "'rise'",
+        description:
+          'Per-glyph entrance flavor: rise (translateY + fade), fade (opacity only), scale (grow from center + fade), blur (real soft→sharp focus-pull + fade), wave (rippling sine offset + fade).',
+      },
+      {
+        name: 'stagger',
+        type: 'int',
+        role: 'delayFrames',
+        themeable: false,
+        required: false,
+        default: 'STAGGER',
+        description: 'Frames between consecutive glyphs entering (canonical STAGGER = 5).',
+      },
+      {
+        name: 'durationInFrames',
+        type: 'int',
+        role: 'durationFrames',
+        themeable: false,
+        required: false,
+        default: 'DURATION.base',
+        description: "Frames each glyph's entrance takes to settle (DURATION.base = 22).",
+      },
+      {
+        name: 'delay',
+        type: 'int',
+        role: 'delayFrames',
+        themeable: false,
+        required: false,
+        default: '0',
+        description: 'Frames before the first glyph starts.',
+      },
+      {
+        name: 'align',
+        type: 'enum',
+        role: 'enum',
+        themeable: false,
+        required: false,
+        enumValues: ['left', 'center', 'right'],
+        default: "'center'",
+        description: 'Horizontal alignment of the line about its anchor.',
+      },
+      {
+        name: 'color',
+        type: 'string',
+        role: 'color',
+        themeable: true,
+        required: false,
+        description: 'Text color; defaults to theme text color.',
+      },
+      {
+        name: 'fontFamily',
+        type: 'string',
+        role: 'fontFamily',
+        themeable: true,
+        required: false,
+        description: 'Loaded font family; defaults to theme font family.',
+      },
+      {
+        name: 'fontWeight',
+        type: 'number',
+        role: 'number',
+        themeable: false,
+        required: false,
+        default: '600',
+        description: 'Font weight (display default).',
+      },
+    ],
+    schema: kineticTextSchema,
   },
   {
     slug: 'line-chart',

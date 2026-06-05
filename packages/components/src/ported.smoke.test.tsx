@@ -511,6 +511,20 @@ const CASES: { name: string; frame: number; props: Record<string, unknown> }[] =
     },
   },
   {
+    name: 'KineticText',
+    frame: 18,
+    props: {
+      text: 'kinetic',
+      fontSize: 140,
+      preset: 'blur',
+      color: '#f2f2f4',
+      fontWeight: 600,
+      align: 'center',
+      stagger: 5,
+      durationInFrames: 22,
+    },
+  },
+  {
     name: 'LineChart',
     frame: 36,
     props: {
