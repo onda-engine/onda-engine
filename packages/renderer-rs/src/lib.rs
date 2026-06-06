@@ -1098,6 +1098,10 @@ impl Renderer {
                 // BackdropBlur is handled before this subtree path (it samples the
                 // backdrop, not the subtree), so it contributes no capture margin.
                 Effect::BackdropBlur { .. } => 0.0,
+                // LightWrap is export/native-only (Vello resolves it against the
+                // backdrop); the CPU reference draws the node un-wrapped, so it
+                // contributes no capture margin and is a no-op in the chain below.
+                Effect::LightWrap { .. } => 0.0,
             })
             .fold(0.0f32, f32::max);
         let bounds = self.captured_local_bounds(node);
@@ -1153,6 +1157,9 @@ impl Renderer {
                 // Handled in `render_backdrop_blur` (samples the backdrop, not this
                 // captured subtree) — a no-op within the subtree chain.
                 Effect::BackdropBlur { .. } => {}
+                // Export/native-only (Vello); the CPU reference leaves the captured
+                // subtree un-wrapped, so light-wrap is a no-op here.
+                Effect::LightWrap { .. } => {}
             }
         }
 

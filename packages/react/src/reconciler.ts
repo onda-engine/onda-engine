@@ -211,6 +211,8 @@ function toNode(node: HostNode): SceneNode {
   if (goo) effects.push(goo)
   const backdropBlur = parseBackdropBlur(props.backdropBlur)
   if (backdropBlur) effects.push(backdropBlur)
+  const lightWrap = parseLightWrap(props.lightWrap)
+  if (lightWrap) effects.push(lightWrap)
   if (effects.length) base.effects = effects
   if (props.layout !== undefined) base.layout = parseLayout(props.layout as Layout)
   const children = node.children.map(toNode)
@@ -478,6 +480,27 @@ function parseBackdropBlur(
         tint: b.tint !== undefined ? parseColor(b.tint) : TRANSPARENT,
         brightness: typeof b.brightness === 'number' ? b.brightness : 1,
         saturation: typeof b.saturation === 'number' ? b.saturation : 1,
+      }
+    }
+  }
+  return undefined
+}
+
+/** Resolve the `lightWrap` sugar prop into a `{ effect: 'light_wrap', ... }` effect,
+ *  or `undefined` when absent/degenerate. A bare number is the `sigma` (backdrop
+ *  blur / rim width); the object form adds a `strength` (defaults to the `1` natural
+ *  spill). A non-positive `sigma` is dropped (no spill → nothing to wrap). */
+function parseLightWrap(input: unknown): Extract<Effect, { effect: 'light_wrap' }> | undefined {
+  if (typeof input === 'number') {
+    return input > 0 ? { effect: 'light_wrap', sigma: input, strength: 1 } : undefined
+  }
+  if (input && typeof input === 'object') {
+    const w = input as { sigma?: number; strength?: number }
+    if (typeof w.sigma === 'number' && w.sigma > 0) {
+      return {
+        effect: 'light_wrap',
+        sigma: w.sigma,
+        strength: typeof w.strength === 'number' ? w.strength : 1,
       }
     }
   }
