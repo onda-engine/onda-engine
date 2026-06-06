@@ -603,6 +603,56 @@ pub fn color_grade_framebuffer(
     }
 }
 
+/// Film grain (CPU reference): luminance-banded, animated monochrome noise added to
+/// the captured subtree in GAMMA space. Mirrors the Vello [`Grain`] WGSL (same hash /
+/// value-noise / midtone `2·√(l·(1-l))` response, same per-frame `seed` offset) so the
+/// two backends share the look; Vello additionally adds it in linear light on a
+/// linear composition, the CPU always in gamma.
+pub fn grain_framebuffer(fb: &mut Framebuffer, intensity: f32, size: f32, seed: f32) {
+    if intensity <= 0.0 || fb.width == 0 || fb.height == 0 {
+        return;
+    }
+    // Hash + value noise — `x - x.floor()` matches WGSL `fract` (incl. negatives).
+    fn hash21(x: f32, y: f32) -> f32 {
+        let s = (x * 127.1 + y * 311.7).sin() * 43_758.547;
+        s - s.floor()
+    }
+    fn vnoise(px: f32, py: f32) -> f32 {
+        let (ix, iy) = (px.floor(), py.floor());
+        let (fx, fy) = (px - ix, py - iy);
+        let (ux, uy) = (fx * fx * (3.0 - 2.0 * fx), fy * fy * (3.0 - 2.0 * fy));
+        let a = hash21(ix, iy);
+        let b = hash21(ix + 1.0, iy);
+        let c = hash21(ix, iy + 1.0);
+        let d = hash21(ix + 1.0, iy + 1.0);
+        let ab = a + (b - a) * ux;
+        let cd = c + (d - c) * ux;
+        ab + (cd - ab) * uy
+    }
+    let inv_size = 1.0 / size.max(0.01);
+    let w = fb.width;
+    for (i, px) in fb.pixels.chunks_exact_mut(4).enumerate() {
+        if px[3] == 0 {
+            continue; // fully transparent → nothing visible to grain
+        }
+        let x = (i as u32 % w) as f32;
+        let y = (i as u32 / w) as f32;
+        let cx = (x + 0.5) * inv_size + seed * 71.0;
+        let cy = (y + 0.5) * inv_size + seed * 113.0;
+        let n = (vnoise(cx, cy) - 0.5) * 2.0; // [-1, 1]
+        let r = px[0] as f32 / 255.0;
+        let g = px[1] as f32 / 255.0;
+        let b = px[2] as f32 / 255.0;
+        let luma = r * 0.299 + g * 0.587 + b * 0.114;
+        let resp = 2.0 * (luma * (1.0 - luma)).max(0.0).sqrt();
+        let delta = n * intensity * resp;
+        let enc = |c: f32| ((c + delta).clamp(0.0, 1.0) * 255.0).round() as u8;
+        px[0] = enc(r);
+        px[1] = enc(g);
+        px[2] = enc(b);
+    }
+}
+
 /// The first [`Effect::BackdropBlur`] in a node's chain (frosted glass), if any.
 /// Backdrop blur is handled separately from the subtree-capture effects because
 /// it samples the backdrop behind the node rather than the node's own subtree.
@@ -1091,6 +1141,8 @@ impl Renderer {
                 Effect::Bloom { sigma, .. } => (3.0 * sigma.max(0.0)).ceil(),
                 // ColorGrade is a per-pixel remap (no spread) — it needs no margin.
                 Effect::ColorGrade { .. } => 0.0,
+                // Grain is a per-pixel pass (no spread) — it needs no margin.
+                Effect::Grain { .. } => 0.0,
                 // Goo blurs the subtree with `sigma` before thresholding; it needs
                 // the same 3σ headroom so the spread (and the fused neck) isn't
                 // clipped at the capture edge.
@@ -1154,6 +1206,11 @@ impl Renderer {
                     *tint,
                 ),
                 Effect::Goo { sigma, threshold } => goo_framebuffer(&mut temp, *sigma, *threshold),
+                Effect::Grain {
+                    intensity,
+                    size,
+                    seed,
+                } => grain_framebuffer(&mut temp, *intensity, *size, *seed),
                 // Handled in `render_backdrop_blur` (samples the backdrop, not this
                 // captured subtree) — a no-op within the subtree chain.
                 Effect::BackdropBlur { .. } => {}

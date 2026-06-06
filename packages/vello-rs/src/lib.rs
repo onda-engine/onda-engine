@@ -25,7 +25,7 @@ use vello::peniko::{
 use vello::{wgpu, AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene as VelloScene};
 
 mod effects;
-use effects::{AlphaMatte, Bloom, ColorGrade, FbmGradient, GaussianBlur, Goo, LightWrap};
+use effects::{AlphaMatte, Bloom, ColorGrade, FbmGradient, GaussianBlur, Goo, Grain, LightWrap};
 
 /// A rendered frame: straight-alpha RGBA8, row-major, top-left origin.
 pub struct Frame {
@@ -64,6 +64,9 @@ pub struct VelloRenderer {
     /// fBm fractal-noise gradient generator (the "expensive" Stripe/Linear gradient).
     /// Built lazily the first time a shape carries a `Gradient::Fbm`, then reused.
     fbm_pipeline: Option<FbmGradient>,
+    /// Film-grain compute pipeline (a single per-pixel pass). Built lazily the first
+    /// time a node carries a `Grain` effect, then reused.
+    grain_pipeline: Option<Grain>,
     /// True on the WebGPU (browser) backend, where buffer mapping is async-only.
     /// The effect path can't read a texture back synchronously mid-build there, so
     /// on the web effects are resolved up front by `prepare_effect_images` (async
@@ -143,6 +146,7 @@ impl VelloRenderer {
             goo_pipeline: None,
             matte_pipeline: None,
             fbm_pipeline: None,
+            grain_pipeline: None,
             web,
         })
     }
@@ -234,6 +238,7 @@ impl VelloRenderer {
                     goo_pipeline: &mut self.goo_pipeline,
                     matte_pipeline: &mut self.matte_pipeline,
                     fbm_pipeline: &mut self.fbm_pipeline,
+                    grain_pipeline: &mut self.grain_pipeline,
                     effect_overrides: &mut Vec::new(),
                     linear: false,
                     web: true,
@@ -313,6 +318,7 @@ impl VelloRenderer {
                     goo_pipeline: &mut self.goo_pipeline,
                     matte_pipeline: &mut self.matte_pipeline,
                     fbm_pipeline: &mut self.fbm_pipeline,
+                    grain_pipeline: &mut self.grain_pipeline,
                     effect_overrides: &mut Vec::new(),
                     linear: false,
                     web: true,
@@ -383,6 +389,7 @@ impl VelloRenderer {
                         goo_pipeline: &mut self.goo_pipeline,
                         matte_pipeline: &mut self.matte_pipeline,
                         fbm_pipeline: &mut self.fbm_pipeline,
+                        grain_pipeline: &mut self.grain_pipeline,
                         effect_overrides: &mut Vec::new(),
                         linear: false,
                         web: true,
@@ -470,6 +477,7 @@ impl VelloRenderer {
                 goo_pipeline: &mut self.goo_pipeline,
                 matte_pipeline: &mut self.matte_pipeline,
                 fbm_pipeline: &mut self.fbm_pipeline,
+                grain_pipeline: &mut self.grain_pipeline,
                 effect_overrides: &mut effect_overrides,
                 linear: scene.composition.linear,
                 web: self.web,
@@ -527,6 +535,7 @@ struct Ctx<'a> {
     goo_pipeline: &'a mut Option<Goo>,
     matte_pipeline: &'a mut Option<AlphaMatte>,
     fbm_pipeline: &'a mut Option<FbmGradient>,
+    grain_pipeline: &'a mut Option<Grain>,
     /// Native GPU-resident effect compositing: the placeholder `peniko::Image`s whose
     /// Blob ids key `Renderer::override_image` to each effect's GPU texture, so Vello
     /// GPU→GPU-copies the result into its atlas instead of us reading it back. Filled
@@ -1010,6 +1019,8 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
             Effect::Bloom { sigma, .. } => *sigma,
             // ColorGrade is a per-pixel remap (no spread) — it needs no margin.
             Effect::ColorGrade { .. } => 0.0,
+            // Grain is a per-pixel pass (no spread) — it needs no margin.
+            Effect::Grain { .. } => 0.0,
             // Goo blurs the subtree with `sigma` before thresholding; it needs the
             // same headroom as a blur so the spread (and fused neck) isn't clipped.
             Effect::Goo { sigma, .. } => *sigma,
@@ -1139,6 +1150,20 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
                     *tint,
                 );
             }
+            Effect::Grain {
+                intensity,
+                size,
+                seed,
+            } if *intensity > 0.0 => {
+                let grain = ctx
+                    .grain_pipeline
+                    .get_or_insert_with(|| Grain::new(ctx.device));
+                texture = grain.run(
+                    ctx.device, ctx.queue, &texture, tw, th, *intensity, *size, *seed,
+                );
+            }
+            // Zero-intensity grain is a no-op.
+            Effect::Grain { .. } => {}
             Effect::Goo { sigma, threshold } => {
                 // Goo reuses the blur compute for the spread; ensure both pipelines
                 // exist, then borrow them disjointly (distinct `Ctx` fields).

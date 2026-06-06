@@ -185,6 +185,24 @@ pub enum Effect {
     /// classic "drops of liquid coalescing" look — same machinery as `Bloom`
     /// (blur the capture, then a per-pixel pass), proving the ordered chain.
     Goo { sigma: f32, threshold: f32 },
+    /// Film grain: a luminance-banded, animated monochrome noise added LATE over the
+    /// subtree — the compositing "glue" that makes mismatched sources (an AI plate, a
+    /// real product shot, vector type) read as one photographed image, and the dither
+    /// that hides 8-bit banding on dark gradients. Grain peaks in the midtones and
+    /// falls to zero at pure black/white (a `2·√(l·(1-l))` response), so deep shadows
+    /// and clipped highlights stay clean. `intensity` is the strength (~`0.04`–`0.1`
+    /// is filmic), `size` the grain scale in output px (`~1` = fine 35mm, larger =
+    /// coarser), `seed` an animation offset — pass the frame number for *living*
+    /// grain (a fixed value is static, like dirt on the lens). Added in LINEAR light
+    /// when the composition opts in, else in gamma. Honored by Vello AND the CPU
+    /// reference (gamma) so the preview is never blind to it.
+    Grain {
+        intensity: f32,
+        #[serde(default = "Effect::default_unit")]
+        size: f32,
+        #[serde(default)]
+        seed: f32,
+    },
     /// Frosted glass (CSS `backdrop-filter`). The ODD ONE OUT: every other effect
     /// captures and post-processes this node's OWN subtree; `BackdropBlur` instead
     /// samples the ALREADY-COMPOSITED backdrop *behind* the node — within the

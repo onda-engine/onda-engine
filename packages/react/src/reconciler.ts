@@ -209,6 +209,8 @@ function toNode(node: HostNode): SceneNode {
   if (grade) effects.push(grade)
   const goo = parseGoo(props.goo)
   if (goo) effects.push(goo)
+  const grain = parseGrain(props.grain)
+  if (grain) effects.push(grain)
   const backdropBlur = parseBackdropBlur(props.backdropBlur)
   if (backdropBlur) effects.push(backdropBlur)
   const lightWrap = parseLightWrap(props.lightWrap)
@@ -445,6 +447,28 @@ function parseGoo(input: unknown): Extract<Effect, { effect: 'goo' }> | undefine
         effect: 'goo',
         sigma: g.sigma,
         threshold: typeof g.threshold === 'number' ? g.threshold : 0.5,
+      }
+    }
+  }
+  return undefined
+}
+
+/** Resolve the `grain` sugar prop into a `{ effect: 'grain', ... }` effect, or
+ *  `undefined` when absent/degenerate. A bare number is the `intensity`; the object
+ *  form adds `size` (grain scale in px, default 1) and `seed` (animation offset,
+ *  default 0). A non-positive `intensity` is dropped (no grain to add). */
+function parseGrain(input: unknown): Extract<Effect, { effect: 'grain' }> | undefined {
+  if (typeof input === 'number') {
+    return input > 0 ? { effect: 'grain', intensity: input, size: 1, seed: 0 } : undefined
+  }
+  if (input && typeof input === 'object') {
+    const g = input as { intensity?: number; size?: number; seed?: number }
+    if (typeof g.intensity === 'number' && g.intensity > 0) {
+      return {
+        effect: 'grain',
+        intensity: g.intensity,
+        size: typeof g.size === 'number' ? g.size : 1,
+        seed: typeof g.seed === 'number' ? g.seed : 0,
       }
     }
   }

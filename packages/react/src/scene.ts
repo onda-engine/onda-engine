@@ -192,6 +192,12 @@ export type Effect =
    *  its alpha is sharpened around `threshold` (0..1 cutoff) so overlapping shapes
    *  fuse into solid forms joined by smooth necks (the "drops coalescing" look). */
   | { effect: 'goo'; sigma: number; threshold: number }
+  /** Film grain — luminance-banded, animated monochrome noise added late over the
+   *  subtree (the compositing "glue" that unifies mismatched sources, and the dither
+   *  that hides 8-bit banding on dark gradients). Peaks in the midtones, clean at
+   *  pure black/white. `intensity` ~0.04–0.1 is filmic, `size` is the grain scale in
+   *  px (~1 = fine), `seed` an animation offset — pass the frame for living grain. */
+  | { effect: 'grain'; intensity: number; size: number; seed: number }
   /** Frosted glass (CSS `backdrop-filter`). The ODD ONE OUT: instead of capturing
    *  this node's OWN subtree, it samples the already-composited BACKDROP *behind*
    *  the node, blurs it by `sigma` (output px, like CSS `blur()`), scales its
