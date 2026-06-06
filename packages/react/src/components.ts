@@ -94,6 +94,13 @@ export interface NodeProps {
   backdropBlur?:
     | number
     | { sigma: number; tint?: ColorInput; brightness?: number; saturation?: number }
+  /** Light-wrap sugar for `effects: [{ effect: 'light_wrap', ... }]`: bleeds the
+   *  blurred BACKDROP behind this node onto its own feathered EDGES — the #1
+   *  "shot in, not pasted on" compositing tell for a cut-out plate. A bare number
+   *  is the `sigma` (the backdrop blur / rim width); the object form adds a
+   *  `strength` (0 = off, ~1 = a natural spill). EXPORT/NATIVE only — the live
+   *  preview draws the node un-wrapped. */
+  lightWrap?: number | { sigma: number; strength?: number }
   children?: ReactNode
 }
 

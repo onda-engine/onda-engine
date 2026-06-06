@@ -211,6 +211,26 @@ pub enum Effect {
         #[serde(default = "Effect::default_unit")]
         saturation: f32,
     },
+    /// Light-wrap: the #1 "integrated vs pasted" compositing tell. Like
+    /// `BackdropBlur` it samples the ALREADY-COMPOSITED backdrop *behind* the node,
+    /// but instead of laying it under the node it bleeds that blurred background
+    /// light onto the node's own FEATHERED EDGES — the way a real lens lets a bright
+    /// background spill a few pixels onto a foreground subject's silhouette, so a
+    /// cut-out plate reads as *shot in* the scene, not pasted on top. The blurred
+    /// backdrop (`sigma`) is added, in LINEAR light, over the inner edge band of the
+    /// node's alpha (`strength` scales it; `0` = off). Resolved natively in `build`
+    /// (like `BackdropBlur`); export/native only — the web preview draws the node
+    /// un-wrapped (graceful degrade). A node carrying `LightWrap` ignores any other
+    /// (subtree-capture) effects in the same list for now.
+    LightWrap {
+        /// Gaussian std-dev of the backdrop blur that gets wrapped onto the edges,
+        /// in OUTPUT px. Larger = a softer, wider spill of background light.
+        sigma: f32,
+        /// How strongly the wrapped light is added onto the edge band; `0` = off,
+        /// `~1` = a natural spill. Default `1.0`.
+        #[serde(default = "Effect::default_unit")]
+        strength: f32,
+    },
 }
 
 impl Effect {

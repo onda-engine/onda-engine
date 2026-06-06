@@ -974,6 +974,206 @@ impl AlphaMatte {
     }
 }
 
+/// Lazily-built light-wrap composite: bleeds the blurred backdrop light onto the
+/// foreground's feathered inner edge so a cut-out plate reads as *shot in* the scene
+/// rather than pasted on top. Three sampled inputs — the sharp foreground (with its
+/// straight-alpha silhouette), a blurred copy of it (for the feathered edge band),
+/// and the blurred backdrop (the light to wrap) — combined in LINEAR light. Cached
+/// is unnecessary (light-wrap is an export/native finishing pass on a node or two),
+/// so [`LightWrap::new`] is cheap to call per resolve.
+pub struct LightWrap {
+    pipeline: wgpu::ComputePipeline,
+    layout: wgpu::BindGroupLayout,
+}
+
+/// Byte size of the light-wrap params uniform (`width`,`height`,`strength`,pad).
+const LIGHT_WRAP_PARAMS_SIZE: u64 = 16;
+
+impl LightWrap {
+    /// Build the compute pipeline + bind-group layout (three sampled textures, one
+    /// storage out, one uniform).
+    pub fn new(device: &wgpu::Device) -> Self {
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("onda-light-wrap-wgsl"),
+            source: wgpu::ShaderSource::Wgsl(LIGHT_WRAP_WGSL.into()),
+        });
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("onda-light-wrap-bgl"),
+            entries: &[
+                sampled_texture_entry(0),
+                sampled_texture_entry(1),
+                sampled_texture_entry(2),
+                storage_texture_entry(3),
+                uniform_entry(4),
+            ],
+        });
+        let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("onda-light-wrap-pl"),
+            bind_group_layouts: &[&layout],
+            push_constant_ranges: &[],
+        });
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("onda-light-wrap-pipeline"),
+            layout: Some(&pl),
+            module: &module,
+            entry_point: "main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+        LightWrap { pipeline, layout }
+    }
+
+    /// Composite the wrapped light → a new `Rgba8Unorm` texture (`COPY_SRC`, ready
+    /// for readback). `fg` is the sharp foreground, `soft_fg` its blurred copy (for
+    /// the edge band), `bg_blurred` the blurred backdrop. All same size,
+    /// pixel-aligned (full-canvas). Its own encoder + submit.
+    #[allow(clippy::too_many_arguments)]
+    pub fn run(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        fg: &wgpu::Texture,
+        soft_fg: &wgpu::Texture,
+        bg_blurred: &wgpu::Texture,
+        width: u32,
+        height: u32,
+        strength: f32,
+    ) -> wgpu::Texture {
+        let out = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("onda-light-wrap-out"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let fg_view = fg.create_view(&wgpu::TextureViewDescriptor::default());
+        let soft_view = soft_fg.create_view(&wgpu::TextureViewDescriptor::default());
+        let bg_view = bg_blurred.create_view(&wgpu::TextureViewDescriptor::default());
+        let out_view = out.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut bytes = Vec::with_capacity(LIGHT_WRAP_PARAMS_SIZE as usize);
+        bytes.extend_from_slice(&width.to_le_bytes());
+        bytes.extend_from_slice(&height.to_le_bytes());
+        bytes.extend_from_slice(&strength.to_le_bytes());
+        bytes.extend_from_slice(&0f32.to_le_bytes());
+        let params = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("onda-light-wrap-params"),
+            size: LIGHT_WRAP_PARAMS_SIZE,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(&params, 0, &bytes);
+
+        let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("onda-light-wrap-bg"),
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&fg_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&soft_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(&bg_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&out_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: params.as_entire_binding(),
+                },
+            ],
+        });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("onda-light-wrap-encoder"),
+        });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("onda-light-wrap"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &bg, &[]);
+            pass.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
+        }
+        queue.submit(Some(encoder.finish()));
+        out
+    }
+}
+
+/// Compute shader: the LIGHT-WRAP composite. The wrap region is the foreground's
+/// inner edge band — `rim = fg.a * (1 - blurred_fg.a)`, which is ~0 in the solid
+/// core (blurred alpha ≈ 1) and outside the silhouette (fg.a = 0) but positive just
+/// inside the edge, where the blur has pulled in transparency from beyond the
+/// silhouette. Over that band the blurred backdrop light is added in LINEAR light,
+/// scaled by `strength`; the silhouette (output alpha) is left untouched so only the
+/// existing edge is re-lit. Drawn over the already-composited backdrop, so where the
+/// foreground is transparent the scene shows through unchanged.
+const LIGHT_WRAP_WGSL: &str = r#"
+struct Params {
+    width: u32,
+    height: u32,
+    strength: f32,
+    _pad: f32,
+};
+
+@group(0) @binding(0) var fg: texture_2d<f32>;
+@group(0) @binding(1) var soft: texture_2d<f32>;
+@group(0) @binding(2) var bg: texture_2d<f32>;
+@group(0) @binding(3) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(4) var<uniform> p: Params;
+
+fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
+    let lo = c / 12.92;
+    let hi = pow((c + 0.055) / 1.055, vec3<f32>(2.4));
+    return select(hi, lo, c <= vec3<f32>(0.04045));
+}
+fn linear_to_srgb(c: vec3<f32>) -> vec3<f32> {
+    let cc = clamp(c, vec3<f32>(0.0), vec3<f32>(1.0));
+    let lo = cc * 12.92;
+    let hi = 1.055 * pow(cc, vec3<f32>(1.0 / 2.4)) - 0.055;
+    return select(hi, lo, cc <= vec3<f32>(0.0031308));
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let x = gid.x;
+    let y = gid.y;
+    if (x >= p.width || y >= p.height) {
+        return;
+    }
+    let q = vec2<i32>(i32(x), i32(y));
+    let f = textureLoad(fg, q, 0);    // sharp foreground (straight alpha)
+    let s = textureLoad(soft, q, 0);  // blurred foreground (feathered alpha)
+    let b = textureLoad(bg, q, 0);    // blurred backdrop (the light to wrap)
+
+    // Inner edge band: solid foreground whose blurred alpha has been pulled down by
+    // the transparency just beyond the silhouette → 0 in the core and outside.
+    let rim = clamp(f.a * (1.0 - s.a), 0.0, 1.0) * p.strength;
+
+    // Add the blurred backdrop light (pre-weighted by coverage) in LINEAR light.
+    let light = srgb_to_linear(b.rgb * b.a);
+    let lit = srgb_to_linear(f.rgb) + light * rim;
+    let rgb = linear_to_srgb(lit);
+    textureStore(dst, q, vec4<f32>(rgb, f.a));
+}
+"#;
+
 /// Compute shader: the gooey-morph **alpha threshold**. Reads the blurred subtree
 /// texture and sharpens its alpha around `threshold` with a steep smoothstep
 /// (half-width `ramp`) — alpha well above the cutoff snaps to opaque, well below

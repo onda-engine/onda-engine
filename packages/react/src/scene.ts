@@ -205,6 +205,14 @@ export type Effect =
       brightness: number
       saturation: number
     }
+  /** Light-wrap — the #1 "integrated vs pasted" compositing tell. Like
+   *  `backdrop_blur` it samples the already-composited BACKDROP *behind* the node,
+   *  but instead of laying it under the node it bleeds that blurred light onto the
+   *  node's own FEATHERED EDGES (a real lens spilling a bright background a few px
+   *  onto a foreground subject), so a cut-out plate reads as *shot in* the scene.
+   *  `sigma` is the backdrop blur / rim width, `strength` scales the added light
+   *  (0 = off). Export/native only — the web preview draws the node un-wrapped. */
+  | { effect: 'light_wrap'; sigma: number; strength: number }
 
 /** Which channel of a {@link Matte}'s rendered `source` subtree drives the reveal
  *  (CSS `mask-mode`). `'alpha'` (the default): content alpha ×= matte alpha — the

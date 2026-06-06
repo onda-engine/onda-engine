@@ -25,7 +25,7 @@ use vello::peniko::{
 use vello::{wgpu, AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene as VelloScene};
 
 mod effects;
-use effects::{AlphaMatte, Bloom, ColorGrade, FbmGradient, GaussianBlur, Goo};
+use effects::{AlphaMatte, Bloom, ColorGrade, FbmGradient, GaussianBlur, Goo, LightWrap};
 
 /// A rendered frame: straight-alpha RGBA8, row-major, top-left origin.
 pub struct Frame {
@@ -250,6 +250,7 @@ impl VelloRenderer {
                     matte_images: None,
                     matte_idx: 0,
                     suppress_matte: false,
+                    suppress_lightwrap: false,
                 },
                 node,
             );
@@ -330,6 +331,7 @@ impl VelloRenderer {
                     matte_images: None,
                     matte_idx: 0,
                     suppress_matte: false,
+                    suppress_lightwrap: false,
                 },
                 node,
             );
@@ -396,6 +398,7 @@ impl VelloRenderer {
                         matte_images: None,
                         matte_idx: 0,
                         suppress_matte: false,
+                        suppress_lightwrap: false,
                     },
                     node,
                     matte,
@@ -482,6 +485,7 @@ impl VelloRenderer {
                 matte_images,
                 matte_idx: 0,
                 suppress_matte: false,
+                suppress_lightwrap: false,
             },
             &scene.root,
             Affine::IDENTITY,
@@ -573,6 +577,10 @@ struct Ctx<'a> {
     /// Suppress matte resolution (inside a capture): a nested matte renders its
     /// content un-matted instead of recursing.
     suppress_matte: bool,
+    /// Suppress light-wrap resolution (inside a light-wrap's own foreground render
+    /// or backdrop-prefix capture): a nested light-wrap node draws un-wrapped
+    /// instead of recursing into another screen-space capture.
+    suppress_lightwrap: bool,
 }
 
 /// A pre-rendered effect node's result (computed by the async effect pre-pass on
@@ -739,6 +747,16 @@ fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, pa
     // `ctx.effect_images` and consumed here in order; a cache miss degrades to
     // un-effected (never a crash). Native reads back inline. Either way blend/clip
     // wrap the composited result via the surrounding push_layer/pop_layer.
+    // Light-wrap (`Effect::LightWrap`): like backdrop blur it samples the backdrop
+    // behind the node, but bleeds that blurred light onto the node's own FEATHERED
+    // EDGES — REPLACING the node's draw (the composited foreground+wrap is what gets
+    // drawn). Native/export only; on the web path, or inside a capture, it falls
+    // through and the node draws un-wrapped (graceful degrade).
+    if !ctx.web && !ctx.suppress_lightwrap && lightwrap_of(node).is_some() {
+        draw_lightwrap_native(vscene, ctx, node, affine, opacity);
+        return;
+    }
+
     // Frosted glass (`Effect::BackdropBlur`): resolve + composite the blurred
     // backdrop UNDER this node, then FALL THROUGH to draw the node's own content
     // (panel fill/stroke/children) on top. Suppressed while capturing a prefix or
@@ -998,6 +1016,9 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
             // BackdropBlur is resolved in `build` (samples the backdrop, not this
             // subtree), so it contributes no capture margin here.
             Effect::BackdropBlur { .. } => 0.0,
+            // LightWrap is likewise resolved in `build` (it samples the backdrop and
+            // composites in screen space), not via this local-bounds capture.
+            Effect::LightWrap { .. } => 0.0,
         })
         .fold(0.0_f32, f32::max);
     let margin = (3.0 * max_sigma).ceil().max(0.0) as f64;
@@ -1135,6 +1156,9 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
             }
             // Resolved in `build` (samples the backdrop, not this captured subtree).
             Effect::BackdropBlur { .. } => {}
+            // Resolved in `build` (screen-space backdrop wrap) — never reached here,
+            // since a light-wrap node is excluded from `has_subtree_effect`.
+            Effect::LightWrap { .. } => {}
         }
     }
 
@@ -1274,12 +1298,23 @@ fn backdrop_blur_of(node: &Node) -> Option<Effect> {
         .find(|e| matches!(e, Effect::BackdropBlur { .. }))
 }
 
+/// The first `Effect::LightWrap` in a node's chain, if any. Like `BackdropBlur` it
+/// samples the backdrop *behind* the node rather than the node's own subtree, so it
+/// is resolved in `build` (screen space), apart from the subtree-capture chain.
+fn lightwrap_of(node: &Node) -> Option<Effect> {
+    node.effects
+        .iter()
+        .copied()
+        .find(|e| matches!(e, Effect::LightWrap { .. }))
+}
+
 /// Whether a node carries a real SUBTREE-capture effect (blur/bloom/grade/goo) —
-/// any effect other than `BackdropBlur`, which is composited separately.
+/// any effect other than `BackdropBlur`/`LightWrap`, both of which sample the
+/// backdrop and are composited separately in `build`.
 fn has_subtree_effect(node: &Node) -> bool {
     node.effects
         .iter()
-        .any(|e| !matches!(e, Effect::BackdropBlur { .. }))
+        .any(|e| !matches!(e, Effect::BackdropBlur { .. } | Effect::LightWrap { .. }))
 }
 
 /// Collect every backdrop-blur node in the SAME pre-order `build` reaches them:
@@ -1328,6 +1363,45 @@ fn backdrop_region(ctx: &mut Ctx, node: &Node) -> Option<(ShapeGeometry, (f64, f
     ))
 }
 
+/// Capture the *prefix* of the scene relative to `node` — everything painted before
+/// it — into a full-canvas (composition-size) texture. Re-walks the scene root and
+/// STOPS the moment it reaches `node` (`backdrop_stop`), so it sees exactly the nodes
+/// drawn behind it. Suppresses nested glass / matte / light-wrap in the prefix (each
+/// renders plainly rather than recursing into more screen-space captures). Shared by
+/// the backdrop-blur and light-wrap resolves.
+fn capture_prefix(ctx: &mut Ctx, node: &Node) -> Option<wgpu::Texture> {
+    let (w, h) = ctx.comp;
+    if w == 0 || h == 0 {
+        return None;
+    }
+    let saved_stop = ctx.backdrop_stop;
+    let saved_done = ctx.backdrop_done;
+    let saved_sb = ctx.suppress_backdrop;
+    let saved_sm = ctx.suppress_matte;
+    let saved_slw = ctx.suppress_lightwrap;
+    ctx.backdrop_stop = Some(node as *const Node);
+    ctx.backdrop_done = false;
+    ctx.suppress_backdrop = true;
+    ctx.suppress_matte = true;
+    ctx.suppress_lightwrap = true;
+    let root = ctx.root;
+    let mut prefix = VelloScene::new();
+    build(&mut prefix, ctx, root, Affine::IDENTITY, 1.0);
+    ctx.backdrop_stop = saved_stop;
+    ctx.backdrop_done = saved_done;
+    ctx.suppress_backdrop = saved_sb;
+    ctx.suppress_matte = saved_sm;
+    ctx.suppress_lightwrap = saved_slw;
+    Some(render_vscene_to_texture(
+        ctx.device,
+        ctx.queue,
+        ctx.renderer,
+        &prefix,
+        w,
+        h,
+    ))
+}
+
 /// Capture the backdrop *behind* a glass `node` — everything painted before it —
 /// into a full-canvas texture, then blur it by `sigma` and apply brightness/
 /// saturation. Returns the texture (composition size); the caller reads it back
@@ -1350,26 +1424,7 @@ fn build_backdrop_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, 
         return None;
     }
 
-    // Re-walk from the root into a fresh scene, stopping the moment we reach this
-    // node — what's appended is the backdrop. Suppress nested glass + mattes in the
-    // prefix (a nested glass renders clear, a nested matte renders its content).
-    let saved_stop = ctx.backdrop_stop;
-    let saved_done = ctx.backdrop_done;
-    let saved_sb = ctx.suppress_backdrop;
-    let saved_sm = ctx.suppress_matte;
-    ctx.backdrop_stop = Some(node as *const Node);
-    ctx.backdrop_done = false;
-    ctx.suppress_backdrop = true;
-    ctx.suppress_matte = true;
-    let root = ctx.root;
-    let mut prefix = VelloScene::new();
-    build(&mut prefix, ctx, root, Affine::IDENTITY, 1.0);
-    ctx.backdrop_stop = saved_stop;
-    ctx.backdrop_done = saved_done;
-    ctx.suppress_backdrop = saved_sb;
-    ctx.suppress_matte = saved_sm;
-
-    let mut texture = render_vscene_to_texture(ctx.device, ctx.queue, ctx.renderer, &prefix, w, h);
+    let mut texture = capture_prefix(ctx, node)?;
 
     if sigma > 0.0 {
         let blur = ctx
@@ -1393,6 +1448,110 @@ fn build_backdrop_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, 
         );
     }
     Some((texture, w, h))
+}
+
+/// Build the light-wrap composite for `node` — a full-canvas texture of the node's
+/// foreground with the blurred backdrop light bled onto its feathered edges. Renders
+/// the foreground in SCREEN space (so it aligns with the full-canvas backdrop
+/// capture), blurs both the backdrop (the light) and the foreground alpha (the edge
+/// band), and composites them in linear light. Returns `(texture, w, h)`; the caller
+/// reads it back and draws it over the scene (where the foreground is transparent the
+/// existing backdrop shows through). Native/export only — see [`Effect::LightWrap`].
+fn build_lightwrap(
+    ctx: &mut Ctx,
+    node: &Node,
+    affine: Affine,
+) -> Option<(wgpu::Texture, u32, u32)> {
+    let Effect::LightWrap { sigma, strength } = lightwrap_of(node)? else {
+        return None;
+    };
+    let (w, h) = ctx.comp;
+    if w == 0 || h == 0 {
+        return None;
+    }
+
+    // Foreground: this node's subtree in SCREEN space (full-canvas). Neutralize the
+    // node's own transform (already baked into `affine`) and clear effects / matte /
+    // blend / clip so we capture the raw silhouette and don't recurse into light-wrap.
+    let fg_root = Node {
+        transform: Transform::IDENTITY,
+        opacity: 1.0,
+        effects: Vec::new(),
+        blend: BlendMode::Normal,
+        clip: None,
+        matte: None,
+        ..node.clone()
+    };
+    let saved_slw = ctx.suppress_lightwrap;
+    let saved_sb = ctx.suppress_backdrop;
+    let saved_sm = ctx.suppress_matte;
+    ctx.suppress_lightwrap = true;
+    ctx.suppress_backdrop = true;
+    ctx.suppress_matte = true;
+    let mut fg_scene = VelloScene::new();
+    build(&mut fg_scene, ctx, &fg_root, affine, 1.0);
+    ctx.suppress_lightwrap = saved_slw;
+    ctx.suppress_backdrop = saved_sb;
+    ctx.suppress_matte = saved_sm;
+    let fg = render_vscene_to_texture(ctx.device, ctx.queue, ctx.renderer, &fg_scene, w, h);
+
+    // Backdrop: everything painted behind this node (full-canvas, screen-aligned).
+    let bg = capture_prefix(ctx, node)?;
+
+    // Blur the backdrop (the light to wrap) and a copy of the foreground (its alpha
+    // gives the feathered edge band). σ doubles as the rim width; keep a small floor
+    // so a 0 σ still yields a visible 1px wrap rather than nothing.
+    let sig = sigma.max(1.0);
+    if ctx.blur_pipeline.is_none() {
+        *ctx.blur_pipeline = Some(GaussianBlur::new(ctx.device));
+    }
+    let bg_blurred = {
+        let blur = ctx.blur_pipeline.as_ref().unwrap();
+        blur.run(ctx.device, ctx.queue, &bg, w, h, sig)
+    };
+    let soft_fg = {
+        let blur = ctx.blur_pipeline.as_ref().unwrap();
+        blur.run(ctx.device, ctx.queue, &fg, w, h, sig)
+    };
+
+    // Composite the wrap. The pipeline is cheap to build per-resolve (export path).
+    let lw = LightWrap::new(ctx.device);
+    let out = lw.run(
+        ctx.device,
+        ctx.queue,
+        &fg,
+        &soft_fg,
+        &bg_blurred,
+        w,
+        h,
+        strength,
+    );
+    Some((out, w, h))
+}
+
+/// Native inline light-wrap path: build the composite, read it back synchronously
+/// (native only), and draw it full-canvas at identity (it is already screen-space).
+fn draw_lightwrap_native(
+    vscene: &mut VelloScene,
+    ctx: &mut Ctx,
+    node: &Node,
+    affine: Affine,
+    opacity: f32,
+) {
+    let Some((texture, w, h)) = build_lightwrap(ctx, node, affine) else {
+        return;
+    };
+    let frame = read_back(ctx.device, ctx.queue, &texture, w, h);
+    draw_effect_image(
+        vscene,
+        Affine::IDENTITY,
+        opacity,
+        std::sync::Arc::new(frame.pixels),
+        w,
+        h,
+        0.0,
+        0.0,
+    );
 }
 
 /// Native inline backdrop path: capture + blur the backdrop, read it back
