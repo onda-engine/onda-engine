@@ -12,7 +12,7 @@ const CINEMATIC = {
   eyebrow: 'CINEMATIC FINISHING',
   title: 'The finishing pass — exported, native, premium-tier.',
   intro:
-    'These are the export/native finishing moves — the difference lives in the GPU compute pass, so the live page degrades them (fBm falls back to a smooth gradient, the linear + ACES path falls back to gamma) and each before/after is an exported still. The one exception is morphPath: pure authoring, zero engine change, so it plays live.',
+    'These are the export/native finishing moves — the difference lives in the GPU compute pass, so the live page degrades them (fBm falls back to a smooth gradient, the linear + ACES path to gamma, light-wrap to the un-wrapped node) and each before/after is an exported still. The one exception is morphPath: pure authoring, zero engine change, so it plays live.',
   entries: [
     {
       title: 'fBm gradient',
@@ -34,6 +34,14 @@ const CINEMATIC = {
 </Composition>`,
       before: { src: '/effects/linear-before.png', label: 'gamma clamp' },
       after: { src: '/effects/linear-after.png', label: 'linear + ACES' },
+    },
+    {
+      title: 'Light-wrap',
+      blurb:
+        'A cut-out subject dropped onto a background fools no one — the edges are too clean. Light-wrap is the fix every compositor reaches for: the blurred background light bleeds a few pixels onto the subject\'s silhouette, in linear light, so it reads as SHOT IN the scene rather than pasted on top. Left, a hard dark cut-out on a vivid plate; right, the same shape with the surrounding colour drawn onto its inner edge. The #1 tell for landing AI-generated or stock media inside a composition.',
+      snippet: '<Image src="subject.png" lightWrap={{ sigma: 30, strength: 1 }} />',
+      before: { src: '/effects/lightwrap-before.png', label: 'pasted on' },
+      after: { src: '/effects/lightwrap-after.png', label: 'light-wrap' },
     },
     {
       title: 'morphPath',
