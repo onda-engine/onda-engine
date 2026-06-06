@@ -10,6 +10,7 @@
 //! `http(s)://` URLs are left unresolved (the offline pass doesn't fetch); a
 //! renderer simply skips an image whose pixels aren't attached.
 
+use std::collections::HashMap;
 use std::fmt;
 use std::path::Path;
 use std::sync::Arc;
@@ -44,21 +45,41 @@ impl std::error::Error for ImageError {}
 /// scene. File `src`s resolve relative to `base_dir`; `data:` URIs decode in
 /// place; `http(s)://` URLs are left unresolved.
 pub fn load_images(scene: &Scene, base_dir: &Path) -> Result<Scene, ImageError> {
+    let mut cache = HashMap::new();
+    load_images_cached(scene, base_dir, &mut cache)
+}
+
+/// Like [`load_images`], but reuses a caller-owned decode CACHE across calls — so a
+/// `src` referenced by every frame (e.g. a background plate) is decoded ONCE instead
+/// of per frame. Only stable sources (file paths / URLs) are cached; procedural
+/// `onda-noise:` grain and `data:` URIs are regenerated each call (they re-seed or
+/// differ per frame, and caching them would grow unboundedly). The per-node `blur`
+/// focus-pull is still applied per call on a clone of the cached SHARP decode, so the
+/// output is byte-identical to the uncached path.
+pub fn load_images_cached(
+    scene: &Scene,
+    base_dir: &Path,
+    cache: &mut HashMap<String, Option<ImageData>>,
+) -> Result<Scene, ImageError> {
     Ok(Scene {
         composition: scene.composition,
-        root: load_node(&scene.root, base_dir)?,
+        root: load_node(&scene.root, base_dir, cache)?,
     })
 }
 
-fn load_node(node: &Node, base_dir: &Path) -> Result<Node, ImageError> {
+fn load_node(
+    node: &Node,
+    base_dir: &Path,
+    cache: &mut HashMap<String, Option<ImageData>>,
+) -> Result<Node, ImageError> {
     let mut children = Vec::with_capacity(node.children.len());
     for child in &node.children {
-        children.push(load_node(child, base_dir)?);
+        children.push(load_node(child, base_dir, cache)?);
     }
 
     if let NodeKind::Image(image) = &node.kind {
         if image.data.is_none() {
-            if let Some(mut data) = decode_src(&image.src, base_dir)? {
+            if let Some(mut data) = decode_src_cached(&image.src, base_dir, cache)? {
                 // Optional gaussian "focus pull": blurring here (in the shared
                 // decode pass) keeps native/GPU/CPU byte-identical and needs no
                 // renderer support. Sigma is in source pixels; animating it
@@ -82,7 +103,7 @@ fn load_node(node: &Node, base_dir: &Path) -> Result<Node, ImageError> {
     // any still-unresolved video src is simply left for the renderer to skip.
     if let NodeKind::Video(video) = &node.kind {
         if video.data.is_none() && video.src.starts_with("data:") {
-            if let Some(data) = decode_src(&video.src, base_dir)? {
+            if let Some(data) = decode_src_cached(&video.src, base_dir, cache)? {
                 return Ok(Node {
                     kind: NodeKind::Video(video.clone().with_data(data)),
                     children,
@@ -96,6 +117,28 @@ fn load_node(node: &Node, base_dir: &Path) -> Result<Node, ImageError> {
         children,
         ..node.clone()
     })
+}
+
+/// [`decode_src`] with a cross-call cache for stable sources. The cached value is the
+/// SHARP decode (pre-blur); the caller applies any per-node blur to a clone, so the
+/// stored entry is reused untouched. `onda-noise:` (per-frame procedural) and `data:`
+/// (potentially distinct + large per frame) are never cached.
+fn decode_src_cached(
+    src: &str,
+    base_dir: &Path,
+    cache: &mut HashMap<String, Option<ImageData>>,
+) -> Result<Option<ImageData>, ImageError> {
+    let cacheable = !src.starts_with("onda-noise:") && !src.starts_with("data:");
+    if cacheable {
+        if let Some(hit) = cache.get(src) {
+            return Ok(hit.clone());
+        }
+    }
+    let decoded = decode_src(src, base_dir)?;
+    if cacheable {
+        cache.insert(src.to_string(), decoded.clone());
+    }
+    Ok(decoded)
 }
 
 /// Decode one `src` to pixels. Returns `Ok(None)` for sources the offline pass
