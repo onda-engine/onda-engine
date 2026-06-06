@@ -44,6 +44,14 @@ const CINEMATIC = {
       after: { src: '/effects/lightwrap-after.png', label: 'light-wrap' },
     },
     {
+      title: 'Film grain',
+      blurb:
+        'The compositing glue — and the dither that saves a dark-gradient hero. A luminance-banded monochrome noise laid over the frame: it ties mismatched sources (an AI plate, a real product, vector type) into one photographed image, and it breaks up the 8-bit banding that stripes a deep gradient. Left, a clean-digital gradient with latent banding; right, the same frame with a fine filmic grain. It peaks in the midtones and stays clean at pure black and white — and unlike the moves above, it renders identically on the CPU reference, so the preview is never blind to it.',
+      snippet: '<Group grain={{ intensity: 0.04, size: 1.2, seed: frame }}>…</Group>',
+      before: { src: '/effects/grain-before.png', label: 'clean · banding' },
+      after: { src: '/effects/grain-after.png', label: 'film grain' },
+    },
+    {
       title: 'morphPath',
       blurb:
         'A circle continuously morphing into a rule — one element transforming into another, the Apple/ElevenLabs "magic move" that reads as a single object, not a crossfade. morphPath(from, to, t) returns the in-between path for an animated t; flubber solves the hard part — point CORRESPONDENCE between the two outlines (a naive d-string lerp tears shapes apart). Zero engine change, so it plays live.',
