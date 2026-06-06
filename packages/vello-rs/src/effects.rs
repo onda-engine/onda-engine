@@ -336,6 +336,10 @@ struct Dims {
     height: u32,
     linear: u32,     // 0 = gamma clamp (default), 1 = linear-light + ACES roll-off
     exposure: f32,   // pre-tone-map exposure (linear mode only)
+    halation: f32,   // warm-fringe strength (linear mode only; 0 = none)
+    _p0: f32,
+    _p1: f32,
+    _p2: f32,
 };
 
 @group(0) @binding(0) var sharp: texture_2d<f32>;
@@ -376,7 +380,12 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (dims.linear == 1u) {
         // Composite in LINEAR light, then ACES tone-map → the highlight + halo read as
         // real light bleed (smooth roll-off) instead of a clipped flat overlay.
-        let lit = (srgb_to_linear(s.rgb) + srgb_to_linear(add)) * dims.exposure;
+        let halo = srgb_to_linear(add);
+        // HALATION: film bleeds a warm red/orange ghost around highlights (the red dye
+        // layer scatters more than blue). Add a warm-tinted echo of the halo before the
+        // tone-map so bright accents glow with a filmic warm fringe.
+        let halation = halo * vec3<f32>(0.55, 0.18, 0.06) * dims.halation;
+        let lit = (srgb_to_linear(s.rgb) + halo + halation) * dims.exposure;
         rgb = linear_to_srgb(aces(lit));
     } else {
         // Default gamma path (unchanged): additive + clamp.
@@ -399,7 +408,7 @@ pub struct Bloom {
 /// Byte size of the bloom bright-pass params (f32, f32, u32, u32).
 const BLOOM_BRIGHT_PARAMS_SIZE: u64 = 16;
 /// Byte size of the composite dims uniform (4 × u32, padded to 16 for std140).
-const BLOOM_DIMS_SIZE: u64 = 16;
+const BLOOM_DIMS_SIZE: u64 = 32;
 
 impl Bloom {
     /// Build both compute pipelines + their bind-group layouts. Cache on the
@@ -559,7 +568,17 @@ impl Bloom {
         // Exposure before the ACES curve (linear mode). 1.0 keeps mids ~neutral while
         // the curve adds filmic contrast + rolls highlights off; tune per look.
         const LINEAR_EXPOSURE: f32 = 1.0;
-        let dims = make_bloom_dims(device, queue, width, height, linear, LINEAR_EXPOSURE);
+        // Warm halation fringe — a tasteful film default, linear mode only.
+        let halation = if linear { 0.6 } else { 0.0 };
+        let dims = make_bloom_dims(
+            device,
+            queue,
+            width,
+            height,
+            linear,
+            LINEAR_EXPOSURE,
+            halation,
+        );
         let composite_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("onda-bloom-composite-bg"),
             layout: &self.composite_layout,
@@ -1455,12 +1474,17 @@ fn make_bloom_dims(
     height: u32,
     linear: bool,
     exposure: f32,
+    halation: f32,
 ) -> wgpu::Buffer {
     let mut bytes = Vec::with_capacity(BLOOM_DIMS_SIZE as usize);
     bytes.extend_from_slice(&width.to_le_bytes());
     bytes.extend_from_slice(&height.to_le_bytes());
     bytes.extend_from_slice(&(linear as u32).to_le_bytes());
     bytes.extend_from_slice(&exposure.to_le_bytes());
+    bytes.extend_from_slice(&halation.to_le_bytes());
+    bytes.extend_from_slice(&0f32.to_le_bytes());
+    bytes.extend_from_slice(&0f32.to_le_bytes());
+    bytes.extend_from_slice(&0f32.to_le_bytes());
     let buf = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("onda-bloom-dims"),
         size: BLOOM_DIMS_SIZE,
