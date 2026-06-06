@@ -128,6 +128,9 @@ export interface CompositionProps {
   height: number
   fps: number
   durationInFrames: number
+  /** Opt into the cinematic LINEAR + ACES finishing pipeline (correct bloom/light,
+   *  light-wrap, halation). GPU/export only; off by default (gamma). */
+  linear?: boolean
   children?: ReactNode
 }
 

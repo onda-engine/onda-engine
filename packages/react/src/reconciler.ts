@@ -127,6 +127,9 @@ function compositionToScene(node: HostNode): Scene {
       height: numberProp(props, 'height', 'Composition'),
       fps: numberProp(props, 'fps', 'Composition'),
       duration_in_frames: numberProp(props, 'durationInFrames', 'Composition'),
+      // Opt-in cinematic LINEAR + ACES finishing (gpu/export only); omitted (→ gamma)
+      // unless explicitly enabled, so existing scenes stay byte-identical.
+      ...(props.linear === true ? { linear: true } : {}),
     },
     root: {
       kind: { type: 'group' },

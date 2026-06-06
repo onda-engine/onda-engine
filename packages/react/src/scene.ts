@@ -60,6 +60,8 @@ export interface Composition {
   height: number
   fps: number
   duration_in_frames: number
+  /** Opt-in cinematic LINEAR + ACES finishing pipeline (gpu/export only). */
+  linear?: boolean
 }
 
 export type ShapeGeometry =
