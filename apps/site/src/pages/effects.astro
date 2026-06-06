@@ -4,6 +4,47 @@
 // Standalone page (not a Starlight doc) so the player can use a full-width layout.
 import EffectsGallery from '../components/EffectsGallery.tsx'
 const REPO = 'https://github.com/degueba/onda-engine'
+
+// Cinematic finishing — the export/native premium moves whose before/after is a
+// rendered still (the live preview degrades them). Update this list when a new
+// export-only effect ships (with a before/after + an accurate blurb).
+const CINEMATIC = {
+  eyebrow: 'CINEMATIC FINISHING',
+  title: 'The finishing pass — exported, native, premium-tier.',
+  intro:
+    'These are the export/native finishing moves — the difference lives in the GPU compute pass, so the live page degrades them (fBm falls back to a smooth gradient, the linear + ACES path falls back to gamma) and each before/after is an exported still. The one exception is morphPath: pure authoring, zero engine change, so it plays live.',
+  entries: [
+    {
+      title: 'fBm gradient',
+      blurb:
+        'Left, a flat 2-stop linear ramp. Right, the SAME stops as an fBm gradient — the soft, flowing Stripe/Linear-tier surface that reads "expensive," the tell that a backdrop was art-directed, not just filled. Fractal Brownian motion over 2D Simplex noise plus a domain-warp, run as a GPU compute pass; animate time for a living surface.',
+      snippet:
+        '<Rect width={W} height={H} fill={fbmGradient(stops, { scale: 1, warp: 0.5, time: frame / fps })} />',
+      before: { src: '/effects/fbm-before.png', label: 'flat linear' },
+      after: { src: '/effects/fbm-after.png', label: 'fBm' },
+    },
+    {
+      title: 'Linear + ACES cinematic finish',
+      blurb:
+        'Same bloomed plate, left and right — but on the right the glow is real light bleed, not a flat overlay, the tell that separates "rendered" from "shot." Flip the linear flag on the Composition: Bloom composites in linear light, then an ACES filmic tone-map rolls the highlights off in a smooth curve instead of the default gamma additive-clamp.',
+      snippet: `<Composition linear width={1920} height={1080}>
+  <Group bloom={{ sigma: 16, intensity: 1.7 }}>
+    <Img src="plate.jpg" />
+  </Group>
+</Composition>`,
+      before: { src: '/effects/linear-before.png', label: 'gamma clamp' },
+      after: { src: '/effects/linear-after.png', label: 'linear + ACES' },
+    },
+    {
+      title: 'morphPath',
+      blurb:
+        'A circle continuously morphing into a rule — one element transforming into another, the Apple/ElevenLabs "magic move" that reads as a single object, not a crossfade. morphPath(from, to, t) returns the in-between path for an animated t; flubber solves the hard part — point CORRESPONDENCE between the two outlines (a naive d-string lerp tears shapes apart). Zero engine change, so it plays live.',
+      snippet: '<Path d={morphPath(CIRCLE, RULE, ramp(frame, 70, 95))} fill="#fff" />',
+      strip: '/effects/morph-strip.png',
+      stripLabel: 'circle → rule, five stages of one morph',
+    },
+  ],
+}
 ---
 
 <!doctype html>
@@ -59,6 +100,44 @@ const REPO = 'https://github.com/degueba/onda-engine'
           </p>
         </header>
         <EffectsGallery client:only="react" />
+
+        <section class="cinematic" aria-labelledby="cinematic-title">
+          <header class="cinematic__head">
+            <p class="eyebrow">{CINEMATIC.eyebrow}</p>
+            <h2 id="cinematic-title">{CINEMATIC.title}</h2>
+            <p class="lede">{CINEMATIC.intro}</p>
+          </header>
+          <div class="cinematic__grid">
+            {
+              CINEMATIC.entries.map((e) => (
+                <article class="cfx">
+                  <div class={e.strip ? 'cfx__media cfx__media--strip' : 'cfx__media'}>
+                    {e.strip ? (
+                      <figure class="cfx__strip">
+                        <img src={e.strip} alt={e.title} loading="lazy" />
+                        <figcaption>{e.stripLabel}</figcaption>
+                      </figure>
+                    ) : (
+                      <>
+                        <figure>
+                          <img src={e.before.src} alt={`${e.title} before`} loading="lazy" />
+                          <figcaption>{e.before.label}</figcaption>
+                        </figure>
+                        <figure>
+                          <img src={e.after.src} alt={`${e.title} after`} loading="lazy" />
+                          <figcaption>{e.after.label}</figcaption>
+                        </figure>
+                      </>
+                    )}
+                  </div>
+                  <h3 class="cfx__title">{e.title}</h3>
+                  <p class="cfx__blurb">{e.blurb}</p>
+                  <pre class="cfx__code"><code>{e.snippet}</code></pre>
+                </article>
+              ))
+            }
+          </div>
+        </section>
       </main>
     </div>
 
@@ -107,9 +186,47 @@ const REPO = 'https://github.com/degueba/onda-engine'
         font-family: 'JetBrains Mono', monospace; font-size: 0.9em;
         color: #f2f2f4; background: #18181d; padding: 1px 6px; border-radius: 5px;
       }
+      /* ---------- Cinematic finishing (exported before/after) ---------- */
+      .cinematic { margin-top: 88px; padding-top: 56px; border-top: 1px solid #26262c; }
+      .cinematic__head { max-width: 70ch; margin-bottom: 40px; }
+      .cinematic__head h2 {
+        font-family: 'Clash Display', 'Space Grotesk', sans-serif;
+        font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 600; line-height: 1.08;
+        letter-spacing: -0.02em; margin: 0 0 14px;
+      }
+      .cinematic__head .lede { font-size: 1.0625rem; }
+      .cinematic__grid { display: flex; flex-direction: column; gap: 64px; }
+      .cfx__media {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      }
+      .cfx__media--strip { grid-template-columns: 1fr; }
+      .cfx figure {
+        margin: 0; position: relative; border-radius: 12px; overflow: hidden;
+        border: 1px solid #26262c; background: #08080c; line-height: 0;
+      }
+      .cfx figure img { display: block; width: 100%; height: auto; }
+      .cfx figcaption {
+        position: absolute; bottom: 10px; left: 12px; line-height: 1;
+        font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.02em;
+        color: #f2f2f4; background: rgba(0, 0, 0, 0.58); padding: 4px 9px; border-radius: 7px;
+      }
+      .cfx__title {
+        font-family: 'Clash Display', 'Space Grotesk', sans-serif;
+        font-size: 1.4rem; font-weight: 600; letter-spacing: -0.01em; margin: 22px 0 8px;
+      }
+      .cfx__blurb { color: #8e8e98; line-height: 1.6; max-width: 72ch; margin: 0 0 16px; }
+      .cfx__code {
+        background: #08080c; border: 1px solid #26262c; border-radius: 10px;
+        padding: 14px 16px; overflow-x: auto; margin: 0;
+      }
+      .cfx__code code {
+        font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.5;
+        color: #cdd2e0; white-space: pre;
+      }
       @media (max-width: 760px) {
         .gnav__links { display: none; }
         .gmain { padding: 32px 20px 64px; }
+        .cfx__media { grid-template-columns: 1fr; }
       }
     </style>
   </body>
