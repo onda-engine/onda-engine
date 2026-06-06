@@ -1700,13 +1700,20 @@ fn frames_scenes(json: &str, base_dir: &Path) -> Result<(Vec<Scene>, f32)> {
     // since export walks frames in increasing time. Native-only, opt-in feature.
     #[cfg(feature = "video")]
     let mut video = onda_video::VideoDecoder::new();
+    // One decode cache across all frames: a `src` referenced every frame (e.g. a
+    // background plate) is decoded ONCE, not per frame (procedural grain + data URIs
+    // are excluded — they differ per frame). Big win for image-heavy compositions.
+    let mut img_cache = std::collections::HashMap::new();
     for scene in &raw {
         let expanded = onda_svg::expand_svg(scene, base_dir).context("expanding <svg> nodes")?;
         #[cfg(feature = "video")]
         let expanded = video
             .resolve_scene(&expanded)
             .context("decoding video frames")?;
-        scenes.push(onda_image::load_images(&expanded, base_dir).context("loading images")?);
+        scenes.push(
+            onda_image::load_images_cached(&expanded, base_dir, &mut img_cache)
+                .context("loading images")?,
+        );
     }
     Ok((scenes, fps))
 }
