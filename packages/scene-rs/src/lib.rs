@@ -29,17 +29,31 @@ pub struct Composition {
     pub height: u32,
     pub fps: f32,
     pub duration_in_frames: u32,
+    /// Opt-in CINEMATIC color pipeline: render the screen-space finishing chain
+    /// (bloom/blur/grade + light-wrap/halation) in LINEAR light with an ACES tone-map
+    /// output, instead of the default gamma/sRGB math. Off by default → existing
+    /// comps + goldens are byte-identical. GPU/export only (the CPU reference + the
+    /// WebGPU preview fall back to the gamma path, like other GPU-only features).
+    #[serde(default)]
+    pub linear: bool,
 }
 
 impl Composition {
-    /// Construct a composition.
+    /// Construct a composition (gamma pipeline; opt into linear via [`with_linear`]).
     pub fn new(width: u32, height: u32, fps: f32, duration_in_frames: u32) -> Self {
         Composition {
             width,
             height,
             fps,
             duration_in_frames,
+            linear: false,
         }
+    }
+
+    /// Opt into the cinematic LINEAR + ACES finishing pipeline.
+    pub fn with_linear(mut self, linear: bool) -> Self {
+        self.linear = linear;
+        self
     }
 
     /// Duration in seconds (`duration_in_frames / fps`).
