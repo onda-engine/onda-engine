@@ -334,14 +334,31 @@ const BLOOM_COMPOSITE_WGSL: &str = r#"
 struct Dims {
     width: u32,
     height: u32,
-    _pad0: u32,
-    _pad1: u32,
+    linear: u32,     // 0 = gamma clamp (default), 1 = linear-light + ACES roll-off
+    exposure: f32,   // pre-tone-map exposure (linear mode only)
 };
 
 @group(0) @binding(0) var sharp: texture_2d<f32>;
 @group(0) @binding(1) var bloom: texture_2d<f32>;
 @group(0) @binding(2) var dst: texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(3) var<uniform> dims: Dims;
+
+fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
+    let lo = c / 12.92;
+    let hi = pow((c + 0.055) / 1.055, vec3<f32>(2.4));
+    return select(hi, lo, c <= vec3<f32>(0.04045));
+}
+fn linear_to_srgb(c: vec3<f32>) -> vec3<f32> {
+    let cc = clamp(c, vec3<f32>(0.0), vec3<f32>(1.0));
+    let lo = cc * 12.92;
+    let hi = 1.055 * pow(cc, vec3<f32>(1.0 / 2.4)) - 0.055;
+    return select(hi, lo, cc <= vec3<f32>(0.0031308));
+}
+// ACES filmic tone-map (Narkowicz approximation): rolls highlights off smoothly.
+fn aces(x: vec3<f32>) -> vec3<f32> {
+    let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;
+    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
+}
 
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -353,10 +370,18 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let p = vec2<i32>(i32(x), i32(y));
     let s = textureLoad(sharp, p, 0);
     let b = textureLoad(bloom, p, 0);
-    // Additive: the halo color, pre-weighted by its coverage, added to the sharp
-    // pixel and clamped. Alpha grows toward opaque where light lands.
+    // The halo color, pre-weighted by its coverage.
     let add = b.rgb * b.a;
-    let rgb = clamp(s.rgb + add, vec3<f32>(0.0), vec3<f32>(1.0));
+    var rgb: vec3<f32>;
+    if (dims.linear == 1u) {
+        // Composite in LINEAR light, then ACES tone-map → the highlight + halo read as
+        // real light bleed (smooth roll-off) instead of a clipped flat overlay.
+        let lit = (srgb_to_linear(s.rgb) + srgb_to_linear(add)) * dims.exposure;
+        rgb = linear_to_srgb(aces(lit));
+    } else {
+        // Default gamma path (unchanged): additive + clamp.
+        rgb = clamp(s.rgb + add, vec3<f32>(0.0), vec3<f32>(1.0));
+    }
     let a = clamp(s.a + b.a, 0.0, 1.0);
     textureStore(dst, p, vec4<f32>(rgb, a));
 }
@@ -462,6 +487,8 @@ impl Bloom {
         threshold: f32,
         intensity: f32,
         sigma: f32,
+        // Composite in linear light + ACES (cinematic) vs. the default gamma clamp.
+        linear: bool,
     ) -> wgpu::Texture {
         let gx = width.div_ceil(8);
         let gy = height.div_ceil(8);
@@ -529,7 +556,10 @@ impl Bloom {
         let out = make_texture("onda-bloom-out");
         let halo_view = halo.create_view(&wgpu::TextureViewDescriptor::default());
         let out_view = out.create_view(&wgpu::TextureViewDescriptor::default());
-        let dims = make_bloom_dims(device, queue, width, height);
+        // Exposure before the ACES curve (linear mode). 1.0 keeps mids ~neutral while
+        // the curve adds filmic contrast + rolls highlights off; tune per look.
+        const LINEAR_EXPOSURE: f32 = 1.0;
+        let dims = make_bloom_dims(device, queue, width, height, linear, LINEAR_EXPOSURE);
         let composite_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("onda-bloom-composite-bg"),
             layout: &self.composite_layout,
@@ -1423,12 +1453,14 @@ fn make_bloom_dims(
     queue: &wgpu::Queue,
     width: u32,
     height: u32,
+    linear: bool,
+    exposure: f32,
 ) -> wgpu::Buffer {
     let mut bytes = Vec::with_capacity(BLOOM_DIMS_SIZE as usize);
     bytes.extend_from_slice(&width.to_le_bytes());
     bytes.extend_from_slice(&height.to_le_bytes());
-    bytes.extend_from_slice(&0u32.to_le_bytes());
-    bytes.extend_from_slice(&0u32.to_le_bytes());
+    bytes.extend_from_slice(&(linear as u32).to_le_bytes());
+    bytes.extend_from_slice(&exposure.to_le_bytes());
     let buf = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("onda-bloom-dims"),
         size: BLOOM_DIMS_SIZE,
