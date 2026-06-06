@@ -146,8 +146,11 @@ impl Encoder {
             Encoder::Videotoolbox => vec![
                 "-c:v",
                 "h264_videotoolbox",
+                // VideoToolbox's quality scale is coarse + compresses high-entropy
+                // content (film grain, bloom) hard; 55 starved premium exports
+                // (~1.8 Mbps at 1080p). 68 gives grain/glow the bits to survive.
                 "-q:v",
-                "55",
+                "68",
                 "-allow_sw",
                 "1",
                 "-pix_fmt",
