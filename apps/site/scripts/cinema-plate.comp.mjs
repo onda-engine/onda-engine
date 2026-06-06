@@ -200,5 +200,8 @@ function Scene() {
 }
 
 export default function cinemaPlate({ fps, durationInFrames, width, height }) {
-  return h(Composition, { width, height, fps, durationInFrames }, h(Scene, null))
+  // linear: the cinematic finish — bloom composites in linear light + ACES tone-map,
+  // so the sun-flare reads as real light bleed (smooth roll-off) instead of a flat
+  // clipped overlay, and the plate gets a filmic highlight curve. GPU/export only.
+  return h(Composition, { width, height, fps, durationInFrames, linear: true }, h(Scene, null))
 }
