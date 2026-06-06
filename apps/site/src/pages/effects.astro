@@ -26,7 +26,7 @@ const CINEMATIC = {
     {
       title: 'Linear + ACES cinematic finish',
       blurb:
-        'Same bloomed plate, left and right — but on the right the glow is real light bleed, not a flat overlay, the tell that separates "rendered" from "shot." Flip the linear flag on the Composition: Bloom composites in linear light, then an ACES filmic tone-map rolls the highlights off in a smooth curve instead of the default gamma additive-clamp.',
+        'Same bloomed plate, left and right — but on the right the glow is real light bleed, not a flat overlay, the tell that separates "rendered" from "shot." Flip the linear flag on the Composition: Bloom composites in linear light, an ACES filmic tone-map rolls the highlights off in a smooth curve (not the default gamma additive-clamp), and a warm HALATION fringe bleeds around the brightest accents the way film does.',
       snippet: `<Composition linear width={1920} height={1080}>
   <Group bloom={{ sigma: 16, intensity: 1.7 }}>
     <Img src="plate.jpg" />
