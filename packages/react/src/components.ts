@@ -84,6 +84,14 @@ export interface NodeProps {
    *  solid forms joined by smooth necks (the "drops of liquid coalescing" look).
    *  A bare number is the `sigma`. Honored by Vello AND the CPU reference. */
   goo?: number | { sigma: number; threshold?: number }
+  /** Film-grain sugar for `effects: [{ effect: 'grain', ... }]`: luminance-banded,
+   *  animated monochrome noise added late over the subtree — the compositing "glue"
+   *  that makes mismatched sources read as one photographed image, and the dither
+   *  that hides 8-bit banding on dark gradients. A bare number is the `intensity`
+   *  (~0.04–0.1 is filmic); the object form adds `size` (grain scale in px, default
+   *  1) and `seed` (animation offset — pass the current frame for *living* grain,
+   *  default 0 = static). Honored by Vello AND the CPU reference. */
+  grain?: number | { intensity: number; size?: number; seed?: number }
   /** Frosted-glass sugar for `effects: [{ effect: 'backdrop_blur', ... }]`: samples
    *  the already-composited BACKDROP *behind* this node (not its own subtree),
    *  blurs it by `sigma` (output px), and draws it as the node's backing — then the

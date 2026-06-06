@@ -974,6 +974,196 @@ impl AlphaMatte {
     }
 }
 
+/// Lazily-built film-grain pass: a single per-pixel compute over the captured
+/// subtree that adds luminance-banded, animated monochrome noise. Cached on the
+/// renderer (it runs in the effect chain, possibly every frame). Mirrors the CPU
+/// `grain_framebuffer` so both backends share the look.
+pub struct Grain {
+    pipeline: wgpu::ComputePipeline,
+    layout: wgpu::BindGroupLayout,
+}
+
+/// Byte size of the grain params uniform (3 × f32 + 3 × u32 + 2 pad = 32, std140-safe).
+const GRAIN_PARAMS_SIZE: u64 = 32;
+
+impl Grain {
+    /// Build the compute pipeline + bind-group layout. Cache on the renderer.
+    pub fn new(device: &wgpu::Device) -> Self {
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("onda-grain-wgsl"),
+            source: wgpu::ShaderSource::Wgsl(GRAIN_WGSL.into()),
+        });
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("onda-grain-bgl"),
+            entries: &[
+                sampled_texture_entry(0),
+                storage_texture_entry(1),
+                uniform_entry(2),
+            ],
+        });
+        let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("onda-grain-pl"),
+            bind_group_layouts: &[&layout],
+            push_constant_ranges: &[],
+        });
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("onda-grain-pipeline"),
+            layout: Some(&pl),
+            module: &module,
+            entry_point: "main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+        Grain { pipeline, layout }
+    }
+
+    /// Grain `source` (the captured subtree texture) → a new `Rgba8Unorm` texture
+    /// (`COPY_SRC`, ready for readback). `linear` adds the grain in linear light
+    /// (matching the composition's cinematic finish) instead of gamma. Its own
+    /// encoder + submit — never injects into Vello's pass.
+    #[allow(clippy::too_many_arguments)]
+    pub fn run(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        source: &wgpu::Texture,
+        width: u32,
+        height: u32,
+        intensity: f32,
+        size: f32,
+        seed: f32,
+    ) -> wgpu::Texture {
+        let out = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("onda-grain-out"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let src_view = source.create_view(&wgpu::TextureViewDescriptor::default());
+        let out_view = out.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut bytes = Vec::with_capacity(GRAIN_PARAMS_SIZE as usize);
+        bytes.extend_from_slice(&intensity.to_le_bytes());
+        bytes.extend_from_slice(&size.max(0.01).to_le_bytes());
+        bytes.extend_from_slice(&seed.to_le_bytes());
+        bytes.extend_from_slice(&width.to_le_bytes());
+        bytes.extend_from_slice(&height.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        let params = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("onda-grain-params"),
+            size: GRAIN_PARAMS_SIZE,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(&params, 0, &bytes);
+
+        let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("onda-grain-bg"),
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&src_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&out_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: params.as_entire_binding(),
+                },
+            ],
+        });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("onda-grain-encoder"),
+        });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("onda-grain"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &bg, &[]);
+            pass.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
+        }
+        queue.submit(Some(encoder.finish()));
+        out
+    }
+}
+
+/// Compute shader: FILM GRAIN. A value-noise field (scaled by `size`, offset by
+/// `seed` so it animates per frame) is centred to [-1,1], banded by a midtone
+/// luminance response `2·√(l·(1-l))` (peak at mid-grey, zero at pure black/white),
+/// and added MONOCHROME to the colour in the PERCEPTUAL (gamma/sRGB) domain — which
+/// is where it both reads filmic (uniform across the tonal range) and dithers the
+/// 8-bit banding it's meant to hide; pure-linear additive grain explodes the shadows.
+/// The hash/`fract` math is mirrored exactly by the CPU `grain_framebuffer`.
+const GRAIN_WGSL: &str = r#"
+struct Params {
+    intensity: f32,
+    size: f32,
+    seed: f32,
+    width: u32,
+    height: u32,
+    _p0: u32,
+    _p1: u32,
+    _p2: u32,
+};
+
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var<uniform> p: Params;
+
+fn hash21(v: vec2<f32>) -> f32 {
+    return fract(sin(dot(v, vec2<f32>(127.1, 311.7))) * 43758.5453123);
+}
+// Value noise: smooth-interpolated hash at the cell corners → [0,1].
+fn vnoise(v: vec2<f32>) -> f32 {
+    let i = floor(v);
+    let f = fract(v);
+    let u = f * f * (3.0 - 2.0 * f);
+    let a = hash21(i);
+    let b = hash21(i + vec2<f32>(1.0, 0.0));
+    let c = hash21(i + vec2<f32>(0.0, 1.0));
+    let d = hash21(i + vec2<f32>(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let x = gid.x;
+    let y = gid.y;
+    if (x >= p.width || y >= p.height) {
+        return;
+    }
+    let q = vec2<i32>(i32(x), i32(y));
+    let s = textureLoad(src, q, 0);
+    // Sample the noise field; the per-frame seed jumps it far enough to decorrelate.
+    let coord = (vec2<f32>(f32(x), f32(y)) + 0.5) / p.size
+        + vec2<f32>(p.seed * 71.0, p.seed * 113.0);
+    let n = (vnoise(coord) - 0.5) * 2.0; // [-1, 1]
+    // Midtone-banded response: peaks at mid-grey, 0 at pure black/white.
+    let luma = dot(s.rgb, vec3<f32>(0.299, 0.587, 0.114));
+    let resp = 2.0 * sqrt(max(luma * (1.0 - luma), 0.0));
+    let delta = n * p.intensity * resp;
+    let rgb = clamp(s.rgb + vec3<f32>(delta), vec3<f32>(0.0), vec3<f32>(1.0));
+    textureStore(dst, q, vec4<f32>(rgb, s.a));
+}
+"#;
+
 /// Lazily-built light-wrap composite: bleeds the blurred backdrop light onto the
 /// foreground's feathered inner edge so a cut-out plate reads as *shot in* the scene
 /// rather than pasted on top. Three sampled inputs — the sharp foreground (with its
