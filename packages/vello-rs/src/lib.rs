@@ -235,6 +235,7 @@ impl VelloRenderer {
                     matte_pipeline: &mut self.matte_pipeline,
                     fbm_pipeline: &mut self.fbm_pipeline,
                     effect_overrides: &mut Vec::new(),
+                    linear: false,
                     web: true,
                     // Nested effects inside this subtree degrade (no cache here).
                     effect_images: None,
@@ -312,6 +313,7 @@ impl VelloRenderer {
                     matte_pipeline: &mut self.matte_pipeline,
                     fbm_pipeline: &mut self.fbm_pipeline,
                     effect_overrides: &mut Vec::new(),
+                    linear: false,
                     web: true,
                     // Effect nodes BEHIND the glass resolve from the cache (computed
                     // just before this pre-pass); a fresh cursor per backdrop node,
@@ -380,6 +382,7 @@ impl VelloRenderer {
                         matte_pipeline: &mut self.matte_pipeline,
                         fbm_pipeline: &mut self.fbm_pipeline,
                         effect_overrides: &mut Vec::new(),
+                        linear: false,
                         web: true,
                         effect_images: None,
                         effect_idx: 0,
@@ -465,6 +468,7 @@ impl VelloRenderer {
                 matte_pipeline: &mut self.matte_pipeline,
                 fbm_pipeline: &mut self.fbm_pipeline,
                 effect_overrides: &mut effect_overrides,
+                linear: scene.composition.linear,
                 web: self.web,
                 effect_images,
                 effect_idx: 0,
@@ -525,6 +529,10 @@ struct Ctx<'a> {
     /// during the build walk; cleared once `render_vscene_to_texture` has consumed
     /// them. Unused on the web path (effects resolve via the async pre-pass cache).
     effect_overrides: &'a mut Vec<PenikoImage>,
+    /// Cinematic LINEAR finishing (`Composition::linear`): when set, the screen-space
+    /// effect chain (currently Bloom) runs in linear light with an ACES tone-map
+    /// output instead of gamma math. GPU/export only; false on the web pre-pass.
+    linear: bool,
     /// WebGPU backend — the effect path's synchronous readback can't run mid-build
     /// here, so effects are resolved by an async PRE-PASS into `effect_images`
     /// instead; if that cache is absent/exhausted the node draws un-effected
@@ -1077,10 +1085,12 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
                 if ctx.bloom_pipeline.is_none() {
                     *ctx.bloom_pipeline = Some(Bloom::new(ctx.device));
                 }
+                let linear = ctx.linear;
                 let blur = ctx.blur_pipeline.as_ref().unwrap();
                 let bloom = ctx.bloom_pipeline.as_ref().unwrap();
                 texture = bloom.run(
                     ctx.device, ctx.queue, blur, &texture, tw, th, *threshold, *intensity, *sigma,
+                    linear,
                 );
             }
             // Degenerate bloom (no spread or no intensity) is a no-op.
