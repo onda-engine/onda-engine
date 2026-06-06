@@ -234,6 +234,7 @@ impl VelloRenderer {
                     goo_pipeline: &mut self.goo_pipeline,
                     matte_pipeline: &mut self.matte_pipeline,
                     fbm_pipeline: &mut self.fbm_pipeline,
+                    effect_overrides: &mut Vec::new(),
                     web: true,
                     // Nested effects inside this subtree degrade (no cache here).
                     effect_images: None,
@@ -310,6 +311,7 @@ impl VelloRenderer {
                     goo_pipeline: &mut self.goo_pipeline,
                     matte_pipeline: &mut self.matte_pipeline,
                     fbm_pipeline: &mut self.fbm_pipeline,
+                    effect_overrides: &mut Vec::new(),
                     web: true,
                     // Effect nodes BEHIND the glass resolve from the cache (computed
                     // just before this pre-pass); a fresh cursor per backdrop node,
@@ -377,6 +379,7 @@ impl VelloRenderer {
                         goo_pipeline: &mut self.goo_pipeline,
                         matte_pipeline: &mut self.matte_pipeline,
                         fbm_pipeline: &mut self.fbm_pipeline,
+                        effect_overrides: &mut Vec::new(),
                         web: true,
                         effect_images: None,
                         effect_idx: 0,
@@ -438,6 +441,10 @@ impl VelloRenderer {
         let height = scene.composition.height.max(1);
 
         let mut vscene = VelloScene::new();
+        // Placeholder images for native GPU-resident effect compositing — filled by
+        // the walk (each keys an `override_image` to an effect's GPU texture), then
+        // cleared after `render_vscene_to_texture` consumes them below.
+        let mut effect_overrides: Vec<PenikoImage> = Vec::new();
         // Disjoint field borrows so the recursive walk can render *effect*
         // subtrees to their own textures while `fonts`/`font_cache` stay borrowed:
         // `fonts` (shaping) + `font_cache` (built fonts) for text, plus
@@ -457,6 +464,7 @@ impl VelloRenderer {
                 goo_pipeline: &mut self.goo_pipeline,
                 matte_pipeline: &mut self.matte_pipeline,
                 fbm_pipeline: &mut self.fbm_pipeline,
+                effect_overrides: &mut effect_overrides,
                 web: self.web,
                 effect_images,
                 effect_idx: 0,
@@ -484,6 +492,12 @@ impl VelloRenderer {
             width,
             height,
         );
+        // Vello has GPU-copied each effect texture into its atlas during the render
+        // above; drop the overrides so the map keeps no stale node→texture mappings
+        // (and releases the effect textures) past this frame.
+        for placeholder in &effect_overrides {
+            self.renderer.override_image(placeholder, None);
+        }
         (texture, width, height)
     }
 }
@@ -505,6 +519,12 @@ struct Ctx<'a> {
     goo_pipeline: &'a mut Option<Goo>,
     matte_pipeline: &'a mut Option<AlphaMatte>,
     fbm_pipeline: &'a mut Option<FbmGradient>,
+    /// Native GPU-resident effect compositing: the placeholder `peniko::Image`s whose
+    /// Blob ids key `Renderer::override_image` to each effect's GPU texture, so Vello
+    /// GPU→GPU-copies the result into its atlas instead of us reading it back. Filled
+    /// during the build walk; cleared once `render_vscene_to_texture` has consumed
+    /// them. Unused on the web path (effects resolve via the async pre-pass cache).
+    effect_overrides: &'a mut Vec<PenikoImage>,
     /// WebGPU backend — the effect path's synchronous readback can't run mid-build
     /// here, so effects are resolved by an async PRE-PASS into `effect_images`
     /// instead; if that cache is absent/exhausted the node draws un-effected
@@ -1124,17 +1144,23 @@ fn render_effects_subtree(
     let Some((texture, tw, th, x0, y0)) = build_effect_texture(ctx, node) else {
         return;
     };
-    let frame = read_back(ctx.device, ctx.queue, &texture, tw, th);
-    draw_effect_image(
-        vscene,
-        affine,
-        opacity,
-        std::sync::Arc::new(frame.pixels),
-        tw,
-        th,
-        x0,
-        y0,
+    // GPU-RESIDENT composite (no readback): draw a placeholder image at the node's
+    // place/opacity, then override it with the effect's GPU texture — Vello GPU→GPU-
+    // copies the result into its atlas at render time instead of us reading it back to
+    // the CPU and re-uploading it. The override is cleared after the frame renders.
+    let placeholder = effect_placeholder(tw, th);
+    let place = affine * Affine::translate((x0, y0));
+    draw_peniko_image(vscene, &placeholder, place, opacity);
+    ctx.renderer.override_image(
+        &placeholder,
+        Some(wgpu::ImageCopyTextureBase {
+            texture: std::sync::Arc::new(texture),
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        }),
     );
+    ctx.effect_overrides.push(placeholder);
 }
 
 /// Composite a pre-rendered effect image (straight-alpha RGBA) at `affine`/
@@ -1736,18 +1762,43 @@ fn draw_image_data(
     if let Some(b) = clip_box {
         vscene.push_layer(Mix::Clip, 1.0, affine, &b);
     }
-    // draw_image has no alpha arg; fold node opacity in via a layer.
-    if opacity < 1.0 {
-        let bounds = Rect::new(0.0, 0.0, iw, ih);
-        vscene.push_layer(Mix::Normal, opacity, img_affine, &bounds);
-        vscene.draw_image(&pimg, img_affine);
-        vscene.pop_layer();
-    } else {
-        vscene.draw_image(&pimg, img_affine);
-    }
+    draw_peniko_image(vscene, &pimg, img_affine, opacity);
     if did_clip {
         vscene.pop_layer();
     }
+}
+
+/// Draw a peniko image at `img_affine`, folding `opacity` in via a layer (Vello's
+/// `draw_image` has no alpha arg). Shared by `draw_image_data` (a CPU image) and the
+/// native GPU-resident effect path (a placeholder image overridden to a GPU texture).
+fn draw_peniko_image(
+    vscene: &mut VelloScene,
+    pimg: &PenikoImage,
+    img_affine: Affine,
+    opacity: f32,
+) {
+    if opacity < 1.0 {
+        let bounds = Rect::new(0.0, 0.0, pimg.width as f64, pimg.height as f64);
+        vscene.push_layer(Mix::Normal, opacity, img_affine, &bounds);
+        vscene.draw_image(pimg, img_affine);
+        vscene.pop_layer();
+    } else {
+        vscene.draw_image(pimg, img_affine);
+    }
+}
+
+/// A placeholder `peniko::Image` at `w×h` whose Blob is a tiny dummy — used only as a
+/// stable, unique override KEY for `Renderer::override_image`. Under an override Vello
+/// GPU→GPU-copies the real texture and never reads the blob (the WriteImage upload is
+/// short-circuited), and `Image::new` does not validate the blob length; `Blob::new`
+/// stamps a globally-unique id, so every call is a distinct key.
+fn effect_placeholder(w: u32, h: u32) -> PenikoImage {
+    PenikoImage::new(
+        Blob::new(std::sync::Arc::new(vec![0u8; 4])),
+        Format::Rgba8,
+        w,
+        h,
+    )
 }
 
 fn to_affine(t: &Transform) -> Affine {
