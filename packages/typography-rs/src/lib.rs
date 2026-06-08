@@ -285,6 +285,117 @@ impl FontContext {
         }
     }
 
+    /// Font-level vertical metrics for `font_size` + family/weight. Derived by
+    /// rasterizing the reference characters 'H' (cap height) and 'x' (x-height)
+    /// with the same shaper that draws the text, so the values are pixel-accurate
+    /// for the actual rendered font (not OS/2-table guesses). Call once per
+    /// (font_size, family, weight) combination — not per frame.
+    pub fn font_metrics_with(
+        &mut self,
+        font_size: f32,
+        family: Option<&str>,
+        weight: u16,
+        italic: bool,
+    ) -> FontMetrics {
+        let base = self.measure_with("H", font_size, family, weight, italic, 0.0);
+        let ascent = base.ascent;
+        let descent = base.descent;
+        let line_height = base.line_height;
+
+        let (cap_top, cap_height) = self
+            .rasterize_with("H", font_size, family, weight, italic)
+            .map(|r| (r.offset_y as f32, r.height as f32))
+            .unwrap_or((ascent * 0.10, ascent * 0.72));
+
+        let (x_top, x_height) = self
+            .rasterize_with("x", font_size, family, weight, italic)
+            .map(|r| (r.offset_y as f32, r.height as f32))
+            .unwrap_or((ascent * 0.30, ascent * 0.52));
+
+        FontMetrics { cap_top, cap_height, x_top, x_height, ascent, descent, line_height }
+    }
+
+    /// Kerning-aware glyph layout for `content`: returns one [`GlyphInfo`] per
+    /// shaped cluster (character or ligature), with `x` (pen position from the
+    /// layout origin) and `advance` (kerning-accurate width to the next cluster).
+    /// Unlike calling `measureText` per character, this includes kern pairs.
+    pub fn glyph_layout_with(
+        &mut self,
+        content: &str,
+        font_size: f32,
+        family: Option<&str>,
+        weight: u16,
+        italic: bool,
+        letter_spacing: f32,
+    ) -> Vec<GlyphInfo> {
+        if content.is_empty() || font_size <= 0.0 {
+            return Vec::new();
+        }
+        let line_height = font_size * 1.2;
+        let metrics = Metrics::new(font_size, line_height);
+        let mut buffer = Buffer::new(&mut self.font_system, metrics);
+        buffer.set_size(&mut self.font_system, None, None);
+        let mut attrs = Attrs::new().weight(Weight(weight)).style(if italic {
+            Style::Italic
+        } else {
+            Style::Normal
+        });
+        if let Some(family) = family {
+            attrs = attrs.family(Family::Name(family));
+        }
+        buffer.set_text(&mut self.font_system, content, &attrs, Shaping::Advanced, None);
+        buffer.shape_until_scroll(&mut self.font_system, false);
+
+        // Collect raw (start, end, x, w) from layout glyphs.
+        let mut raw: Vec<(usize, usize, f32, f32)> = Vec::new();
+        for run in buffer.layout_runs() {
+            for (i, glyph) in run.glyphs.iter().enumerate() {
+                let ls_offset = letter_spacing * i as f32;
+                raw.push((glyph.start, glyph.end, glyph.x + ls_offset, glyph.w));
+            }
+        }
+
+        // Map back to byte-clusters: merge glyphs that share the same cluster
+        // (ligatures) and ensure spaces (which cosmic-text omits from glyph runs)
+        // are filled in by walking the string.
+        let mut out: Vec<GlyphInfo> = Vec::with_capacity(raw.len());
+        let mut byte_pos = 0usize;
+        let total_w: f32 = self.measure_with(content, font_size, family, weight, italic, letter_spacing).width;
+        let raw_len = raw.len();
+
+        for (i, (start, end, x, w)) in raw.iter().enumerate() {
+            // Fill any gap (spaces / non-printing chars before this cluster).
+            if *start > byte_pos {
+                let gap_str = &content[byte_pos..*start];
+                let gap_w = if raw_len > 0 {
+                    // gap width = x position of this glyph minus end of previous
+                    let prev_end = out.last().map(|g| g.x + g.advance).unwrap_or(0.0);
+                    (x - prev_end).max(0.0)
+                } else {
+                    0.0
+                };
+                // Emit one GlyphInfo per character in the gap.
+                let mut gx = out.last().map(|g| g.x + g.advance).unwrap_or(0.0);
+                for ch in gap_str.chars() {
+                    let ch_bytes = ch.len_utf8();
+                    let ch_w = gap_w * ch_bytes as f32 / gap_str.len() as f32;
+                    out.push(GlyphInfo { start: byte_pos, end: byte_pos + ch_bytes, x: gx, advance: ch_w });
+                    gx += ch_w;
+                    byte_pos += ch_bytes;
+                }
+            }
+            let advance = if i + 1 < raw_len {
+                let next_x = raw[i + 1].2;
+                (next_x - x).max(0.0)
+            } else {
+                (total_w - x).max(*w)
+            };
+            out.push(GlyphInfo { start: *start, end: *end, x: *x, advance });
+            byte_pos = (*end).max(byte_pos);
+        }
+        out
+    }
+
     /// Shape + lay out styled runs ([`StyledRun`]) into positioned glyphs, each
     /// carrying its run's pixel size and straight-alpha RGBA color — for rich
     /// (multi-style) text. Outline renderers (Vello) group glyphs by size+color
@@ -485,6 +596,43 @@ impl FontContext {
             coverage,
         })
     }
+}
+
+/// Font-level vertical metrics for a given size+family — derived by rasterizing
+/// reference characters ('H' for cap height, 'x' for x-height). These are
+/// stable for a given (font_size, family, weight) combination, so call once per
+/// shot rather than per-frame.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FontMetrics {
+    /// Distance from the node's `y` coordinate to the top of capital letters (px).
+    pub cap_top: f32,
+    /// Height of capital letters from their top to the baseline (px).
+    pub cap_height: f32,
+    /// Distance from the node's `y` coordinate to the top of lowercase x (px).
+    pub x_top: f32,
+    /// Height of lowercase letters (x-height) from their top to the baseline (px).
+    pub x_height: f32,
+    /// Distance from node's `y` to the baseline (same as `TextMetrics::ascent`).
+    pub ascent: f32,
+    /// Distance from the baseline to the bottom of the line box (px).
+    pub descent: f32,
+    /// Baseline-to-baseline line height (px).
+    pub line_height: f32,
+}
+
+/// A kerning-aware character cluster from [`FontContext::glyph_layout_with`].
+/// The `x` and `advance` already incorporate kern pairs and letter-spacing, so
+/// consecutive `measureText` calls per character would miss.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GlyphInfo {
+    /// Byte offset of this cluster's start in the original string.
+    pub start: usize,
+    /// Byte offset of this cluster's end (exclusive).
+    pub end: usize,
+    /// Pen x position relative to the layout origin.
+    pub x: f32,
+    /// Advance width (kerning-accurate distance to the next cluster).
+    pub advance: f32,
 }
 
 /// A laid-out glyph: the font glyph index and its pen position in pixels,

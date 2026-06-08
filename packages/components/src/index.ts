@@ -23,9 +23,15 @@ export { HOUSE_EASE } from './easing.js'
 // size to actual text; `preloadTextMetrics` warms it before a Node export.
 export {
   measureText,
+  fontMetrics,
+  glyphLayout,
+  type FontMetrics,
+  type GlyphInfo,
   type MeasureOpts,
   preloadTextMetrics,
   type TextMetrics,
+  useFontMetrics,
+  useGlyphLayout,
   useTextMetrics,
   useTextMetricsReady,
 } from './text-metrics.js'

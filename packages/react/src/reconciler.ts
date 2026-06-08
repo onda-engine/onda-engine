@@ -96,6 +96,21 @@ export function renderFrames(element: ReactElement): Scene[] {
   return frames
 }
 
+/** Render a sub-range `[startFrame, endFrame)` to static scenes.
+ *  The returned array starts at index 0; the scenes carry the original frame
+ *  numbers so `useCurrentFrame()` reads the correct composition time. */
+export function renderFramesRange(
+  element: ReactElement,
+  startFrame: number,
+  endFrame: number,
+): Scene[] {
+  const frames: Scene[] = []
+  for (let frame = startFrame; frame < endFrame; frame++) {
+    frames.push(renderFrame(element, frame))
+  }
+  return frames
+}
+
 /** Render frame 0 to a JSON string (for `onda render`). */
 export function renderToSceneJSON(element: ReactElement, space = 2): string {
   return JSON.stringify(renderToScene(element), null, space)
@@ -104,6 +119,17 @@ export function renderToSceneJSON(element: ReactElement, space = 2): string {
 /** Render all frames to a JSON array of scenes (for `onda export-frames`). */
 export function renderFramesJSON(element: ReactElement, space = 0): string {
   return JSON.stringify(renderFrames(element), null, space)
+}
+
+/** Render a sub-range `[startFrame, endFrame)` to a JSON array (for `onda export-frames`).
+ *  Produces a short clip covering only those frames — useful for fast scene-level iteration. */
+export function renderFrameRangeJSON(
+  element: ReactElement,
+  startFrame: number,
+  endFrame: number,
+  space = 0,
+): string {
+  return JSON.stringify(renderFramesRange(element, startFrame, endFrame), null, space)
 }
 
 function videoConfig(element: ReactElement): VideoConfig {
@@ -339,8 +365,21 @@ function toNode(node: HostNode): SceneNode {
       }
     }
 
+    case '#text':
+      throw new Error(
+        `renderToScene: raw text "${String(node.text ?? '').slice(0, 60)}" ` +
+          `was placed inside a non-Text node. ` +
+          `String children are only valid inside <Text>. ` +
+          `Wrap it: h(Text, { x, y, fontSize, color }, '${String(node.text ?? '').slice(0, 30)}')`,
+      )
+
     default:
-      throw new Error(`renderToScene: unsupported element <${node.type}>`)
+      throw new Error(
+        `renderToScene: unsupported element type "${node.type}". ` +
+          `Only ONDA primitives (Group/Rect/Ellipse/Path/Text/Image/Video/Svg) are valid. ` +
+          `DOM elements like <div>/<span> and custom types are not rendered — ` +
+          `use @onda/react primitives only.`,
+      )
   }
 }
 

@@ -58,3 +58,4 @@ packages/react/examples/assets/svg.json
 
 # VitePress build cache
 **/.vitepress/cache/
+refs/

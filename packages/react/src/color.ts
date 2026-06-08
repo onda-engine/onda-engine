@@ -7,6 +7,8 @@ export type ColorInput = string | Color
 
 /** Normalize a {@link ColorInput} into the engine's 0..1 sRGB {@link Color}. */
 export function parseColor(input: ColorInput): Color {
+  // CSS keywords — common footgun: `fill: 'none'` should be transparent, not a crash.
+  if (input === 'none' || input === 'transparent') return { r: 0, g: 0, b: 0, a: 0 }
   if (typeof input !== 'string') {
     // Object form: must be a real {r,g,b} color. A non-color value (boolean,
     // null, array, partial object) would otherwise produce a scene node missing

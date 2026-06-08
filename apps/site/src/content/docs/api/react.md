@@ -17,15 +17,37 @@ import {
 
 Accepted by `<Group>`, `<Rect>`, `<Ellipse>`, `<Path>`, `<Text>`, `<Image>`, `<Video>`, `<Svg>`.
 
-| Prop               | Type        | Default | Notes                                         |
-| ------------------ | ----------- | ------- | --------------------------------------------- |
-| `id`               | `number`    | —       | Stable id; required to target the node from a timeline. |
-| `x`, `y`           | `number`    | 0       | Translation in pixels.                        |
-| `scaleX`, `scaleY` | `number`    | 1       | Scale factor.                                 |
-| `rotation`         | `number`    | 0       | Clockwise degrees about the local origin (GPU backend). |
-| `opacity`          | `number`    | 1       | 0..1.                                         |
-| `clip`             | `ClipInput` | —       | Clip the node + subtree (local space).        |
-| `children`         | `ReactNode` | —       | Child nodes.                                  |
+| Prop | Type | Notes |
+|---|---|---|
+| `id` | `number` | Stable id; needed for animation targeting. |
+| `x`, `y` | `number` | Translate in px. |
+| `scaleX`, `scaleY` | `number` | Scale factor (1 = identity). Pivot at `originX/Y`. |
+| `rotation` | `number` | Clockwise degrees. **Vello/GPU backend only.** |
+| `originX`, `originY` | `number` | Pivot for scale + rotation, in px (default 0,0 = top-left). |
+| `opacity` | `number` | 0..1. |
+| `clip` | `ClipInput` | Clip the node + its subtree. `clipRect(w,h,r?)`, `clipEllipse(w,h)`, `clipPath(d)`. **GPU only.** |
+| `matte` | `ReactElement` | Reveal through another subtree's alpha or luminance — masks, shape wipes. |
+| `matteMode` | `'alpha' \| 'luminance'` | Default `'alpha'`. |
+| `blendMode` | `string` | CSS blend mode (GPU backend). |
+| `blur` | `number` | Gaussian blur σ in px (render-to-texture). Both backends. |
+| `backdropBlur` | `number` | Frosted-glass blur of what is **behind** this node. GPU only. |
+| `bloom` | `object` | `{ threshold?, intensity?, radius? }` — bright regions bloom. GPU only. |
+| `grade` | `object` | `{ brightness?, contrast?, saturation?, temperature?, tint? }` — color grade. |
+| `grain` | `number \| object` | Film grain. `0.04`–`0.1` is filmic. Object: `{ intensity, size?, seed? }`. |
+| `goo` | `object` | `{ sigma, threshold? }` — metaball blend between sibling shapes. GPU only. |
+| `lightWrap` | `object` | `{ sigma, strength? }` — bleeds backdrop light onto feathered edges. GPU/export only. |
+| `shadow` | `object` | `{ color, blur, offsetX?, offsetY?, spread? }` — drop shadow. |
+| `children` | `ReactNode` | Child nodes. |
+
+:::tip[Footguns]
+- `fill: 'none'` is accepted (maps to transparent) but `fill="#ff0000"` is far clearer.
+- `&&` in children crashes when the condition is `false` — use a ternary with a zero-size placeholder `<Rect>` instead.
+- Components must not return `null` — use `opacity: 0` or an empty `<Rect width={0} height={0}>`.
+- Pre-computed `const el = h(X, ...)` stored outside the component tree can cause stale-closure crashes — always inline the `h()` call.
+- `rotation`, `blur`, `backdropBlur`, `bloom`, `lightWrap`, `clip` are **GPU/Vello only** — the CPU backend silently ignores them. Use `--backend vello` to verify these effects.
+:::
+
+See [Composing — complete reference](/guide/composing) for the full picture including animation, timeline, camera, and component shortcuts.
 
 ### `PaintProps`
 

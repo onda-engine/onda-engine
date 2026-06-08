@@ -417,7 +417,7 @@ export const ENGINE_CAPABILITIES = {
     'vector fills / strokes (cap/join/dash) / rounded-rect / arbitrary Bézier paths',
     'linear + radial gradients with stops (CPU + GPU)',
     'per-glyph vector text (resolution-independent) with letter-spacing / tracking',
-    'author-time text metrics (measureText — size underlines/pills to real text)',
+    'author-time text metrics (measureText width; fontMetrics capHeight/xHeight/capTop; glyphLayout kerning-accurate per-char positions)',
     'taffy flexbox layout (direction/justify/align/gap/padding/wrap)',
     '2D affine transforms (translate / scale / rotate) with transform-origin pivot',
     'clipping (rect / ellipse / path) in local space',

@@ -68,11 +68,17 @@ The root of every tree. Carries resolution and timing (like Remotion's `<Composi
 | ----------------- | ----------- | -------------------------------------------------------------- |
 | `id`              | `number`    | Stable id; needed to target the node from an animation timeline. |
 | `x`, `y`          | `number`    | Translation in pixels.                                         |
-| `scaleX`, `scaleY`| `number`    | Scale factor (1 = identity).                                   |
+| `scaleX`, `scaleY`| `number`    | Scale factor (1 = identity). Pivot at `originX`/`originY`.    |
+| `rotation`        | `number`    | Clockwise degrees. **Vello/GPU backend only** (CPU ignores).   |
+| `originX`, `originY` | `number` | Pivot for scale + rotation in px (default 0,0 = top-left).   |
 | `opacity`         | `number`    | 0..1.                                                          |
-| `clip`            | `ClipInput` | Clip this node and its subtree to a region (local space).      |
+| `clip`            | `ClipInput` | Clip this node and its subtree to a region. **GPU only.**      |
+| `blur`            | `number`    | Gaussian blur σ in px (render-to-texture). Both backends.      |
+| `backdropBlur`    | `number`    | Frosted-glass blur of what is behind this node. GPU only.      |
+| `grain`           | `number \| object` | Film grain. `0.04`–`0.1` is filmic.                   |
+| `bloom`, `grade`, `goo`, `lightWrap`, `shadow` | `object` | See [full node reference](/api/react). |
 
-ONDA's transform is **translate + scale only** — no rotation or skew yet.
+For the complete props table, effects, animation, timeline, camera, and composition footguns, see [Composing — complete reference](/guide/composing).
 
 ### Shapes: shared paint props
 
