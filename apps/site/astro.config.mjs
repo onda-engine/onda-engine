@@ -67,6 +67,7 @@ export default defineConfig({
         {
           label: 'Authoring',
           items: [
+            { label: 'Composing — complete reference', link: '/guide/composing', badge: 'agent' },
             { label: 'Authoring with React', link: '/guide/authoring-react' },
             { label: 'Rendering & export', link: '/guide/rendering' },
             { label: 'Layout', link: '/guide/layout' },

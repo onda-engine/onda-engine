@@ -14,7 +14,7 @@ use std::path::Path;
 use onda_core::Size;
 use onda_renderer::{FontContext, Renderer, TextMetrics};
 use onda_scene::{Scene, Text};
-use onda_typography::StyledRun;
+use onda_typography::{FontMetrics, StyledRun};
 use wasm_bindgen::prelude::*;
 
 /// Measure a text node's rendered size for the layout pass (matches the CLI).
@@ -125,6 +125,38 @@ impl TextMetricsJs {
     }
 }
 
+/// Font-level vertical metrics exposed to JS — distances in pixels at the
+/// measured font size. Returned by [`OndaEngine::font_metrics`].
+#[wasm_bindgen]
+pub struct FontMetricsJs {
+    inner: FontMetrics,
+}
+
+#[wasm_bindgen]
+impl FontMetricsJs {
+    /// Distance from the node's `y` to the top of capital letters (px).
+    #[wasm_bindgen(getter)]
+    pub fn cap_top(&self) -> f32 { self.inner.cap_top }
+    /// Height of capital letters (top of caps to baseline, px).
+    #[wasm_bindgen(getter)]
+    pub fn cap_height(&self) -> f32 { self.inner.cap_height }
+    /// Distance from the node's `y` to the top of lowercase x (px).
+    #[wasm_bindgen(getter)]
+    pub fn x_top(&self) -> f32 { self.inner.x_top }
+    /// x-height in px (top of 'x' to baseline).
+    #[wasm_bindgen(getter)]
+    pub fn x_height(&self) -> f32 { self.inner.x_height }
+    /// Distance from node's `y` to the baseline (same as `TextMetrics.ascent`, px).
+    #[wasm_bindgen(getter)]
+    pub fn ascent(&self) -> f32 { self.inner.ascent }
+    /// Baseline to bottom of the line box (px).
+    #[wasm_bindgen(getter)]
+    pub fn descent(&self) -> f32 { self.inner.descent }
+    /// Baseline-to-baseline line height (px).
+    #[wasm_bindgen(getter, js_name = lineHeight)]
+    pub fn line_height(&self) -> f32 { self.inner.line_height }
+}
+
 /// The engine: holds a renderer (with the bundled default font) and rasterizes
 /// scene-graph JSON to frames. Construct once and reuse across frames.
 #[wasm_bindgen]
@@ -192,5 +224,59 @@ impl OndaEngine {
             letter_spacing.unwrap_or(0.0),
         );
         TextMetricsJs { inner }
+    }
+
+    /// Font-level vertical metrics for `font_size` + optional family/weight/italic.
+    /// Derived by rasterizing 'H' (cap height) and 'x' (x-height) — pixel-accurate
+    /// for the actual rendered font. Call once per (size, family, weight) combo, not
+    /// per frame. Use the returned `capTop`/`capHeight` to vertically center text
+    /// without empirical guesswork.
+    #[wasm_bindgen(js_name = fontMetrics)]
+    pub fn font_metrics(
+        &self,
+        font_size: f32,
+        family: Option<String>,
+        weight: Option<u16>,
+        italic: Option<bool>,
+    ) -> FontMetricsJs {
+        let inner = self.fonts.borrow_mut().font_metrics_with(
+            font_size,
+            family.as_deref(),
+            weight.unwrap_or(400),
+            italic.unwrap_or(false),
+        );
+        FontMetricsJs { inner }
+    }
+
+    /// Kerning-aware glyph layout for `content` at `font_size`. Returns a
+    /// `Float32Array` with 4 floats per cluster: `[start_byte, end_byte, x, advance]`.
+    /// Unlike calling `measureText` per character, `advance` includes kern pairs.
+    /// Slice with stride 4; the total advance sum equals the shaped line width.
+    #[wasm_bindgen(js_name = glyphLayout)]
+    pub fn glyph_layout(
+        &self,
+        content: &str,
+        font_size: f32,
+        family: Option<String>,
+        weight: Option<u16>,
+        italic: Option<bool>,
+        letter_spacing: Option<f32>,
+    ) -> Vec<f32> {
+        let glyphs = self.fonts.borrow_mut().glyph_layout_with(
+            content,
+            font_size,
+            family.as_deref(),
+            weight.unwrap_or(400),
+            italic.unwrap_or(false),
+            letter_spacing.unwrap_or(0.0),
+        );
+        let mut out = Vec::with_capacity(glyphs.len() * 4);
+        for g in glyphs {
+            out.push(g.start as f32);
+            out.push(g.end as f32);
+            out.push(g.x);
+            out.push(g.advance);
+        }
+        out
     }
 }

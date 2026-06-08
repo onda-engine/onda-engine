@@ -73,6 +73,7 @@ const year = new Date().getFullYear()
             <a href="/transitions">Transitions</a>
             <a href="/effects">Effects</a>
             <a href="/guide/introduction">Docs</a>
+            <a class="nav__studio-link" href={STUDIO_URL} rel="noopener">Studio</a>
             <a href={REPO} rel="noopener">GitHub</a>
           </nav>
           <a class="btn btn--primary nav__cta" href="/guide/getting-started">Get started</a>
@@ -327,7 +328,7 @@ const year = new Date().getFullYear()
                   <strong>broadcast-ready, the first time.</strong>
                 </p>
                 <div class="studio__actions">
-                  <a class="btn btn--primary" href={STUDIO_URL} rel="noopener">Start with Studio →</a>
+                  <a class="btn btn--studio" href={STUDIO_URL} rel="noopener">Start with Studio →</a>
                   <span class="studio__note">Engine: free &amp; open source. Studio: the hosted director on top.</span>
                 </div>
               </div>
@@ -543,6 +544,13 @@ const year = new Date().getFullYear()
         --accent-600: #c8576f;
         --accent-soft: rgba(217, 107, 130, 0.12);
         --on-accent: #0e0e12;
+        /* ONDA Studio — the hosted product carries its OWN accent (violet), distinct
+           from the engine's rose, so "open engine" and "premium Studio" read apart. */
+        --studio: #b06cff;
+        --studio-600: #9a52f5;
+        --studio-soft: rgba(176, 108, 255, 0.12);
+        --studio-glow: rgba(176, 108, 255, 0.4);
+        --on-studio: #160a22;
         --font-head: 'Clash Display', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
         --font-body: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
         --font-code: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
@@ -726,6 +734,15 @@ const year = new Date().getFullYear()
         color: var(--text);
         border-color: #34343c;
       }
+      /* Studio's CTA — solid violet, the product's accent. */
+      .onda-landing .btn--studio {
+        background: var(--studio);
+        color: var(--on-studio);
+      }
+      .onda-landing .btn--studio:hover {
+        background: var(--studio-600);
+        color: var(--on-studio);
+      }
       .btn--lg {
         min-height: 52px;
         padding: 0 var(--s-8);
@@ -786,6 +803,14 @@ const year = new Date().getFullYear()
       }
       .nav__links a:hover {
         color: var(--text);
+      }
+      /* Studio stands apart from the section links — the product, in its violet. */
+      .onda-landing .nav__links a.nav__studio-link {
+        color: var(--studio);
+        font-weight: 600;
+      }
+      .onda-landing .nav__links a.nav__studio-link:hover {
+        color: #c79bff;
       }
       .nav__cta {
         margin-left: var(--s-2);
@@ -1491,7 +1516,9 @@ const year = new Date().getFullYear()
         overflow: hidden;
         border: 1px solid var(--border);
         background: #050509;
-        box-shadow: var(--elev-card), 0 30px 90px -24px rgba(176, 108, 255, 0.28);
+        /* Rose glow to match the wave + the engine's accent — the hero is the
+           engine's moment; Studio's violet is reserved for the Studio zone. */
+        box-shadow: var(--elev-card), 0 30px 90px -24px rgba(217, 107, 130, 0.3);
       }
       .hero__video {
         display: block;
@@ -1518,13 +1545,17 @@ const year = new Date().getFullYear()
         align-items: center;
         padding: clamp(28px, 4vw, 56px);
         border-radius: 20px;
-        background: linear-gradient(135deg, rgba(217, 107, 130, 0.08), rgba(176, 108, 255, 0.05)),
+        background: linear-gradient(135deg, rgba(176, 108, 255, 0.1), rgba(124, 92, 255, 0.04)),
           var(--surface);
-        border: 1px solid var(--border);
-        box-shadow: var(--elev-card), 0 0 100px -24px rgba(217, 107, 130, 0.2);
+        border: 1px solid rgba(176, 108, 255, 0.22);
+        box-shadow: var(--elev-card), 0 0 100px -24px rgba(176, 108, 255, 0.22);
       }
       .studio__eyebrow {
-        color: var(--accent);
+        color: var(--studio);
+      }
+      /* The title's highlighted phrase ("Direct it.") in Studio's violet, not rose. */
+      .studio .accent-text {
+        color: var(--studio);
       }
       .studio__title {
         margin-bottom: var(--s-6);
@@ -1565,8 +1596,8 @@ const year = new Date().getFullYear()
         width: 9px;
         height: 9px;
         border-radius: 50%;
-        background: var(--accent);
-        box-shadow: 0 0 12px var(--accent);
+        background: var(--studio);
+        box-shadow: 0 0 12px var(--studio);
       }
       .studio__flow {
         display: flex;
@@ -1583,7 +1614,7 @@ const year = new Date().getFullYear()
       }
       .studio__flow-chip {
         white-space: nowrap;
-        color: var(--accent);
+        color: var(--studio);
       }
       .studio__out {
         position: relative;
@@ -1608,7 +1639,7 @@ const year = new Date().getFullYear()
         font-weight: 700;
         font-size: clamp(2.4rem, 6vw, 3.6rem);
         letter-spacing: -0.02em;
-        background: linear-gradient(100deg, #ff5d8d, #b06cff, #45d6ff);
+        background: linear-gradient(100deg, #c08bff, #9a6bff, #45d6ff);
         -webkit-background-clip: text;
         background-clip: text;
         color: transparent;

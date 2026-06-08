@@ -55,6 +55,38 @@ export interface MeasureOpts {
   letterSpacing?: number
 }
 
+/** Font-level vertical metrics returned by `fontMetrics()`. Derived by
+ *  rasterizing 'H' and 'x' — pixel-accurate for the actual rendered font.
+ *  Call once per (fontSize, family, weight) combo, not per frame. */
+export interface FontMetrics {
+  /** Distance from the Text node's `y` to the top of capital letters (px). */
+  capTop: number
+  /** Height of capital letters from their top to the baseline (px). */
+  capHeight: number
+  /** Distance from the Text node's `y` to the top of lowercase 'x' (px). */
+  xTop: number
+  /** x-height: height of lowercase letters from their top to the baseline (px). */
+  xHeight: number
+  /** Distance from node's `y` to the baseline (px). Same as `TextMetrics.ascent`. */
+  ascent: number
+  /** Baseline to bottom of the line box (px). */
+  descent: number
+  /** Baseline-to-baseline line height (px). */
+  lineHeight: number
+}
+
+/** One kerning-aware character cluster from `glyphLayout()`. */
+export interface GlyphInfo {
+  /** Byte offset of this cluster's start in the original string. */
+  start: number
+  /** Byte offset of this cluster's end (exclusive). */
+  end: number
+  /** Pen x relative to the layout origin (includes letter-spacing). */
+  x: number
+  /** Advance width to the next cluster — includes kern pairs. */
+  advance: number
+}
+
 /** Minimal shape of `@onda/wasm` we use — kept local so this file doesn't
  *  hard-depend on the generated wasm types at build time. */
 interface OndaEngineLike {
@@ -66,6 +98,20 @@ interface OndaEngineLike {
     italic?: boolean,
     letterSpacing?: number,
   ): TextMetrics
+  fontMetrics(
+    fontSize: number,
+    family?: string,
+    weight?: number,
+    italic?: boolean,
+  ): FontMetrics
+  glyphLayout(
+    content: string,
+    fontSize: number,
+    family?: string,
+    weight?: number,
+    italic?: boolean,
+    letterSpacing?: number,
+  ): Float32Array
 }
 interface WasmModule {
   default: (opts?: unknown) => Promise<unknown>
@@ -145,6 +191,112 @@ export function measureText(
   } catch {
     return estimate(content, fontSize, opts.letterSpacing)
   }
+}
+
+// ─── font-level vertical metrics ─────────────────────────────────────────────
+
+function estimateFontMetrics(fontSize: number): FontMetrics {
+  return {
+    capTop: fontSize * 0.10,
+    capHeight: fontSize * 0.70,
+    xTop: fontSize * 0.30,
+    xHeight: fontSize * 0.52,
+    ascent: fontSize * 0.80,
+    descent: fontSize * 0.20,
+    lineHeight: fontSize * 1.20,
+  }
+}
+
+/** Font-level vertical metrics for `fontSize` + optional family/weight — derived
+ *  by rasterizing 'H' and 'x'. Call ONCE per (fontSize, family, weight) combo
+ *  (not per frame). Use `capTop`/`capHeight` to center text without guessing:
+ *  ```
+ *  const m = fontMetrics(SIZE, { fontFamily: SANS })
+ *  const y = height / 2 - m.capTop - m.capHeight / 2   // centers caps at height/2
+ *  const cursorY = y + m.capTop                         // cursor aligned to cap top
+ *  ```
+ */
+export function fontMetrics(fontSize: number, opts: MeasureOpts = {}): FontMetrics {
+  if (!engine || fontSize <= 0) return estimateFontMetrics(fontSize)
+  try {
+    return engine.fontMetrics(fontSize, opts.fontFamily, opts.fontWeight, opts.italic)
+  } catch {
+    return estimateFontMetrics(fontSize)
+  }
+}
+
+/** Like `fontMetrics` but loads the engine in the browser and re-renders when
+ *  ready. Returns estimates until the engine is warm. */
+export function useFontMetrics(fontSize: number, opts: MeasureOpts = {}): FontMetrics {
+  const [, bump] = useState(0)
+  useEffect(() => {
+    if (engine || loadFailed || typeof window === 'undefined') return
+    let cancelled = false
+    preloadTextMetrics().then(() => { if (!cancelled) bump((v) => v + 1) })
+    return () => { cancelled = true }
+  }, [])
+  return fontMetrics(fontSize, opts)
+}
+
+// ─── kerning-aware glyph layout ───────────────────────────────────────────────
+
+/** Kerning-aware glyph layout for `content`: returns one [`GlyphInfo`] per
+ *  shaped cluster with the pen `x` and `advance` that already include kern
+ *  pairs + letter-spacing. Unlike calling `measureText` per character, this is
+ *  accurate for tightly-set display type where kerning is visible. */
+function estimateGlyphLayout(content: string, fontSize: number, opts: MeasureOpts): GlyphInfo[] {
+  let x = 0
+  let byteOffset = 0
+  return Array.from(content).map((ch) => {
+    const advance = measureText(ch, fontSize, opts).width
+    const start = byteOffset
+    byteOffset += new TextEncoder().encode(ch).length
+    const info: GlyphInfo = { start, end: byteOffset, x, advance }
+    x += advance
+    return info
+  })
+}
+
+export function glyphLayout(
+  content: string,
+  fontSize: number,
+  opts: MeasureOpts = {},
+): GlyphInfo[] {
+  if (!engine || !content || fontSize <= 0) return estimateGlyphLayout(content, fontSize, opts)
+  try {
+    const raw = engine.glyphLayout(
+      content,
+      fontSize,
+      opts.fontFamily,
+      opts.fontWeight,
+      opts.italic,
+      opts.letterSpacing,
+    )
+    const out: GlyphInfo[] = []
+    for (let i = 0; i < raw.length; i += 4) {
+      out.push({ start: raw[i]!, end: raw[i + 1]!, x: raw[i + 2]!, advance: raw[i + 3]! })
+    }
+    return out
+  } catch {
+    return estimateGlyphLayout(content, fontSize, opts)
+  }
+}
+
+/** Like `glyphLayout` but loads the engine in the browser and re-renders when
+ *  ready. Returns the no-kerning fallback until the engine is warm. */
+export function useGlyphLayout(
+  content: string,
+  fontSize: number,
+  opts: MeasureOpts = {},
+): GlyphInfo[] {
+  const [, bump] = useState(0)
+  useEffect(() => {
+    if (engine || loadFailed || typeof window === 'undefined') return
+    let cancelled = false
+    preloadTextMetrics().then(() => { if (!cancelled) bump((v) => v + 1) })
+    return () => { cancelled = true }
+  }, [])
+  return glyphLayout(content, fontSize, opts)
 }
 
 /** Measure `content`, loading the engine in the browser on first use and

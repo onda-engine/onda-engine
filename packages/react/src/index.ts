@@ -104,8 +104,10 @@ export {
 } from './transitions.js'
 export {
   renderFrame,
+  renderFrameRangeJSON,
   renderFrames,
   renderFramesJSON,
+  renderFramesRange,
   renderToScene,
   renderToSceneJSON,
 } from './reconciler.js'

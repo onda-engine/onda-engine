@@ -47,7 +47,7 @@
 // FLAGS
 //   --demo                 use the built-in test composition
 //   --comp <path>          path to a composition module (default-exports the factory)
-//   --out <path>           output mp4 (default /tmp/onda-test.mp4)
+//   --out <path>           output mp4/png (default /tmp/onda-test.mp4 or /tmp/onda-frame-N.png)
 //   --fps <n>              frames per second (default 30)
 //   --duration <frames>    duration in frames (default 60)
 //   --width <px>           composition width (default 1280)
@@ -57,6 +57,12 @@
 //                          (default <out>.frames.json, falls back to /tmp)
 //   --keep-json            keep the intermediate frames JSON after encoding
 //   --no-build             skip `cargo build --release -p onda-cli`
+//
+// ITERATION FLAGS (fast scene-level feedback loop)
+//   --frames N:M           render only frames N..M-1 → short clip (~10–50× faster)
+//                          example: --frames 240:360  renders the 4s SceneLog window
+//   --frame N              render frame N → PNG (fastest: ~5s per check)
+//                          example: --frame 300  → /tmp/onda-frame-300.png
 
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -71,11 +77,13 @@ import {
   interpolate,
   linearGradient,
   renderFrame,
+  renderFrameRangeJSON,
   renderFramesJSON,
   runEngineWarmers,
   useCurrentFrame,
   useVideoConfig,
 } from '@onda/react'
+import { preloadTextMetrics } from '@onda/components'
 import { createElement as h } from 'react'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -87,7 +95,7 @@ function parseArgs(argv) {
   const opts = {
     demo: false,
     comp: null,
-    out: '/tmp/onda-test.mp4',
+    out: null,  // resolved later: depends on mode
     fps: 30,
     duration: 60,
     width: 1280,
@@ -99,6 +107,9 @@ function parseArgs(argv) {
     fonts: [],
     motionBlur: 1,
     shutter: 0.5,
+    // Iteration: --frames N:M renders a sub-range; --frame N renders one frame to PNG
+    framesRange: null,  // { start: number, end: number } | null
+    singleFrame: null,  // number | null
   }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
@@ -150,6 +161,21 @@ function parseArgs(argv) {
       case '--no-build':
         opts.build = false
         break
+      case '--frames': {
+        // --frames N:M  renders frames N..M-1
+        const val = next()
+        const m = val.match(/^(\d+):(\d+)$/)
+        if (!m) throw new Error(`--frames expects N:M (e.g. --frames 240:360), got '${val}'`)
+        opts.framesRange = { start: Number(m[1]), end: Number(m[2]) }
+        break
+      }
+      case '--frame': {
+        // --frame N  renders a single frame to PNG
+        const val = next()
+        if (!/^\d+$/.test(val)) throw new Error(`--frame expects an integer frame number, got '${val}'`)
+        opts.singleFrame = Number(val)
+        break
+      }
       case '-h':
       case '--help':
         printUsageAndExit(0)
@@ -160,6 +186,14 @@ function parseArgs(argv) {
   }
   if (!opts.demo && !opts.comp) {
     throw new Error('pass --demo for the built-in test composition, or --comp <module>')
+  }
+  // Resolve default output path based on mode
+  if (opts.out === null) {
+    if (opts.singleFrame !== null) {
+      opts.out = `/tmp/onda-frame-${opts.singleFrame}.png`
+    } else {
+      opts.out = '/tmp/onda-test.mp4'
+    }
   }
   return opts
 }
@@ -310,14 +344,46 @@ function renderFramesMotionBlurJSON(element, k, shutter) {
 async function main() {
   const opts = parseArgs(process.argv.slice(2))
 
-  // 1-3. Build the tree, warm the engine, render every frame to a scenes array.
-  // With --motion-blur K, emit K sub-frames per output frame instead.
   const element = await loadComposition(opts)
   await runEngineWarmers()
-  const framesJson =
-    opts.motionBlur > 1
-      ? renderFramesMotionBlurJSON(element, opts.motionBlur, opts.shutter)
-      : renderFramesJSON(element)
+  await preloadTextMetrics()
+
+  // ── Mode A: --frame N → single frame PNG (fastest iteration, ~5s) ──────────
+  if (opts.singleFrame !== null) {
+    const N = opts.singleFrame
+    console.log(`rendering frame ${N} → ${opts.out}`)
+    const scene = renderFrame(element, N)
+    const tmp = mkdtempSync(path.join(tmpdir(), 'onda-frame-'))
+    const scenePath = path.join(tmp, 'scene.json')
+    writeFileSync(scenePath, JSON.stringify(scene))
+    if (opts.build) {
+      run('cargo', ['build', '--release', '-p', 'onda-cli'], REPO_ROOT)
+    }
+    run(
+      'cargo',
+      ['run', '--release', '-p', 'onda-cli', '--', 'render', scenePath, opts.out,
+       '--backend', opts.backend,
+       ...opts.fonts.flatMap((f) => ['--font', path.resolve(process.cwd(), f)])],
+      REPO_ROOT,
+    )
+    const { size } = statSync(opts.out)
+    console.log(`\nOK  ${opts.out}  (${(size / 1024).toFixed(0)} KiB)`)
+    rmSync(tmp, { recursive: true, force: true })
+    return
+  }
+
+  // ── Mode B: --frames N:M → sub-range clip (scene-level iteration, ~20-60s) ──
+  // ── Mode C: full render (default) ──────────────────────────────────────────
+  let framesJson
+  if (opts.framesRange) {
+    const { start, end } = opts.framesRange
+    console.log(`rendering frames ${start}:${end} (${end - start} frames)…`)
+    framesJson = renderFrameRangeJSON(element, start, end)
+  } else if (opts.motionBlur > 1) {
+    framesJson = renderFramesMotionBlurJSON(element, opts.motionBlur, opts.shutter)
+  } else {
+    framesJson = renderFramesJSON(element)
+  }
 
   // Sanity: must be a non-empty array of scenes whose first carries a composition.
   const parsed = JSON.parse(framesJson)
@@ -333,14 +399,11 @@ async function main() {
       `${comp0.width}x${comp0.height} (${(framesJson.length / 1024).toFixed(0)} KiB JSON)`,
   )
 
-  // 4. Write the intermediate scenes JSON.
   const tmp = mkdtempSync(path.join(tmpdir(), 'onda-frames-'))
   const framesPath = opts.framesJson ?? path.join(tmp, 'frames.json')
   writeFileSync(framesPath, framesJson)
   console.log(`frames JSON -> ${framesPath}`)
 
-  // 5. Build the CLI (release) then encode. Cargo is run at the repo root so the
-  //    workspace member `onda-cli` resolves regardless of the invoking cwd.
   if (opts.build) {
     console.log('building onda CLI (release)…')
     run('cargo', ['build', '--release', '-p', 'onda-cli'], REPO_ROOT)
@@ -349,26 +412,15 @@ async function main() {
   run(
     'cargo',
     [
-      'run',
-      '--release',
-      '-p',
-      'onda-cli',
-      '--',
-      'export-frames',
-      framesPath,
-      opts.out,
-      '--backend',
-      opts.backend,
-      // Load any --font files so Text can select them by family name (the native
-      // render uses bundled fonts otherwise). Repeatable.
+      'run', '--release', '-p', 'onda-cli', '--',
+      'export-frames', framesPath, opts.out,
+      '--backend', opts.backend,
       ...opts.fonts.flatMap((f) => ['--font', path.resolve(process.cwd(), f)]),
-      // Average each group of K sub-frames into one output frame (motion blur).
       ...(opts.motionBlur > 1 ? ['--motion-blur', String(opts.motionBlur)] : []),
     ],
     REPO_ROOT,
   )
 
-  // Report + cleanup.
   const { size } = statSync(opts.out)
   console.log(`\nOK  ${opts.out}  (${(size / 1024).toFixed(0)} KiB)`)
   if (!opts.keepJson && !opts.framesJson) {
