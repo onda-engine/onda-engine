@@ -76,8 +76,10 @@ const REPO = 'https://github.com/degueba/onda-engine'
         padding: 16px 32px;
         border-bottom: 1px solid #26262c;
         position: sticky; top: 0; z-index: 10;
-        background: rgba(14, 14, 18, 0.82);
-        backdrop-filter: saturate(120%) blur(12px);
+        /* Solid bar — not a `backdrop-filter`: a backdrop blur re-blurs every video
+           frame behind it and flickers the whole page under mouse movement (see
+           components.astro for the full why). */
+        background: rgba(14, 14, 18, 0.97);
       }
       .brand {
         display: inline-flex; align-items: center; gap: 12px;

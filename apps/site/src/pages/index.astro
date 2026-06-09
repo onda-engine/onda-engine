@@ -756,9 +756,10 @@ const year = new Date().getFullYear()
         position: sticky;
         top: 0;
         z-index: 100;
-        background: rgba(14, 14, 18, 0.72);
-        backdrop-filter: saturate(120%) blur(12px);
-        -webkit-backdrop-filter: saturate(120%) blur(12px);
+        /* Solid bar — not a `backdrop-filter`: a backdrop blur re-blurs the live
+           hero behind it every frame and flickers the whole page under mouse
+           movement (see components.astro for the full why). */
+        background: rgba(14, 14, 18, 0.97);
         border-bottom: 1px solid transparent;
         transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
       }

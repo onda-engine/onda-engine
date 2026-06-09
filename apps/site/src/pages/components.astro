@@ -77,8 +77,12 @@ const REPO = 'https://github.com/degueba/onda-engine'
         padding: 16px 32px;
         border-bottom: 1px solid #26262c;
         position: sticky; top: 0; z-index: 10;
-        background: rgba(14, 14, 18, 0.82);
-        backdrop-filter: saturate(120%) blur(12px);
+        /* Near-opaque bar — NOT a `backdrop-filter`. A backdrop blur here must
+           re-blur its backdrop every time content behind it changes; with the live
+           preview playing a video that's every frame, which thrashes Chromium's
+           compositor under mouse movement and flashes the WHOLE viewport (paused =
+           static backdrop = no flash). The solid bar reads the same without it. */
+        background: rgba(14, 14, 18, 0.97);
       }
       .brand {
         display: inline-flex; align-items: center; gap: 12px;
