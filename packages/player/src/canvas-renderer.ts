@@ -142,24 +142,39 @@ function gradientStyle(
   geometry: ShapeGeometry,
   gradient: Gradient,
 ): CanvasGradient {
-  const g =
-    gradient.gradient === 'linear'
-      ? ctx.createLinearGradient(gradient.start.x, gradient.start.y, gradient.end.x, gradient.end.y)
-      : ctx.createRadialGradient(
-          gradient.center.x,
-          gradient.center.y,
-          0,
-          gradient.center.x,
-          gradient.center.y,
-          gradient.radius,
-        )
+  let g: CanvasGradient
+  if (gradient.gradient === 'linear') {
+    g = ctx.createLinearGradient(gradient.start.x, gradient.start.y, gradient.end.x, gradient.end.y)
+  } else if (gradient.gradient === 'radial') {
+    g = ctx.createRadialGradient(
+      gradient.center.x,
+      gradient.center.y,
+      0,
+      gradient.center.x,
+      gradient.center.y,
+      gradient.radius,
+    )
+  } else {
+    // `fbm` is a procedural GPU shader the Canvas2D fallback can't reproduce —
+    // approximate it as a linear sweep across the shape bounds using the same
+    // stops (this fallback never matches Vello exactly; the goal is "doesn't throw
+    // / roughly right", and the real engine paths are pixel-exact).
+    const [w, h] = geometryExtent(geometry)
+    g = ctx.createLinearGradient(0, 0, w, h)
+  }
   for (const stop of gradient.stops) {
     g.addColorStop(Math.min(1, Math.max(0, stop.offset)), cssColor(stop.color))
   }
-  // `geometry` is accepted for parity with the engine's local-space gradients;
-  // the points above are already in that space.
-  void geometry
   return g
+}
+
+/** A rough local-space extent for the fbm fallback: the shape's own size for
+ *  rect/ellipse, or a default span for paths (no cheap bounds in the fallback). */
+function geometryExtent(geometry: ShapeGeometry): [number, number] {
+  if (geometry.shape === 'rect' || geometry.shape === 'ellipse') {
+    return [geometry.size.width, geometry.size.height]
+  }
+  return [256, 256]
 }
 
 function drawText(

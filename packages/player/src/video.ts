@@ -48,6 +48,10 @@ const elements = new Map<string, Promise<HTMLVideoElement>>()
 const frameCache = new Map<string, string>()
 // In-flight decodes, so concurrent requests for the same frame share one decode.
 const inflight = new Map<string, Promise<string | null>>()
+// Last successfully decoded frame per source. When a frame can't be decoded in
+// time (a slow seek mid-playback), we HOLD this instead of blanking the node —
+// blanking for one frame then recovering reads as a flicker/flash.
+const lastGood = new Map<string, string>()
 // Per-source serialization: a <video> can only seek to one time at a time.
 const seekChain = new Map<string, Promise<unknown>>()
 // Sources we've already warned about (so the console isn't spammed per frame).
@@ -215,8 +219,17 @@ export async function resolveVideoFrames(root: VideoNode | undefined): Promise<v
     if (typeof src !== 'string') continue
     const time = typeof n.kind?.time === 'number' ? n.kind.time : 0
     const uri = await decodeFrame(src, time)
-    if (uri && n.kind) n.kind.src = uri
-    else if (!uri) warnUnresolved(src)
+    if (uri && n.kind) {
+      n.kind.src = uri
+      lastGood.set(src, uri)
+    } else if (!uri && n.kind) {
+      // Couldn't decode THIS frame in time — hold the last good frame so the video
+      // region doesn't blank-and-pop (a flash). Only warn (once) if we've never
+      // managed to decode this source at all.
+      const held = lastGood.get(src)
+      if (held) n.kind.src = held
+      else warnUnresolved(src)
+    }
   }
 }
 
