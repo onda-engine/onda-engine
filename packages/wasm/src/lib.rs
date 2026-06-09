@@ -136,25 +136,39 @@ pub struct FontMetricsJs {
 impl FontMetricsJs {
     /// Distance from the node's `y` to the top of capital letters (px).
     #[wasm_bindgen(getter)]
-    pub fn cap_top(&self) -> f32 { self.inner.cap_top }
+    pub fn cap_top(&self) -> f32 {
+        self.inner.cap_top
+    }
     /// Height of capital letters (top of caps to baseline, px).
     #[wasm_bindgen(getter)]
-    pub fn cap_height(&self) -> f32 { self.inner.cap_height }
+    pub fn cap_height(&self) -> f32 {
+        self.inner.cap_height
+    }
     /// Distance from the node's `y` to the top of lowercase x (px).
     #[wasm_bindgen(getter)]
-    pub fn x_top(&self) -> f32 { self.inner.x_top }
+    pub fn x_top(&self) -> f32 {
+        self.inner.x_top
+    }
     /// x-height in px (top of 'x' to baseline).
     #[wasm_bindgen(getter)]
-    pub fn x_height(&self) -> f32 { self.inner.x_height }
+    pub fn x_height(&self) -> f32 {
+        self.inner.x_height
+    }
     /// Distance from node's `y` to the baseline (same as `TextMetrics.ascent`, px).
     #[wasm_bindgen(getter)]
-    pub fn ascent(&self) -> f32 { self.inner.ascent }
+    pub fn ascent(&self) -> f32 {
+        self.inner.ascent
+    }
     /// Baseline to bottom of the line box (px).
     #[wasm_bindgen(getter)]
-    pub fn descent(&self) -> f32 { self.inner.descent }
+    pub fn descent(&self) -> f32 {
+        self.inner.descent
+    }
     /// Baseline-to-baseline line height (px).
     #[wasm_bindgen(getter, js_name = lineHeight)]
-    pub fn line_height(&self) -> f32 { self.inner.line_height }
+    pub fn line_height(&self) -> f32 {
+        self.inner.line_height
+    }
 }
 
 /// The engine: holds a renderer (with the bundled default font) and rasterizes
@@ -177,6 +191,21 @@ impl OndaEngine {
             renderer: Renderer::with_default_font(),
             fonts: RefCell::new(FontContext::with_default_font()),
         }
+    }
+
+    /// Load an additional font (`.ttf`/`.otf` bytes) so text can select it by
+    /// family (e.g. a brand display face for kinetic typography). Returns the
+    /// family name(s) it provides, newline-joined. Loaded into BOTH the renderer
+    /// (which draws the glyphs) and the layout/measurement font context, so
+    /// author-time `measureText`/`glyphLayout`/`fontMetrics` — and therefore
+    /// `<TextAnimator>`/`KineticText` glyph placement — match what the engine
+    /// draws. This is the custom-font parity guarantee: same bytes, same shaping,
+    /// for measure and render. Mirrors `VelloEngine::load_font`.
+    #[wasm_bindgen(js_name = loadFont)]
+    pub fn load_font(&mut self, data: Vec<u8>) -> String {
+        let families = self.renderer.load_font(data.clone());
+        self.fonts.borrow_mut().load_font(data);
+        families.join("\n")
     }
 
     /// Render a scene-graph JSON document (onda-scene format) to a frame.

@@ -16,7 +16,7 @@
 //! `measureText` is always synchronous and never throws: real metrics when the
 //! engine is warm, the estimate otherwise — so a composition never blocks.
 
-import { registerEngineWarmer } from '@onda/react'
+import { registerEngineWarmer, registerFont } from '@onda/react'
 import { useEffect, useState } from 'react'
 
 export interface TextMetrics {
@@ -112,6 +112,8 @@ interface OndaEngineLike {
     italic?: boolean,
     letterSpacing?: number,
   ): Float32Array
+  /** Load `.ttf`/`.otf` bytes; returns the newline-joined family name(s). */
+  loadFont(data: Uint8Array): string
 }
 interface WasmModule {
   default: (opts?: unknown) => Promise<unknown>
@@ -342,6 +344,40 @@ export function useTextMetricsReady(): boolean {
     }
   }, [])
   return engine !== null
+}
+
+// ─── custom font loading (author-time ↔ render parity) ───────────────────────
+
+/** Load a custom font (`.ttf`/`.otf` bytes) into the author-time measurement
+ *  engine so `measureText`/`glyphLayout`/`fontMetrics` — and therefore
+ *  `<TextAnimator>` / `KineticText` glyph placement — are kerning-accurate for
+ *  that family instead of silently falling back to the bundled default. Select
+ *  the font by a returned family name on `<Text fontFamily=…>` or `TextAnimator`'s
+ *  `fontFamily`. Resolves to the family name(s) the font provides.
+ *
+ *  Parity: the RENDERER must be given the SAME bytes (CLI `--font <path>`, or the
+ *  wasm preview's own `loadFont`). Identical bytes + identical cosmic-text shaping
+ *  ⇒ the positions measured here match the glyphs the engine draws. Loading the
+ *  same family twice is harmless. Awaits engine init; never throws (logs + returns
+ *  `[]` if the engine is unavailable or the bytes don't parse). */
+export async function loadFont(data: Uint8Array): Promise<string[]> {
+  // Single source: retain the bytes so `@onda/render` hands the SAME font to the
+  // renderer (`--font`) — no separate flag. Synchronous + before the async engine
+  // load, so the registration lands the instant `loadFont` is called.
+  registerFont(data)
+  await preloadTextMetrics()
+  if (!engine) return []
+  try {
+    const families = engine.loadFont(data)
+    return families ? families.split('\n').filter(Boolean) : []
+  } catch (e) {
+    if (typeof console !== 'undefined') {
+      console.warn(
+        `[onda] loadFont failed — text will measure against the bundled font.\n  ${String(e)}`,
+      )
+    }
+    return []
+  }
 }
 
 // Register with @onda/react so `@onda/render` warms the engine before a (sync)

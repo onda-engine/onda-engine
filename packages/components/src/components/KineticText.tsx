@@ -1,31 +1,25 @@
-//! KineticText — an opinionated per-GLYPH choreography fabric. One line of text,
-//! each glyph animating in on the house stagger with a chosen preset, so the
-//! kinetic-type "signature move" is one component, not hand-wired per scene.
+//! KineticText — opinionated per-GLYPH entrance presets, now a thin facade over
+//! the general `<TextAnimator>` engine. The four from→to presets (rise/fade/scale/
+//! blur) are just preset `animate` channel maps routed through TextAnimator, so
+//! there is ONE kinetic-type engine, one layout path, one kerning-accurate
+//! placement. `wave` is the exception — a decaying sine ripple whose offset is a
+//! function of BOTH progress and glyph index, so it doesn't fit TextAnimator's
+//! `[from, to]` channel model and keeps its own small dedicated path.
 //!
-//! Layout: each glyph's x-advance is the REAL shaped width (`measureText`, like
-//! Marquee/TrackingIn), and glyphs are placed ABSOLUTELY left-to-right about an
-//! anchor — NOT a `<Flex>`. A per-frame motion transform (rise/scale/wave) grows
-//! a glyph's bbox, and inside a layout pass that would reflow/jiggle the whole
-//! line every frame (HARD RULE 2). Absolute placement pins each glyph's resting
-//! x so only the motion (which lives on the glyph's own transform/opacity/blur)
-//! moves — the line never reflows.
-//!
-//! Motion: glyph `i` enters staggered by `staggerFrames(i, stagger)` on the
-//! house spring (`SPRING_SMOOTH`, no overshoot) over `durationInFrames`. Presets:
+//! Presets:
 //! - `rise`  — translateY 24 → 0 + fade (the house entrance, per glyph).
 //! - `fade`  — opacity only (the layout-safe minimum).
-//! - `scale` — 0.6 → 1 + fade, scaled about the glyph's OWN center (originX/Y).
-//! - `blur`  — the real `blur` prop 12 → 0 + fade: a per-glyph soft→sharp
-//!             focus-pull through the engine's render-to-texture pass (CPU+GPU).
+//! - `scale` — 0.6 → 1 + fade, scaled about the glyph's OWN center.
+//! - `blur`  — blur 12 → 0 + fade: a per-glyph soft→sharp focus-pull through the
+//!             engine's render-to-texture pass (CPU + GPU).
 //! - `wave`  — a gentle sine translateY that ripples across glyphs + fade; the
 //!             ripple phase is the glyph index, so the wave travels the line.
-//!
-//! Spaces advance the cursor but emit no glyph node (nothing to animate).
 
 import { Group, Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
-import { measureText, useTextMetricsReady } from '../text-metrics.js'
+import { glyphLayout, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TextAnimate, TextAnimator } from './TextAnimator.js'
 
 /** The per-glyph entrance presets. */
 export type KineticTextPreset = 'rise' | 'fade' | 'scale' | 'blur' | 'wave'
@@ -53,8 +47,6 @@ export interface KineticTextProps {
   fontWeight?: number
 }
 
-const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
-
 /** Starting rise distance in px for the `rise` preset (the house 24px envelope). */
 const RISE_PX = 24
 /** Starting scale for the `scale` preset. */
@@ -64,6 +56,17 @@ const BLUR_FROM = 12
 /** Peak amplitude in px of the `wave` preset's sine ripple. */
 const WAVE_AMPLITUDE = 28
 
+const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
+
+/** The from→to presets as TextAnimator channel maps — the single source of truth
+ *  for what each preset animates. `wave` is procedural and handled separately. */
+const PRESET_ANIMATE: Record<Exclude<KineticTextPreset, 'wave'>, TextAnimate> = {
+  rise: { y: [RISE_PX, 0], opacity: [0, 1] },
+  fade: { opacity: [0, 1] },
+  scale: { scale: [SCALE_FROM, 1], opacity: [0, 1] },
+  blur: { blur: [BLUR_FROM, 0], opacity: [0, 1] },
+}
+
 export function KineticText({
   text = 'kinetic',
   fontSize = 96,
@@ -72,49 +75,102 @@ export function KineticText({
   durationInFrames = DURATION.base,
   delay = 0,
   align = 'center',
-  color: colorProp,
-  fontFamily: fontFamilyProp,
+  color,
+  fontFamily,
   fontWeight = 600,
 }: KineticTextProps) {
+  // `wave` is a decaying sine ripple (a function of progress AND index), not a
+  // from→to channel — it keeps its own small path. Everything else is the general
+  // engine with a preset channel map.
+  if (preset === 'wave') {
+    return (
+      <KineticWave
+        text={text}
+        fontSize={fontSize}
+        stagger={stagger}
+        durationInFrames={durationInFrames}
+        delay={delay}
+        align={align}
+        color={color}
+        fontFamily={fontFamily}
+        fontWeight={fontWeight}
+      />
+    )
+  }
+
+  return (
+    <TextAnimator
+      text={text}
+      units="glyph"
+      animate={PRESET_ANIMATE[preset]}
+      stagger={stagger}
+      durationInFrames={durationInFrames}
+      delay={delay}
+      align={align}
+      fontSize={fontSize}
+      color={color}
+      fontFamily={fontFamily}
+      fontWeight={fontWeight}
+    />
+  )
+}
+
+interface KineticWaveProps {
+  text: string
+  fontSize: number
+  stagger: number
+  durationInFrames: number
+  delay: number
+  align: 'left' | 'center' | 'right'
+  color?: string
+  fontFamily?: string
+  fontWeight: number
+}
+
+/** The `wave` preset: a gentle decaying sine ripple across glyphs. Placement
+ *  matches TextAnimator (one kerning-accurate `glyphLayout` call, absolute
+ *  left-to-right about the canvas center) so only the motion differs. */
+function KineticWave({
+  text,
+  fontSize,
+  stagger,
+  durationInFrames,
+  delay,
+  align,
+  color: colorProp,
+  fontFamily: fontFamilyProp,
+  fontWeight,
+}: KineticWaveProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
 
-  // Real shaped advances. `useTextMetricsReady` loads the engine in the browser
-  // and re-renders when warm; `measureText` is the sync per-glyph read (a hook
-  // can't run in the loop below). Same pattern as Marquee/TrackingIn.
   useTextMetricsReady()
   const measureOpts = { fontFamily, fontWeight }
 
-  // Place each glyph at its running-sum x (resting position). Spaces advance the
-  // cursor but emit no node — there's nothing to animate, and an empty Text would
-  // measure to ~0 anyway. We measure the whole-string prefix advances so kerning
-  // between neighbours is honored, rather than summing isolated-glyph widths.
-  const chars = Array.from(text)
-  let cursor = 0
+  // Kerning-accurate resting positions (see TextAnimator for the rationale).
+  const clusters = glyphLayout(text, fontSize, measureOpts)
+  const bytes = new TextEncoder().encode(text)
+  const decoder = new TextDecoder()
   const placed: { ch: string; x: number; glyphIndex: number }[] = []
-  let glyphIndex = 0
-  for (const ch of chars) {
-    const x = cursor
-    cursor += measureText(ch, fontSize, measureOpts).width
+  for (const g of clusters) {
+    const ch = decoder.decode(bytes.subarray(g.start, g.end))
     if (ch.trim().length === 0) continue // space: advance only
-    placed.push({ ch, x, glyphIndex: glyphIndex++ })
+    placed.push({ ch, x: g.x, glyphIndex: placed.length })
   }
-  const lineWidth = cursor
+  const last = clusters[clusters.length - 1]
+  const lineWidth = last ? last.x + last.advance : 0
 
-  // Anchor the line about the canvas center per `align`; pin a baseline-ish y.
   const anchorX = Math.round(width / 2)
   const startX =
     align === 'center' ? anchorX - lineWidth / 2 : align === 'right' ? anchorX - lineWidth : anchorX
-  // Roughly vertically center the single line (matches TrackingIn/Typewriter).
   const baseY = Math.round(height / 2 - fontSize * 0.6)
 
   return (
     <Group>
       {placed.map(({ ch, x, glyphIndex: i }) => {
-        // Per-glyph spring progress (0→1), staggered by index on the house spring.
         const progress = spring({
           frame: Math.max(0, frame - delay - staggerFrames(i, stagger)),
           fps,
@@ -122,48 +178,16 @@ export function KineticText({
           durationInFrames,
         })
         const opacity = interpolate(progress, [0, 1], [0, 1], CLAMP)
-
-        // Per-preset transform on THIS glyph's own node (resting x pins layout).
-        let dy = 0
-        let scale = 1
-        let blur = 0
-        switch (preset) {
-          case 'fade':
-            break
-          case 'scale':
-            scale = interpolate(progress, [0, 1], [SCALE_FROM, 1], CLAMP)
-            break
-          case 'blur':
-            blur = interpolate(progress, [0, 1], [BLUR_FROM, 0], CLAMP)
-            break
-          case 'wave': {
-            // A gentle sine offset that fades out as the glyph settles, with the
-            // ripple phase keyed to the glyph index so the wave travels the line.
-            const ripple = Math.sin(progress * Math.PI + i * 0.6)
-            dy = ripple * WAVE_AMPLITUDE * (1 - progress)
-            break
-          }
-          default: // 'rise'
-            dy = interpolate(progress, [0, 1], [RISE_PX, 0], CLAMP)
-            break
-        }
-
-        // `scale` pivots about the glyph's own center so it grows in place rather
-        // than from its top-left corner; advance ≈ glyph width for the pivot x.
-        const advance = measureText(ch, fontSize, measureOpts).width
-        const originX = preset === 'scale' ? advance / 2 : 0
-        const originY = preset === 'scale' ? fontSize / 2 : 0
+        // A gentle sine offset that fades out as the glyph settles, with the
+        // ripple phase keyed to the glyph index so the wave travels the line.
+        const ripple = Math.sin(progress * Math.PI + i * 0.6)
+        const dy = ripple * WAVE_AMPLITUDE * (1 - progress)
 
         return (
           <Text
             key={`${i}-${ch}`}
             x={startX + x}
             y={baseY + dy}
-            scaleX={scale}
-            scaleY={scale}
-            originX={originX}
-            originY={originY}
-            blur={blur > 0.01 ? blur : undefined}
             opacity={opacity}
             fontSize={fontSize}
             color={color}
