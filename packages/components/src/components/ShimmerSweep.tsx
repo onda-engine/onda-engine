@@ -5,45 +5,44 @@
 //! without moving the layout. Linear motion by design — a sweep with spring
 //! acceleration reads as broken.
 //!
-//! Scene-graph approximation vs the ondajs (CSS) original:
+//! Scene-graph rendition of the ondajs (CSS) original:
 //! - ondajs paints the shine with a `linear-gradient` clipped to the glyphs via
-//!   `background-clip: text` and animates `backgroundPositionX`. The scene graph
-//!   has no text-clipped fills, so the band is reproduced as a translating
-//!   `<Rect>` filled with a soft `linearGradient` (transparent → `shimmerColor`
-//!   → transparent), clipped to the estimated TEXT BOX (not the glyph outlines)
-//!   via `clip={clipRect(...)}`. The bright band rides OVER the base text and is
-//!   masked to the box, so it reads as a shine passing across the word.
-//! - No author-time text metrics exist, so the box width is ESTIMATED from glyph
-//!   count × fontSize × an advance ratio (the Marquee/Underline heuristic). Pass
-//!   `width` to override when the exact extent is known.
+//!   `background-clip: text` and animates `backgroundPositionX`. We reproduce that
+//!   faithfully: a translating `<Rect>` filled with a soft `linearGradient`
+//!   (transparent → `shimmerColor` → transparent) is masked to the TEXT GLYPHS via
+//!   an **alpha matte** (`matte={<Text/>}`) — the scene-graph equivalent of
+//!   `background-clip: text`. The bright band rides OVER the dim base text and is
+//!   revealed only where the letterforms are, so the shine shows ON the glyphs and
+//!   never in the gaps around them. (Earlier versions clipped to a rectangular text
+//!   BOX, which leaked the shine into the empty space between/around letters.)
+//! - The sweep extent uses the REAL shaped width (`measureText`, warm in the
+//!   browser preview and the Node export bake); pass `width` to override.
 //! - `<Text>` is single-line (no wrap); pass a single line of `text`.
 //! - `angle` is approximated by tilting the gradient's start/end points; the band
 //!   itself translates horizontally (the dominant axis of the original sweep).
 //! - `letterSpacing` and `lineHeight` from ondajs have no scene equivalent and
 //!   are dropped (the engine owns line-box metrics).
 //!
-//! Backend caveat: gradients render only on the Vello/GPU backend. The CPU
-//! reference rasterizer collapses a gradient to its first stop (here fully
-//! transparent), so on CPU the band is invisible and only the base text shows —
-//! the shine is a GPU-only effect. The base text is always legible.
+//! Backend caveat: the shine (gradient + matte) is a Vello/GPU effect. The CPU
+//! reference collapses a gradient to its first stop (here fully transparent), so on
+//! CPU the band is invisible and only the dim base text shows. On the WebGPU preview
+//! the matte resolves via the async pre-pass — judge the look on a native render.
+//! The base text is always legible on every backend.
 
 import {
   Group,
   Rect,
   Text,
-  clipRect,
   interpolate,
   linearGradient,
   useCurrentFrame,
+  useVideoConfig,
 } from '@onda/react'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION } from '../motion.js'
+import { measureText, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
-/** Mean glyph advance as a fraction of font size — a display-sans heuristic used
- *  only to estimate the text box (the engine measures the real glyphs). Matches
- *  the ratio Underline uses. */
-const CHAR_WIDTH_FACTOR = 0.52
 /** Engine line-box height as a multiple of font size (typography crate). */
 const LINE_RATIO = 1.2
 /** Band width as a fraction of the text box — a soft, generous shine. */
@@ -72,11 +71,11 @@ export interface ShimmerSweepProps {
   fontFamily?: string
   /** Font weight (display default 600). */
   fontWeight?: number
-  /** Explicit text-box width in px. Overrides the glyph-count estimate. */
+  /** Explicit text-box width in px. Overrides the measured width. */
   width?: number
-  /** Local-space placement of the component's top-left. */
+  /** Top-left x in px. Defaults to centering the word on the canvas. */
   x?: number
-  /** Local-space placement of the component's top-left. */
+  /** Top-left y in px. Defaults to centering the word on the canvas. */
   y?: number
 }
 
@@ -93,11 +92,13 @@ export function ShimmerSweep({
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   width,
-  x = 0,
-  y = 0,
+  x,
+  y,
 }: ShimmerSweepProps) {
   const frame = useCurrentFrame()
+  const { width: canvasW, height: canvasH } = useVideoConfig()
   const theme = useTheme()
+  useTextMetricsReady()
   const color = colorProp ?? theme.textMuted
   const shimmerColor = shimmerColorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
@@ -115,9 +116,14 @@ export function ShimmerSweep({
         easing: HOUSE_EASE,
       })
 
-  // Estimated text box (overridable). The clip masks the shine to this region.
-  const boxWidth = width ?? Math.max(0, text.length) * fontSize * CHAR_WIDTH_FACTOR
+  // Real shaped text width drives the sweep extent (overridable via `width`); the
+  // alpha matte below masks the shine to the actual glyphs regardless.
+  const boxWidth = width ?? measureText(text, fontSize, { fontFamily, fontWeight }).width
   const boxHeight = fontSize * LINE_RATIO
+
+  // Center the word on the canvas by default; `x`/`y` override the top-left.
+  const groupX = x ?? Math.round(canvasW / 2 - boxWidth / 2)
+  const groupY = y ?? Math.round(canvasH / 2 - boxHeight / 2)
 
   // The bright band is wider than the visible window so its soft edges live
   // off-box at the extremes of the pass. It travels from fully off the right to
@@ -145,14 +151,29 @@ export function ShimmerSweep({
   const gy1 = boxHeight * tilt
 
   return (
-    <Group x={x} y={y}>
+    <Group x={groupX} y={groupY}>
       {/* Base text — dim, always legible, never moves. */}
       <Text fontSize={fontSize} color={color} fontFamily={fontFamily} fontWeight={fontWeight}>
         {text}
       </Text>
-      {/* Bright shine band, masked to the estimated text box. The clip region
-          sits at this Group's local origin (0,0), matching the text top-left. */}
-      <Group clip={clipRect(boxWidth, boxHeight)}>
+      {/* Bright shine band, masked to the TEXT GLYPHS via an alpha matte — the
+          scene-graph `background-clip: text`. The matte Text sits at this Group's
+          local origin (0,0), exactly over the base text, so the shine is revealed
+          only on the letterforms (not the box around them). The band rides over the
+          dim base text, brightening each glyph as it passes. */}
+      <Group
+        matte={
+          <Text
+            fontSize={fontSize}
+            color={shimmerColor}
+            fontFamily={fontFamily}
+            fontWeight={fontWeight}
+          >
+            {text}
+          </Text>
+        }
+        matteMode="alpha"
+      >
         <Group x={bandX}>
           <Rect
             width={bandWidth}
