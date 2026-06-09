@@ -1,16 +1,16 @@
-//! SlotMachineRoll — each character spins down a reel of glyphs and lands on its
-//! target with an odometer settle: the reel decelerates hard into place on the
-//! house spring, kicks a hair past the target, then eases back — staggered
-//! left-to-right on the house cadence. Ported from ondajs, retuned premium.
+//! SlotMachineRoll — each character spins down a reel of glyphs and lands cleanly
+//! on its target: the reel decelerates hard into place on the house spring,
+//! staggered left-to-right on the house cadence. Ported from ondajs, retuned
+//! premium.
 //!
 //! Premium notes (vs the original linear roll): the reel rides `SPRING_SMOOTH`
 //! over `DURATION.slower` for a slow, settled deceleration (no constant-velocity
-//! spin), with a small odometer over-roll near the landing that resolves back —
-//! the glyph drops in, overshoots a sliver, and settles, the way a real reel
-//! does. Columns sit on the house stagger; the cell advance is a touch airier so
-//! the digits breathe. One earned accent: a soft, low-opacity accent glow blooms
-//! behind the landed row as the reels settle — the only color in the piece, the
-//! digits stay near-white.
+//! spin) that lands square on the target — the glyph drops in and stops, with no
+//! past-target kick (an over-roll that flashes a wrong glyph reads as a glitch, not
+//! a premium settle). Columns sit on the house stagger; the cell advance is a touch
+//! airier so the digits breathe. One earned accent: a soft, low-opacity accent glow
+//! blooms behind the landed row as the reels settle — the only color in the piece,
+//! the digits stay near-white.
 //!
 //! Engine port notes (vs the ondajs/CSS original):
 //!  - ondajs nests `overflow:hidden` spans and translates an inner block. Here
@@ -62,11 +62,6 @@ import { useTheme } from '../theme.js'
  *  Bumped a touch over the original `0.62` so the landed digits breathe — premium
  *  display type wants air between columns, not a cramped odometer. */
 const CELL_W = 0.7
-
-/** Odometer over-roll: how far past the target the reel kicks (as a fraction of a
- *  cell) before easing back. A sliver — the glyph drops in, overshoots a hair,
- *  and settles, the way a real reel does. Subtle by design (no cartoon bounce). */
-const OVER_ROLL = 0.12
 
 export interface SlotMachineRollProps {
   /** The text that rolls into place. Best on short strings (years, counts). */
@@ -189,10 +184,8 @@ export function SlotMachineRoll({
         if (ch === ' ') return null
 
         // Build this column's reel: `reelLength` deterministic fillers from the
-        // charset, then the target glyph, then ONE trailing sacrificial filler
-        // below it. The trailing row is what the odometer over-roll briefly
-        // reveals — the digit drops in a hair low (next glyph creeping up) before
-        // settling. Each filler gets a distinct composite seed (stable per render).
+        // charset, then the target glyph the reel lands on. Each filler gets a
+        // distinct composite seed (stable per render).
         const pool = [...charset]
         const reel: string[] = []
         for (let k = 0; k < reelLength; k++) {
@@ -201,8 +194,6 @@ export function SlotMachineRoll({
           reel.push(pool[idx] ?? ch)
         }
         reel.push(ch)
-        const trailing = random(seed + i * 7919 + reelLength * 31 + 13)
-        reel.push(pool[Math.min(pool.length - 1, Math.floor(trailing * pool.length))] ?? ch)
 
         // House spring, staggered per character on the house cadence. The reel
         // translates from the top filler (ty = 0) down to landing on the target
@@ -216,23 +207,12 @@ export function SlotMachineRoll({
           config: SPRING_SMOOTH,
           durationInFrames,
         })
-        const landTy = interpolate(p, [0, 1], [0, -reelLength * cell], {
+        // The reel lands cleanly on the target: the spring's hard deceleration is
+        // the whole settle — the digit drops in and stops, no past-target kick.
+        const ty = interpolate(p, [0, 1], [0, -reelLength * cell], {
           extrapolateLeft: 'clamp',
           extrapolateRight: 'clamp',
         })
-
-        // Odometer over-roll: a triangle wave that nudges the reel a sliver PAST
-        // the target (revealing the trailing row) just before it settles, then
-        // eases back to the target. Kicks off a few frames before the spring
-        // nominally completes so the over-roll and settle read as one landing.
-        const overStart = durationInFrames - 6
-        const overY = interpolate(
-          localChar,
-          [overStart, overStart + 4, overStart + 10],
-          [0, -OVER_ROLL * cell, 0],
-          { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
-        )
-        const ty = landTy + overY
 
         // Window is EXACTLY one cell tall, anchored at the column origin, so the
         // block stays vertically centered via `originY`. The reel translates

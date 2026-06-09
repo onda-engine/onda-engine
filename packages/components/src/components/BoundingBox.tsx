@@ -15,12 +15,12 @@
 //!      (a low-amplitude opacity breathe that decelerates into rest — restraint,
 //!      not a strobe), and the label tag fades + scales in.
 //!
-//! Depth: the corner ticks and label tag carry a soft, large-radius accent glow
-//! (the engine's `shadow` with a 0,0 offset reads as a centered halo) — the
-//! call-out has presence without a hard edge. The big outline `<Rect>` is
-//! stroke-only with NO glow: the engine's `shadow` is an analytic blurred
-//! rounded-rect of the shape's box, so a glow on the large outline would wash
-//! its whole interior; the crisp accent stroke carries it instead.
+//! Depth: only the label tag carries a soft accent glow (the engine's `shadow`
+//! with a 0,0 offset reads as a centered halo around the rounded pill). Neither the
+//! outline nor the corner ticks glow: the engine's `shadow` is an analytic blurred
+//! rounded-rect of the shape's BOUNDING BOX, so a glow on the thin L-shaped ticks
+//! renders as a soft filled blob at each corner — it reads as a stray circle, not a
+//! halo. The ticks carry the accent with a crisp stroke instead.
 //!
 //! Geometry follows the ondajs schema: `x`/`y`/`width`/`height` are `0..1`
 //! fractions of the composition, resolved against `useVideoConfig()`. Corner
@@ -220,7 +220,6 @@ export function BoundingBox({
             strokeDash={[tickDash, tickDash]}
             strokeDashOffset={tickDash * (1 - tickDraw)}
             opacity={tickDraw * pulseOpacity}
-            shadow={glow}
           />
         )
       })}
