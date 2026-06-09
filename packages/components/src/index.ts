@@ -27,6 +27,7 @@ export {
   glyphLayout,
   type FontMetrics,
   type GlyphInfo,
+  loadFont,
   type MeasureOpts,
   preloadTextMetrics,
   type TextMetrics,
@@ -174,6 +175,13 @@ export { SpotlightCard, type SpotlightCardProps } from './components/SpotlightCa
 export { StaggerGroup, type StaggerGroupProps } from './components/StaggerGroup.js'
 export { StatCard, type StatCardProps } from './components/StatCard.js'
 export { Terminal, type TerminalProps } from './components/Terminal.js'
+export {
+  TextAnimator,
+  type TextAnimate,
+  type TextAnimatorDirection,
+  type TextAnimatorProps,
+  type TextAnimatorUnit,
+} from './components/TextAnimator.js'
 export { TextFadeReplace, type TextFadeReplaceProps } from './components/TextFadeReplace.js'
 export { Timeline, type TimelineEvent, type TimelineProps } from './components/Timeline.js'
 export { TitleCard, type TitleCardProps } from './components/TitleCard.js'

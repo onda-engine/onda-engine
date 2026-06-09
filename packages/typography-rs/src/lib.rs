@@ -312,7 +312,15 @@ impl FontContext {
             .map(|r| (r.offset_y as f32, r.height as f32))
             .unwrap_or((ascent * 0.30, ascent * 0.52));
 
-        FontMetrics { cap_top, cap_height, x_top, x_height, ascent, descent, line_height }
+        FontMetrics {
+            cap_top,
+            cap_height,
+            x_top,
+            x_height,
+            ascent,
+            descent,
+            line_height,
+        }
     }
 
     /// Kerning-aware glyph layout for `content`: returns one [`GlyphInfo`] per
@@ -343,7 +351,13 @@ impl FontContext {
         if let Some(family) = family {
             attrs = attrs.family(Family::Name(family));
         }
-        buffer.set_text(&mut self.font_system, content, &attrs, Shaping::Advanced, None);
+        buffer.set_text(
+            &mut self.font_system,
+            content,
+            &attrs,
+            Shaping::Advanced,
+            None,
+        );
         buffer.shape_until_scroll(&mut self.font_system, false);
 
         // Collect raw (start, end, x, w) from layout glyphs.
@@ -360,7 +374,9 @@ impl FontContext {
         // are filled in by walking the string.
         let mut out: Vec<GlyphInfo> = Vec::with_capacity(raw.len());
         let mut byte_pos = 0usize;
-        let total_w: f32 = self.measure_with(content, font_size, family, weight, italic, letter_spacing).width;
+        let total_w: f32 = self
+            .measure_with(content, font_size, family, weight, italic, letter_spacing)
+            .width;
         let raw_len = raw.len();
 
         for (i, (start, end, x, w)) in raw.iter().enumerate() {
@@ -379,7 +395,12 @@ impl FontContext {
                 for ch in gap_str.chars() {
                     let ch_bytes = ch.len_utf8();
                     let ch_w = gap_w * ch_bytes as f32 / gap_str.len() as f32;
-                    out.push(GlyphInfo { start: byte_pos, end: byte_pos + ch_bytes, x: gx, advance: ch_w });
+                    out.push(GlyphInfo {
+                        start: byte_pos,
+                        end: byte_pos + ch_bytes,
+                        x: gx,
+                        advance: ch_w,
+                    });
                     gx += ch_w;
                     byte_pos += ch_bytes;
                 }
@@ -390,7 +411,12 @@ impl FontContext {
             } else {
                 (total_w - x).max(*w)
             };
-            out.push(GlyphInfo { start: *start, end: *end, x: *x, advance });
+            out.push(GlyphInfo {
+                start: *start,
+                end: *end,
+                x: *x,
+                advance,
+            });
             byte_pos = (*end).max(byte_pos);
         }
         out

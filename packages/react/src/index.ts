@@ -111,6 +111,7 @@ export {
   renderToScene,
   renderToSceneJSON,
 } from './reconciler.js'
+export { clearRegisteredFonts, registerFont, registeredFonts } from './fonts.js'
 export { registerEngineWarmer, runEngineWarmers } from './warmers.js'
 export type {
   Color,

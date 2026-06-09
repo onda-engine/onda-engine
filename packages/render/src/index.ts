@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { renderFrame, renderFramesJSON, runEngineWarmers } from '@onda/react'
+import { registeredFonts, renderFrame, renderFramesJSON, runEngineWarmers } from '@onda/react'
 import type { ReactElement } from 'react'
 
 export type Backend = 'auto' | 'vello' | 'cpu'
@@ -42,6 +42,22 @@ export interface RenderStillOptions {
 
 const resolveBin = (override?: string): string => override ?? process.env.ONDA_BIN ?? 'onda'
 
+/** Materialize any fonts the composition declared via `loadFont` into `dir` and
+ *  return the `--font <path>` CLI args, so the renderer draws with the SAME bytes
+ *  the author-time measurement used (single-source — no manual `--font`). Empty
+ *  when no custom font was registered. Call AFTER rendering, so fonts declared
+ *  during the render are included. */
+async function fontArgs(dir: string): Promise<string[]> {
+  const fonts = registeredFonts()
+  const args: string[] = []
+  for (let i = 0; i < fonts.length; i++) {
+    const fontPath = join(dir, `font-${i}.ttf`)
+    await writeFile(fontPath, fonts[i] as Uint8Array)
+    args.push('--font', fontPath)
+  }
+  return args
+}
+
 /**
  * Render a composition to a video file. Generates every frame's scene graph
  * in-process, then hands it to the `onda` CLI to rasterize + encode.
@@ -70,6 +86,7 @@ export async function renderToFile(
         '--encoder',
         encoder,
         '--progress',
+        ...(await fontArgs(dir)),
       ],
       onProgress,
     )
@@ -90,7 +107,14 @@ export async function renderStillToFile(
   const scenePath = join(dir, 'scene.json')
   try {
     await writeFile(scenePath, sceneJson)
-    await runOnda(resolveBin(ondaBin), ['render', scenePath, output, '--backend', backend])
+    await runOnda(resolveBin(ondaBin), [
+      'render',
+      scenePath,
+      output,
+      '--backend',
+      backend,
+      ...(await fontArgs(dir)),
+    ])
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
