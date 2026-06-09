@@ -11,7 +11,7 @@
 //! brand tokens (see `assets/brand/BRAND.md`). All non-essential motion respects
 //! `prefers-reduced-motion`.
 
-import { renderFrame } from '@onda/react'
+import { registeredFonts, renderFrame } from '@onda/react'
 import {
   type CSSProperties,
   type KeyboardEvent,
@@ -37,6 +37,12 @@ import { collectVideoOverlays, resolveVideoFrames } from './video.js'
  *  `@onda/wasm-vello`. */
 export interface GpuEngine {
   render(sceneJson: string): Promise<{ width: number; height: number; pixels: Uint8Array }>
+  /** Optional: load a custom font (`.ttf`/`.otf` bytes) so the live preview draws
+   *  with the same fonts the export will. `@onda/wasm-vello`'s `VelloEngine` exposes
+   *  `load_font`; `@onda/wasm`'s `OndaEngine` exposes `loadFont` — the Player drains
+   *  the `@onda/react` font registry into whichever exists. */
+  loadFont?(data: Uint8Array): unknown
+  load_font?(data: Uint8Array): unknown
 }
 
 // GPU engines currently mid-render. Keyed on the engine instance so multiple
@@ -44,6 +50,36 @@ export interface GpuEngine {
 // engine panics on re-entrant use). Module-level on purpose — the guard must
 // outlive any single component instance.
 const enginesRendering = new WeakSet<object>()
+
+// How many registered fonts have been loaded into each engine (keyed on the
+// engine instance). The `@onda/react` font registry is append-only, so we load
+// only the newly-registered tail into an engine, once — never re-loading a font
+// or per frame. Module-level so it survives remounts that reuse an engine.
+const engineFontCount = new WeakMap<object, number>()
+
+/** Drain any not-yet-loaded fonts from the `@onda/react` registry into `engine`
+ *  (whichever of `loadFont`/`load_font` it exposes), so a composition's custom
+ *  fonts render in the live preview, matching export. Cheap to call before every
+ *  paint: a no-op once the engine is caught up. Safe inside the per-engine render
+ *  guard (synchronous, before `render()`), so it never races a `&mut render`. */
+function ensureFontsLoaded(engine: object): void {
+  const e = engine as {
+    loadFont?: (d: Uint8Array) => unknown
+    load_font?: (d: Uint8Array) => unknown
+  }
+  const load = e.loadFont ?? e.load_font
+  if (typeof load !== 'function') return
+  const fonts = registeredFonts()
+  const loaded = engineFontCount.get(engine) ?? 0
+  for (let i = loaded; i < fonts.length; i++) {
+    try {
+      load.call(engine, fonts[i] as Uint8Array)
+    } catch {
+      // a bad font shouldn't break the preview; skip it
+    }
+  }
+  engineFontCount.set(engine, fonts.length)
+}
 
 export interface PlayerProps {
   /** A `<Composition>` element (from `@onda/react`). */
@@ -273,6 +309,39 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   const targetRef = useRef({ composition, frame, images: imagesReady })
   targetRef.current = { composition, frame, images: imagesReady }
 
+  // Vsync-aligned canvas blit: stash the latest rendered pixels and paint them
+  // inside ONE requestAnimationFrame, instead of the instant each async
+  // `gpu.render` resolves. Aligning canvas writes to the display refresh stops a
+  // playing video from tearing against the compositor while the mouse moves
+  // (unsynced `putImageData` mid-composite reads as a subtle flash). Only the most
+  // recent frame is painted — intermediate frames rendered before the rAF fires
+  // are dropped, which is correct for smooth playback.
+  const pendingPaintRef = useRef<{ width: number; height: number; pixels: Uint8Array } | null>(null)
+  const blitRafRef = useRef<number | null>(null)
+  const scheduleBlit = useCallback(
+    (out: { width: number; height: number; pixels: Uint8Array }) => {
+      pendingPaintRef.current = out
+      if (blitRafRef.current != null) return
+      blitRafRef.current = requestAnimationFrame(() => {
+        blitRafRef.current = null
+        const p = pendingPaintRef.current
+        const canvas = canvasRef.current
+        const ctx = canvas?.getContext('2d')
+        if (!p || !canvas || !ctx) return
+        if (canvas.width !== p.width) canvas.width = p.width
+        if (canvas.height !== p.height) canvas.height = p.height
+        ctx.putImageData(new ImageData(new Uint8ClampedArray(p.pixels), p.width, p.height), 0, 0)
+      })
+    },
+    [],
+  )
+  useEffect(
+    () => () => {
+      if (blitRafRef.current != null) cancelAnimationFrame(blitRafRef.current)
+    },
+    [],
+  )
+
   // Latest values for the imperative handle + event callbacks, read from refs so
   // the handle/effects don't re-subscribe on every frame.
   const liveRef = useRef({ frame, playing, loop, lastFrame, totalFrames, rate })
@@ -349,18 +418,13 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
           // Decode the current frame of any <Video> node (browser-side) and
           // attach it before rendering — a video's pixels change every frame.
           await resolveVideoFrames(scene.root as never)
+          // Load any custom fonts the composition registered (via `loadFont`) into
+          // this engine before drawing, so preview matches export. No-op once warm.
+          ensureFontsLoaded(gpu)
           const out = await gpu.render(JSON.stringify(scene))
-          const canvas = canvasRef.current
-          const ctx = canvas?.getContext('2d')
-          if (canvas && ctx) {
-            if (canvas.width !== out.width) canvas.width = out.width
-            if (canvas.height !== out.height) canvas.height = out.height
-            ctx.putImageData(
-              new ImageData(new Uint8ClampedArray(out.pixels), out.width, out.height),
-              0,
-              0,
-            )
-          }
+          // Paint on the next animation frame (vsync-aligned), not inline — see
+          // `scheduleBlit`. Keeps the video repaint from tearing under mouse-move.
+          scheduleBlit(out)
         }
       } catch {
         setGpuFailed(true) // drop to the next renderer
@@ -368,7 +432,7 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
         enginesRendering.delete(gpu)
       }
     })()
-  }, [])
+  }, [scheduleBlit])
 
   // Re-draw whenever the frame, composition, or renderer changes.
   useEffect(() => {
@@ -1017,8 +1081,24 @@ const styles: Record<string, CSSProperties> = {
     overflow: 'hidden',
     background: 'var(--onda-bg-deep, #08080a)',
     border: '1px solid var(--onda-border, #26262c)',
+    // Isolate the preview as its own compositing context + contain its paint, so
+    // the heavy, per-frame-updating canvas layer doesn't force the browser to
+    // recomposite the whole PAGE behind it. That recomposite is what flickers the
+    // background on some GPUs (e.g. Arc/Metal) while a video plays and the cursor
+    // moves — a compositor artifact, NOT a content change (the rendered frames are
+    // byte-identical) and NOT present in exported video.
+    isolation: 'isolate',
+    contain: 'paint',
   },
-  canvas: { width: '100%', height: '100%', display: 'block', cursor: 'pointer' },
+  // `translateZ(0)` promotes the canvas to its OWN GPU layer, so its per-frame
+  // pixel updates don't invalidate / re-raster sibling layers (see `stage`).
+  canvas: {
+    width: '100%',
+    height: '100%',
+    display: 'block',
+    cursor: 'pointer',
+    transform: 'translateZ(0)',
+  },
   videoOverlay: { position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' },
   readout: {
     display: 'flex',
@@ -1098,7 +1178,7 @@ const PLAYER_CSS = `
   position: absolute; top: 12px; left: 12px;
   display: inline-flex; align-items: center; gap: 7px;
   padding: 5px 10px; border-radius: 999px;
-  background: rgba(8,8,10,.55); backdrop-filter: blur(6px);
+  background: rgba(8,8,10,.82);
   border: 1px solid rgba(255,255,255,.1);
   color: rgba(255,255,255,.85);
   font-size: 11.5px; font-weight: 500; letter-spacing: 0.02em;
@@ -1114,7 +1194,7 @@ const PLAYER_CSS = `
   width: 34px; height: 34px;
   display: grid; place-items: center;
   border-radius: 9px;
-  background: rgba(8,8,10,.55); backdrop-filter: blur(6px);
+  background: rgba(8,8,10,.82);
   border: 1px solid rgba(255,255,255,.1);
   color: rgba(255,255,255,.85);
   cursor: pointer;
