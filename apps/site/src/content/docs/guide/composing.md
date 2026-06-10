@@ -166,6 +166,28 @@ are identical on CPU + GPU, while `spin` (rotation) is GPU-only.
 />
 ```
 
+### Precomp & adjustment layers
+
+A `<Group>`'s `opacity`/`blendMode` apply **per child**, so fading a group of
+*overlapping* layers double-darkens the overlaps (the AE "needs a precomp" gotcha).
+**`<Precomp>`** flattens the subtree to ONE layer first (render-to-texture), so
+opacity/blend/effects apply to the *composited* result — both backends.
+
+```tsx
+<Precomp opacity={0.5}>   {/* the overlaps stay uniform, not doubled */}
+  <Card /> <Card />
+</Precomp>
+```
+
+An **adjustment layer** (an effect over everything beneath it) is just a `<Group>`
+with the effect wrapping the layers it should affect:
+
+```tsx
+<Group grade={{ saturation: 0 }}>   {/* desaturates everything inside */}
+  <Background /> <Subject />
+</Group>
+```
+
 ### Colors
 
 `ColorInput` is a hex string (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`) or `{ r, g, b, a? }` (0..1 channels). `'none'` and `'transparent'` are accepted and treated as fully transparent. **Never pass a bare string that isn't a hex color** — it will throw.
