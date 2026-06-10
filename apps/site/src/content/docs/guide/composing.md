@@ -25,6 +25,7 @@ Every visual primitive (`Group`, `Rect`, `Ellipse`, `Path`, `Text`, `Image`,
 | `matteMode` | `'alpha' \| 'luminance'` | Default `'alpha'`. |
 | `blendMode` | `string` | CSS blend mode (GPU backend). |
 | `blur` | `number` | Gaussian blur σ in px — render-to-texture. Both backends. |
+| `directionalBlur` | `object` | `{ sigma, angle }` — 1D motion-blur smear along `angle` (radians); reads as in-motion. Both backends. |
 | `backdropBlur` | `number` | Frosted-glass blur of what is **behind** this node. GPU only. |
 | `bloom` | `object` | `{ threshold?, intensity?, radius? }` — bright regions bloom outward. GPU only. |
 | `grade` | `object` | `{ brightness?, contrast?, saturation?, temperature?, tint? }` — color grade (CSS-style, 1 = identity). |
@@ -32,7 +33,84 @@ Every visual primitive (`Group`, `Rect`, `Ellipse`, `Path`, `Text`, `Image`,
 | `goo` | `object` | `{ sigma, threshold? }` — metaball/goo blend between sibling shapes. GPU only. |
 | `lightWrap` | `object` | `{ sigma, strength?, backdropNode? }` — bleeds backdrop light onto the node's feathered edges. GPU/export only. |
 | `shadow` | `object` | `{ color, blur, offsetX?, offsetY?, spread? }` — drop shadow behind the node. |
+| `chromaticAberration` | `number` | Lens RGB split — amount in px, red/blue channels shifted radially from centre. Both backends. |
+| `vignette` | `number \| object` | `{ amount, softness? }` — radial edge darkening; number is shorthand for `amount`. Both backends. |
+| `posterize` | `number` | Quantize each channel to N levels (cel / screen-print look). Both backends. |
+| `duotone` | `object` | `{ shadow, highlight }` — map luminance onto two colors (Spotify-poster look). Both backends. |
+| `chromaKey` | `object` | `{ color, threshold?, smoothness? }` — knock out a key color (green screen) to transparent. Both backends. |
 | `effects` | `Effect[]` | Raw effects array — prefer the sugar props above. |
+
+### Cinematic finish (`<Composition finish={…}>`)
+
+A composition-level **finishing chain** run after the comp rasterizes, in scene-linear
+light with HDR headroom, ending in **one ACES film tone-map** — the "looks shot" output
+transform. Unlike per-node effects (which Vello hands back 8-bit between passes, so HDR
+is lost), the finish keeps everything in float to a single tone-map, so bloom highlights
+bleed *real* light and roll off filmically. **GPU/export only** (the CPU reference and a
+WebGPU-less browser render un-finished — judge it on the native/export render). Every
+field defaults to a no-op, so `finish={{ bloom: { sigma: 16 } }}` is just bloom + ACES.
+
+```tsx
+<Composition width={1920} height={1080} fps={30} durationInFrames={120}
+  finish={{
+    bloom: { sigma: 18, threshold: 0.2, intensity: 2.4 }, // linear-HDR glow
+    halation: 0.7,        // warm red/orange fringe around highlights
+    temperature: 0.22,    // grade: + warm / − cool
+    contrast: 1.12,       // grade: contrast around mid-grey (1 = identity)
+    saturation: 1.08,     // grade: 1 = identity, 0 = greyscale
+    vignette: 0.42,       // radial edge darkening
+    grain: 0.05,          // luminance-banded film grain (frame = seed, automatic)
+    exposure: 1.0,        // linear exposure before the tone-map
+  }}>
+  {/* … */}
+</Composition>
+```
+
+Chain order: bloom + halation → exposure → grade → vignette → grain → ACES.
+
+### Motion blur (`<Composition motionBlur={…}>`)
+
+Shutter-angle **per-object motion blur** via temporal supersampling: each output frame
+is the average of `samples` sub-frames spread across the shutter window, so anything
+that **moves** smears by its own motion (translation, rotation, scale — anything that's
+a function of the frame) while static elements stay sharp. **Export-only** — cost is
+`samples`× the render, so the live preview shows the sharp frame.
+
+```tsx
+// `true` = a 180° shutter at 16 samples; or tune both:
+<Composition motionBlur={{ shutter: 180, samples: 16 }} …>
+```
+
+`shutter` is in degrees (180 = half the frame, the film default; 360 = full-frame,
+heavier). More `samples` = a smoother smear at linear cost.
+
+### Shape operators (mograph)
+
+Operations on the path/geometry itself, the AE-shape-layer vocabulary:
+
+- **Trim paths** — `trimStart` / `trimEnd` / `trimOffset` (fractions 0..1) on any
+  **stroked** shape draw only that arc-length slice of the outline. Animate `trimEnd`
+  0→1 for a line-draw (logos, underlines, signatures, loaders). The engine measures
+  the path length, so you never touch pixel lengths; identical on GPU + CPU.
+
+  ```tsx
+  <Ellipse stroke="#e85494" strokeWidth={14} strokeCap="round"
+    trimEnd={interpolate(frame, [0, 40], [0, 1], { extrapolateRight: 'clamp' })} />
+  ```
+
+- **`<Repeater>`** — stamp a subtree `count` times, each copy COMPOUNDING one more step
+  of the transform (offset / rotation / scale) + a step of the opacity ramp: grids,
+  radial arrays, spirals, motion trails. Nest two for a 2D grid. Pure composition —
+  renders the same on every backend, live and exported.
+
+  ```tsx
+  <Repeater count={12} rotation={30} originX={180} originY={180}>
+    <Rect width={24} height={70} cornerRadius={12} fill="#e85494" />
+  </Repeater>
+  ```
+
+  Props: `count`, `offsetX`, `offsetY`, `rotation` (deg/copy), `scale` (factor/copy),
+  `originX`/`originY` (pivot), `startOpacity`/`endOpacity` (ramp).
 
 ### Colors
 

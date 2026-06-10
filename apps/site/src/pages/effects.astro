@@ -12,7 +12,7 @@ const CINEMATIC = {
   eyebrow: 'CINEMATIC FINISHING',
   title: 'The finishing pass — exported, native, premium-tier.',
   intro:
-    'These are the export/native finishing moves — the difference lives in the GPU compute pass, so the live page degrades them (fBm falls back to a smooth gradient, the linear + ACES path to gamma, light-wrap to the un-wrapped node) and each before/after is an exported still. The one exception is morphPath: pure authoring, zero engine change, so it plays live.',
+    'These are the export/native finishing moves — the difference lives in the GPU compute pass, so the live page degrades them (fBm falls back to a smooth gradient, the cinematic finish to its raw gamma frame, light-wrap to the un-wrapped node) and each before/after is an exported still. The one exception is morphPath: pure authoring, zero engine change, so it plays live.',
   entries: [
     {
       title: 'fBm gradient',
@@ -24,16 +24,29 @@ const CINEMATIC = {
       after: { src: '/effects/fbm-after.png', label: 'fBm' },
     },
     {
-      title: 'Linear + ACES cinematic finish',
+      title: 'Cinematic finish — one prop, the whole chain',
       blurb:
-        'Same bloomed plate, left and right — but on the right the glow is real light bleed, not a flat overlay, the tell that separates "rendered" from "shot." Flip the linear flag on the Composition: Bloom composites in linear light, an ACES filmic tone-map rolls the highlights off in a smooth curve (not the default gamma additive-clamp), and a warm HALATION fringe bleeds around the brightest accents the way film does.',
-      snippet: `<Composition linear width={1920} height={1080}>
-  <Group bloom={{ sigma: 16, intensity: 1.7 }}>
-    <Img src="plate.jpg" />
-  </Group>
+        'The "looks shot" output transform as a SINGLE Composition prop. <code>finish</code> runs the entire finishing chain in scene-linear light with HDR headroom, ending in ONE ACES film tone-map — landing the whole comp as one photographed image instead of a stack of separate filters. Here, left→right: bloom bleeding REAL light (highlights exceed 1.0 and roll off, not a clamped overlay), a warm halation fringe, a film grade (white-balance + contrast + saturation), a drawn-in vignette, and fine luminance-banded grain — all composited together and tone-mapped ONCE. The key move: unlike per-node effects (Vello hands those back 8-bit between passes, so the HDR is lost), the finish decodes to float and keeps everything in linear HDR right up to the single tone-map.',
+      snippet: `<Composition
+  finish={{
+    bloom: { sigma: 18, intensity: 2.4 }, halation: 0.7,
+    temperature: 0.22, contrast: 1.12, vignette: 0.42, grain: 0.05,
+  }}
+>
+  <Plate />
 </Composition>`,
-      before: { src: '/effects/linear-before.png', label: 'gamma clamp' },
-      after: { src: '/effects/linear-after.png', label: 'linear + ACES' },
+      before: { src: '/effects/linear-before.png', label: 'raw · gamma' },
+      after: { src: '/effects/linear-after.png', label: 'finish' },
+    },
+    {
+      title: 'Motion blur — shutter-angle, per object',
+      blurb:
+        'The single biggest "amateur vs pro" tell in motion. One prop on the Composition — <code>motionBlur</code> — and every output frame becomes the average of N sub-frames spread across the shutter window, so anything that MOVES smears by its own motion while static elements stay razor-sharp. Left, frame 8 rendered once; right, the same instant averaged over an 180° shutter: the circle smears along its travel, the square’s corners smear from its spin, the "MOTION" text (static) stays crisp. It’s true temporal supersampling, so it catches translation, rotation, scale — anything that’s a function of the frame — not just a velocity streak. Cost is N× the render, so it lands at export (the live preview shows the sharp frame).',
+      snippet: `<Composition motionBlur={{ shutter: 180, samples: 16 }}>
+  <FastMove />
+</Composition>`,
+      before: { src: '/effects/motionblur-before.png', label: '1 sample · sharp' },
+      after: { src: '/effects/motionblur-after.png', label: '180° · 18 samples' },
     },
     {
       title: 'Light-wrap',
@@ -110,14 +123,61 @@ const CINEMATIC = {
           <p class="eyebrow">Render-to-texture</p>
           <h1>Effects, rendered by the engine.</h1>
           <p class="lede">
-            A <code>blur</code>, <code>bloom</code>, <code>grade</code> or <code>goo</code> prop on
-            any node — rendered to a texture, processed, and composited back, live in your browser by
-            the GPU engine. Pick one to see it play — and copy the code.
+            Effects render to a texture, get processed on the GPU, and composite back — by the same
+            engine that exports your video. Two views: play with the per-node effects live, or see the
+            export-only <strong>cinematic finishing</strong> passes.
           </p>
         </header>
-        <EffectsGallery client:only="react" />
 
-        <section class="cinematic" aria-labelledby="cinematic-title">
+        <div class="tabs" role="tablist" aria-label="Effects views">
+          <button
+            class="tab is-active"
+            type="button"
+            role="tab"
+            id="tab-live"
+            aria-selected="true"
+            aria-controls="panel-live"
+          >
+            Interactive <span class="tab__hint">live</span>
+          </button>
+          <button
+            class="tab"
+            type="button"
+            role="tab"
+            id="tab-cine"
+            aria-selected="false"
+            aria-controls="panel-cine"
+          >
+            Cinematic finishing <span class="tab__hint">exported</span>
+          </button>
+          <button
+            class="tab"
+            type="button"
+            role="tab"
+            id="tab-shapes"
+            aria-selected="false"
+            aria-controls="panel-shapes"
+          >
+            Shape operators <span class="tab__hint">mograph</span>
+          </button>
+        </div>
+
+        <section id="panel-live" class="tabpanel" role="tabpanel" aria-labelledby="tab-live">
+          <p class="panel-lede">
+            A <code>blur</code>, <code>bloom</code>, <code>grade</code> or <code>goo</code> prop on
+            any node — rendered to a texture, processed, and composited back, live in your browser.
+            Pick one to see it play, and copy the code.
+          </p>
+          <EffectsGallery client:only="react" />
+        </section>
+
+        <section
+          id="panel-cine"
+          class="tabpanel cinematic"
+          role="tabpanel"
+          aria-labelledby="tab-cine"
+          hidden
+        >
           <header class="cinematic__head">
             <p class="eyebrow">{CINEMATIC.eyebrow}</p>
             <h2 id="cinematic-title">{CINEMATIC.title}</h2>
@@ -125,8 +185,12 @@ const CINEMATIC = {
           </header>
           <div class="cinematic__grid">
             {
-              CINEMATIC.entries.map((e) => (
+              CINEMATIC.entries.map((e, i) => (
                 <article class="cfx">
+                  <div class="cfx__head">
+                    <span class="cfx__num">{String(i + 1).padStart(2, '0')}</span>
+                    <h3 class="cfx__title">{e.title}</h3>
+                  </div>
                   <div class={e.strip ? 'cfx__media cfx__media--strip' : 'cfx__media'}>
                     {e.strip ? (
                       <figure class="cfx__strip">
@@ -146,12 +210,119 @@ const CINEMATIC = {
                       </>
                     )}
                   </div>
-                  <h3 class="cfx__title">{e.title}</h3>
-                  <p class="cfx__blurb">{e.blurb}</p>
-                  <pre class="cfx__code"><code>{e.snippet}</code></pre>
+                  <div class="cfx__detail">
+                    <p class="cfx__blurb">{e.blurb}</p>
+                    <pre class="cfx__code"><code>{e.snippet}</code></pre>
+                  </div>
                 </article>
               ))
             }
+          </div>
+        </section>
+
+        <section
+          id="panel-shapes"
+          class="tabpanel"
+          role="tabpanel"
+          aria-labelledby="tab-shapes"
+          hidden
+        >
+          <header class="cinematic__head">
+            <p class="eyebrow">SHAPE OPERATORS</p>
+            <h2>The mograph vocabulary — operations on the path itself.</h2>
+            <p class="lede">
+              Not pixels — geometry. The operators motion designers live in: trim paths and the
+              repeater (here), with boolean ops landing next. Trim draws a stroke on; the repeater
+              stamps a subtree into grids, radial arrays and compounding spirals.
+            </p>
+          </header>
+          <div class="cinematic__grid">
+            <article class="cfx">
+              <div class="cfx__head">
+                <span class="cfx__num">01</span>
+                <h3 class="cfx__title">Trim paths — the stroke line-draw</h3>
+              </div>
+              <div class="shapes__demo">
+                <figure class="shapes__live" aria-label="A circle and checkmark drawing on, looping">
+                  <svg viewBox="0 0 200 200" role="img">
+                    <circle
+                      class="draw"
+                      cx="100"
+                      cy="100"
+                      r="72"
+                      fill="none"
+                      stroke="#e85494"
+                      stroke-width="11"
+                      stroke-linecap="round"
+                      pathLength="100"
+                    />
+                    <path
+                      class="draw draw--late"
+                      d="M68 104 L92 132 L138 74"
+                      fill="none"
+                      stroke="#5ad1ff"
+                      stroke-width="10"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      pathLength="100"
+                    />
+                  </svg>
+                  <figcaption>live · animating <code>trimEnd</code> 0→1</figcaption>
+                </figure>
+                <figure class="shapes__strip">
+                  <img
+                    src="/effects/trim-progression.png"
+                    alt="Trim at five stages from 0.15 to 1.0"
+                    loading="lazy"
+                  />
+                  <figcaption>five stages — rendered by ONDA (GPU = CPU)</figcaption>
+                </figure>
+              </div>
+              <div class="cfx__detail">
+                <p class="cfx__blurb">
+                  Put a <code>trimStart</code> / <code>trimEnd</code> on any stroked shape and the
+                  engine draws only that arc-length slice of the outline — animate <code>trimEnd</code>
+                  from 0→1 for a draw-on reveal (logos, underlines, signatures, loaders). The engine
+                  measures the path length with kurbo and converts the trim to a length-normalised
+                  dash, so you never touch pixel lengths; it renders identically on the GPU and the
+                  CPU reference. The looping circle + check above is that same stroke-dashoffset
+                  mechanism, in pure SVG; the strip is five frames rendered by the engine itself.
+                </p>
+                <pre class="cfx__code"><code>{`<Ellipse stroke="#e85494" strokeWidth={14} strokeCap="round"
+  trimEnd={interpolate(frame, [0, 40], [0, 1],
+    { extrapolateRight: "clamp" })} />`}</code></pre>
+              </div>
+            </article>
+
+            <article class="cfx">
+              <div class="cfx__head">
+                <span class="cfx__num">02</span>
+                <h3 class="cfx__title">Repeater — grids, radial arrays, spirals</h3>
+              </div>
+              <figure class="shapes__strip shapes__strip--solo">
+                <img
+                  src="/effects/repeater.png"
+                  alt="A radial petal array, a compounding spiral, and a nested grid"
+                  loading="lazy"
+                />
+                <figcaption>radial · spiral (compounding) · nested grid — one &lt;Repeater&gt; each</figcaption>
+              </figure>
+              <div class="cfx__detail">
+                <p class="cfx__blurb">
+                  Stamp a subtree <code>count</code> times, each copy COMPOUNDING one more step of
+                  the transform — offset, rotation, scale — plus a step of the opacity ramp. That
+                  compounding is the trick: rotation + scale don’t fan out by <code>i×</code>, they
+                  wind into a real spiral (middle). Nest two and you get a grid (right); pure
+                  rotation about a pivot gives a radial array (left). It’s After Effects’ shape
+                  Repeater, as one component — pure composition, so it renders the same on every
+                  backend, live and exported.
+                </p>
+                <pre class="cfx__code"><code>{`<Repeater count={26} rotation={16} scale={0.93}
+  originX={180} originY={180} endOpacity={0.15}>
+  <Ellipse width={40} height={40} fill="#5ad1ff" />
+</Repeater>`}</code></pre>
+              </div>
+            </article>
           </div>
         </section>
       </main>
@@ -204,48 +375,193 @@ const CINEMATIC = {
         font-family: 'JetBrains Mono', monospace; font-size: 0.9em;
         color: #f2f2f4; background: #18181d; padding: 1px 6px; border-radius: 5px;
       }
+      .lede strong { color: #f2f2f4; font-weight: 600; }
+      /* ---------- Tabs: Interactive ↔ Cinematic finishing (segmented control) ---- */
+      .tabs {
+        display: inline-flex; gap: 4px; margin: 28px 0 32px;
+        padding: 4px; background: #121218;
+        border: 1px solid #23232a; border-radius: 13px;
+      }
+      .tab {
+        appearance: none; border: 0; background: transparent; cursor: pointer;
+        font-family: inherit; font-size: 0.95rem; font-weight: 500; color: #8e8e98;
+        display: inline-flex; align-items: baseline; gap: 8px;
+        padding: 9px 17px; border-radius: 9px;
+        transition: background 0.16s ease, color 0.16s ease;
+      }
+      .tab:hover { color: #c8c8d2; }
+      .tab.is-active { background: #25252e; color: #f6f6f8; }
+      .tab__hint {
+        font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+        letter-spacing: 0.08em; text-transform: uppercase; color: #56565f;
+      }
+      .tab.is-active .tab__hint { color: #e85494; }
+      .tab:focus-visible { outline: 2px solid #e85494; outline-offset: 2px; }
+      .tabpanel[hidden] { display: none; }
+      .panel-lede {
+        color: #8e8e98; font-size: 1.0625rem; line-height: 1.6;
+        max-width: 64ch; margin: 0 0 32px;
+      }
+      .panel-lede code {
+        font-family: 'JetBrains Mono', monospace; font-size: 0.9em;
+        color: #f2f2f4; background: #18181d; padding: 1px 6px; border-radius: 5px;
+      }
       /* ---------- Cinematic finishing (exported before/after) ---------- */
-      .cinematic { margin-top: 88px; padding-top: 56px; border-top: 1px solid #26262c; }
-      .cinematic__head { max-width: 70ch; margin-bottom: 40px; }
+      .cinematic { margin: 0; }
+      .cinematic__head { max-width: 70ch; margin-bottom: 36px; }
       .cinematic__head h2 {
         font-family: 'Clash Display', 'Space Grotesk', sans-serif;
         font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 600; line-height: 1.08;
         letter-spacing: -0.02em; margin: 0 0 14px;
       }
       .cinematic__head .lede { font-size: 1.0625rem; }
-      .cinematic__grid { display: flex; flex-direction: column; gap: 64px; }
+      /* Each finishing move is a self-contained CARD: numbered title up top (clear
+         hierarchy), the before/after media, then the blurb + code in a tidy two-up
+         row. Consistent containment + rhythm instead of a ragged stacked column. */
+      .cinematic__grid { display: flex; flex-direction: column; gap: 28px; }
+      .cfx {
+        background: linear-gradient(180deg, #131319, #0f0f15);
+        border: 1px solid #23232a; border-radius: 18px;
+        padding: 24px 26px 26px;
+        transition: border-color 0.18s ease;
+      }
+      .cfx:hover { border-color: #34343d; }
+      .cfx__head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px; }
+      .cfx__num {
+        font-family: 'JetBrains Mono', monospace; font-size: 12px;
+        letter-spacing: 0.14em; color: #e85494; flex: none;
+      }
+      .cfx__title {
+        font-family: 'Clash Display', 'Space Grotesk', sans-serif;
+        font-size: 1.3rem; font-weight: 600; letter-spacing: -0.01em; margin: 0;
+      }
       .cfx__media {
-        display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+        display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;
       }
       .cfx__media--strip { grid-template-columns: 1fr; }
       .cfx figure {
-        margin: 0; position: relative; border-radius: 12px; overflow: hidden;
+        margin: 0; position: relative; border-radius: 11px; overflow: hidden;
         border: 1px solid #26262c; background: #08080c; line-height: 0;
       }
       .cfx figure img { display: block; width: 100%; height: auto; }
       .cfx figcaption {
-        position: absolute; bottom: 10px; left: 12px; line-height: 1;
-        font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.02em;
-        color: #f2f2f4; background: rgba(0, 0, 0, 0.58); padding: 4px 9px; border-radius: 7px;
+        position: absolute; bottom: 9px; left: 10px; line-height: 1;
+        font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.02em;
+        color: #f2f2f4; background: rgba(0, 0, 0, 0.6); padding: 4px 9px; border-radius: 7px;
       }
-      .cfx__title {
-        font-family: 'Clash Display', 'Space Grotesk', sans-serif;
-        font-size: 1.4rem; font-weight: 600; letter-spacing: -0.01em; margin: 22px 0 8px;
+      /* Blurb + snippet share a row under the media: prose left, code right, tops
+         aligned — uses the width and shortens each card. */
+      .cfx__detail {
+        display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+        gap: 24px; align-items: start;
       }
-      .cfx__blurb { color: #8e8e98; line-height: 1.6; max-width: 72ch; margin: 0 0 16px; }
+      .cfx__blurb { color: #9a9aa4; line-height: 1.6; font-size: 0.95rem; margin: 0; }
       .cfx__code {
-        background: #08080c; border: 1px solid #26262c; border-radius: 10px;
-        padding: 14px 16px; overflow-x: auto; margin: 0;
+        background: #08080c; border: 1px solid #23232a; border-radius: 10px;
+        padding: 13px 15px; overflow-x: auto; margin: 0;
       }
       .cfx__code code {
-        font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.5;
+        font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.5;
         color: #cdd2e0; white-space: pre;
+      }
+      /* ---------- Shape operators: a live SVG draw-on + the engine strip ---------- */
+      .shapes__demo {
+        display: grid; grid-template-columns: 0.78fr 1.22fr; gap: 14px;
+        align-items: stretch; margin-bottom: 20px;
+      }
+      .shapes__live, .shapes__strip {
+        margin: 0; position: relative; border-radius: 11px; overflow: hidden;
+        border: 1px solid #26262c; background: #0a0d17; line-height: 0;
+      }
+      .shapes__live { display: flex; align-items: center; justify-content: center; padding: 18px; }
+      .shapes__live svg { width: 78%; max-width: 230px; height: auto; display: block; }
+      .shapes__strip { display: flex; align-items: center; }
+      .shapes__strip--solo { margin-bottom: 20px; }
+      .shapes__strip img { display: block; width: 100%; height: auto; }
+      .shapes__live figcaption, .shapes__strip figcaption {
+        position: absolute; bottom: 9px; left: 10px; line-height: 1;
+        font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.02em;
+        color: #f2f2f4; background: rgba(0, 0, 0, 0.6); padding: 4px 9px; border-radius: 7px;
+      }
+      .shapes__live figcaption code, .cfx figcaption code {
+        font-family: inherit; color: #e85494; background: none; padding: 0;
+      }
+      /* The line-draw: `pathLength=100` normalises every path, so one keyframe draws on
+         (offset 100→0), holds, then erases off (→ -100) for a seamless loop. This IS
+         trim's length-normalised dash, in CSS. */
+      .draw { stroke-dasharray: 100; animation: trimDraw 3.4s ease-in-out infinite; }
+      .draw--late { animation-delay: 0.55s; }
+      @keyframes trimDraw {
+        0% { stroke-dashoffset: 100; }
+        42% { stroke-dashoffset: 0; }
+        68% { stroke-dashoffset: 0; }
+        100% { stroke-dashoffset: -100; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .draw { animation: none; stroke-dashoffset: 0; }
+      }
+      @media (max-width: 760px) {
+        .shapes__demo { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 860px) {
+        .cfx__detail { grid-template-columns: 1fr; gap: 16px; }
       }
       @media (max-width: 760px) {
         .gnav__links { display: none; }
         .gmain { padding: 32px 20px 64px; }
+        .cfx { padding: 18px 18px 20px; }
         .cfx__media { grid-template-columns: 1fr; }
       }
     </style>
+
+    <script>
+      // Tab switcher: toggle VISIBILITY (never unmount) so the live WebGPU gallery
+      // keeps its engine across switches. Deep-linkable via the hash + arrow-key nav.
+      const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.tab'))
+      const panelFor = (tabId: string) => document.getElementById(tabId.replace('tab-', 'panel-'))
+      const HASH: Record<string, string> = {
+        interactive: 'tab-live',
+        live: 'tab-live',
+        cinematic: 'tab-cine',
+        finishing: 'tab-cine',
+        cine: 'tab-cine',
+        shapes: 'tab-shapes',
+        'shape-operators': 'tab-shapes',
+        mograph: 'tab-shapes',
+      }
+
+      function activate(tabId: string, opts: { focus?: boolean; push?: boolean } = {}) {
+        for (const t of tabs) {
+          const on = t.id === tabId
+          t.classList.toggle('is-active', on)
+          t.setAttribute('aria-selected', on ? 'true' : 'false')
+          t.tabIndex = on ? 0 : -1
+          const panel = panelFor(t.id)
+          if (panel) panel.hidden = !on
+          if (on && opts.focus) t.focus()
+        }
+        if (opts.push !== false) {
+          const slug =
+            tabId === 'tab-cine' ? 'cinematic' : tabId === 'tab-shapes' ? 'shapes' : 'interactive'
+          history.replaceState(null, '', `#${slug}`)
+        }
+      }
+
+      for (const t of tabs) t.addEventListener('click', () => activate(t.id))
+
+      // ← / → move between tabs (WAI-ARIA tabs pattern).
+      document.querySelector('.tabs')?.addEventListener('keydown', (e) => {
+        const ev = e as KeyboardEvent
+        if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return
+        const i = tabs.findIndex((t) => t.classList.contains('is-active'))
+        const n = ev.key === 'ArrowRight' ? (i + 1) % tabs.length : (i - 1 + tabs.length) % tabs.length
+        activate(tabs[n].id, { focus: true })
+        ev.preventDefault()
+      })
+
+      // Deep link: /effects#cinematic (or #finishing) opens that tab on load.
+      const fromHash = HASH[(location.hash || '').replace('#', '').toLowerCase()]
+      if (fromHash) activate(fromHash, { push: false })
+    </script>
   </body>
 </html>
