@@ -231,9 +231,9 @@ const CINEMATIC = {
             <p class="eyebrow">SHAPE OPERATORS</p>
             <h2>The mograph vocabulary — operations on the path itself.</h2>
             <p class="lede">
-              Not pixels — geometry. The operators motion designers live in: trim paths and the
-              repeater (here), with boolean ops landing next. Trim draws a stroke on; the repeater
-              stamps a subtree into grids, radial arrays and compounding spirals.
+              Not pixels — geometry. The operators motion designers live in, all here: trim paths
+              draw a stroke on; the repeater stamps a subtree into grids, radial arrays and
+              compounding spirals; boolean ops merge shapes into one outline.
             </p>
           </header>
           <div class="cinematic__grid">
@@ -321,6 +321,35 @@ const CINEMATIC = {
   originX={180} originY={180} endOpacity={0.15}>
   <Ellipse width={40} height={40} fill="#5ad1ff" />
 </Repeater>`}</code></pre>
+              </div>
+            </article>
+
+            <article class="cfx">
+              <div class="cfx__head">
+                <span class="cfx__num">03</span>
+                <h3 class="cfx__title">Boolean ops — union, difference, intersect, xor</h3>
+              </div>
+              <figure class="shapes__strip shapes__strip--solo">
+                <img
+                  src="/effects/boolean.png"
+                  alt="Two circles combined four ways: union, difference, intersect, xor"
+                  loading="lazy"
+                />
+                <figcaption>two circles, four ops — one &lt;Merge&gt; each (GPU = CPU)</figcaption>
+              </figure>
+              <div class="cfx__detail">
+                <p class="cfx__blurb">
+                  Combine shape children into ONE outline (After Effects' "Merge Paths"): union to add,
+                  difference to subtract the rest from the first, intersect for the common area, xor for
+                  the symmetric difference. A ring = circle − circle; a lens = circle ∩ circle; a speech
+                  bubble = rect ∪ triangle. The engine flattens each operand's curves, folds them
+                  pairwise with i_overlay, and rebuilds a single fillable/strokable path — resolved on
+                  both backends, so GPU and CPU agree to the pixel.
+                </p>
+                <pre class="cfx__code"><code>{`<Merge op="difference" fill="#5ad1ff">
+  <Ellipse width={130} height={130} />
+  <Ellipse x={70} width={120} height={120} />
+</Merge>`}</code></pre>
               </div>
             </article>
           </div>

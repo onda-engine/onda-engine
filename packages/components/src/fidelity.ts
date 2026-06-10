@@ -442,6 +442,7 @@ export const ENGINE_CAPABILITIES = {
     'per-object MOTION BLUR — shutter-angle temporal supersampling via `<Composition motionBlur={…}>`: every moving element smears by its OWN motion (translation/rotation/scale), static stays sharp (export-only, N× render cost)',
     'trim paths — `trimStart`/`trimEnd`/`trimOffset` (0..1) on any stroked shape draw only that arc-length slice of the outline; the mograph line-draw, animate `trimEnd` 0→1 (CPU+GPU)',
     'repeater — `<Repeater count offsetX offsetY rotation scale startOpacity endOpacity>` stamps a subtree with COMPOUNDING transforms: grids (nest two), radial arrays, spirals, motion trails (all backends)',
+    'boolean ops (merge paths) — `<Merge op="union|difference|intersect|xor">` combines shape children into ONE outline (ring = circle−circle, lens = circle∩circle, speech bubble = rect∪triangle); curves flattened, resolved on both backends (i_overlay)',
     'Camera — pan / zoom viewport primitive for 2.5D camera moves',
     'no-Chromium export (ffmpeg / GIF / PNG)',
   ],
