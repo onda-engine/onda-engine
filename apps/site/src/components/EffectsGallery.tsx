@@ -7,6 +7,7 @@ import {
   Rect,
   Text,
   interpolate,
+  linearGradient,
   useCurrentFrame,
 } from '@onda/react'
 import velloWasmUrl from '@onda/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
@@ -137,6 +138,44 @@ function BlurDemo(): ReactElement {
     ),
   ]
   return Split(createElement(Rect, { width: W, height: H, fill: '#0a0d17' }), content, { blur })
+}
+
+/** directional blur — motion smear: ON streaks along an angle that SWEEPS, so it
+ *  reads as in-motion (a 1D blur), unlike the omnidirectional blur above. */
+function DirectionalBlurDemo(): ReactElement {
+  const f = useCurrentFrame()
+  const angle = interpolate(f, [0, 90], [0, Math.PI], { extrapolateRight: 'clamp' })
+  const sigma = loop(f, 6, 15)
+  const content = (_o: number): ReactElement[] => [
+    createElement(Rect, {
+      key: 'sq',
+      x: 56,
+      y: 84,
+      width: 96,
+      height: 96,
+      cornerRadius: 16,
+      fill: '#2d6cdf',
+      opacity: 0.9,
+    }),
+    createElement(Rect, {
+      key: 'sq2',
+      x: 300,
+      y: 320,
+      width: 84,
+      height: 84,
+      cornerRadius: 16,
+      fill: '#27b78d',
+      opacity: 0.9,
+    }),
+    createElement(
+      Text,
+      { key: 'word', x: 40, y: 232, fontSize: 96, color: INK, fontWeight: 700, letterSpacing: -2 },
+      'SPEED',
+    ),
+  ]
+  return Split(createElement(Rect, { width: W, height: H, fill: '#0a0d17' }), content, {
+    directionalBlur: { sigma, angle },
+  })
 }
 
 /** bloom — bright accents on near-black. ON glows a soft halo. */
@@ -357,6 +396,166 @@ function MatteDemo(): ReactElement {
   })
 }
 
+/** chromaticAberration — a lens RGB split. ON fringes the edges into red/cyan,
+ *  the amount breathing so the fringe widens and tightens like a focus pull. */
+function ChromaticAberrationDemo(): ReactElement {
+  const f = useCurrentFrame()
+  const amount = loop(f, 3, 13)
+  const content = (_o: number): ReactElement[] => [
+    createElement(Rect, {
+      key: 'card',
+      x: 40,
+      y: 150,
+      width: 400,
+      height: 240,
+      cornerRadius: 22,
+      fill: '#11131c',
+    }),
+    createElement(
+      Text,
+      { key: 'word', x: 70, y: 150, fontSize: 150, color: INK, fontWeight: 800, letterSpacing: -6 },
+      'RGB',
+    ),
+    createElement(
+      Text,
+      { key: 'sub', x: 76, y: 326, fontSize: 26, color: ACCENT, fontWeight: 700, letterSpacing: 3 },
+      'LENS SHIFT',
+    ),
+  ]
+  return Split(createElement(Rect, { width: W, height: H, fill: '#0a0d17' }), content, {
+    chromaticAberration: amount,
+  })
+}
+
+/** vignette — radial edge darkening over a warm sky. ON sinks the corners into
+ *  shadow and holds the centre bright, the photographic “drawn-in” look. */
+function VignetteDemo(): ReactElement {
+  const f = useCurrentFrame()
+  const amount = loop(f, 0.4, 0.95)
+  const content = (_o: number): ReactElement[] => [
+    createElement(Rect, {
+      key: 'sky',
+      x: 0,
+      y: 0,
+      width: HALF,
+      height: H,
+      gradient: linearGradient(
+        [0, 0],
+        [0, H],
+        [
+          { offset: 0, color: '#ffd07a' },
+          { offset: 1, color: '#e2566f' },
+        ],
+      ),
+    }),
+    createElement(Ellipse, {
+      key: 'sun',
+      x: HALF / 2 - 66,
+      y: 150,
+      width: 132,
+      height: 132,
+      fill: '#fff2cf',
+    }),
+  ]
+  return Split(createElement(Rect, { width: W, height: H, fill: '#0a0d17' }), content, {
+    vignette: { amount, softness: 0.55 },
+  })
+}
+
+/** posterize — quantize a smooth gradient into hard bands. ON steps the blend
+ *  down to a few flat levels (the count breathing), a screen-print / cel look. */
+function PosterizeDemo(): ReactElement {
+  const f = useCurrentFrame()
+  const levels = Math.max(2, Math.round(loop(f, 3, 7)))
+  const content = (_o: number): ReactElement[] => [
+    createElement(Rect, {
+      key: 'grad',
+      x: 36,
+      y: 90,
+      width: HALF - 72,
+      height: H - 180,
+      cornerRadius: 18,
+      gradient: linearGradient(
+        [0, 0],
+        [HALF - 72, 0],
+        [
+          { offset: 0, color: '#2d6cdf' },
+          { offset: 0.5, color: '#e2566f' },
+          { offset: 1, color: '#f0b03a' },
+        ],
+      ),
+    }),
+  ]
+  return Split(createElement(Rect, { width: W, height: H, fill: '#0a0d17' }), content, {
+    posterize: levels,
+  })
+}
+
+/** duotone — map a photo’s luminance onto two brand colors. ON reprints the
+ *  same shot in deep-purple shadows and gold highlights (the Spotify-poster move). */
+function DuotoneDemo(): ReactElement {
+  const content = (_o: number): ReactElement[] => [
+    createElement(Img, {
+      key: 'shot',
+      x: 0,
+      y: 0,
+      width: HALF,
+      height: H,
+      src: '/gallery-sample.jpg',
+      fit: 'cover',
+    }),
+  ]
+  return Split(createElement(Rect, { width: W, height: H, fill: '#000000' }), content, {
+    duotone: { shadow: '#241a3a', highlight: '#ffcf5e' },
+  })
+}
+
+/** chromaKey — knock out the green screen. ON keys the green to transparent so
+ *  the dark backdrop shows through, leaving only the subject — a live matte pull. */
+function ChromaKeyDemo(): ReactElement {
+  const content = (_o: number): ReactElement[] => [
+    createElement(Rect, { key: 'green', x: 0, y: 0, width: HALF, height: H, fill: '#10c820' }),
+    createElement(Rect, {
+      key: 'card',
+      x: 96,
+      y: 150,
+      width: 290,
+      height: 230,
+      cornerRadius: 22,
+      fill: '#11131c',
+    }),
+    createElement(
+      Text,
+      {
+        key: 'word',
+        x: 124,
+        y: 158,
+        fontSize: 110,
+        color: INK,
+        fontWeight: 800,
+        letterSpacing: -4,
+      },
+      'CUT',
+    ),
+    createElement(
+      Text,
+      {
+        key: 'sub',
+        x: 128,
+        y: 330,
+        fontSize: 24,
+        color: ACCENT,
+        fontWeight: 700,
+        letterSpacing: 2,
+      },
+      'GREEN SCREEN',
+    ),
+  ]
+  return Split(createElement(Rect, { width: W, height: H, fill: '#0a0d17' }), content, {
+    chromaKey: { color: '#10c820', threshold: 0.4, smoothness: 0.15 },
+  })
+}
+
 interface EffectDef {
   name: string
   Demo: () => ReactElement
@@ -373,6 +572,15 @@ const EFFECTS: EffectDef[] = [
     snippet: ['<Group blur={9}>', '  <Scene />', '</Group>'].join('\n'),
   },
   {
+    name: 'directionalBlur',
+    Demo: DirectionalBlurDemo,
+    blurb:
+      'Left, the sharp scene. Right, a directional (motion) blur — a 1D gaussian smear along an angle (here sweeping), so fast moves read as in-motion instead of a round defocus. Reuses the blur pipeline as a single angled pass; deterministic on the CPU reference and identical on the GPU.',
+    snippet: ['<Group directionalBlur={{ sigma: 12, angle: 0 }}>', '  <Scene />', '</Group>'].join(
+      '\n',
+    ),
+  },
+  {
     name: 'bloom',
     Demo: BloomDemo,
     blurb:
@@ -387,6 +595,51 @@ const EFFECTS: EffectDef[] = [
     snippet: [
       '<Group grade={{ temperature: 0.3, contrast: 1.24, saturation: 1.12 }}>',
       '  <Img src="clip.jpg" />',
+      '</Group>',
+    ].join('\n'),
+  },
+  {
+    name: 'chromaticAberration',
+    Demo: ChromaticAberrationDemo,
+    blurb:
+      'Left, a clean title. Right, a lens chromatic aberration — the red and blue channels split radially from the centre, so edges fringe into red/cyan. A tiny amount adds analog-glass realism; a large one reads as glitch. One per-pixel pass shared with vignette, posterize, duotone and chroma key on a single GPU pipeline; deterministic on the CPU reference.',
+    snippet: ['<Group chromaticAberration={6}>', '  <Title />', '</Group>'].join('\n'),
+  },
+  {
+    name: 'vignette',
+    Demo: VignetteDemo,
+    blurb:
+      'The same warm sky, left and right — but on the right the corners sink into shadow while the centre stays bright. A radial vignette draws the eye inward and frames the subject, the oldest cinematographer’s trick. Amount sets the depth, softness the falloff.',
+    snippet: ['<Group vignette={{ amount: 0.8, softness: 0.55 }}>', '  <Scene />', '</Group>'].join(
+      '\n',
+    ),
+  },
+  {
+    name: 'posterize',
+    Demo: PosterizeDemo,
+    blurb:
+      'Left, a smooth gradient. Right, the same blend quantized into a handful of flat bands — a screen-print / cel-shaded look. Each channel is snapped to N levels; drop the count for a bolder poster, raise it to ease back toward continuous tone.',
+    snippet: ['<Group posterize={4}>', '  <Gradient />', '</Group>'].join('\n'),
+  },
+  {
+    name: 'duotone',
+    Demo: DuotoneDemo,
+    blurb:
+      'Left, the raw photo. Right, the SAME shot reprinted in two colors — its luminance mapped onto a deep-purple shadow and a gold highlight (the Spotify-poster / risograph move). A fast way to fold mixed or AI-generated media into one brand palette.',
+    snippet: [
+      '<Group duotone={{ shadow: "#241a3a", highlight: "#ffcf5e" }}>',
+      '  <Img src="shot.jpg" fit="cover" />',
+      '</Group>',
+    ].join('\n'),
+  },
+  {
+    name: 'chromaKey',
+    Demo: ChromaKeyDemo,
+    blurb:
+      'Left, a subject on a green screen. Right, the green is keyed to transparent so the backdrop shows through — a live matte pull. threshold sets how close to the key color counts as “green”; smoothness feathers the edge so hair and motion blur don’t hard-clip. Composite the result over any scene.',
+    snippet: [
+      '<Group chromaKey={{ color: "#10c820", threshold: 0.4, smoothness: 0.15 }}>',
+      '  <Footage />',
       '</Group>',
     ].join('\n'),
   },
