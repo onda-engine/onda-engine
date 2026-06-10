@@ -151,6 +151,23 @@ fn fixtures() -> Vec<(&'static str, Scene)> {
                 .with_fill(rose),
             )),
         ),
+        // Precomp / isolate: a half-opacity group of two OVERLAPPING white squares.
+        // The isolate flattens to one layer first, so the overlap stays uniform (not
+        // double-darkened) — locks the composite-then-fade on the CPU reference.
+        (
+            "precomp_isolate",
+            scene(
+                Node::group()
+                    .with_opacity(0.5)
+                    .with_effect(Effect::Isolate)
+                    .with_children([
+                        Node::shape(Shape::rect(Size::new(90.0, 90.0)).with_fill(Color::WHITE))
+                            .with_transform(translate(30.0, 25.0)),
+                        Node::shape(Shape::rect(Size::new(90.0, 90.0)).with_fill(Color::WHITE))
+                            .with_transform(translate(80.0, 45.0)),
+                    ]),
+            ),
+        ),
         // Text (bundled font → deterministic glyph coverage).
         (
             "text",

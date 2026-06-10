@@ -1334,6 +1334,7 @@ impl Renderer {
             .effects
             .iter()
             .map(|e| match e {
+                Effect::Isolate => 0.0,
                 Effect::Blur { sigma } => (3.0 * sigma.max(0.0)).ceil(),
                 // Directional blur smears along one axis with `sigma`; the same 3σ
                 // headroom covers the worst case (the full smear along either axis).
@@ -1393,6 +1394,8 @@ impl Renderer {
         // Run the effect chain on the captured surface.
         for effect in &node.effects {
             match effect {
+                // Isolate/precomp: no pixel change — render-to-texture flatten is the point.
+                Effect::Isolate => {}
                 Effect::Blur { sigma } => blur_framebuffer(&mut temp, *sigma),
                 Effect::DirectionalBlur { sigma, angle } => {
                     directional_blur_framebuffer(&mut temp, *sigma, *angle)

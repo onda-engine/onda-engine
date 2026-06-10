@@ -208,6 +208,9 @@ export interface Layout {
  *  The subtree renders to an offscreen surface, the chain runs, then the result
  *  composites back at the node's transform/opacity/blend/clip. */
 export type Effect =
+  /** Isolate / precomp: flatten the subtree to one layer (render-to-texture) so the
+   *  node's opacity/blend apply to the composited result, not per-child. */
+  | { effect: 'isolate' }
   /** Gaussian blur; `sigma` = std-dev in OUTPUT px (CSS `blur()`). */
   | { effect: 'blur'; sigma: number }
   /** Directional (motion) blur: a 1D blur of std-dev `sigma` (px) smeared along
