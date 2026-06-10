@@ -160,6 +160,16 @@ const CINEMATIC = {
           >
             Shape operators <span class="tab__hint">mograph</span>
           </button>
+          <button
+            class="tab"
+            type="button"
+            role="tab"
+            id="tab-particles"
+            aria-selected="false"
+            aria-controls="panel-particles"
+          >
+            Particles <span class="tab__hint">generative</span>
+          </button>
         </div>
 
         <section id="panel-live" class="tabpanel" role="tabpanel" aria-labelledby="tab-live">
@@ -350,6 +360,58 @@ const CINEMATIC = {
   <Ellipse width={130} height={130} />
   <Ellipse x={70} width={120} height={120} />
 </Merge>`}</code></pre>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section
+          id="panel-particles"
+          class="tabpanel"
+          role="tabpanel"
+          aria-labelledby="tab-particles"
+          hidden
+        >
+          <header class="cinematic__head">
+            <p class="eyebrow">PARTICLES</p>
+            <h2>A deterministic particle emitter.</h2>
+            <p class="lede">
+              Bursts, fountains, confetti, sparks, dust, snow. Every particle's whole state — spawn
+              point, velocity, age, size, opacity, colour, spin — is a PURE function of the frame,
+              the seed, and the index, so the same comp renders the same field on every machine. No
+              <code>Math.random</code>, no wall-clock, no engine pass: each live particle is just a
+              shape, so position, size, opacity and colour render identically on the CPU and GPU
+              (only <code>spin</code> needs the GPU, like all rotation).
+            </p>
+          </header>
+          <div class="cinematic__grid">
+            <article class="cfx">
+              <div class="cfx__head">
+                <span class="cfx__num">01</span>
+                <h3 class="cfx__title">&lt;Particles&gt; — a physics burst</h3>
+              </div>
+              <figure class="shapes__strip shapes__strip--solo">
+                <img
+                  src="/effects/particles.png"
+                  alt="A colourful omnidirectional confetti burst with spinning squares and sparkles"
+                  loading="lazy"
+                />
+                <figcaption>one frame of a 170-piece burst — deterministic, frame-driven</figcaption>
+              </figure>
+              <div class="cfx__detail">
+                <p class="cfx__blurb">
+                  Emit `count` particles from an origin (or a spawn disc), launch them along an
+                  `angle` within a `spread` cone at a `speed` with variance, then let `gravity` pull
+                  them through their `lifetime` while `size`, `opacity` and `colour` lerp and `spin`
+                  turns them. `emitOver` staggers the emission; `loop` re-emits for a continuous
+                  fountain. Because it's a closed-form function of the frame, you can scrub anywhere
+                  and export deterministically — and it's frame-based, so it composes with the rest
+                  of the timeline.
+                </p>
+                <pre class="cfx__code"><code>{`<Particles count={170} x={W/2} y={190}
+  spread={360} speed={5} gravity={0.08} lifetime={70}
+  shape="square" size={[13, 6]} spin={420}
+  colors={["#e85494", "#ffd36b", "#5ad1ff", "#27b78d"]} />`}</code></pre>
               </div>
             </article>
           </div>
@@ -557,6 +619,8 @@ const CINEMATIC = {
         shapes: 'tab-shapes',
         'shape-operators': 'tab-shapes',
         mograph: 'tab-shapes',
+        particles: 'tab-particles',
+        generative: 'tab-particles',
       }
 
       function activate(tabId: string, opts: { focus?: boolean; push?: boolean } = {}) {
@@ -571,7 +635,13 @@ const CINEMATIC = {
         }
         if (opts.push !== false) {
           const slug =
-            tabId === 'tab-cine' ? 'cinematic' : tabId === 'tab-shapes' ? 'shapes' : 'interactive'
+            tabId === 'tab-cine'
+              ? 'cinematic'
+              : tabId === 'tab-shapes'
+                ? 'shapes'
+                : tabId === 'tab-particles'
+                  ? 'particles'
+                  : 'interactive'
           history.replaceState(null, '', `#${slug}`)
         }
       }
