@@ -22,6 +22,7 @@ gif = { version = "0.14", optional = true }
 # Optional so the renderer still builds for wasm32 (no threads there); native
 # callers (CLI, benchmark) opt in for multi-core offline rendering.
 rayon = { version = "1", optional = true }
+i_overlay = { version = "4.5.2", default-features = false }
 
 [features]
 png = ["dep:png"]

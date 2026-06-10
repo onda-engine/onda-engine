@@ -4,13 +4,14 @@ import { type ReactElement, createElement } from 'react'
 import Reconciler from 'react-reconciler'
 import { type ClipInput, parseClip } from './clip.js'
 import { type ColorInput, parseColor } from './color.js'
-import { Composition, type TextRunInput } from './components.js'
+import { Composition, type CompositionProps, type TextRunInput } from './components.js'
 import { FrameContext, type VideoConfig } from './frame.js'
 import { type GradientInput, parseGradient } from './gradient.js'
 import { type HostNode, type RootContainer, hostConfig } from './host-config.js'
 import type {
   Color,
   Effect,
+  Finish,
   Gradient,
   Layout,
   NodeKind,
@@ -86,27 +87,67 @@ export function renderToScene(element: ReactElement): Scene {
   return renderFrame(element, 0)
 }
 
-/** Render every frame `0..durationInFrames` to static scenes. */
+/** The MOTION BLUR config declared on `<Composition motionBlur={…}>`, normalised, or
+ *  `undefined` when off. `true` → a 180° shutter at 16 samples; `samples < 2` is off.
+ *  Exported so the export orchestration can pass the matching `--motion-blur K`. */
+export function motionBlurConfig(
+  element: ReactElement,
+): { shutter: number; samples: number } | undefined {
+  const mb = (element.props as Record<string, unknown>).motionBlur
+  if (!mb) return undefined
+  if (mb === true) return { shutter: 180, samples: 16 }
+  if (typeof mb !== 'object') return undefined
+  const o = mb as { shutter?: number; samples?: number }
+  const samples = typeof o.samples === 'number' ? Math.max(1, Math.round(o.samples)) : 16
+  if (samples < 2) return undefined // a single sample is just the sharp frame
+  const shutter = typeof o.shutter === 'number' ? Math.min(720, Math.max(1, o.shutter)) : 180
+  return { shutter, samples }
+}
+
+/** The scene(s) for ONE output frame: a single render normally, or `samples`
+ *  sub-frames spread symmetrically across the shutter window when motion blur is on
+ *  (the CLI's `--motion-blur K` averages each group of K back into one frame). */
+function outputFrameScenes(
+  element: ReactElement,
+  frame: number,
+  mb: { shutter: number; samples: number } | undefined,
+): Scene[] {
+  if (!mb) return [renderFrame(element, frame)]
+  const shutterFrames = mb.shutter / 360 // shutter-open time, in frames
+  const scenes: Scene[] = []
+  for (let i = 0; i < mb.samples; i++) {
+    const t = ((i + 0.5) / mb.samples - 0.5) * shutterFrames
+    scenes.push(renderFrame(element, frame + t))
+  }
+  return scenes
+}
+
+/** Render every frame `0..durationInFrames` to static scenes. With
+ *  `<Composition motionBlur>`, each frame expands to `samples` sub-frame scenes for
+ *  the CLI to average (so the array length is `durationInFrames × samples`). */
 export function renderFrames(element: ReactElement): Scene[] {
   const { durationInFrames } = videoConfig(element)
+  const mb = motionBlurConfig(element)
   const frames: Scene[] = []
   for (let frame = 0; frame < durationInFrames; frame++) {
-    frames.push(renderFrame(element, frame))
+    frames.push(...outputFrameScenes(element, frame, mb))
   }
   return frames
 }
 
 /** Render a sub-range `[startFrame, endFrame)` to static scenes.
  *  The returned array starts at index 0; the scenes carry the original frame
- *  numbers so `useCurrentFrame()` reads the correct composition time. */
+ *  numbers so `useCurrentFrame()` reads the correct composition time. Motion blur
+ *  expands each frame to `samples` sub-frames, exactly like {@link renderFrames}. */
 export function renderFramesRange(
   element: ReactElement,
   startFrame: number,
   endFrame: number,
 ): Scene[] {
+  const mb = motionBlurConfig(element)
   const frames: Scene[] = []
   for (let frame = startFrame; frame < endFrame; frame++) {
-    frames.push(renderFrame(element, frame))
+    frames.push(...outputFrameScenes(element, frame, mb))
   }
   return frames
 }
@@ -145,6 +186,30 @@ function videoConfig(element: ReactElement): VideoConfig {
   }
 }
 
+/** Build a scene-level {@link Finish} from the `<Composition finish={...}>` prop —
+ *  pass through the numeric fields, dropping anything malformed so a bad value can't
+ *  corrupt the scene JSON (validate at the boundary). */
+function parseFinish(f: NonNullable<CompositionProps['finish']>): Finish {
+  const out: Finish = {}
+  if (typeof f.exposure === 'number') out.exposure = f.exposure
+  if (f.bloom && typeof f.bloom.sigma === 'number') {
+    out.bloom = { sigma: f.bloom.sigma }
+    if (typeof f.bloom.threshold === 'number') out.bloom.threshold = f.bloom.threshold
+    if (typeof f.bloom.intensity === 'number') out.bloom.intensity = f.bloom.intensity
+  }
+  if (typeof f.halation === 'number') out.halation = f.halation
+  if (typeof f.temperature === 'number') out.temperature = f.temperature
+  if (typeof f.contrast === 'number') out.contrast = f.contrast
+  if (typeof f.saturation === 'number') out.saturation = f.saturation
+  if (typeof f.vignette === 'number') out.vignette = f.vignette
+  if (typeof f.grain === 'number' && f.grain > 0) {
+    out.grain = f.grain
+    // Inject the current frame as the seed so grain *lives* (varies per frame).
+    out.grain_seed = activeFrameState?.frame ?? 0
+  }
+  return out
+}
+
 function compositionToScene(node: HostNode): Scene {
   const { props } = node
   return {
@@ -156,6 +221,8 @@ function compositionToScene(node: HostNode): Scene {
       // Opt-in cinematic LINEAR + ACES finishing (gpu/export only); omitted (→ gamma)
       // unless explicitly enabled, so existing scenes stay byte-identical.
       ...(props.linear === true ? { linear: true } : {}),
+      // Composition-level cinematic FINISH (linear-HDR chain + ACES); omitted unless set.
+      ...(props.finish ? { finish: parseFinish(props.finish) } : {}),
     },
     root: {
       kind: { type: 'group' },
@@ -229,6 +296,18 @@ function toNode(node: HostNode): SceneNode {
   const effects: Effect[] = Array.isArray(props.effects) ? [...(props.effects as Effect[])] : []
   if (typeof props.blur === 'number' && props.blur > 0)
     effects.unshift({ effect: 'blur', sigma: props.blur })
+  const directionalBlur = parseDirectionalBlur(props.directionalBlur)
+  if (directionalBlur) effects.unshift(directionalBlur)
+  const chromaticAberration = parseChromaticAberration(props.chromaticAberration)
+  if (chromaticAberration) effects.push(chromaticAberration)
+  const vignette = parseVignette(props.vignette)
+  if (vignette) effects.push(vignette)
+  const posterize = parsePosterize(props.posterize)
+  if (posterize) effects.push(posterize)
+  const duotone = parseDuotone(props.duotone)
+  if (duotone) effects.push(duotone)
+  const chromaKey = parseChromaKey(props.chromaKey)
+  if (chromaKey) effects.push(chromaKey)
   const bloom = parseBloom(props.bloom)
   if (bloom) effects.push(bloom)
   const grade = parseGrade(props.grade)
@@ -427,6 +506,84 @@ const normAlign = (v: unknown): unknown =>
 /** Resolve the `bloom` sugar prop into a `{ effect: 'bloom', ... }` effect, or
  *  `undefined` when absent/degenerate. A bare number is the `sigma`; the object
  *  form overrides `threshold` (default 0.7) / `intensity` (default 1). */
+/** Resolve the `directionalBlur` sugar prop into a `{ effect: 'directional_blur', … }`
+ *  effect, or `undefined` when absent / non-positive sigma. `angle` (radians)
+ *  defaults to 0 (horizontal). */
+function parseDirectionalBlur(
+  input: unknown,
+): Extract<Effect, { effect: 'directional_blur' }> | undefined {
+  if (input && typeof input === 'object') {
+    const d = input as { sigma?: number; angle?: number }
+    if (typeof d.sigma === 'number' && d.sigma > 0) {
+      return {
+        effect: 'directional_blur',
+        sigma: d.sigma,
+        angle: typeof d.angle === 'number' ? d.angle : 0,
+      }
+    }
+  }
+  return undefined
+}
+
+function parseChromaticAberration(
+  input: unknown,
+): Extract<Effect, { effect: 'chromatic_aberration' }> | undefined {
+  return typeof input === 'number' && input > 0
+    ? { effect: 'chromatic_aberration', amount: input }
+    : undefined
+}
+
+function parseVignette(input: unknown): Extract<Effect, { effect: 'vignette' }> | undefined {
+  if (typeof input === 'number') {
+    return input > 0 ? { effect: 'vignette', amount: input, softness: 0.5 } : undefined
+  }
+  if (input && typeof input === 'object') {
+    const v = input as { amount?: number; softness?: number }
+    if (typeof v.amount === 'number' && v.amount > 0) {
+      return {
+        effect: 'vignette',
+        amount: v.amount,
+        softness: typeof v.softness === 'number' ? v.softness : 0.5,
+      }
+    }
+  }
+  return undefined
+}
+
+function parsePosterize(input: unknown): Extract<Effect, { effect: 'posterize' }> | undefined {
+  return typeof input === 'number' && input >= 2
+    ? { effect: 'posterize', levels: input }
+    : undefined
+}
+
+function parseDuotone(input: unknown): Extract<Effect, { effect: 'duotone' }> | undefined {
+  if (input && typeof input === 'object') {
+    const d = input as { shadow?: ColorInput; highlight?: ColorInput }
+    if (d.shadow !== undefined && d.highlight !== undefined) {
+      const s = parseColor(d.shadow)
+      const h = parseColor(d.highlight)
+      return { effect: 'duotone', shadow: [s.r, s.g, s.b], highlight: [h.r, h.g, h.b] }
+    }
+  }
+  return undefined
+}
+
+function parseChromaKey(input: unknown): Extract<Effect, { effect: 'chroma_key' }> | undefined {
+  if (input && typeof input === 'object') {
+    const c = input as { color?: ColorInput; threshold?: number; smoothness?: number }
+    if (c.color !== undefined) {
+      const k = parseColor(c.color)
+      return {
+        effect: 'chroma_key',
+        key: [k.r, k.g, k.b],
+        threshold: typeof c.threshold === 'number' ? c.threshold : 0.4,
+        smoothness: typeof c.smoothness === 'number' ? c.smoothness : 0.1,
+      }
+    }
+  }
+  return undefined
+}
+
 function parseBloom(input: unknown): Extract<Effect, { effect: 'bloom' }> | undefined {
   if (typeof input === 'number') {
     return input > 0 ? { effect: 'bloom', threshold: 0.7, intensity: 1, sigma: input } : undefined
@@ -611,6 +768,7 @@ function fillStroke(props: Record<string, unknown>): {
     }
   }
   if (props.stroke !== undefined) {
+    const trim = parseTrim(props)
     out.stroke = {
       color: parseColor(props.stroke as never),
       width: typeof props.strokeWidth === 'number' ? props.strokeWidth : 1,
@@ -626,9 +784,28 @@ function fillStroke(props: Record<string, unknown>): {
       ...(typeof props.strokeDashOffset === 'number'
         ? { dash_offset: props.strokeDashOffset }
         : {}),
+      ...(trim ? { trim } : {}),
     }
   }
   return out
+}
+
+/** Resolve the `trimStart`/`trimEnd`/`trimOffset` props into a stroke {@link Stroke.trim}
+ *  (the mograph line-draw), or `undefined` when none is set. */
+function parseTrim(props: Record<string, unknown>): Stroke['trim'] | undefined {
+  const { trimStart, trimEnd, trimOffset } = props
+  if (
+    typeof trimStart !== 'number' &&
+    typeof trimEnd !== 'number' &&
+    typeof trimOffset !== 'number'
+  ) {
+    return undefined
+  }
+  const trim: NonNullable<Stroke['trim']> = {}
+  if (typeof trimStart === 'number') trim.start = trimStart
+  if (typeof trimEnd === 'number') trim.end = trimEnd
+  if (typeof trimOffset === 'number') trim.offset = trimOffset
+  return trim
 }
 
 function numberProp(props: Record<string, unknown>, key: string, ctx: string): number {

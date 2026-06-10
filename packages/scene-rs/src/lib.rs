@@ -36,6 +36,15 @@ pub struct Composition {
     /// WebGPU preview fall back to the gamma path, like other GPU-only features).
     #[serde(default)]
     pub linear: bool,
+    /// Composition-level cinematic FINISH: a screen-space chain run after the comp
+    /// rasterizes, in scene-linear light with HDR headroom, ending in ONE ACES film
+    /// tone-map (see [`Finish`]). This is the correct "looks shot" output transform —
+    /// unlike per-node effects (Vello hands those back as 8-bit between passes, so no
+    /// HDR survives), the finish decodes the final frame to float, composites the
+    /// finishing in linear (bloom highlights exceed 1.0 and roll off filmically), and
+    /// tone-maps once. `None` → the default gamma output. GPU/export only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finish: Option<Finish>,
 }
 
 impl Composition {
@@ -47,12 +56,19 @@ impl Composition {
             fps,
             duration_in_frames,
             linear: false,
+            finish: None,
         }
     }
 
     /// Opt into the cinematic LINEAR + ACES finishing pipeline.
     pub fn with_linear(mut self, linear: bool) -> Self {
         self.linear = linear;
+        self
+    }
+
+    /// Attach a composition-level cinematic [`Finish`] (linear HDR + ACES).
+    pub fn with_finish(mut self, finish: Finish) -> Self {
+        self.finish = Some(finish);
         self
     }
 
@@ -68,6 +84,89 @@ impl Composition {
     /// Canvas size in pixels.
     pub fn size(&self) -> Size {
         Size::new(self.width as f32, self.height as f32)
+    }
+}
+
+/// A composition-level cinematic FINISH — the screen-space chain run in scene-linear
+/// light after the comp rasterizes, ending in one ACES film tone-map. See
+/// [`Composition::finish`]. The chain order: bloom + halation → exposure → grade
+/// (temperature/contrast/saturation) → vignette → grain → ACES. Every field defaults
+/// to a no-op, so `finish: { bloom }` behaves exactly as bloom-only.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Finish {
+    /// Linear exposure multiplier applied before the tone-map (1.0 = neutral; >1
+    /// lifts mids/highlights into the ACES shoulder for a brighter filmic roll-off).
+    #[serde(default = "Finish::default_one")]
+    pub exposure: f32,
+    /// Comp-level bloom in linear HDR — bright pixels bleed real light that rolls
+    /// off through the tone-map (not a clamped overlay). `None` = no bloom.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bloom: Option<FinishBloom>,
+    /// Warm red/orange HALATION around highlights (film dye-layer scatter). 0 = off.
+    #[serde(default)]
+    pub halation: f32,
+    /// Grade: white-balance shift, + warm (boost red / cut blue), − cool. 0 = neutral.
+    #[serde(default)]
+    pub temperature: f32,
+    /// Grade: contrast around linear mid-grey. 1 = identity, >1 punchier.
+    #[serde(default = "Finish::default_one")]
+    pub contrast: f32,
+    /// Grade: saturation. 1 = identity, 0 = greyscale, >1 richer.
+    #[serde(default = "Finish::default_one")]
+    pub saturation: f32,
+    /// Vignette: radial edge darkening of the finished frame. 0 = off.
+    #[serde(default)]
+    pub vignette: f32,
+    /// Film grain intensity added in linear light (luminance-banded). 0 = off.
+    #[serde(default)]
+    pub grain: f32,
+    /// Grain animation seed — the reconciler injects the current frame, so grain
+    /// *lives* (varies per frame) instead of sitting static like dirt on the lens.
+    #[serde(default)]
+    pub grain_seed: f32,
+}
+
+impl Finish {
+    fn default_one() -> f32 {
+        1.0
+    }
+}
+
+impl Default for Finish {
+    fn default() -> Self {
+        Finish {
+            exposure: 1.0,
+            bloom: None,
+            halation: 0.0,
+            temperature: 0.0,
+            contrast: 1.0,
+            saturation: 1.0,
+            vignette: 0.0,
+            grain: 0.0,
+            grain_seed: 0.0,
+        }
+    }
+}
+
+/// Linear-HDR bloom parameters for a [`Finish`].
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct FinishBloom {
+    /// Blur σ of the highlight halo, in output px.
+    pub sigma: f32,
+    /// Brightness cutoff (0..1, on the linear luminance) above which pixels bloom.
+    #[serde(default = "FinishBloom::default_threshold")]
+    pub threshold: f32,
+    /// Halo gain — how strongly the blurred highlights add back.
+    #[serde(default = "FinishBloom::default_intensity")]
+    pub intensity: f32,
+}
+
+impl FinishBloom {
+    fn default_threshold() -> f32 {
+        0.7
+    }
+    fn default_intensity() -> f32 {
+        1.0
     }
 }
 
@@ -148,6 +247,12 @@ pub enum Effect {
     /// Screen-space Gaussian blur; `sigma` is the std-dev in OUTPUT px (matching
     /// CSS `blur()`).
     Blur { sigma: f32 },
+    /// Directional (motion) blur: a 1D Gaussian blur of std-dev `sigma` (OUTPUT px)
+    /// smeared along `angle` (radians; `0` = horizontal, `π/2` = vertical). Unlike
+    /// `Blur` (separable H+V, omnidirectional), this blurs ONLY along the motion
+    /// axis — the cinematic "in-motion" tell that reads as speed. Reuses the blur
+    /// kernel as a single pass along `(cos angle, sin angle)`.
+    DirectionalBlur { sigma: f32, angle: f32 },
     /// Glow / bloom: the subtree's bright regions (luminance above `threshold`,
     /// scaled by `intensity`) are blurred with a large `sigma` and composited
     /// *additively* over the sharp subtree. The single biggest "premium" tell —
@@ -174,6 +279,32 @@ pub enum Effect {
         saturation: f32,
         temperature: f32,
         tint: f32,
+    },
+    /// Chromatic aberration: a lens-fringe tell — the red and blue channels are
+    /// sampled at a small radial offset `amount` (px) from the composition centre
+    /// (green stays put), so edges split into red/cyan fringes. Per-pixel, cheap.
+    ChromaticAberration { amount: f32 },
+    /// Vignette: darken the subtree toward its edges — `amount` (0..1 strength at
+    /// the corners) ramped over `softness` (0..1 of the radius the falloff spans).
+    /// The cinematic edge-darkening that focuses the eye. Per-pixel.
+    Vignette { amount: f32, softness: f32 },
+    /// Posterize: quantize each color channel to `levels` discrete steps (≥2) — the
+    /// flat, banded, screen-print / cel look. Per-pixel.
+    Posterize { levels: f32 },
+    /// Duotone: map luminance to a two-color gradient — shadows take `shadow`,
+    /// highlights `highlight` (straight-alpha RGB, components `0..1`). The editorial
+    /// / brand-tint look. Per-pixel.
+    Duotone {
+        shadow: [f32; 3],
+        highlight: [f32; 3],
+    },
+    /// Chroma key: knock out a key color — pixels whose RGB is within `threshold`
+    /// of `key` go transparent, ramping over `smoothness` for a soft matte edge.
+    /// Green-screen compositing as a node effect. `key` is straight-alpha RGB `0..1`.
+    ChromaKey {
+        key: [f32; 3],
+        threshold: f32,
+        smoothness: f32,
     },
     /// Gooey / liquid / metaball morph: the subtree is blurred with `sigma`
     /// (reusing the blur kernel), then its alpha is sharpened around `threshold`
@@ -1156,6 +1287,73 @@ pub struct Stroke {
     /// Phase offset into the dash pattern (px). Animate it for a draw-on reveal.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub dash_offset: f32,
+    /// TRIM PATHS: draw only the `[start, end]` arc-length slice of this stroked
+    /// outline (fractions 0..1 of the path's total length), rotated by `offset`.
+    /// The mograph "line draw" — animate `end` 0→1 for a draw-on reveal. See [`Trim`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trim: Option<Trim>,
+}
+
+/// A path TRIM (After Effects' "Trim Paths"): render only a contiguous arc-length
+/// slice of the stroked outline. `start`/`end` are fractions 0..1 of the path's
+/// total length; `offset` rotates the visible window around the path (wrapping on
+/// closed shapes). The engine measures the path length and converts this to a
+/// length-normalised dash, so a caller never needs to know the path's pixel length.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Trim {
+    #[serde(default)]
+    pub start: f32,
+    #[serde(default = "Trim::default_end")]
+    pub end: f32,
+    #[serde(default)]
+    pub offset: f32,
+}
+
+impl Trim {
+    fn default_end() -> f32 {
+        1.0
+    }
+
+    /// Resolve this trim against a path of arc length `length` (px) into how the
+    /// stroke should be drawn. Both backends share this so the line-draw is identical.
+    pub fn resolve(&self, length: f32) -> TrimDash {
+        let start = self.start.clamp(0.0, 1.0);
+        let end = self.end.clamp(0.0, 1.0);
+        let span = end - start;
+        if span >= 1.0 {
+            return TrimDash::Solid; // whole path visible
+        }
+        if span <= 0.0 {
+            return TrimDash::Hidden; // nothing visible
+        }
+        let on = span * length;
+        // A gap ≥ the path length guarantees a single visible run (no repeat, even on
+        // a closed path). Phase the pattern so the run begins at `(start + offset)·L`.
+        let gap = length + on + 1.0;
+        let dash_offset = -((start + self.offset) * length);
+        TrimDash::Dash(vec![on, gap], dash_offset)
+    }
+}
+
+/// How a [`Trim`] resolves for a given path length — what the stroke pass should do.
+#[derive(Debug, Clone, PartialEq)]
+pub enum TrimDash {
+    /// The full path is visible — draw a normal solid (or explicitly-dashed) stroke.
+    Solid,
+    /// Nothing is visible — skip the stroke entirely.
+    Hidden,
+    /// Draw the stroke with this `(dash_pattern, dash_offset)`.
+    Dash(Vec<f32>, f32),
+}
+
+impl Default for Trim {
+    fn default() -> Self {
+        Trim {
+            start: 0.0,
+            end: 1.0,
+            offset: 0.0,
+        }
+    }
 }
 
 impl Shape {
@@ -1253,7 +1451,18 @@ impl Shape {
             join: LineJoin::default(),
             dash: Vec::new(),
             dash_offset: 0.0,
+            trim: None,
         });
+        self
+    }
+
+    /// Builder: TRIM the stroke to a `[start, end]` arc-length slice (the mograph
+    /// line-draw). Requires a stroke — set one with [`Shape::with_stroke`] first; a
+    /// no-op otherwise.
+    pub fn with_trim(mut self, trim: Trim) -> Self {
+        if let Some(stroke) = self.stroke.as_mut() {
+            stroke.trim = Some(trim);
+        }
         self
     }
 

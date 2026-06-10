@@ -22,7 +22,7 @@ use kurbo::{BezPath, PathEl, Shape as _};
 use onda_core::{Color, Size, Transform, Vec2};
 use onda_scene::{
     Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Matte, MatteMode, Node,
-    NodeKind, Scene, Shape, ShapeGeometry, Text,
+    NodeKind, Scene, Shape, ShapeGeometry, Text, TrimDash,
 };
 pub use onda_typography::{FontContext, TextMetrics, TextRaster};
 use tiny_skia as tsk;
@@ -356,6 +356,205 @@ fn blur_pass_v(src: &[u16], dst: &mut [u16], w: usize, h: usize, radius: usize, 
             dst[o + 1] = (acc[1] / BLUR_WEIGHT_TOTAL) as u16;
             dst[o + 2] = (acc[2] / BLUR_WEIGHT_TOTAL) as u16;
             dst[o + 3] = (acc[3] / BLUR_WEIGHT_TOTAL) as u16;
+        }
+    }
+}
+
+/// Apply a deterministic 1D Gaussian blur of std-dev `sigma` (px) along `angle`
+/// (radians; `0` = horizontal) to `fb` in place — a directional / motion blur.
+/// ONE pass over premultiplied-alpha channels, sampling at integer-rounded offsets
+/// along `(cos angle, sin angle)` with clamp-to-edge borders; integer weights and
+/// `u32` accumulation keep it byte-identical across runs. `sigma <= 0` is a no-op.
+pub fn directional_blur_framebuffer(fb: &mut Framebuffer, sigma: f32, angle: f32) {
+    if sigma <= 0.0 || fb.width == 0 || fb.height == 0 {
+        return;
+    }
+    let (radius, weights) = blur_kernel(sigma);
+    let w = fb.width as usize;
+    let h = fb.height as usize;
+    let dx = angle.cos();
+    let dy = angle.sin();
+
+    // Premultiply (same straight-alpha contract as `blur_framebuffer`).
+    let mut premul = vec![0u16; w * h * 4];
+    for (dst, src) in premul.chunks_exact_mut(4).zip(fb.pixels.chunks_exact(4)) {
+        let a = src[3] as u32;
+        dst[0] = ((src[0] as u32 * a + 127) / 255) as u16;
+        dst[1] = ((src[1] as u32 * a + 127) / 255) as u16;
+        dst[2] = ((src[2] as u32 * a + 127) / 255) as u16;
+        dst[3] = a as u16;
+    }
+
+    // One directional pass: for each output pixel, accumulate weighted taps along
+    // (dx, dy). Offsets round to the nearest pixel (nearest-sample, deterministic),
+    // matching the GPU shader, which does the same `round` for CPU/GPU parity.
+    let mut out = vec![0u16; w * h * 4];
+    for y in 0..h {
+        for x in 0..w {
+            let mut acc = [0u32; 4];
+            for (k, &weight) in weights.iter().enumerate() {
+                let off = k as f32 - radius as f32;
+                let sx = ((x as f32 + off * dx).round() as isize).clamp(0, w as isize - 1) as usize;
+                let sy = ((y as f32 + off * dy).round() as isize).clamp(0, h as isize - 1) as usize;
+                let i = (sy * w + sx) * 4;
+                acc[0] += premul[i] as u32 * weight;
+                acc[1] += premul[i + 1] as u32 * weight;
+                acc[2] += premul[i + 2] as u32 * weight;
+                acc[3] += premul[i + 3] as u32 * weight;
+            }
+            let o = (y * w + x) * 4;
+            out[o] = (acc[0] / BLUR_WEIGHT_TOTAL) as u16;
+            out[o + 1] = (acc[1] / BLUR_WEIGHT_TOTAL) as u16;
+            out[o + 2] = (acc[2] / BLUR_WEIGHT_TOTAL) as u16;
+            out[o + 3] = (acc[3] / BLUR_WEIGHT_TOTAL) as u16;
+        }
+    }
+
+    // Un-premultiply back into the straight-alpha framebuffer.
+    for (dst, src) in fb.pixels.chunks_exact_mut(4).zip(out.chunks_exact(4)) {
+        let a = src[3] as u32;
+        if a == 0 {
+            dst.copy_from_slice(&[0, 0, 0, 0]);
+            continue;
+        }
+        dst[0] = (((src[0] as u32 * 255 + a / 2) / a).min(255)) as u8;
+        dst[1] = (((src[1] as u32 * 255 + a / 2) / a).min(255)) as u8;
+        dst[2] = (((src[2] as u32 * 255 + a / 2) / a).min(255)) as u8;
+        dst[3] = a as u8;
+    }
+}
+
+/// Chromatic aberration (CPU reference): sample R outward / B inward along the
+/// radius from the framebuffer centre by `amount` px (rounded, clamp-to-edge);
+/// green stays put. Alpha is the mean of the three sample alphas so the fringe
+/// feathers at edges. Per-pixel float ops → deterministic, byte-stable per run.
+pub fn chromatic_aberration_framebuffer(fb: &mut Framebuffer, amount: f32) {
+    if amount <= 0.0 || fb.width == 0 || fb.height == 0 {
+        return;
+    }
+    let w = fb.width as usize;
+    let h = fb.height as usize;
+    let src = fb.pixels.clone();
+    let (cx, cy) = (w as f32 * 0.5, h as f32 * 0.5);
+    let at = |sx: f32, sy: f32, ch: usize| -> u8 {
+        let sx = (sx.round() as isize).clamp(0, w as isize - 1) as usize;
+        let sy = (sy.round() as isize).clamp(0, h as isize - 1) as usize;
+        src[(sy * w + sx) * 4 + ch]
+    };
+    for y in 0..h {
+        for x in 0..w {
+            let (mut dx, mut dy) = (x as f32 - cx, y as f32 - cy);
+            let len = (dx * dx + dy * dy).sqrt().max(1.0);
+            dx /= len;
+            dy /= len;
+            let (rx, ry) = (x as f32 + dx * amount, y as f32 + dy * amount);
+            let (bx, by) = (x as f32 - dx * amount, y as f32 - dy * amount);
+            let o = (y * w + x) * 4;
+            let a = (at(rx, ry, 3) as u32 + src[o + 3] as u32 + at(bx, by, 3) as u32) / 3;
+            fb.pixels[o] = at(rx, ry, 0);
+            fb.pixels[o + 1] = src[o + 1];
+            fb.pixels[o + 2] = at(bx, by, 2);
+            fb.pixels[o + 3] = a as u8;
+        }
+    }
+}
+
+/// Vignette (CPU reference): darken the straight-alpha RGB toward the edges by a
+/// radial falloff — `amount` at the corners, ramped over `softness` of the radius.
+pub fn vignette_framebuffer(fb: &mut Framebuffer, amount: f32, softness: f32) {
+    if amount <= 0.0 || fb.width == 0 || fb.height == 0 {
+        return;
+    }
+    let w = fb.width as usize;
+    let h = fb.height as usize;
+    let (cx, cy) = (w as f32 * 0.5, h as f32 * 0.5);
+    let softness = softness.max(0.001);
+    let edge = 1.0 - softness;
+    for y in 0..h {
+        for x in 0..w {
+            let nx = (x as f32 - cx) / cx;
+            let ny = (y as f32 - cy) / cy;
+            let d = (nx * nx + ny * ny).sqrt();
+            let v = 1.0 - amount * ((d - edge) / softness).clamp(0.0, 1.0);
+            let o = (y * w + x) * 4;
+            for ch in 0..3 {
+                fb.pixels[o + ch] = (fb.pixels[o + ch] as f32 * v).round().clamp(0.0, 255.0) as u8;
+            }
+        }
+    }
+}
+
+/// Posterize (CPU reference): quantize each channel to `levels` (≥2) evenly-spaced
+/// steps, including pure 0 and 1.
+pub fn posterize_framebuffer(fb: &mut Framebuffer, levels: f32) {
+    if fb.width == 0 || fb.height == 0 {
+        return;
+    }
+    let steps = (levels.max(2.0)) - 1.0;
+    for px in fb.pixels.chunks_exact_mut(4) {
+        for ch in &mut px[0..3] {
+            let c = *ch as f32 / 255.0;
+            let q = ((c * steps + 0.5).floor() / steps).clamp(0.0, 1.0);
+            *ch = (q * 255.0).round() as u8;
+        }
+    }
+}
+
+/// Duotone (CPU reference): map luminance to a gradient from `shadow` to
+/// `highlight` (straight-alpha RGB, `0..1`).
+pub fn duotone_framebuffer(fb: &mut Framebuffer, shadow: [f32; 3], highlight: [f32; 3]) {
+    if fb.width == 0 || fb.height == 0 {
+        return;
+    }
+    for px in fb.pixels.chunks_exact_mut(4) {
+        let r = px[0] as f32 / 255.0;
+        let g = px[1] as f32 / 255.0;
+        let b = px[2] as f32 / 255.0;
+        let lum = (0.299 * r + 0.587 * g + 0.114 * b).clamp(0.0, 1.0);
+        for ch in 0..3 {
+            let v = shadow[ch] + (highlight[ch] - shadow[ch]) * lum;
+            px[ch] = (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+        }
+    }
+}
+
+/// Chroma key (CPU reference): scale each pixel's alpha by `smoothstep(threshold,
+/// threshold+smoothness, dist)` where `dist` is the RGB distance to `key` — pixels
+/// near the key colour go transparent with a soft matte edge.
+pub fn chroma_key_framebuffer(
+    fb: &mut Framebuffer,
+    key: [f32; 3],
+    threshold: f32,
+    smoothness: f32,
+) {
+    if fb.width == 0 || fb.height == 0 {
+        return;
+    }
+    let smoothness = smoothness.max(0.001);
+    // Despill: which channel does the key colour dominate? Edge pixels (a blend of
+    // subject + key) keep a tint of that channel; clamping it to the max of the
+    // other two neutralises the fringe — the classic green/blue-screen suppression.
+    // (0 = red, 1 = green, 2 = blue; ties favour green then blue, like a key.)
+    let dominant = if key[1] >= key[0] && key[1] >= key[2] {
+        1
+    } else if key[2] >= key[0] && key[2] >= key[1] {
+        2
+    } else {
+        0
+    };
+    for px in fb.pixels.chunks_exact_mut(4) {
+        let r = px[0] as f32 / 255.0;
+        let g = px[1] as f32 / 255.0;
+        let b = px[2] as f32 / 255.0;
+        let dist = ((r - key[0]).powi(2) + (g - key[1]).powi(2) + (b - key[2]).powi(2)).sqrt();
+        let t = ((dist - threshold) / smoothness).clamp(0.0, 1.0);
+        let s = t * t * (3.0 - 2.0 * t);
+        px[3] = (px[3] as f32 * s).round().clamp(0.0, 255.0) as u8;
+        // Despill on the straight-alpha u8 channels (monotonic, deterministic).
+        match dominant {
+            1 => px[1] = px[1].min(px[0].max(px[2])),
+            2 => px[2] = px[2].min(px[0].max(px[1])),
+            _ => px[0] = px[0].min(px[1].max(px[2])),
         }
     }
 }
@@ -1136,11 +1335,20 @@ impl Renderer {
             .iter()
             .map(|e| match e {
                 Effect::Blur { sigma } => (3.0 * sigma.max(0.0)).ceil(),
+                // Directional blur smears along one axis with `sigma`; the same 3σ
+                // headroom covers the worst case (the full smear along either axis).
+                Effect::DirectionalBlur { sigma, .. } => (3.0 * sigma.max(0.0)).ceil(),
                 // Bloom blurs its bright-pass with `sigma`; the halo needs the same
                 // 3σ headroom around the subtree so the glow isn't clipped.
                 Effect::Bloom { sigma, .. } => (3.0 * sigma.max(0.0)).ceil(),
                 // ColorGrade is a per-pixel remap (no spread) — it needs no margin.
                 Effect::ColorGrade { .. } => 0.0,
+                // Chromatic aberration shifts channels `amount` px → that much margin.
+                Effect::ChromaticAberration { amount } => amount.max(0.0).ceil(),
+                Effect::Vignette { .. } => 0.0,
+                Effect::Posterize { .. } => 0.0,
+                Effect::Duotone { .. } => 0.0,
+                Effect::ChromaKey { .. } => 0.0,
                 // Grain is a per-pixel pass (no spread) — it needs no margin.
                 Effect::Grain { .. } => 0.0,
                 // Goo blurs the subtree with `sigma` before thresholding; it needs
@@ -1186,6 +1394,9 @@ impl Renderer {
         for effect in &node.effects {
             match effect {
                 Effect::Blur { sigma } => blur_framebuffer(&mut temp, *sigma),
+                Effect::DirectionalBlur { sigma, angle } => {
+                    directional_blur_framebuffer(&mut temp, *sigma, *angle)
+                }
                 Effect::Bloom {
                     threshold,
                     intensity,
@@ -1205,6 +1416,21 @@ impl Renderer {
                     *temperature,
                     *tint,
                 ),
+                Effect::ChromaticAberration { amount } => {
+                    chromatic_aberration_framebuffer(&mut temp, *amount)
+                }
+                Effect::Vignette { amount, softness } => {
+                    vignette_framebuffer(&mut temp, *amount, *softness)
+                }
+                Effect::Posterize { levels } => posterize_framebuffer(&mut temp, *levels),
+                Effect::Duotone { shadow, highlight } => {
+                    duotone_framebuffer(&mut temp, *shadow, *highlight)
+                }
+                Effect::ChromaKey {
+                    key,
+                    threshold,
+                    smoothness,
+                } => chroma_key_framebuffer(&mut temp, *key, *threshold, *smoothness),
                 Effect::Goo { sigma, threshold } => goo_framebuffer(&mut temp, *sigma, *threshold),
                 Effect::Grain {
                     intensity,
@@ -1639,6 +1865,115 @@ fn gradient_shader(gradient: &Gradient) -> Option<tsk::Shader<'static>> {
 /// paths. The shape is drawn into a temporary pixmap sized to its transformed
 /// bounds, then composited (straight-alpha src-over, `opacity` folded in) into
 /// the framebuffer — so text/image compositing is unchanged.
+/// Arc length (px, local space) of a geometry's outline, measured with kurbo the
+/// same way Vello does (`shape_path(...).perimeter`), so a [`Trim`]'s line-draw is
+/// identical on both backends.
+///
+/// [`Trim`]: onda_scene::Trim
+fn geometry_length(geometry: &ShapeGeometry) -> f32 {
+    use kurbo::Shape as _;
+    const TOL: f64 = 0.1;
+    let path: BezPath = match geometry {
+        ShapeGeometry::Rect {
+            size,
+            corner_radius,
+        } => {
+            let (w, h) = (size.width as f64, size.height as f64);
+            let max_r = (w.min(h) / 2.0 - 2.0).max(0.0);
+            let r = (*corner_radius as f64).min(max_r);
+            if r > 0.0 {
+                kurbo::RoundedRect::new(0.0, 0.0, w, h, r).to_path(TOL)
+            } else {
+                kurbo::Rect::new(0.0, 0.0, w, h).to_path(TOL)
+            }
+        }
+        ShapeGeometry::Ellipse { size } => {
+            let (rx, ry) = (size.width as f64 / 2.0, size.height as f64 / 2.0);
+            kurbo::Ellipse::new((rx, ry), (rx, ry), 0.0).to_path(TOL)
+        }
+        ShapeGeometry::Path { data } => BezPath::from_svg(data).unwrap_or_default(),
+    };
+    path.perimeter(TOL) as f32
+}
+
+/// Resolve a boolean combination of `operands` (paths already in a common space)
+/// into one outline, via `i_overlay`. Each operand's curves are flattened to a
+/// polygon (kurbo), the operands are folded pairwise so N compose (`op[0] ∘ op[1] ∘
+/// …`), and the result is rebuilt as a `BezPath` (NonZero fill — orientation encodes
+/// holes, so the normal winding-rule fill cuts them correctly).
+#[cfg_attr(not(test), allow(dead_code))]
+fn boolean_path(rule: i_overlay::core::overlay_rule::OverlayRule, operands: &[BezPath]) -> BezPath {
+    use i_overlay::core::fill_rule::FillRule;
+    use i_overlay::float::single::SingleFloatOverlay;
+    const TOL: f64 = 0.2;
+    let to_contours = |bp: &BezPath| -> Vec<Vec<[f64; 2]>> {
+        let mut contours: Vec<Vec<[f64; 2]>> = Vec::new();
+        let mut cur: Vec<[f64; 2]> = Vec::new();
+        let mut flush = |cur: &mut Vec<[f64; 2]>, out: &mut Vec<Vec<[f64; 2]>>| {
+            if cur.len() >= 3 {
+                out.push(std::mem::take(cur));
+            } else {
+                cur.clear();
+            }
+        };
+        bp.flatten(TOL, |el| match el {
+            PathEl::MoveTo(p) => {
+                flush(&mut cur, &mut contours);
+                cur.push([p.x, p.y]);
+            }
+            PathEl::LineTo(p) => cur.push([p.x, p.y]),
+            PathEl::ClosePath => flush(&mut cur, &mut contours),
+            _ => {} // flatten only ever emits MoveTo / LineTo / ClosePath
+        });
+        if cur.len() >= 3 {
+            contours.push(cur);
+        }
+        contours
+    };
+    if operands.is_empty() {
+        return BezPath::new();
+    }
+    let mut acc = to_contours(&operands[0]);
+    for operand in &operands[1..] {
+        let clip = to_contours(operand);
+        let shapes = acc.overlay(&clip, rule, FillRule::NonZero);
+        acc = shapes.into_iter().flatten().collect(); // Shapes → flat Contours
+    }
+    let mut out = BezPath::new();
+    for contour in &acc {
+        if contour.len() < 3 {
+            continue;
+        }
+        out.move_to((contour[0][0], contour[0][1]));
+        for p in &contour[1..] {
+            out.line_to((p[0], p[1]));
+        }
+        out.close_path();
+    }
+    out
+}
+
+#[test]
+fn boolean_union_of_two_overlapping_squares_is_one_outline() {
+    use i_overlay::core::overlay_rule::OverlayRule;
+    use kurbo::{Rect, Shape as _};
+    let a = Rect::new(0.0, 0.0, 20.0, 20.0).to_path(0.1);
+    let b = Rect::new(10.0, 10.0, 30.0, 30.0).to_path(0.1);
+    let u = boolean_path(OverlayRule::Union, &[a, b]);
+    let subpaths = u
+        .elements()
+        .iter()
+        .filter(|e| matches!(e, PathEl::MoveTo(_)))
+        .count();
+    assert_eq!(subpaths, 1, "two overlapping squares union to one outline");
+    // Area = 400 + 400 − 100 overlap = 700.
+    assert!(
+        (u.area().abs() - 700.0).abs() < 5.0,
+        "union area ≈ 700, got {}",
+        u.area()
+    );
+}
+
 fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, opacity: f32) {
     if opacity <= 0.0
         || (shape.fill.is_none() && shape.gradient.is_none() && shape.stroke.is_none())
@@ -1691,32 +2026,50 @@ fn rasterize_shape(fb: &mut Framebuffer, shape: &Shape, transform: Transform, op
             pixmap.fill_path(&path, &paint, tsk::FillRule::Winding, into_temp, None);
         }
     }
-    // Stroke (color + width + cap/join/dash).
+    // Stroke (color + width + cap/join/dash/trim).
     if let Some(stroke) = &shape.stroke {
         if stroke.width > 0.0 && stroke.color.a > 0.0 {
-            let paint = tsk::Paint {
-                shader: tsk::Shader::SolidColor(skia_color(stroke.color)),
-                anti_alias: true,
-                ..Default::default()
+            // Effective dash: a TRIM is a length-normalised dash (slice [start, end] of
+            // the path's arc length) and overrides an explicit dash; a fully-trimmed
+            // stroke draws nothing.
+            let mut draw_stroke = true;
+            let dash = if let Some(trim) = stroke.trim {
+                match trim.resolve(geometry_length(&shape.geometry)) {
+                    TrimDash::Solid => None,
+                    TrimDash::Hidden => {
+                        draw_stroke = false;
+                        None
+                    }
+                    TrimDash::Dash(d, off) => tsk::StrokeDash::new(d, off),
+                }
+            } else if !stroke.dash.is_empty() {
+                tsk::StrokeDash::new(stroke.dash.clone(), stroke.dash_offset)
+            } else {
+                None
             };
-            let sk_stroke = tsk::Stroke {
-                width: stroke.width,
-                line_cap: match stroke.cap {
-                    LineCap::Butt => tsk::LineCap::Butt,
-                    LineCap::Round => tsk::LineCap::Round,
-                    LineCap::Square => tsk::LineCap::Square,
-                },
-                line_join: match stroke.join {
-                    LineJoin::Miter => tsk::LineJoin::Miter,
-                    LineJoin::Round => tsk::LineJoin::Round,
-                    LineJoin::Bevel => tsk::LineJoin::Bevel,
-                },
-                dash: (!stroke.dash.is_empty())
-                    .then(|| tsk::StrokeDash::new(stroke.dash.clone(), stroke.dash_offset))
-                    .flatten(),
-                ..Default::default()
-            };
-            pixmap.stroke_path(&path, &paint, &sk_stroke, into_temp, None);
+            if draw_stroke {
+                let paint = tsk::Paint {
+                    shader: tsk::Shader::SolidColor(skia_color(stroke.color)),
+                    anti_alias: true,
+                    ..Default::default()
+                };
+                let sk_stroke = tsk::Stroke {
+                    width: stroke.width,
+                    line_cap: match stroke.cap {
+                        LineCap::Butt => tsk::LineCap::Butt,
+                        LineCap::Round => tsk::LineCap::Round,
+                        LineCap::Square => tsk::LineCap::Square,
+                    },
+                    line_join: match stroke.join {
+                        LineJoin::Miter => tsk::LineJoin::Miter,
+                        LineJoin::Round => tsk::LineJoin::Round,
+                        LineJoin::Bevel => tsk::LineJoin::Bevel,
+                    },
+                    dash,
+                    ..Default::default()
+                };
+                pixmap.stroke_path(&path, &paint, &sk_stroke, into_temp, None);
+            }
         }
     }
 

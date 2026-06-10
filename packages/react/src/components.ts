@@ -56,6 +56,21 @@ export interface NodeProps {
   /** Gaussian blur std-dev in output px; sugar for `effects: [{ effect: 'blur', sigma }]`.
    *  Honored by Vello AND the CPU reference once Phase 1 lands. */
   blur?: number
+  /** Directional (motion) blur sugar for `effects: [{ effect: 'directional_blur', … }]`:
+   *  a 1D blur of std-dev `sigma` (px) along `angle` (radians, default 0 = horizontal) —
+   *  the cinematic "in-motion" smear. Honored by Vello AND the CPU reference. */
+  directionalBlur?: { sigma: number; angle?: number }
+  /** Chromatic-aberration sugar: R/B split by `amount` px radially from centre. */
+  chromaticAberration?: number
+  /** Vignette sugar — radial edge darkening. `amount` 0..1; `softness` 0..1 (default 0.5). */
+  vignette?: number | { amount: number; softness?: number }
+  /** Posterize sugar: quantize each channel to `levels` (≥2) discrete steps. */
+  posterize?: number
+  /** Duotone sugar: map luminance to a gradient from `shadow` to `highlight`. */
+  duotone?: { shadow: ColorInput; highlight: ColorInput }
+  /** Chroma-key sugar: knock out `color`; `threshold` (default 0.4) + `smoothness`
+   *  (default 0.1) shape the soft matte edge. */
+  chromaKey?: { color: ColorInput; threshold?: number; smoothness?: number }
   /** Glow / bloom sugar for `effects: [{ effect: 'bloom', ... }]`: bright regions
    *  (luminance above `threshold`, default 0.7; scaled by `intensity`, default 1)
    *  blur with `sigma` and composite additively over the sharp subtree. Honored by
@@ -127,6 +142,13 @@ export interface PaintProps {
   strokeDash?: number[]
   /** Phase offset into the dash pattern (px) — animate for a draw-on reveal. */
   strokeDashOffset?: number
+  /** TRIM PATHS (mograph line-draw): draw only a slice of the stroked outline.
+   *  `trimStart`/`trimEnd` are fractions 0..1 of the path's length (default 0 / 1);
+   *  `trimOffset` rotates the visible window around the path. Animate `trimEnd` 0→1
+   *  for a draw-on reveal. Needs a `stroke`; length is measured by the engine. */
+  trimStart?: number
+  trimEnd?: number
+  trimOffset?: number
   /** Drop shadow / glow behind the shape (CSS box-shadow). `blur` is the gaussian
    *  std-dev; `(0,0)` offset reads as a centered glow. GPU/Vello-rendered. */
   shadow?: {
@@ -146,6 +168,44 @@ export interface CompositionProps {
   /** Opt into the cinematic LINEAR + ACES finishing pipeline (correct bloom/light,
    *  light-wrap, halation). GPU/export only; off by default (gamma). */
   linear?: boolean
+  /** Composition-level cinematic FINISH: a linear-HDR finishing chain run after the
+   *  comp rasterizes — bloom bleeding REAL light (highlights exceed 1.0 and roll off),
+   *  warm halation — ending in one ACES film tone-map. The correct "looks shot" output
+   *  transform (unlike per-node effects, no HDR is lost between passes). GPU/export only. */
+  finish?: {
+    /** Linear exposure multiplier before the tone-map (1 = neutral; >1 brightens). */
+    exposure?: number
+    /** Comp-level bloom in linear HDR. `sigma` = halo blur radius (px). */
+    bloom?: { sigma: number; threshold?: number; intensity?: number }
+    /** Warm red/orange halation around highlights (0 = off, ~0.6 filmic). */
+    halation?: number
+    /** Grade — white balance: + warm (boost red/cut blue), − cool. 0 = neutral. */
+    temperature?: number
+    /** Grade — contrast around mid-grey. 1 = identity, >1 punchier. */
+    contrast?: number
+    /** Grade — saturation. 1 = identity, 0 = greyscale, >1 richer. */
+    saturation?: number
+    /** Vignette — radial edge darkening of the finished frame. 0 = off. */
+    vignette?: number
+    /** Film grain intensity added in linear light (luminance-banded). 0 = off; the
+     *  current frame is used as the animation seed automatically. */
+    grain?: number
+  }
+  /** Per-object MOTION BLUR via temporal supersampling: each output frame is the
+   *  average of `samples` sub-frames spread across the shutter window, so anything
+   *  that MOVES smears by its own motion and static elements stay sharp — the
+   *  shutter-angle blur every pro comp ships with. `true` = a 180° shutter, 16
+   *  samples. Cost is `samples`× the render, so it's an EXPORT feature (the live
+   *  preview shows the sharp frame). */
+  motionBlur?:
+    | boolean
+    | {
+        /** Shutter angle in degrees: how much of the frame the shutter is open. 180 =
+         *  half a frame (the film default); 360 = full-frame (heavier blur). */
+        shutter?: number
+        /** Sub-frames averaged per output frame. More = smoother smear, linearly costlier. */
+        samples?: number
+      }
   children?: ReactNode
 }
 
@@ -159,6 +219,66 @@ export type GroupProps = NodeProps
 /** A transform/opacity container with no visual of its own. */
 export function Group(props: GroupProps) {
   return createElement('onda-group', props)
+}
+
+/** Props for {@link Repeater} (After Effects' shape "Repeater"). */
+export interface RepeaterProps {
+  /** Number of copies (including the original). */
+  count: number
+  /** Per-copy translation, applied cumulatively (copy i is offset i×). */
+  offsetX?: number
+  offsetY?: number
+  /** Per-copy rotation in degrees, applied cumulatively (a radial array / spiral). */
+  rotation?: number
+  /** Per-copy scale factor, applied cumulatively (copy i is `scale**i`). 1 = none. */
+  scale?: number
+  /** Pivot for the per-copy rotation/scale (local px). Default (0,0). */
+  originX?: number
+  originY?: number
+  /** Opacity of the first / last copy; the rest interpolate (a fade-out trail). */
+  startOpacity?: number
+  endOpacity?: number
+  children?: ReactNode
+}
+
+/** REPEATER — stamp `children` `count` times, each copy COMPOUNDING one more step of
+ *  the transform (offset / rotation / scale) and a step of the opacity ramp: grids,
+ *  radial arrays, spirals, motion trails. Mirrors After Effects' shape Repeater.
+ *
+ *  Implemented as `count` nested transform groups (each adds one increment on top of
+ *  the previous, so the transforms truly compound into a spiral rather than a naive
+ *  `i×` fan), with a copy of `children` drawn at every level. Pure composition — it
+ *  renders identically on every backend. */
+export function Repeater({
+  count,
+  offsetX = 0,
+  offsetY = 0,
+  rotation = 0,
+  scale = 1,
+  originX = 0,
+  originY = 0,
+  startOpacity = 1,
+  endOpacity = 1,
+  children,
+}: RepeaterProps): ReactElement {
+  const n = Math.max(1, Math.floor(count))
+  const opacityAt = (i: number): number =>
+    startOpacity + (endOpacity - startOpacity) * (n > 1 ? i / (n - 1) : 0)
+  // Build inside-out: level L sits inside L increment groups → transform compounded
+  // L times. Each level draws ONE copy (with its own ramped opacity) plus the deeper,
+  // further-incremented levels.
+  const buildLevel = (level: number): ReactElement | null => {
+    if (level >= n) return null
+    const copy = createElement(Group, { key: 'copy', opacity: opacityAt(level) }, children)
+    const deeper = buildLevel(level + 1)
+    // Level 0 is the identity copy; every deeper level adds one transform increment.
+    const transform =
+      level === 0
+        ? {}
+        : { x: offsetX, y: offsetY, rotation, scaleX: scale, scaleY: scale, originX, originY }
+    return createElement(Group, { key: level, ...transform }, copy, deeper)
+  }
+  return buildLevel(0) ?? createElement(Group, null)
 }
 
 /** Flex layout props for {@link Flex} / {@link AbsoluteFill} (CSS-flexbox subset). */

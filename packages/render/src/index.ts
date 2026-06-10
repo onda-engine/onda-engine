@@ -7,7 +7,13 @@ import { spawn } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { registeredFonts, renderFrame, renderFramesJSON, runEngineWarmers } from '@onda/react'
+import {
+  motionBlurConfig,
+  registeredFonts,
+  renderFrame,
+  renderFramesJSON,
+  runEngineWarmers,
+} from '@onda/react'
 import type { ReactElement } from 'react'
 
 export type Backend = 'auto' | 'vello' | 'cpu'
@@ -70,6 +76,9 @@ export async function renderToFile(
   // Warm async engine assets (e.g. wasm text measurement) before the sync render,
   // so components bake real values into the frames instead of estimates.
   await runEngineWarmers()
+  // `renderFramesJSON` already expands each frame to its motion-blur sub-frames; the
+  // CLI averages each group of K back into one frame, so pass the matching K.
+  const motionBlur = motionBlurConfig(composition)
   const framesJson = renderFramesJSON(composition)
   const dir = await mkdtemp(join(tmpdir(), 'onda-render-'))
   const framesPath = join(dir, 'frames.json')
@@ -86,6 +95,7 @@ export async function renderToFile(
         '--encoder',
         encoder,
         '--progress',
+        ...(motionBlur ? ['--motion-blur', String(motionBlur.samples)] : []),
         ...(await fontArgs(dir)),
       ],
       onProgress,
