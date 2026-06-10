@@ -34,6 +34,10 @@ const reconciler = Reconciler(hostConfig)
  *  the matte animates per-frame just like the content. `null` outside a render. */
 let activeFrameState: (VideoConfig & { frame: number }) | null = null
 
+/** Resolved depth-of-field for the comp being rendered (`<Composition dof={…}>`), or
+ *  `null`. Set per render so {@link toNode} can defocus any layer carrying a `depth`. */
+let activeDof: { focus: number; aperture: number; range: number; maxBlur: number } | null = null
+
 /** Render `element` (root must be `<Composition>`) at `frame` to a static
  *  {@link Scene}. Components read the frame via {@link useCurrentFrame}. */
 export function renderFrame(element: ReactElement, frame: number): Scene {
@@ -212,8 +216,32 @@ function parseFinish(f: NonNullable<CompositionProps['finish']>): Finish {
   return out
 }
 
+/** Resolve the `<Composition dof={…}>` prop (depth of field) with defaults, or null. */
+function parseDof(
+  dof: CompositionProps['dof'],
+): { focus: number; aperture: number; range: number; maxBlur: number } | null {
+  if (!dof || typeof dof.focus !== 'number') return null
+  return {
+    focus: dof.focus,
+    aperture: typeof dof.aperture === 'number' ? dof.aperture : 0.04,
+    range: typeof dof.range === 'number' ? dof.range : 0,
+    maxBlur: typeof dof.maxBlur === 'number' ? dof.maxBlur : 40,
+  }
+}
+
+/** Blur σ (px) for a layer at `depth` under the active depth of field — a circle of
+ *  confusion that grows linearly with distance from the in-focus band. */
+function dofBlur(depth: number, dof: NonNullable<ReturnType<typeof parseDof>>): number {
+  const dist = Math.max(0, Math.abs(depth - dof.focus) - dof.range)
+  return Math.min(dist * dof.aperture, dof.maxBlur)
+}
+
 function compositionToScene(node: HostNode): Scene {
   const { props } = node
+  // Depth of field: read by every descendant's `toNode` via the module-level activeDof.
+  activeDof = parseDof(props.dof as CompositionProps['dof'])
+  const children = node.children.length ? node.children.map(toNode) : null
+  activeDof = null
   return {
     composition: {
       width: numberProp(props, 'width', 'Composition'),
@@ -228,7 +256,7 @@ function compositionToScene(node: HostNode): Scene {
     },
     root: {
       kind: { type: 'group' },
-      ...(node.children.length ? { children: node.children.map(toNode) } : {}),
+      ...(children ? { children } : {}),
     },
   }
 }
@@ -322,6 +350,12 @@ function toNode(node: HostNode): SceneNode {
   if (backdropBlur) effects.push(backdropBlur)
   const lightWrap = parseLightWrap(props.lightWrap)
   if (lightWrap) effects.push(lightWrap)
+  // Depth of field: a layer carrying `depth` defocuses by its distance from the comp's
+  // focus plane — a per-layer blur, so a rack focus is just animating the comp's `focus`.
+  if (activeDof && typeof props.depth === 'number') {
+    const sigma = dofBlur(props.depth, activeDof)
+    if (sigma > 0.4) effects.unshift({ effect: 'blur', sigma })
+  }
   if (effects.length) base.effects = effects
   if (props.layout !== undefined) base.layout = parseLayout(props.layout as Layout)
   const children = node.children.map(toNode)

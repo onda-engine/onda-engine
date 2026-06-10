@@ -34,6 +34,12 @@ export interface NodeProps {
   originY?: number
   /** Opacity, 0..1. */
   opacity?: number
+  /** DEPTH (z) of this layer for depth-of-field, in the same arbitrary units as
+   *  `<Composition dof={{ focus }}>`. Layers at the focus depth stay sharp; the
+   *  farther a layer's `depth` is from `focus`, the more it defocuses (a blur the
+   *  reconciler computes from the camera aperture). Animate the comp's `focus` for a
+   *  rack-focus pull. No effect unless the comp sets `dof`. */
+  depth?: number
   /** Blend this node's subtree against the backdrop (CSS mix-blend-mode).
    *  GPU/Vello-rendered (e.g. `'screen'`, `'multiply'`, `'overlay'`). */
   blendMode?: BlendMode
@@ -206,6 +212,21 @@ export interface CompositionProps {
         /** Sub-frames averaged per output frame. More = smoother smear, linearly costlier. */
         samples?: number
       }
+  /** DEPTH OF FIELD (2.5D rack focus): with this set, any layer carrying a `depth`
+   *  prop defocuses by how far its `depth` is from `focus` — sharp at the focus plane,
+   *  blurrier away from it. Animate `focus` for a focus pull. Resolved as a per-layer
+   *  blur (reuses the blur effect), so it works on both backends. */
+  dof?: {
+    /** The `depth` value that is in sharp focus. */
+    focus: number
+    /** How fast blur grows with depth distance (px of blur per unit of depth past the
+     *  in-focus band). Bigger = shallower depth of field. Default 0.04. */
+    aperture?: number
+    /** A sharp band (± in depth units) around `focus` that stays unblurred. Default 0. */
+    range?: number
+    /** Clamp the blur σ (px) so far layers don't blur to mush. Default 40. */
+    maxBlur?: number
+  }
   children?: ReactNode
 }
 
