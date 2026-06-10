@@ -74,6 +74,7 @@ export {
   type SeriesSequenceProps,
 } from './sequence.js'
 export { noise2D, noise3D, random } from './random.js'
+export { Particles, type ParticlesProps } from './particles.js'
 export {
   type PresentationState,
   type PushDirection,
