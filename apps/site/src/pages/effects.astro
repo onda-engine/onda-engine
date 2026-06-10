@@ -49,6 +49,18 @@ const CINEMATIC = {
       after: { src: '/effects/motionblur-after.png', label: '180° · 18 samples' },
     },
     {
+      title: 'Depth of field — a 2.5D rack focus',
+      blurb:
+        'Give each layer a <code>depth</code> and the Composition a <code>dof={{ focus }}</code>, and every layer defocuses by how far its depth is from the focus plane — the lens move that separates a subject from its world and guides the eye. Left, everything in focus (flat); right, focus pulled to the SUBJECT card: the far dot-field melts to a soft wash, and the near orbs bloom into round bokeh. Animate <code>focus</code> for a rack-focus pull between layers. It resolves to a per-layer blur (it reuses the blur pass, so it works on both backends and the live preview), and the depth is yours to assign — no true 3D required.',
+      snippet: `<Composition dof={{ focus: 400, aperture: 0.06 }}>
+  <Group depth={900}><Background /></Group>
+  <Group depth={400}><Subject /></Group>
+  <Group depth={120}><Foreground /></Group>
+</Composition>`,
+      before: { src: '/effects/dof-before.png', label: 'no dof · flat' },
+      after: { src: '/effects/dof-after.png', label: 'focus → subject' },
+    },
+    {
       title: 'Light-wrap',
       blurb:
         'A cut-out subject dropped onto a background fools no one — the edges are too clean. Light-wrap is the fix every compositor reaches for: the blurred background light bleeds a few pixels onto the subject\'s silhouette, in linear light, so it reads as SHOT IN the scene rather than pasted on top. Left, a hard dark cut-out on a vivid plate; right, the same shape with the surrounding colour drawn onto its inner edge. The #1 tell for landing AI-generated or stock media inside a composition.',
