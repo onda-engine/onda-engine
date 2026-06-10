@@ -22,8 +22,8 @@ use std::path::PathBuf;
 use onda_core::{Color, Size, Transform, Vec2};
 use onda_renderer::Renderer;
 use onda_scene::{
-    Composition, Effect, Gradient, GradientStop, Matte, MatteMode, Node, NodeKind, Scene, Shape,
-    Text, Trim,
+    BooleanOp, BooleanOperand, Composition, Effect, Gradient, GradientStop, Matte, MatteMode, Node,
+    NodeKind, Scene, Shape, ShapeGeometry, Text, Trim,
 };
 
 fn text_node(content: &str, size: f32, color: Color) -> Node {
@@ -124,6 +124,31 @@ fn fixtures() -> Vec<(&'static str, Scene)> {
                         end: 0.6,
                         offset: 0.0,
                     }),
+            )),
+        ),
+        // Boolean (merge paths): a crescent = circle DIFFERENCE circle. Locks the
+        // i_overlay boolean → flattened outline on the CPU reference.
+        (
+            "boolean_difference",
+            scene(Node::shape(
+                Shape::boolean(
+                    BooleanOp::Difference,
+                    vec![
+                        BooleanOperand {
+                            geometry: ShapeGeometry::Ellipse {
+                                size: Size::new(130.0, 130.0),
+                            },
+                            transform: translate(20.0, 10.0),
+                        },
+                        BooleanOperand {
+                            geometry: ShapeGeometry::Ellipse {
+                                size: Size::new(120.0, 120.0),
+                            },
+                            transform: translate(70.0, 15.0),
+                        },
+                    ],
+                )
+                .with_fill(rose),
             )),
         ),
         // Text (bundled font → deterministic glyph coverage).

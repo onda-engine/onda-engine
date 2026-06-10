@@ -96,6 +96,16 @@ export type ShapeGeometry =
   | { shape: 'rect'; size: Size; corner_radius?: number }
   | { shape: 'ellipse'; size: Size }
   | { shape: 'path'; data: string }
+  | { shape: 'boolean'; op: BooleanOp; operands: BooleanOperand[] }
+
+/** Boolean (merge-paths) operation for a {@link ShapeGeometry} of `shape: 'boolean'`. */
+export type BooleanOp = 'union' | 'difference' | 'intersect' | 'xor'
+
+/** One input to a boolean geometry: a sub-geometry + the transform placing it. */
+export interface BooleanOperand {
+  geometry: ShapeGeometry
+  transform: Transform
+}
 
 /** A color stop of a {@link Gradient}: a color at offset 0..1. */
 export interface GradientStop {

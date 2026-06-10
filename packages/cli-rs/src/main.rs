@@ -1355,7 +1355,7 @@ fn shape_size(geometry: &ShapeGeometry) -> Option<(f32, f32)> {
         ShapeGeometry::Rect { size, .. } | ShapeGeometry::Ellipse { size } => {
             Some((size.width, size.height))
         }
-        ShapeGeometry::Path { .. } => None,
+        ShapeGeometry::Path { .. } | ShapeGeometry::Boolean { .. } => None,
     }
 }
 

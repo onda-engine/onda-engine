@@ -281,6 +281,24 @@ export function Repeater({
   return buildLevel(0) ?? createElement(Group, null)
 }
 
+/** Props for {@link Merge} (After Effects' shape "Merge Paths"). */
+export interface MergeProps extends PaintProps, Omit<NodeProps, 'children'> {
+  /** Boolean operation over the SHAPE children: `union` (add) / `difference` (the
+   *  first minus the rest) / `intersect` (common area) / `xor` (symmetric difference).
+   *  Default `union`. */
+  op?: 'union' | 'difference' | 'intersect' | 'xor'
+  children?: ReactNode
+}
+
+/** MERGE PATHS — combine the SHAPE children into ONE outline via a boolean `op`
+ *  (union / difference / intersect / xor). A ring = circle − circle; a lens =
+ *  circle ∩ circle; a speech bubble = rect ∪ triangle. The children are folded into
+ *  the result (not drawn separately), so fill/stroke the `<Merge>` itself. Curve
+ *  outlines are flattened before the boolean; resolved on both backends (i_overlay). */
+export function Merge(props: MergeProps) {
+  return createElement('onda-boolean', props)
+}
+
 /** Flex layout props for {@link Flex} / {@link AbsoluteFill} (CSS-flexbox subset). */
 export interface FlexProps extends NodeProps, Layout {}
 

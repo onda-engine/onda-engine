@@ -9,6 +9,8 @@ import { FrameContext, type VideoConfig } from './frame.js'
 import { type GradientInput, parseGradient } from './gradient.js'
 import { type HostNode, type RootContainer, hostConfig } from './host-config.js'
 import type {
+  BooleanOp,
+  BooleanOperand,
   Color,
   Effect,
   Finish,
@@ -355,6 +357,24 @@ function toNode(node: HostNode): SceneNode {
     case 'onda-path': {
       const geometry: ShapeGeometry = { shape: 'path', data: stringProp(props, 'd', 'Path') }
       return { ...base, kind: { type: 'shape', geometry, ...fillStroke(props) }, ...withChildren }
+    }
+
+    case 'onda-boolean': {
+      const op: BooleanOp =
+        props.op === 'difference' || props.op === 'intersect' || props.op === 'xor'
+          ? props.op
+          : 'union'
+      // Fold the (already-built) shape children into operands — geometry + the child's
+      // own transform. They're consumed by the boolean, not drawn separately, so the
+      // result is a single shape node with no children.
+      const operands: BooleanOperand[] = []
+      for (const c of children) {
+        if (c.kind.type === 'shape') {
+          operands.push({ geometry: c.kind.geometry, transform: c.transform ?? {} })
+        }
+      }
+      const geometry: ShapeGeometry = { shape: 'boolean', op, operands }
+      return { ...base, kind: { type: 'shape', geometry, ...fillStroke(props) } }
     }
 
     case 'onda-text': {
