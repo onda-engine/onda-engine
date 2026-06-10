@@ -1124,6 +1124,7 @@ name = "onda-vello"
 version = "0.0.0"
 dependencies = [
  "futures-intrusive",
+ "i_overlay",
  "onda-core",
  "onda-scene",
  "onda-typography",

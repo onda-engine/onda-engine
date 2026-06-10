@@ -160,9 +160,9 @@ fn intrinsic_size(
         NodeKind::Shape(shape) => match &shape.geometry {
             ShapeGeometry::Rect { size, .. } => *size,
             ShapeGeometry::Ellipse { size } => *size,
-            // Arbitrary path bounds aren't computed yet; give it explicit size
-            // via a wrapping layout container if it must participate in layout.
-            ShapeGeometry::Path { .. } => Size::ZERO,
+            // Arbitrary path / boolean bounds aren't computed for layout; give an
+            // explicit size via a wrapping container if it must participate in layout.
+            ShapeGeometry::Path { .. } | ShapeGeometry::Boolean { .. } => Size::ZERO,
         },
         NodeKind::Image(image) => image
             .data

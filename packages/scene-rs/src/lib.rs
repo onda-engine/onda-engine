@@ -1237,6 +1237,36 @@ pub enum ShapeGeometry {
     Path {
         data: String,
     },
+    /// A BOOLEAN combination of sub-shapes (After Effects' "Merge Paths"): each
+    /// operand is resolved to a path in this geometry's local space, then folded
+    /// together by `op` (union / difference / intersect / xor) into one outline that
+    /// fills/strokes like any other geometry. Curves are flattened before the
+    /// boolean; renderer-resolved on both backends (via i_overlay).
+    Boolean {
+        op: BooleanOp,
+        operands: Vec<BooleanOperand>,
+    },
+}
+
+/// The operation for a [`ShapeGeometry::Boolean`]. Operands fold pairwise, so for
+/// `Difference` it's `operands[0]` minus the rest, and `Intersect` is the area
+/// common to all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BooleanOp {
+    Union,
+    Difference,
+    Intersect,
+    Xor,
+}
+
+/// One input to a [`ShapeGeometry::Boolean`]: a sub-geometry plus the transform that
+/// places it in the boolean's local space (so positioned/scaled/rotated operands
+/// combine correctly).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BooleanOperand {
+    pub geometry: ShapeGeometry,
+    pub transform: Transform,
 }
 
 /// Stroke end-cap style (CSS `stroke-linecap`).
@@ -1399,6 +1429,11 @@ impl Shape {
     /// coordinates. Renders on vector backends (Vello).
     pub fn path(data: impl Into<String>) -> Self {
         Shape::from_geometry(ShapeGeometry::Path { data: data.into() })
+    }
+
+    /// A shape that is the BOOLEAN combination of `operands` (merge paths).
+    pub fn boolean(op: BooleanOp, operands: Vec<BooleanOperand>) -> Self {
+        Shape::from_geometry(ShapeGeometry::Boolean { op, operands })
     }
 
     /// Builder: set the fill color.

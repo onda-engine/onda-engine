@@ -13,8 +13,8 @@ use std::collections::HashMap;
 
 use onda_core::{Color, Size, Transform};
 use onda_scene::{
-    BlendMode, Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Matte,
-    MatteMode, Node, NodeKind, Scene, Shadow, ShapeGeometry, Text, TrimDash,
+    BlendMode, BooleanOp, Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin,
+    Matte, MatteMode, Node, NodeKind, Scene, Shadow, ShapeGeometry, Text, TrimDash,
 };
 use onda_typography::{FontContext, StyledRun};
 use vello::kurbo::{Affine, BezPath, Cap, Ellipse, Join, Rect, RoundedRect, Shape, Stroke};
@@ -2171,6 +2171,72 @@ fn to_affine(t: &Transform) -> Affine {
         * Affine::translate((-ox, -oy))
 }
 
+fn boolean_rule(op: BooleanOp) -> i_overlay::core::overlay_rule::OverlayRule {
+    use i_overlay::core::overlay_rule::OverlayRule;
+    match op {
+        BooleanOp::Union => OverlayRule::Union,
+        BooleanOp::Difference => OverlayRule::Difference,
+        BooleanOp::Intersect => OverlayRule::Intersect,
+        BooleanOp::Xor => OverlayRule::Xor,
+    }
+}
+
+/// Resolve a boolean combination of `operands` (paths in a common space) into one
+/// outline via i_overlay — flatten to polygons (kurbo), fold pairwise so N compose,
+/// rebuild as a `BezPath` (NonZero fill → orientation encodes holes). Mirrors the
+/// CPU reference in `onda-renderer` so both backends agree.
+fn boolean_path(rule: i_overlay::core::overlay_rule::OverlayRule, operands: &[BezPath]) -> BezPath {
+    use i_overlay::core::fill_rule::FillRule;
+    use i_overlay::float::single::SingleFloatOverlay;
+    use vello::kurbo::PathEl;
+    const TOL: f64 = 0.2;
+    let to_contours = |bp: &BezPath| -> Vec<Vec<[f64; 2]>> {
+        let mut contours: Vec<Vec<[f64; 2]>> = Vec::new();
+        let mut cur: Vec<[f64; 2]> = Vec::new();
+        let flush = |cur: &mut Vec<[f64; 2]>, out: &mut Vec<Vec<[f64; 2]>>| {
+            if cur.len() >= 3 {
+                out.push(std::mem::take(cur));
+            } else {
+                cur.clear();
+            }
+        };
+        vello::kurbo::flatten(bp.elements().iter().copied(), TOL, |el| match el {
+            PathEl::MoveTo(p) => {
+                flush(&mut cur, &mut contours);
+                cur.push([p.x, p.y]);
+            }
+            PathEl::LineTo(p) => cur.push([p.x, p.y]),
+            PathEl::ClosePath => flush(&mut cur, &mut contours),
+            _ => {}
+        });
+        if cur.len() >= 3 {
+            contours.push(cur);
+        }
+        contours
+    };
+    if operands.is_empty() {
+        return BezPath::new();
+    }
+    let mut acc = to_contours(&operands[0]);
+    for operand in &operands[1..] {
+        let clip = to_contours(operand);
+        let shapes = acc.overlay(&clip, rule, FillRule::NonZero);
+        acc = shapes.into_iter().flatten().collect();
+    }
+    let mut out = BezPath::new();
+    for contour in &acc {
+        if contour.len() < 3 {
+            continue;
+        }
+        out.move_to((contour[0][0], contour[0][1]));
+        for p in &contour[1..] {
+            out.line_to((p[0], p[1]));
+        }
+        out.close_path();
+    }
+    out
+}
+
 /// The (local-space) rounded-rect + radius for a shape's drop shadow: the
 /// geometry's box, displaced by `offset` and grown by `spread`. Ellipses map to a
 /// fully-rounded rect; paths use their bounding box.
@@ -2192,7 +2258,7 @@ fn shadow_box(geo: &ShapeGeometry, path: &BezPath, shadow: &Shadow) -> (Rect, f6
             let (w, h) = (size.width as f64, size.height as f64);
             (0.0, 0.0, w, h, w.min(h) / 2.0)
         }
-        ShapeGeometry::Path { .. } => {
+        ShapeGeometry::Path { .. } | ShapeGeometry::Boolean { .. } => {
             let b = path.bounding_box();
             (b.x0, b.y0, b.x1, b.y1, 0.0)
         }
@@ -2314,6 +2380,18 @@ fn shape_path(geometry: &ShapeGeometry) -> BezPath {
         // Arbitrary SVG path data → Bézier outline. Malformed data yields an
         // empty path (draws nothing) rather than panicking.
         ShapeGeometry::Path { data } => BezPath::from_svg(data).unwrap_or_default(),
+        // Boolean: resolve each operand to its (transformed) path, then combine.
+        ShapeGeometry::Boolean { op, operands } => {
+            let paths: Vec<BezPath> = operands
+                .iter()
+                .map(|o| {
+                    let mut p = shape_path(&o.geometry);
+                    p.apply_affine(to_affine(&o.transform));
+                    p
+                })
+                .collect();
+            boolean_path(boolean_rule(*op), &paths)
+        }
     }
 }
 

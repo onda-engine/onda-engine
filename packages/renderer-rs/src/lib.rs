@@ -21,8 +21,8 @@
 use kurbo::{BezPath, PathEl, Shape as _};
 use onda_core::{Color, Size, Transform, Vec2};
 use onda_scene::{
-    Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Matte, MatteMode, Node,
-    NodeKind, Scene, Shape, ShapeGeometry, Text, TrimDash,
+    BooleanOp, Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Matte,
+    MatteMode, Node, NodeKind, Scene, Shape, ShapeGeometry, Text, TrimDash,
 };
 pub use onda_typography::{FontContext, TextMetrics, TextRaster};
 use tiny_skia as tsk;
@@ -1692,6 +1692,11 @@ fn node_local_size(node: &Node) -> Option<(f32, f32)> {
                 let bb = bez.bounding_box();
                 Some((bb.x1 as f32, bb.y1 as f32))
             }
+            // Boolean: bound the resolved (combined) outline.
+            ShapeGeometry::Boolean { .. } => {
+                let bb = geometry_to_bezpath(&shape.geometry).bounding_box();
+                Some((bb.x1 as f32, bb.y1 as f32))
+            }
         },
         NodeKind::Image(image) => image_box(image.data.as_ref(), image.width, image.height),
         NodeKind::Video(video) => image_box(video.data.as_ref(), video.width, video.height),
@@ -1817,6 +1822,7 @@ fn build_path(geometry: &ShapeGeometry) -> Option<tsk::Path> {
         }
         // Arbitrary SVG path data, parsed by kurbo (handles abs/rel + arcs).
         ShapeGeometry::Path { data } => kurbo_to_skia(&BezPath::from_svg(data).ok()?),
+        ShapeGeometry::Boolean { .. } => kurbo_to_skia(&geometry_to_bezpath(geometry)),
     }
 }
 
@@ -1872,8 +1878,37 @@ fn gradient_shader(gradient: &Gradient) -> Option<tsk::Shader<'static>> {
 /// [`Trim`]: onda_scene::Trim
 fn geometry_length(geometry: &ShapeGeometry) -> f32 {
     use kurbo::Shape as _;
+    geometry_to_bezpath(geometry).perimeter(0.1) as f32
+}
+
+fn boolean_rule(op: BooleanOp) -> i_overlay::core::overlay_rule::OverlayRule {
+    use i_overlay::core::overlay_rule::OverlayRule;
+    match op {
+        BooleanOp::Union => OverlayRule::Union,
+        BooleanOp::Difference => OverlayRule::Difference,
+        BooleanOp::Intersect => OverlayRule::Intersect,
+        BooleanOp::Xor => OverlayRule::Xor,
+    }
+}
+
+/// `Transform` → kurbo affine (TRS about `origin`), so boolean operands combine in
+/// the right place. Mirrors vello-rs `to_affine`.
+fn transform_to_kurbo(t: &Transform) -> kurbo::Affine {
+    let (ox, oy) = (t.origin.x as f64, t.origin.y as f64);
+    kurbo::Affine::translate((t.translate.x as f64, t.translate.y as f64))
+        * kurbo::Affine::translate((ox, oy))
+        * kurbo::Affine::rotate((t.rotate as f64).to_radians())
+        * kurbo::Affine::scale_non_uniform(t.scale.x as f64, t.scale.y as f64)
+        * kurbo::Affine::translate((-ox, -oy))
+}
+
+/// Build a geometry's outline as a kurbo `BezPath` (the same construction Vello
+/// uses), resolving a `Boolean` by combining its transformed operands. Shared by
+/// `geometry_length` (trim) and `build_path` (the CPU rasterizer).
+fn geometry_to_bezpath(geometry: &ShapeGeometry) -> BezPath {
+    use kurbo::Shape as _;
     const TOL: f64 = 0.1;
-    let path: BezPath = match geometry {
+    match geometry {
         ShapeGeometry::Rect {
             size,
             corner_radius,
@@ -1892,8 +1927,18 @@ fn geometry_length(geometry: &ShapeGeometry) -> f32 {
             kurbo::Ellipse::new((rx, ry), (rx, ry), 0.0).to_path(TOL)
         }
         ShapeGeometry::Path { data } => BezPath::from_svg(data).unwrap_or_default(),
-    };
-    path.perimeter(TOL) as f32
+        ShapeGeometry::Boolean { op, operands } => {
+            let paths: Vec<BezPath> = operands
+                .iter()
+                .map(|o| {
+                    let mut p = geometry_to_bezpath(&o.geometry);
+                    p.apply_affine(transform_to_kurbo(&o.transform));
+                    p
+                })
+                .collect();
+            boolean_path(boolean_rule(*op), &paths)
+        }
+    }
 }
 
 /// Resolve a boolean combination of `operands` (paths already in a common space)
@@ -1901,7 +1946,6 @@ fn geometry_length(geometry: &ShapeGeometry) -> f32 {
 /// polygon (kurbo), the operands are folded pairwise so N compose (`op[0] ∘ op[1] ∘
 /// …`), and the result is rebuilt as a `BezPath` (NonZero fill — orientation encodes
 /// holes, so the normal winding-rule fill cuts them correctly).
-#[cfg_attr(not(test), allow(dead_code))]
 fn boolean_path(rule: i_overlay::core::overlay_rule::OverlayRule, operands: &[BezPath]) -> BezPath {
     use i_overlay::core::fill_rule::FillRule;
     use i_overlay::float::single::SingleFloatOverlay;
@@ -1909,14 +1953,14 @@ fn boolean_path(rule: i_overlay::core::overlay_rule::OverlayRule, operands: &[Be
     let to_contours = |bp: &BezPath| -> Vec<Vec<[f64; 2]>> {
         let mut contours: Vec<Vec<[f64; 2]>> = Vec::new();
         let mut cur: Vec<[f64; 2]> = Vec::new();
-        let mut flush = |cur: &mut Vec<[f64; 2]>, out: &mut Vec<Vec<[f64; 2]>>| {
+        let flush = |cur: &mut Vec<[f64; 2]>, out: &mut Vec<Vec<[f64; 2]>>| {
             if cur.len() >= 3 {
                 out.push(std::mem::take(cur));
             } else {
                 cur.clear();
             }
         };
-        bp.flatten(TOL, |el| match el {
+        kurbo::flatten(bp.elements().iter().copied(), TOL, |el| match el {
             PathEl::MoveTo(p) => {
                 flush(&mut cur, &mut contours);
                 cur.push([p.x, p.y]);

@@ -33,6 +33,8 @@ export {
   type GroupProps,
   Image,
   type ImageProps,
+  Merge,
+  type MergeProps,
   Path,
   type PathProps,
   type PaintProps,
