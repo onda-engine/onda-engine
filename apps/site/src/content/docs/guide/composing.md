@@ -112,6 +112,19 @@ Operations on the path/geometry itself, the AE-shape-layer vocabulary:
   Props: `count`, `offsetX`, `offsetY`, `rotation` (deg/copy), `scale` (factor/copy),
   `originX`/`originY` (pivot), `startOpacity`/`endOpacity` (ramp).
 
+- **`<Merge op="…">`** — boolean "merge paths": combine the SHAPE children into ONE
+  outline. `op` is `union` (add), `difference` (the first minus the rest), `intersect`
+  (common area), or `xor` (symmetric difference). A ring = circle − circle; a lens =
+  circle ∩ circle; a speech bubble = rect ∪ triangle. The children fold into the
+  result (not drawn separately) — fill/stroke the `<Merge>` itself. Both backends.
+
+  ```tsx
+  <Merge op="difference" fill="#5ad1ff">
+    <Ellipse width={130} height={130} />
+    <Ellipse x={70} width={120} height={120} />
+  </Merge>
+  ```
+
 ### Colors
 
 `ColorInput` is a hex string (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`) or `{ r, g, b, a? }` (0..1 channels). `'none'` and `'transparent'` are accepted and treated as fully transparent. **Never pass a bare string that isn't a hex color** — it will throw.
