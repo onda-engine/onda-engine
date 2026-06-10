@@ -125,6 +125,28 @@ Operations on the path/geometry itself, the AE-shape-layer vocabulary:
   </Merge>
   ```
 
+### Particles (`<Particles>`)
+
+A **deterministic** particle emitter — bursts, fountains, confetti, sparks, dust,
+snow. Every particle's whole state (spawn, velocity, age, size, opacity, colour,
+spin) is a PURE function of `frame + seed + index`, so it scrubs and exports
+deterministically (no `Math.random`). Frame-based units (velocity = px/frame,
+gravity = px/frame²); each live particle is a plain shape — position/size/opacity/colour
+are identical on CPU + GPU, while `spin` (rotation) is GPU-only.
+
+```tsx
+<Particles
+  count={170} seed={11} x={W / 2} y={190}
+  speed={5} speedVariance={0.55}   // launch speed (px/frame) + random reduction
+  angle={-90} spread={360}         // direction (deg; −90 = up) + cone (360 = omni)
+  gravity={0.08}                   // downward accel (px/frame²)
+  lifetime={70} emitOver={0} loop={false}   // life (frames); stagger; re-emit for a fountain
+  shape="square" size={[13, 6]} opacity={[1, 0.55]} spin={420}
+  colors={['#e85494', '#ffd36b', '#5ad1ff', '#27b78d']}
+  spawnRadius={0}                  // spawn within this radius of the origin
+/>
+```
+
 ### Colors
 
 `ColorInput` is a hex string (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`) or `{ r, g, b, a? }` (0..1 channels). `'none'` and `'transparent'` are accepted and treated as fully transparent. **Never pass a bare string that isn't a hex color** — it will throw.
