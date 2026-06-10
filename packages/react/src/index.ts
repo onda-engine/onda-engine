@@ -37,6 +37,8 @@ export {
   type MergeProps,
   Path,
   type PathProps,
+  Precomp,
+  type PrecompProps,
   type PaintProps,
   Rect,
   type RectProps,

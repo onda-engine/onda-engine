@@ -244,6 +244,12 @@ pub struct Matte {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "effect", rename_all = "snake_case")]
 pub enum Effect {
+    /// ISOLATE / precomp: render the subtree to its own texture and composite it as
+    /// ONE layer. No pixel change on its own — but it forces the render-to-texture
+    /// flatten, so the node's `opacity` / `blend` apply to the COMPOSITED result
+    /// instead of per-child. Fixes the "fading a group double-darkens its overlaps"
+    /// gotcha (After Effects' precomp / collapse-transformations). The `<Precomp>` sugar.
+    Isolate,
     /// Screen-space Gaussian blur; `sigma` is the std-dev in OUTPUT px (matching
     /// CSS `blur()`).
     Blur { sigma: f32 },

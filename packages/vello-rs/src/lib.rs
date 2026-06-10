@@ -1068,6 +1068,7 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
         .effects
         .iter()
         .map(|e| match e {
+            Effect::Isolate => 0.0,
             Effect::Blur { sigma } => *sigma,
             // Directional blur smears along one axis by `sigma`; the 3σ headroom
             // (applied to both axes below) covers the worst case.
@@ -1161,6 +1162,8 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
     // readback below; it never injects into Vello's pass.
     for effect in &node.effects {
         match effect {
+            // Isolate/precomp: no pixel change — the render-to-texture flatten is the point.
+            Effect::Isolate => {}
             Effect::Blur { sigma } if *sigma > 0.0 => {
                 let blur = ctx
                     .blur_pipeline

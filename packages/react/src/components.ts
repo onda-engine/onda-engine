@@ -320,6 +320,18 @@ export function Merge(props: MergeProps) {
   return createElement('onda-boolean', props)
 }
 
+export type PrecompProps = NodeProps
+
+/** PRECOMP — flatten this subtree to a SINGLE layer (render-to-texture) before its
+ *  `opacity` / `blendMode` / effects apply, the way After Effects' precomp /
+ *  collapse-transformations does. Reach for it when you fade or blend-mode a GROUP of
+ *  overlapping layers and don't want the overlaps to double-up, or to treat a group as
+ *  one unit. (It's a `<Group>` carrying the `isolate` effect.) */
+export function Precomp(props: PrecompProps) {
+  const effects: Effect[] = [{ effect: 'isolate' }, ...(props.effects ?? [])]
+  return createElement(Group, { ...props, effects })
+}
+
 /** Flex layout props for {@link Flex} / {@link AbsoluteFill} (CSS-flexbox subset). */
 export interface FlexProps extends NodeProps, Layout {}
 
