@@ -84,6 +84,25 @@ a function of the frame) while static elements stay sharp. **Export-only** — c
 `shutter` is in degrees (180 = half the frame, the film default; 360 = full-frame,
 heavier). More `samples` = a smoother smear at linear cost.
 
+### Depth of field (`<Composition dof={…}>` + `depth`)
+
+A **2.5D rack focus**: give each layer a `depth` (any units) and the comp a
+`dof={{ focus }}`, and every layer defocuses by how far its `depth` is from the focus
+plane — sharp at `focus`, blurrier away from it. Animate `focus` for a focus pull
+between layers. It resolves to a **per-layer blur** (reuses the blur pass), so it
+works on both backends and the live preview — no true 3D, the depth is yours to assign.
+
+```tsx
+<Composition dof={{ focus: 400, aperture: 0.06, range: 28 }}>
+  <Group depth={900}><Background /></Group>   {/* far  → blurred */}
+  <Group depth={400}><Subject /></Group>      {/* at focus → sharp */}
+  <Group depth={120}><Foreground /></Group>   {/* near → blurred */}
+</Composition>
+```
+
+`aperture` = blur px per unit of depth past the in-focus band (bigger = shallower DoF);
+`range` = a sharp band ± `focus`; `maxBlur` clamps the σ (default 40).
+
 ### Shape operators (mograph)
 
 Operations on the path/geometry itself, the AE-shape-layer vocabulary:
