@@ -23,7 +23,7 @@ use onda_core::{Color, Size, Transform, Vec2};
 use onda_renderer::Renderer;
 use onda_scene::{
     Composition, Effect, Gradient, GradientStop, Matte, MatteMode, Node, NodeKind, Scene, Shape,
-    Text,
+    Text, Trim,
 };
 
 fn text_node(content: &str, size: f32, color: Color) -> Node {
@@ -112,6 +112,20 @@ fn fixtures() -> Vec<(&'static str, Scene)> {
                 Shape::path("M20 130 L120 20 L220 130 Z").with_fill(rose),
             )),
         ),
+        // Trim paths: a stroked zig drawn 0..0.6 of its length (the line-draw). Locks
+        // the trim → length-normalised dash on the CPU reference.
+        (
+            "trim_stroke",
+            scene(Node::shape(
+                Shape::path("M20 120 L120 30 L220 120")
+                    .with_stroke(rose, 10.0)
+                    .with_trim(Trim {
+                        start: 0.0,
+                        end: 0.6,
+                        offset: 0.0,
+                    }),
+            )),
+        ),
         // Text (bundled font → deterministic glyph coverage).
         (
             "text",
@@ -187,6 +201,21 @@ fn fixtures() -> Vec<(&'static str, Scene)> {
                 ),
             ),
         ),
+        // K5: directional / motion blur — a 1D smear along 45° (exercises the
+        // angled-offset rounding path, distinct from the axis-aligned blur above).
+        (
+            "directional_blur_text",
+            scene(
+                Node::group().with_child(
+                    text_node("Onda", 56.0, Color::WHITE)
+                        .with_transform(translate(20.0, 45.0))
+                        .with_effect(Effect::DirectionalBlur {
+                            sigma: 7.0,
+                            angle: std::f32::consts::FRAC_PI_4,
+                        }),
+                ),
+            ),
+        ),
         // RTT Phase 1: a blurred filled shape (soft-edged rounded rect).
         (
             "blur_shape",
@@ -195,6 +224,84 @@ fn fixtures() -> Vec<(&'static str, Scene)> {
                     Node::shape(Shape::rect(Size::new(120.0, 90.0)).with_fill(rose))
                         .with_transform(translate(40.0, 30.0))
                         .with_effect(Effect::Blur { sigma: 5.0 }),
+                ),
+            ),
+        ),
+        // K5 pixel-fx: chromatic aberration — white text splits into R/cyan fringes.
+        (
+            "chromatic_aberration_text",
+            scene(
+                Node::group().with_child(
+                    text_node("Onda", 56.0, Color::WHITE)
+                        .with_transform(translate(20.0, 45.0))
+                        .with_effect(Effect::ChromaticAberration { amount: 5.0 }),
+                ),
+            ),
+        ),
+        // K5 pixel-fx: vignette — a filled rect darkened radially toward its edges.
+        (
+            "vignette_shape",
+            scene(
+                Node::group().with_child(
+                    Node::shape(Shape::rect(Size::new(200.0, 150.0)).with_fill(rose))
+                        .with_transform(translate(20.0, 20.0))
+                        .with_effect(Effect::Vignette {
+                            amount: 0.85,
+                            softness: 0.6,
+                        }),
+                ),
+            ),
+        ),
+        // K5 pixel-fx: posterize — a solid fill quantized to 3 banded steps/channel.
+        (
+            "posterize_shape",
+            scene(
+                Node::group().with_child(
+                    Node::shape(Shape::rect(Size::new(150.0, 110.0)).with_fill(rose))
+                        .with_transform(translate(30.0, 30.0))
+                        .with_effect(Effect::Posterize { levels: 3.0 }),
+                ),
+            ),
+        ),
+        // K5 pixel-fx: duotone — a mid-grey fill mapped onto a shadow→highlight ramp.
+        (
+            "duotone_shape",
+            scene(
+                Node::group().with_child(
+                    Node::shape(
+                        Shape::rect(Size::new(150.0, 110.0))
+                            .with_fill(Color::from_rgba8(0x80, 0x80, 0x80, 0xFF)),
+                    )
+                    .with_transform(translate(30.0, 30.0))
+                    .with_effect(Effect::Duotone {
+                        shadow: [0.10, 0.05, 0.22],
+                        highlight: [1.0, 0.80, 0.32],
+                    }),
+                ),
+            ),
+        ),
+        // K5 pixel-fx: chroma key — the green panel keys out, the rose panel survives.
+        (
+            "chroma_key_shape",
+            scene(
+                Node::group().with_child(
+                    Node::group()
+                        .with_child(
+                            Node::shape(
+                                Shape::rect(Size::new(170.0, 120.0))
+                                    .with_fill(Color::from_rgba8(0x10, 0xC8, 0x20, 0xFF)),
+                            )
+                            .with_transform(translate(20.0, 20.0)),
+                        )
+                        .with_child(
+                            Node::shape(Shape::rect(Size::new(70.0, 70.0)).with_fill(rose))
+                                .with_transform(translate(60.0, 45.0)),
+                        )
+                        .with_effect(Effect::ChromaKey {
+                            key: [0.06, 0.78, 0.13],
+                            threshold: 0.35,
+                            smoothness: 0.12,
+                        }),
                 ),
             ),
         ),

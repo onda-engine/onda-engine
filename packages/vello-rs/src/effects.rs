@@ -26,9 +26,10 @@ use vello::wgpu;
 const BLUR_WGSL: &str = r#"
 struct Params {
     radius: u32,
-    direction: u32, // 0 = horizontal, 1 = vertical
     width: u32,
     height: u32,
+    dir_x: f32, // sample step per tap: (1,0)=horizontal, (0,1)=vertical, else angled
+    dir_y: f32,
 };
 
 @group(0) @binding(0) var src: texture_2d<f32>;
@@ -50,13 +51,12 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let maxy = i32(params.height) - 1;
 
     for (var i: i32 = -r; i <= r; i = i + 1) {
-        var sx = i32(x);
-        var sy = i32(y);
-        if (params.direction == 0u) {
-            sx = clamp(i32(x) + i, 0, maxx);
-        } else {
-            sy = clamp(i32(y) + i, 0, maxy);
-        }
+        // Sample along the (dir_x, dir_y) axis, rounding to the nearest pixel (the
+        // CPU reference rounds identically). (1,0) reproduces the old horizontal
+        // pass and (0,1) the vertical; an arbitrary unit vector blurs directionally.
+        let off = f32(i);
+        let sx = clamp(i32(round(f32(x) + off * params.dir_x)), 0, maxx);
+        let sy = clamp(i32(round(f32(y) + off * params.dir_y)), 0, maxy);
         let w = weights[u32(i + r)];
         // Premultiply by alpha so the blur doesn't bleed transparent-black into
         // edges (straight-alpha source → premultiplied accumulation → un-premul).
@@ -82,7 +82,7 @@ pub struct GaussianBlur {
 }
 
 /// Byte size of the params uniform (4 × u32).
-const PARAMS_SIZE: u64 = 16;
+const PARAMS_SIZE: u64 = 32;
 
 impl GaussianBlur {
     /// Build the pipeline + bind-group layout. Cached on the renderer (call once).
@@ -222,9 +222,9 @@ impl GaussianBlur {
         let a_view = tex_a.create_view(&wgpu::TextureViewDescriptor::default());
         let b_view = tex_b.create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Per-pass params uniforms (direction differs).
-        let params_h = make_params(device, queue, radius, 0, width, height);
-        let params_v = make_params(device, queue, radius, 1, width, height);
+        // Per-pass params uniforms (direction differs): horizontal then vertical.
+        let params_h = make_params(device, queue, radius, 1.0, 0.0, width, height);
+        let params_v = make_params(device, queue, radius, 0.0, 1.0, width, height);
 
         let bg_h = self.make_bind_group(device, &src_view, &a_view, &params_h, &weight_buf);
         let bg_v = self.make_bind_group(device, &a_view, &b_view, &params_v, &weight_buf);
@@ -256,6 +256,71 @@ impl GaussianBlur {
         queue.submit(Some(encoder.finish()));
 
         tex_b
+    }
+
+    /// Like [`GaussianBlur::run`] but a SINGLE pass along the unit direction
+    /// `(dx, dy)` — a directional / motion blur. Reuses the same pipeline and the
+    /// generalized direction param (`(1,0)`/`(0,1)` would be one separable pass).
+    pub fn run_directional(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        source: &wgpu::Texture,
+        width: u32,
+        height: u32,
+        sigma: f32,
+        dx: f32,
+        dy: f32,
+    ) -> wgpu::Texture {
+        let weights = gaussian_weights(sigma);
+        let radius = (weights.len() / 2) as u32;
+
+        let weight_bytes: Vec<u8> = weights.iter().flat_map(|w| w.to_le_bytes()).collect();
+        let weight_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("onda-dirblur-weights"),
+            size: weight_bytes.len() as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(&weight_buf, 0, &weight_bytes);
+
+        let out = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("onda-dirblur-out"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let src_view = source.create_view(&wgpu::TextureViewDescriptor::default());
+        let out_view = out.create_view(&wgpu::TextureViewDescriptor::default());
+        let params = make_params(device, queue, radius, dx, dy, width, height);
+        let bg = self.make_bind_group(device, &src_view, &out_view, &params, &weight_buf);
+
+        let gx = width.div_ceil(8);
+        let gy = height.div_ceil(8);
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("onda-dirblur-encoder"),
+        });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("onda-dirblur"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &bg, &[]);
+            pass.dispatch_workgroups(gx, gy, 1);
+        }
+        queue.submit(Some(encoder.finish()));
+        out
     }
 
     fn make_bind_group(
@@ -379,7 +444,10 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     var rgb: vec3<f32>;
     if (dims.linear == 1u) {
         // Composite in LINEAR light, then ACES tone-map → the highlight + halo read as
-        // real light bleed (smooth roll-off) instead of a clipped flat overlay.
+        // real light bleed (smooth roll-off) instead of a clipped flat overlay. The
+        // tone-map lives HERE (where the bloom's HDR values >1.0 exist before clamping)
+        // rather than comp-wide, because Vello hands back 8-bit between passes — no HDR
+        // survives to a final comp-level transform.
         let halo = srgb_to_linear(add);
         // HALATION: film bleeds a warm red/orange ghost around highlights (the red dye
         // layer scatters more than blue). Add a warm-tinted echo of the halo before the
@@ -1856,6 +1924,729 @@ fn make_bloom_bright_params(
     buf
 }
 
+/// `op` codes for the unified per-pixel effect pass (`PixelFx`): one pipeline +
+/// one shader with a `switch`, so a batch of small per-pixel effects shares the
+/// plumbing instead of each minting its own pipeline + `Ctx` field.
+pub const PIXELFX_CHROMATIC: u32 = 0;
+pub const PIXELFX_VIGNETTE: u32 = 1;
+pub const PIXELFX_POSTERIZE: u32 = 2;
+pub const PIXELFX_DUOTONE: u32 = 3;
+pub const PIXELFX_CHROMA_KEY: u32 = 4;
+
+const PIXELFX_PARAMS_SIZE: u64 = 48; // op,w,h,pad (16) + p0 vec4 (16) + p1 vec4 (16)
+
+const PIXELFX_WGSL: &str = r#"
+struct Params {
+    op: u32,
+    width: u32,
+    height: u32,
+    pad: u32,
+    p0: vec4<f32>,
+    p1: vec4<f32>,
+};
+
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var<uniform> params: Params;
+
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let x = gid.x;
+    let y = gid.y;
+    if (x >= params.width || y >= params.height) {
+        return;
+    }
+    let maxx = i32(params.width) - 1;
+    let maxy = i32(params.height) - 1;
+    let texel = textureLoad(src, vec2<i32>(i32(x), i32(y)), 0);
+    var rgb = texel.rgb;
+    var a = texel.a;
+
+    if (params.op == 0u) {
+        // Chromatic aberration: split R outward / B inward along the radius.
+        let cx = f32(params.width) * 0.5;
+        let cy = f32(params.height) * 0.5;
+        var dir = vec2<f32>(f32(x) - cx, f32(y) - cy);
+        dir = dir / max(length(dir), 1.0);
+        let amt = params.p0.x;
+        let rs = textureLoad(src, vec2<i32>(
+            clamp(i32(round(f32(x) + dir.x * amt)), 0, maxx),
+            clamp(i32(round(f32(y) + dir.y * amt)), 0, maxy)), 0);
+        let bs = textureLoad(src, vec2<i32>(
+            clamp(i32(round(f32(x) - dir.x * amt)), 0, maxx),
+            clamp(i32(round(f32(y) - dir.y * amt)), 0, maxy)), 0);
+        rgb = vec3<f32>(rs.r, texel.g, bs.b);
+        a = (rs.a + texel.a + bs.a) / 3.0;
+    } else if (params.op == 1u) {
+        // Vignette: radial falloff from centre.
+        let cx = f32(params.width) * 0.5;
+        let cy = f32(params.height) * 0.5;
+        let d = length(vec2<f32>((f32(x) - cx) / cx, (f32(y) - cy) / cy));
+        let amount = params.p0.x;
+        let softness = max(params.p0.y, 0.001);
+        rgb = rgb * (1.0 - amount * clamp((d - (1.0 - softness)) / softness, 0.0, 1.0));
+    } else if (params.op == 2u) {
+        // Posterize: quantize to `levels` evenly-spaced steps (incl. 0 and 1).
+        let levels = max(params.p0.x, 2.0);
+        rgb = clamp(floor(rgb * (levels - 1.0) + 0.5) / (levels - 1.0),
+            vec3<f32>(0.0), vec3<f32>(1.0));
+    } else if (params.op == 3u) {
+        // Duotone: luma -> gradient from shadow (p0) to highlight (p1).
+        let lum = clamp(dot(rgb, vec3<f32>(0.299, 0.587, 0.114)), 0.0, 1.0);
+        rgb = mix(params.p0.rgb, params.p1.rgb, lum);
+    } else if (params.op == 4u) {
+        // Chroma key: cut alpha where rgb is near the key colour, then DESPILL.
+        let key = params.p0.rgb;
+        let dist = distance(rgb, key);
+        a = a * smoothstep(params.p1.x, params.p1.x + max(params.p1.y, 0.001), dist);
+        // Despill: clamp the key's dominant channel to the other two, so the
+        // anti-aliased edge pixels (a blend of subject + key) don't survive as a
+        // coloured fringe — the classic green/blue-screen spill suppression.
+        if (key.g >= key.r && key.g >= key.b) {
+            rgb.g = min(rgb.g, max(rgb.r, rgb.b));
+        } else if (key.b >= key.r && key.b >= key.g) {
+            rgb.b = min(rgb.b, max(rgb.r, rgb.g));
+        } else {
+            rgb.r = min(rgb.r, max(rgb.g, rgb.b));
+        }
+    }
+
+    textureStore(dst, vec2<i32>(i32(x), i32(y)), vec4<f32>(rgb, a));
+}
+"#;
+
+/// Unified per-pixel effect compute pass — one pipeline drives chromatic
+/// aberration, vignette, posterize, duotone and chroma-key via an `op` code.
+pub struct PixelFx {
+    pipeline: wgpu::ComputePipeline,
+    bind_group_layout: wgpu::BindGroupLayout,
+}
+
+impl PixelFx {
+    pub fn new(device: &wgpu::Device) -> Self {
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("onda-pixelfx-wgsl"),
+            source: wgpu::ShaderSource::Wgsl(PIXELFX_WGSL.into()),
+        });
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("onda-pixelfx-bgl"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::StorageTexture {
+                        access: wgpu::StorageTextureAccess::WriteOnly,
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("onda-pixelfx-pl"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("onda-pixelfx-pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &module,
+            entry_point: "main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+        PixelFx {
+            pipeline,
+            bind_group_layout,
+        }
+    }
+
+    /// Run one per-pixel `op` over `source`, returning a new texture. `p0`/`p1`
+    /// pack the op's parameters (see the WGSL `switch`).
+    pub fn run(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        source: &wgpu::Texture,
+        width: u32,
+        height: u32,
+        op: u32,
+        p0: [f32; 4],
+        p1: [f32; 4],
+    ) -> wgpu::Texture {
+        let out = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("onda-pixelfx-out"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let src_view = source.create_view(&wgpu::TextureViewDescriptor::default());
+        let out_view = out.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut bytes = Vec::with_capacity(PIXELFX_PARAMS_SIZE as usize);
+        bytes.extend_from_slice(&op.to_le_bytes());
+        bytes.extend_from_slice(&width.to_le_bytes());
+        bytes.extend_from_slice(&height.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        for v in p0.iter().chain(p1.iter()) {
+            bytes.extend_from_slice(&v.to_le_bytes());
+        }
+        let params = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("onda-pixelfx-params"),
+            size: PIXELFX_PARAMS_SIZE,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(&params, 0, &bytes);
+
+        let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("onda-pixelfx-bg"),
+            layout: &self.bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&src_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&out_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: params.as_entire_binding(),
+                },
+            ],
+        });
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("onda-pixelfx-encoder"),
+        });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("onda-pixelfx"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &bg, &[]);
+            pass.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
+        }
+        queue.submit(Some(encoder.finish()));
+        out
+    }
+}
+
+// === Composition-level cinematic FINISH (linear-HDR chain + ACES) ===========
+//
+// Per-node effects can't hold HDR: Vello hands each effect subtree back as an
+// 8-bit sRGB image, so values >1.0 are clamped between passes and a final ACES
+// tone-map would only ever see 0..1 (→ a muddy, desaturated frame). This chain
+// sidesteps that by running AFTER the comp rasterizes, entirely in float:
+//   1. DECODE the 8-bit sRGB frame → `Rgba16Float` scene-linear.
+//   2. BLOOM in linear: bright-pass (keep highlights, scaled — HDR kept) → separable
+//      Gaussian → the halo is *added* in linear, so bright accents bleed past 1.0.
+//   3. OUTPUT TRANSFORM: + warm halation, × exposure, ACES tone-map (rolls the HDR
+//      highlights off smoothly), encode → 8-bit sRGB. The single tone-map.
+// Because the intermediates are float, the bloom's >1.0 light survives all the way
+// to the one ACES — the "looks shot" output transform, comp-wide, with or without
+// any per-node effect.
+
+const FINISH_DECODE_WGSL: &str = r#"
+struct D { w: u32, h: u32, p0: u32, p1: u32 };
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var dst: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(2) var<uniform> d: D;
+fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
+    let lo = c / 12.92;
+    let hi = pow((c + 0.055) / 1.055, vec3<f32>(2.4));
+    return select(hi, lo, c <= vec3<f32>(0.04045));
+}
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if (gid.x >= d.w || gid.y >= d.h) { return; }
+    let p = vec2<i32>(i32(gid.x), i32(gid.y));
+    let t = textureLoad(src, p, 0);
+    textureStore(dst, p, vec4<f32>(srgb_to_linear(t.rgb), t.a));
+}
+"#;
+
+const FINISH_BRIGHT_WGSL: &str = r#"
+struct B { threshold: f32, intensity: f32, w: u32, h: u32 };
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var dst: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(2) var<uniform> b: B;
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if (gid.x >= b.w || gid.y >= b.h) { return; }
+    let p = vec2<i32>(i32(gid.x), i32(gid.y));
+    let c = textureLoad(src, p, 0);
+    // Linear-light luminance (Rec. 709). Keep highlights only, scaled by intensity;
+    // HDR is preserved (no clamp) so a bright pixel can bloom past 1.0.
+    let lum = dot(c.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let keep = step(b.threshold, lum);
+    textureStore(dst, p, vec4<f32>(c.rgb * b.intensity * keep, keep));
+}
+"#;
+
+const FINISH_BLUR_WGSL: &str = r#"
+struct K { sigma: f32, dir_x: f32, dir_y: f32, pad: f32, w: u32, h: u32, p0: u32, p1: u32 };
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var dst: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(2) var<uniform> k: K;
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if (gid.x >= k.w || gid.y >= k.h) { return; }
+    let maxx = i32(k.w) - 1;
+    let maxy = i32(k.h) - 1;
+    let sigma = max(k.sigma, 0.0001);
+    let radius = min(i32(ceil(sigma * 3.0)), 160);
+    let dx = i32(k.dir_x);
+    let dy = i32(k.dir_y);
+    let two_s2 = 2.0 * sigma * sigma;
+    var sum = vec4<f32>(0.0);
+    var wsum = 0.0;
+    for (var i = -radius; i <= radius; i = i + 1) {
+        let w = exp(-f32(i * i) / two_s2);
+        let sx = clamp(i32(gid.x) + i * dx, 0, maxx);
+        let sy = clamp(i32(gid.y) + i * dy, 0, maxy);
+        sum = sum + textureLoad(src, vec2<i32>(sx, sy), 0) * w;
+        wsum = wsum + w;
+    }
+    textureStore(dst, vec2<i32>(i32(gid.x), i32(gid.y)), sum / wsum);
+}
+"#;
+
+const FINISH_OUTPUT_WGSL: &str = r#"
+struct O {
+    exposure: f32, halation: f32, has_bloom: u32, pad: u32,
+    w: u32, h: u32, contrast: f32, saturation: f32,
+    temperature: f32, vignette: f32, grain: f32, grain_seed: f32,
+};
+@group(0) @binding(0) var base: texture_2d<f32>;
+@group(0) @binding(1) var halo: texture_2d<f32>;
+@group(0) @binding(2) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(3) var<uniform> o: O;
+fn linear_to_srgb(c: vec3<f32>) -> vec3<f32> {
+    let cc = clamp(c, vec3<f32>(0.0), vec3<f32>(1.0));
+    let lo = cc * 12.92;
+    let hi = 1.055 * pow(cc, vec3<f32>(1.0 / 2.4)) - 0.055;
+    return select(hi, lo, cc <= vec3<f32>(0.0031308));
+}
+// ACES filmic tone-map (Narkowicz approximation): rolls HDR highlights off smoothly.
+fn aces(x: vec3<f32>) -> vec3<f32> {
+    let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;
+    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
+}
+const LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);
+fn hash2(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
+}
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if (gid.x >= o.w || gid.y >= o.h) { return; }
+    let p = vec2<i32>(i32(gid.x), i32(gid.y));
+    let bcol = textureLoad(base, p, 0);
+    var add = vec3<f32>(0.0);
+    var halo_a = 0.0;
+    if (o.has_bloom == 1u) {
+        let h = textureLoad(halo, p, 0);
+        add = h.rgb;
+        halo_a = h.a;
+    }
+    // HALATION: a warm red/orange echo of the halo (film red-dye scatter), then exposure.
+    let halation = add * vec3<f32>(0.55, 0.18, 0.06) * o.halation;
+    var g = (bcol.rgb + add + halation) * o.exposure;
+    // GRADE in linear: white-balance (warm/cool), contrast around mid-grey, saturation.
+    g = g * vec3<f32>(1.0 + 0.25 * o.temperature, 1.0, 1.0 - 0.25 * o.temperature);
+    g = max((g - vec3<f32>(0.18)) * o.contrast + vec3<f32>(0.18), vec3<f32>(0.0));
+    let glum = dot(g, LUMA);
+    g = max(mix(vec3<f32>(glum), g, o.saturation), vec3<f32>(0.0));
+    // VIGNETTE: radial edge darkening (linear), centred on the frame.
+    if (o.vignette > 0.0) {
+        let uv = vec2<f32>(f32(gid.x) / f32(o.w), f32(gid.y) / f32(o.h)) - vec2<f32>(0.5);
+        g = g * (1.0 - o.vignette * smoothstep(0.45, 1.3, length(uv * 2.0)));
+    }
+    // GRAIN: monochrome noise, peaked in the midtones (luminance-banded), animated by
+    // the seed (frame). Added in linear so it sits *in* the image, under the tone-map.
+    if (o.grain > 0.0) {
+        let n = hash2(vec2<f32>(f32(gid.x), f32(gid.y)) + vec2<f32>(o.grain_seed * 1.7 + 0.5, o.grain_seed * 2.3 + 0.9)) - 0.5;
+        let lum = dot(g, LUMA);
+        g = max(g + n * o.grain * (4.0 * lum * (1.0 - lum)), vec3<f32>(0.0));
+    }
+    let rgb = linear_to_srgb(aces(g));
+    let a = clamp(bcol.a + halo_a, 0.0, 1.0);
+    textureStore(dst, p, vec4<f32>(rgb, a));
+}
+"#;
+
+/// Parameters for one [`LinearFinish`] run — the resolved `Composition::finish`.
+/// `bloom` is `(sigma, threshold, intensity)` or `None`; the grade/vignette/grain
+/// fields default to no-ops (`contrast`/`saturation` = 1, the rest 0).
+pub struct FinishParams {
+    pub exposure: f32,
+    pub halation: f32,
+    pub bloom: Option<(f32, f32, f32)>,
+    pub temperature: f32,
+    pub contrast: f32,
+    pub saturation: f32,
+    pub vignette: f32,
+    pub grain: f32,
+    pub grain_seed: f32,
+}
+
+/// The composition-level cinematic finish chain (see the module comment above):
+/// decode → linear-HDR bloom → grade/vignette/grain + exposure + ACES → sRGB. Four
+/// cached compute pipelines over `Rgba16Float` intermediates; the final encode is 8-bit.
+pub struct LinearFinish {
+    decode: wgpu::ComputePipeline,
+    decode_layout: wgpu::BindGroupLayout,
+    bright: wgpu::ComputePipeline,
+    bright_layout: wgpu::BindGroupLayout,
+    blur: wgpu::ComputePipeline,
+    blur_layout: wgpu::BindGroupLayout,
+    output: wgpu::ComputePipeline,
+    output_layout: wgpu::BindGroupLayout,
+}
+
+impl LinearFinish {
+    pub fn new(device: &wgpu::Device) -> Self {
+        let tex = |binding: u32| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::COMPUTE,
+            ty: wgpu::BindingType::Texture {
+                sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                view_dimension: wgpu::TextureViewDimension::D2,
+                multisampled: false,
+            },
+            count: None,
+        };
+        let storage = |binding: u32, format: wgpu::TextureFormat| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::COMPUTE,
+            ty: wgpu::BindingType::StorageTexture {
+                access: wgpu::StorageTextureAccess::WriteOnly,
+                format,
+                view_dimension: wgpu::TextureViewDimension::D2,
+            },
+            count: None,
+        };
+        let uniform = |binding: u32| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::COMPUTE,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        };
+        let f16 = wgpu::TextureFormat::Rgba16Float;
+        let build = |label: &str, wgsl: &str, entries: &[wgpu::BindGroupLayoutEntry]| {
+            let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some(label),
+                source: wgpu::ShaderSource::Wgsl(wgsl.into()),
+            });
+            let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some(label),
+                entries,
+            });
+            let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some(label),
+                bind_group_layouts: &[&layout],
+                push_constant_ranges: &[],
+            });
+            let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some(label),
+                layout: Some(&pl),
+                module: &module,
+                entry_point: "main",
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                cache: None,
+            });
+            (pipeline, layout)
+        };
+        let (decode, decode_layout) = build(
+            "onda-finish-decode",
+            FINISH_DECODE_WGSL,
+            &[tex(0), storage(1, f16), uniform(2)],
+        );
+        let (bright, bright_layout) = build(
+            "onda-finish-bright",
+            FINISH_BRIGHT_WGSL,
+            &[tex(0), storage(1, f16), uniform(2)],
+        );
+        let (blur, blur_layout) = build(
+            "onda-finish-blur",
+            FINISH_BLUR_WGSL,
+            &[tex(0), storage(1, f16), uniform(2)],
+        );
+        let (output, output_layout) = build(
+            "onda-finish-output",
+            FINISH_OUTPUT_WGSL,
+            &[
+                tex(0),
+                tex(1),
+                storage(2, wgpu::TextureFormat::Rgba8Unorm),
+                uniform(3),
+            ],
+        );
+        LinearFinish {
+            decode,
+            decode_layout,
+            bright,
+            bright_layout,
+            blur,
+            blur_layout,
+            output,
+            output_layout,
+        }
+    }
+
+    /// Run the finish over `source` (the comp's 8-bit sRGB frame), returning a fresh
+    /// 8-bit sRGB texture.
+    pub fn run(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        source: &wgpu::Texture,
+        width: u32,
+        height: u32,
+        params: &FinishParams,
+    ) -> wgpu::Texture {
+        let bloom = params.bloom;
+        let f16 = |label: &str| {
+            device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            })
+        };
+        let view = |t: &wgpu::Texture| t.create_view(&wgpu::TextureViewDescriptor::default());
+
+        // A single-input float pass (decode / bright / blur): src tex → dst storage.
+        let pass3 = |pipeline: &wgpu::ComputePipeline,
+                     layout: &wgpu::BindGroupLayout,
+                     src: &wgpu::TextureView,
+                     dst: &wgpu::TextureView,
+                     params: &[u8]| {
+            let buf = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("onda-finish-params"),
+                size: params.len() as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            queue.write_buffer(&buf, 0, params);
+            let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("onda-finish-bg"),
+                layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(src),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(dst),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: buf.as_entire_binding(),
+                    },
+                ],
+            });
+            let mut enc = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("onda-finish-encoder"),
+            });
+            {
+                let mut p = enc.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("onda-finish-pass"),
+                    timestamp_writes: None,
+                });
+                p.set_pipeline(pipeline);
+                p.set_bind_group(0, &bg, &[]);
+                p.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
+            }
+            queue.submit(Some(enc.finish()));
+        };
+
+        // 1) Decode the sRGB frame to scene-linear float.
+        let lin = f16("onda-finish-linear");
+        let mut decode_p = Vec::with_capacity(16);
+        decode_p.extend_from_slice(&width.to_le_bytes());
+        decode_p.extend_from_slice(&height.to_le_bytes());
+        decode_p.extend_from_slice(&0u32.to_le_bytes());
+        decode_p.extend_from_slice(&0u32.to_le_bytes());
+        pass3(
+            &self.decode,
+            &self.decode_layout,
+            &view(source),
+            &view(&lin),
+            &decode_p,
+        );
+
+        // 2) Linear-HDR bloom: bright-pass → separable Gaussian (H then V).
+        let halo = bloom.map(|(sigma, threshold, intensity)| {
+            let bright = f16("onda-finish-bright-tex");
+            let mut bp = Vec::with_capacity(16);
+            bp.extend_from_slice(&threshold.to_le_bytes());
+            bp.extend_from_slice(&intensity.to_le_bytes());
+            bp.extend_from_slice(&width.to_le_bytes());
+            bp.extend_from_slice(&height.to_le_bytes());
+            pass3(
+                &self.bright,
+                &self.bright_layout,
+                &view(&lin),
+                &view(&bright),
+                &bp,
+            );
+            let blur_params = |dir: (f32, f32)| {
+                let mut k = Vec::with_capacity(32);
+                k.extend_from_slice(&sigma.to_le_bytes());
+                k.extend_from_slice(&dir.0.to_le_bytes());
+                k.extend_from_slice(&dir.1.to_le_bytes());
+                k.extend_from_slice(&0f32.to_le_bytes());
+                k.extend_from_slice(&width.to_le_bytes());
+                k.extend_from_slice(&height.to_le_bytes());
+                k.extend_from_slice(&0u32.to_le_bytes());
+                k.extend_from_slice(&0u32.to_le_bytes());
+                k
+            };
+            let tmp = f16("onda-finish-blur-h");
+            pass3(
+                &self.blur,
+                &self.blur_layout,
+                &view(&bright),
+                &view(&tmp),
+                &blur_params((1.0, 0.0)),
+            );
+            let halo = f16("onda-finish-halo");
+            pass3(
+                &self.blur,
+                &self.blur_layout,
+                &view(&tmp),
+                &view(&halo),
+                &blur_params((0.0, 1.0)),
+            );
+            halo
+        });
+
+        // 3) Output transform: + halation, × exposure, ACES, encode → 8-bit sRGB.
+        let out = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("onda-finish-out"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        // No bloom → bind `lin` as a stand-in for the unused halo sampler (has_bloom=0).
+        let halo_view = halo.as_ref().map(view).unwrap_or_else(|| view(&lin));
+        let mut op = Vec::with_capacity(48);
+        op.extend_from_slice(&params.exposure.to_le_bytes());
+        op.extend_from_slice(&params.halation.to_le_bytes());
+        op.extend_from_slice(&(bloom.is_some() as u32).to_le_bytes());
+        op.extend_from_slice(&0u32.to_le_bytes());
+        op.extend_from_slice(&width.to_le_bytes());
+        op.extend_from_slice(&height.to_le_bytes());
+        op.extend_from_slice(&params.contrast.to_le_bytes());
+        op.extend_from_slice(&params.saturation.to_le_bytes());
+        op.extend_from_slice(&params.temperature.to_le_bytes());
+        op.extend_from_slice(&params.vignette.to_le_bytes());
+        op.extend_from_slice(&params.grain.to_le_bytes());
+        op.extend_from_slice(&params.grain_seed.to_le_bytes());
+        let buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("onda-finish-output-params"),
+            size: op.len() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(&buf, 0, &op);
+        let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("onda-finish-output-bg"),
+            layout: &self.output_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&view(&lin)),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&halo_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(&view(&out)),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: buf.as_entire_binding(),
+                },
+            ],
+        });
+        let mut enc = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("onda-finish-output-encoder"),
+        });
+        {
+            let mut p = enc.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("onda-finish-output"),
+                timestamp_writes: None,
+            });
+            p.set_pipeline(&self.output);
+            p.set_bind_group(0, &bg, &[]);
+            p.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
+        }
+        queue.submit(Some(enc.finish()));
+        out
+    }
+}
+
 /// The composite dims uniform (width u32, height u32, + std140 padding to 16 bytes).
 fn make_bloom_dims(
     device: &wgpu::Device,
@@ -1891,15 +2682,21 @@ fn make_params(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     radius: u32,
-    direction: u32,
+    dir_x: f32,
+    dir_y: f32,
     width: u32,
     height: u32,
 ) -> wgpu::Buffer {
+    // Field order MUST match the WGSL `Params` struct (radius, width, height,
+    // dir_x, dir_y = 5 scalars / 20 bytes), padded to the 16-aligned uniform
+    // stride (32).
     let mut bytes = Vec::with_capacity(PARAMS_SIZE as usize);
     bytes.extend_from_slice(&radius.to_le_bytes());
-    bytes.extend_from_slice(&direction.to_le_bytes());
     bytes.extend_from_slice(&width.to_le_bytes());
     bytes.extend_from_slice(&height.to_le_bytes());
+    bytes.extend_from_slice(&dir_x.to_le_bytes());
+    bytes.extend_from_slice(&dir_y.to_le_bytes());
+    bytes.resize(PARAMS_SIZE as usize, 0);
     let buf = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("onda-blur-params"),
         size: PARAMS_SIZE,

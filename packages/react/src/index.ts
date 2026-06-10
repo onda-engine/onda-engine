@@ -38,6 +38,8 @@ export {
   type PaintProps,
   Rect,
   type RectProps,
+  Repeater,
+  type RepeaterProps,
   Svg,
   type SvgProps,
   Text,
@@ -103,6 +105,7 @@ export {
   zoom,
 } from './transitions.js'
 export {
+  motionBlurConfig,
   renderFrame,
   renderFrameRangeJSON,
   renderFrames,

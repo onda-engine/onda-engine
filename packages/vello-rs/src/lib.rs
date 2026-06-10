@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use onda_core::{Color, Size, Transform};
 use onda_scene::{
     BlendMode, Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Matte,
-    MatteMode, Node, NodeKind, Scene, Shadow, ShapeGeometry, Text,
+    MatteMode, Node, NodeKind, Scene, Shadow, ShapeGeometry, Text, TrimDash,
 };
 use onda_typography::{FontContext, StyledRun};
 use vello::kurbo::{Affine, BezPath, Cap, Ellipse, Join, Rect, RoundedRect, Shape, Stroke};
@@ -25,7 +25,11 @@ use vello::peniko::{
 use vello::{wgpu, AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene as VelloScene};
 
 mod effects;
-use effects::{AlphaMatte, Bloom, ColorGrade, FbmGradient, GaussianBlur, Goo, Grain, LightWrap};
+use effects::{
+    AlphaMatte, Bloom, ColorGrade, FbmGradient, FinishParams, GaussianBlur, Goo, Grain, LightWrap,
+    LinearFinish, PixelFx, PIXELFX_CHROMATIC, PIXELFX_CHROMA_KEY, PIXELFX_DUOTONE,
+    PIXELFX_POSTERIZE, PIXELFX_VIGNETTE,
+};
 
 /// A rendered frame: straight-alpha RGBA8, row-major, top-left origin.
 pub struct Frame {
@@ -54,6 +58,9 @@ pub struct VelloRenderer {
     /// Color-grade compute pipeline (a single per-pixel remap — no blur). Built
     /// lazily the first time a node carries a `ColorGrade` effect, then reused.
     grade_pipeline: Option<ColorGrade>,
+    /// Unified per-pixel effect pipeline (chromatic aberration / vignette /
+    /// posterize / duotone / chroma-key) — one pipeline, op-selected.
+    pixelfx_pipeline: Option<PixelFx>,
     /// Gooey-morph threshold pipeline (alpha-sharpen after a blur). Built lazily
     /// the first time a node carries a `Goo` effect; reuses `blur_pipeline` for the
     /// spread before the threshold.
@@ -67,6 +74,9 @@ pub struct VelloRenderer {
     /// Film-grain compute pipeline (a single per-pixel pass). Built lazily the first
     /// time a node carries a `Grain` effect, then reused.
     grain_pipeline: Option<Grain>,
+    /// Composition-level cinematic FINISH chain (decode→linear-HDR bloom→ACES). Built
+    /// lazily the first time a comp carries a `Composition::finish`, then reused.
+    linearfinish_pipeline: Option<LinearFinish>,
     /// True on the WebGPU (browser) backend, where buffer mapping is async-only.
     /// The effect path can't read a texture back synchronously mid-build there, so
     /// on the web effects are resolved up front by `prepare_effect_images` (async
@@ -143,10 +153,12 @@ impl VelloRenderer {
             blur_pipeline: None,
             bloom_pipeline: None,
             grade_pipeline: None,
+            pixelfx_pipeline: None,
             goo_pipeline: None,
             matte_pipeline: None,
             fbm_pipeline: None,
             grain_pipeline: None,
+            linearfinish_pipeline: None,
             web,
         })
     }
@@ -235,6 +247,7 @@ impl VelloRenderer {
                     blur_pipeline: &mut self.blur_pipeline,
                     bloom_pipeline: &mut self.bloom_pipeline,
                     grade_pipeline: &mut self.grade_pipeline,
+                    pixelfx_pipeline: &mut self.pixelfx_pipeline,
                     goo_pipeline: &mut self.goo_pipeline,
                     matte_pipeline: &mut self.matte_pipeline,
                     fbm_pipeline: &mut self.fbm_pipeline,
@@ -315,6 +328,7 @@ impl VelloRenderer {
                     blur_pipeline: &mut self.blur_pipeline,
                     bloom_pipeline: &mut self.bloom_pipeline,
                     grade_pipeline: &mut self.grade_pipeline,
+                    pixelfx_pipeline: &mut self.pixelfx_pipeline,
                     goo_pipeline: &mut self.goo_pipeline,
                     matte_pipeline: &mut self.matte_pipeline,
                     fbm_pipeline: &mut self.fbm_pipeline,
@@ -386,6 +400,7 @@ impl VelloRenderer {
                         blur_pipeline: &mut self.blur_pipeline,
                         bloom_pipeline: &mut self.bloom_pipeline,
                         grade_pipeline: &mut self.grade_pipeline,
+                        pixelfx_pipeline: &mut self.pixelfx_pipeline,
                         goo_pipeline: &mut self.goo_pipeline,
                         matte_pipeline: &mut self.matte_pipeline,
                         fbm_pipeline: &mut self.fbm_pipeline,
@@ -474,6 +489,7 @@ impl VelloRenderer {
                 blur_pipeline: &mut self.blur_pipeline,
                 bloom_pipeline: &mut self.bloom_pipeline,
                 grade_pipeline: &mut self.grade_pipeline,
+                pixelfx_pipeline: &mut self.pixelfx_pipeline,
                 goo_pipeline: &mut self.goo_pipeline,
                 matte_pipeline: &mut self.matte_pipeline,
                 fbm_pipeline: &mut self.fbm_pipeline,
@@ -514,6 +530,30 @@ impl VelloRenderer {
         for placeholder in &effect_overrides {
             self.renderer.override_image(placeholder, None);
         }
+        // Composition-level cinematic FINISH: a screen-space chain run on the final
+        // 8-bit frame entirely in float — decode→scene-linear, linear-HDR bloom, then
+        // one ACES tone-map back to sRGB. The HDR survives (float intermediates), so the
+        // film look lands comp-wide, with or without any per-node effect. A pure
+        // texture→texture compute chain, so it runs identically on native and the web.
+        let texture = if let Some(finish) = scene.composition.finish {
+            let params = FinishParams {
+                exposure: finish.exposure,
+                halation: finish.halation,
+                bloom: finish.bloom.map(|b| (b.sigma, b.threshold, b.intensity)),
+                temperature: finish.temperature,
+                contrast: finish.contrast,
+                saturation: finish.saturation,
+                vignette: finish.vignette,
+                grain: finish.grain,
+                grain_seed: finish.grain_seed,
+            };
+            let lf = self
+                .linearfinish_pipeline
+                .get_or_insert_with(|| LinearFinish::new(&self.device));
+            lf.run(&self.device, &self.queue, &texture, width, height, &params)
+        } else {
+            texture
+        };
         (texture, width, height)
     }
 }
@@ -532,6 +572,7 @@ struct Ctx<'a> {
     blur_pipeline: &'a mut Option<GaussianBlur>,
     bloom_pipeline: &'a mut Option<Bloom>,
     grade_pipeline: &'a mut Option<ColorGrade>,
+    pixelfx_pipeline: &'a mut Option<PixelFx>,
     goo_pipeline: &'a mut Option<Goo>,
     matte_pipeline: &'a mut Option<AlphaMatte>,
     fbm_pipeline: &'a mut Option<FbmGradient>,
@@ -919,10 +960,23 @@ fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, pa
                 }
             }
             if let Some(stroke) = &shape.stroke {
+                const STROKE_TOL: f64 = 0.1;
                 let mut sk = Stroke::new(stroke.width as f64)
                     .with_caps(cap_to_kurbo(stroke.cap))
                     .with_join(join_to_kurbo(stroke.join));
-                if !stroke.dash.is_empty() {
+                // Effective dash: a TRIM is a length-normalised dash (measure the path
+                // and slice [start, end] of its arc length), and overrides an explicit
+                // dash pattern; otherwise apply the literal dash.
+                let mut draw_stroke = true;
+                if let Some(trim) = stroke.trim {
+                    match trim.resolve(path.perimeter(STROKE_TOL) as f32) {
+                        TrimDash::Solid => {}
+                        TrimDash::Hidden => draw_stroke = false,
+                        TrimDash::Dash(dash, off) => {
+                            sk = sk.with_dashes(off as f64, dash.into_iter().map(|d| d as f64));
+                        }
+                    }
+                } else if !stroke.dash.is_empty() {
                     sk = sk.with_dashes(
                         stroke.dash_offset as f64,
                         stroke.dash.iter().map(|d| *d as f64),
@@ -936,20 +990,21 @@ fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, pa
                 // reference were always clean). The filled outline rasterizes
                 // identically across backends; stroke counts are tiny, so the CPU
                 // expansion is cheap.
-                const STROKE_TOL: f64 = 0.1;
-                let outline = vello::kurbo::stroke(
-                    path.path_elements(STROKE_TOL),
-                    &sk,
-                    &Default::default(),
-                    STROKE_TOL,
-                );
-                vscene.fill(
-                    Fill::NonZero,
-                    affine,
-                    peniko_color(stroke.color, opacity),
-                    None,
-                    &outline,
-                );
+                if draw_stroke {
+                    let outline = vello::kurbo::stroke(
+                        path.path_elements(STROKE_TOL),
+                        &sk,
+                        &Default::default(),
+                        STROKE_TOL,
+                    );
+                    vscene.fill(
+                        Fill::NonZero,
+                        affine,
+                        peniko_color(stroke.color, opacity),
+                        None,
+                        &outline,
+                    );
+                }
             }
         }
         NodeKind::Text(text) => draw_text(vscene, ctx.fonts, ctx.font_cache, text, affine, opacity),
@@ -1014,11 +1069,21 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
         .iter()
         .map(|e| match e {
             Effect::Blur { sigma } => *sigma,
+            // Directional blur smears along one axis by `sigma`; the 3σ headroom
+            // (applied to both axes below) covers the worst case.
+            Effect::DirectionalBlur { sigma, .. } => *sigma,
             // Bloom blurs its bright-pass with `sigma`; the halo needs the same
             // headroom as a blur so the glow isn't clipped at the texture edge.
             Effect::Bloom { sigma, .. } => *sigma,
             // ColorGrade is a per-pixel remap (no spread) — it needs no margin.
             Effect::ColorGrade { .. } => 0.0,
+            // Chromatic aberration shifts channels by `amount` px, so the fringe
+            // needs that headroom; the other per-pixel effects don't spread.
+            Effect::ChromaticAberration { amount } => *amount,
+            Effect::Vignette { .. } => 0.0,
+            Effect::Posterize { .. } => 0.0,
+            Effect::Duotone { .. } => 0.0,
+            Effect::ChromaKey { .. } => 0.0,
             // Grain is a per-pixel pass (no spread) — it needs no margin.
             Effect::Grain { .. } => 0.0,
             // Goo blurs the subtree with `sigma` before thresholding; it needs the
@@ -1104,6 +1169,24 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
             }
             // sigma <= 0 is a no-op (leave the texture sharp).
             Effect::Blur { .. } => {}
+            Effect::DirectionalBlur { sigma, angle } if *sigma > 0.0 => {
+                // Reuses the blur pipeline (generalized to a direction vector): one
+                // pass along (cos angle, sin angle).
+                let blur = ctx
+                    .blur_pipeline
+                    .get_or_insert_with(|| GaussianBlur::new(ctx.device));
+                texture = blur.run_directional(
+                    ctx.device,
+                    ctx.queue,
+                    &texture,
+                    tw,
+                    th,
+                    *sigma,
+                    angle.cos(),
+                    angle.sin(),
+                );
+            }
+            Effect::DirectionalBlur { .. } => {}
             Effect::Bloom {
                 threshold,
                 intensity,
@@ -1148,6 +1231,86 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
                     *saturation,
                     *temperature,
                     *tint,
+                );
+            }
+            Effect::ChromaticAberration { amount } if *amount > 0.0 => {
+                let fx = ctx
+                    .pixelfx_pipeline
+                    .get_or_insert_with(|| PixelFx::new(ctx.device));
+                texture = fx.run(
+                    ctx.device,
+                    ctx.queue,
+                    &texture,
+                    tw,
+                    th,
+                    PIXELFX_CHROMATIC,
+                    [*amount, 0.0, 0.0, 0.0],
+                    [0.0; 4],
+                );
+            }
+            Effect::ChromaticAberration { .. } => {}
+            Effect::Vignette { amount, softness } => {
+                let fx = ctx
+                    .pixelfx_pipeline
+                    .get_or_insert_with(|| PixelFx::new(ctx.device));
+                texture = fx.run(
+                    ctx.device,
+                    ctx.queue,
+                    &texture,
+                    tw,
+                    th,
+                    PIXELFX_VIGNETTE,
+                    [*amount, *softness, 0.0, 0.0],
+                    [0.0; 4],
+                );
+            }
+            Effect::Posterize { levels } => {
+                let fx = ctx
+                    .pixelfx_pipeline
+                    .get_or_insert_with(|| PixelFx::new(ctx.device));
+                texture = fx.run(
+                    ctx.device,
+                    ctx.queue,
+                    &texture,
+                    tw,
+                    th,
+                    PIXELFX_POSTERIZE,
+                    [*levels, 0.0, 0.0, 0.0],
+                    [0.0; 4],
+                );
+            }
+            Effect::Duotone { shadow, highlight } => {
+                let fx = ctx
+                    .pixelfx_pipeline
+                    .get_or_insert_with(|| PixelFx::new(ctx.device));
+                texture = fx.run(
+                    ctx.device,
+                    ctx.queue,
+                    &texture,
+                    tw,
+                    th,
+                    PIXELFX_DUOTONE,
+                    [shadow[0], shadow[1], shadow[2], 0.0],
+                    [highlight[0], highlight[1], highlight[2], 0.0],
+                );
+            }
+            Effect::ChromaKey {
+                key,
+                threshold,
+                smoothness,
+            } => {
+                let fx = ctx
+                    .pixelfx_pipeline
+                    .get_or_insert_with(|| PixelFx::new(ctx.device));
+                texture = fx.run(
+                    ctx.device,
+                    ctx.queue,
+                    &texture,
+                    tw,
+                    th,
+                    PIXELFX_CHROMA_KEY,
+                    [key[0], key[1], key[2], 0.0],
+                    [*threshold, *smoothness, 0.0, 0.0],
                 );
             }
             Effect::Grain {

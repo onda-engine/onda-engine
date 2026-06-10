@@ -53,6 +53,9 @@ export interface Stroke {
   dash?: number[]
   /** Phase offset into the dash pattern (px) — animate for a draw-on reveal. */
   dash_offset?: number
+  /** Trim paths: draw only the [start, end] arc-length slice of the stroke (0..1),
+   *  rotated by offset. Animate end 0→1 for a line-draw. */
+  trim?: { start?: number; end?: number; offset?: number }
 }
 
 export interface Composition {
@@ -62,6 +65,31 @@ export interface Composition {
   duration_in_frames: number
   /** Opt-in cinematic LINEAR + ACES finishing pipeline (gpu/export only). */
   linear?: boolean
+  /** Composition-level cinematic finish: a linear-HDR finishing chain + ACES tone-map
+   *  run after the comp rasterizes (gpu/export only). */
+  finish?: Finish
+}
+
+/** Composition-level cinematic finish (linear HDR + ACES). See {@link Composition.finish}. */
+export interface Finish {
+  /** Linear exposure multiplier before the tone-map (1 = neutral). */
+  exposure?: number
+  /** Comp-level bloom in linear HDR. */
+  bloom?: { sigma: number; threshold?: number; intensity?: number }
+  /** Warm halation around highlights (0 = off). */
+  halation?: number
+  /** Grade: white-balance (+ warm / − cool; 0 = neutral). */
+  temperature?: number
+  /** Grade: contrast around mid-grey (1 = identity). */
+  contrast?: number
+  /** Grade: saturation (1 = identity, 0 = greyscale). */
+  saturation?: number
+  /** Vignette: radial edge darkening (0 = off). */
+  vignette?: number
+  /** Film-grain intensity, added in linear (0 = off). */
+  grain?: number
+  /** Grain animation seed (the reconciler injects the current frame). */
+  grain_seed?: number
 }
 
 export type ShapeGeometry =
@@ -172,6 +200,20 @@ export interface Layout {
 export type Effect =
   /** Gaussian blur; `sigma` = std-dev in OUTPUT px (CSS `blur()`). */
   | { effect: 'blur'; sigma: number }
+  /** Directional (motion) blur: a 1D blur of std-dev `sigma` (px) smeared along
+   *  `angle` (radians, 0 = horizontal) — the cinematic "in-motion" tell. */
+  | { effect: 'directional_blur'; sigma: number; angle: number }
+  /** Chromatic aberration: R/B split by `amount` px radially from centre. */
+  | { effect: 'chromatic_aberration'; amount: number }
+  /** Vignette: radial edge-darkening, `amount` (0..1) over `softness` (0..1). */
+  | { effect: 'vignette'; amount: number; softness: number }
+  /** Posterize: quantize each channel to `levels` (≥2) steps. */
+  | { effect: 'posterize'; levels: number }
+  /** Duotone: luma → gradient from `shadow` to `highlight` (RGB, 0..1). */
+  | { effect: 'duotone'; shadow: [number, number, number]; highlight: [number, number, number] }
+  /** Chroma key: alpha-cut pixels within `threshold` of `key` (RGB 0..1), ramping
+   *  over `smoothness`. */
+  | { effect: 'chroma_key'; key: [number, number, number]; threshold: number; smoothness: number }
   /** Glow / bloom: bright regions (luminance above `threshold`, scaled by
    *  `intensity`) are blurred with `sigma` and composited *additively* over the
    *  sharp subtree — a bright accent glows a soft halo. */
