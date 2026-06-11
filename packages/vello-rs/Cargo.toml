@@ -18,6 +18,19 @@ vello = "0.3.0"
 # Async buffer-map readback (works on the web, where poll(Wait) can't block).
 futures-intrusive = "0.5"
 i_overlay = { version = "4.5.2", default-features = false }
+# 3D math (Mat4/Vec3/Quat) for the perspective 3D pass — the standard graphics
+# linear-algebra crate; pure Rust, builds for wasm32. bytemuck casts the per-quad
+# uniform to bytes for upload. (No reinventing matrices/projection by hand.)
+glam = "0.29"
+bytemuck = { version = "1", features = ["derive"] }
+# 2D path → triangle tessellation for EXTRUDED 3D meshes (front/back faces). The
+# standard Rust path tessellator (handles holes/winding); pure Rust, builds wasm32.
+# The side walls + normals we build ourselves from the flattened contours.
+lyon = "1.0"
+# Glyph OUTLINE extraction for EXTRUDED 3D TEXT — the same fontations/skrifa stack
+# Vello already uses, so it's in the tree. We pull each glyph's vector outline as a
+# kurbo path, then extrude it. Pure Rust, builds wasm32.
+skrifa = "0.22"
 
 # On the web, enable wgpu's WebGPU backend. Its wasm default is WebGL2, which
 # lacks the compute shaders Vello requires; this feature-unifies with vello's

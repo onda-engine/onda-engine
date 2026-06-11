@@ -21,8 +21,8 @@
 use kurbo::{BezPath, PathEl, Shape as _};
 use onda_core::{Color, Size, Transform, Vec2};
 use onda_scene::{
-    BooleanOp, Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin, Matte,
-    MatteMode, Node, NodeKind, Scene, Shape, ShapeGeometry, Text, TrimDash,
+    BooleanOp, Camera3D, Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin,
+    Matte, MatteMode, Node, NodeKind, Scene, Shape, ShapeGeometry, Text, TrimDash,
 };
 pub use onda_typography::{FontContext, TextMetrics, TextRaster};
 use tiny_skia as tsk;
@@ -946,6 +946,19 @@ impl Renderer {
             return;
         }
 
+        // A 3D SCENE ROOT (`camera3d`): its children are 3D LAYERS placed in one
+        // shared world and viewed through a perspective camera. The CPU reference
+        // degrades to a 2.5D depth-sorted composite — each layer is perspective-
+        // SCALED by its distance from the camera and positioned by projecting its
+        // world anchor, then drawn far→near. Out-of-plane tilt (`rotation3d` x/y),
+        // camera `target`/`up` orientation, and layer intersection are GPU-only
+        // (the CPU path ignores rotation everywhere). Replaces the normal child
+        // walk, like a matte.
+        if let Some(cam) = node.camera3d {
+            self.render_scene3d(fb, node, &cam, transform, opacity);
+            return;
+        }
+
         // Frosted glass (`Effect::BackdropBlur`) is the odd effect: it samples the
         // backdrop ALREADY in `fb` behind this node, blurs/tints it, clips it to the
         // node's region, and composites it UNDER the node's own content. So it runs
@@ -997,6 +1010,71 @@ impl Renderer {
 
         for child in &node.children {
             self.render_node(fb, child, transform, opacity);
+        }
+    }
+
+    /// 2.5D degrade of a 3D scene (see the `camera3d` branch in [`Self::render_node`]).
+    /// Projects each direct child's world anchor through a straight-ahead pinhole
+    /// camera (focal length from the vertical `fov`), scales the layer by its
+    /// distance, depth-sorts far→near, and composites src-over. A layer at `z = 0`
+    /// under the default camera projects 1:1 (the framing invariant). Out-of-plane
+    /// rotation and camera tilt are not modeled here — that's the GPU pass.
+    fn render_scene3d(
+        &mut self,
+        fb: &mut Framebuffer,
+        node: &Node,
+        cam: &Camera3D,
+        transform: Transform,
+        opacity: f32,
+    ) {
+        let w = fb.width as f32;
+        let h = fb.height as f32;
+        // Focal length in px from the vertical field of view: f = (H/2) / tan(fov/2).
+        let fov = (cam.fov.to_radians()).clamp(1e-3, std::f32::consts::PI - 1e-3);
+        let f = (h * 0.5) / (fov * 0.5).tan();
+        // Camera position. Default: centered and pulled back by `f` so the z = 0 plane
+        // exactly fills the frame (the framing invariant). `+z` is into the screen.
+        let [px, py, pz] = cam.position.unwrap_or([w * 0.5, h * 0.5, -f]);
+
+        // Project each direct child (3D layer); cull those at/behind the near plane.
+        // Tuple: (child index, camera-space depth d, projection translate x/y, scale).
+        let mut layers: Vec<(usize, f32, f32, f32, f32)> = Vec::with_capacity(node.children.len());
+        for (i, child) in node.children.iter().enumerate() {
+            let [wx, wy, wz] = child.transform3d.map_or([0.0, 0.0, 0.0], |t| t.position);
+            let d = wz - pz; // distance from the camera along +z
+            if d <= cam.near {
+                continue;
+            }
+            let s = f / d;
+            // Project the layer's world anchor to its screen point.
+            let sx = w * 0.5 + f * (wx - px) / d;
+            let sy = h * 0.5 + f * (wy - py) / d;
+            // Anchor in the layer's LOCAL (post-transform) space: an explicit pivot,
+            // else the content's center — so `position3d` places the layer's middle
+            // (matching After Effects and the GPU textured-quad placement).
+            let (ax, ay) = match child.transform3d.and_then(|t| t.anchor) {
+                Some([ax, ay]) => (ax, ay),
+                None => match self.subtree_local_bounds(child, Transform::IDENTITY) {
+                    Some((bx0, by0, bx1, by1)) => ((bx0 + bx1) * 0.5, (by0 + by1) * 0.5),
+                    None => (0.0, 0.0),
+                },
+            };
+            // `projection.apply(anchor) == (sx, sy)`, content scaled by `s` about the anchor.
+            layers.push((i, d, sx - s * ax, sy - s * ay, s));
+        }
+        // Painter's order: farthest (largest depth) first.
+        layers.sort_by(|a, b| b.1.total_cmp(&a.1));
+
+        for (i, _d, tx, ty, s) in layers {
+            // Composed under the scene root's own 2D transform so a moved/scaled
+            // `<Scene3D>` still carries its rendered world.
+            let projection = Transform {
+                translate: Vec2::new(tx, ty),
+                scale: Vec2::new(s, s),
+                rotate: 0.0,
+                origin: Vec2::ZERO,
+            };
+            self.render_node(fb, &node.children[i], transform.then(&projection), opacity);
         }
     }
 
