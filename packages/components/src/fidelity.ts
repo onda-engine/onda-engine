@@ -422,7 +422,8 @@ export const ENGINE_CAPABILITIES = {
     '2D affine transforms (translate / scale / rotate) with transform-origin pivot',
     'clipping (rect / ellipse / path) in local space',
     'images + video frames with cover/contain/fill fit',
-    'audio decode + FFT spectrum (symphonia + rustfft)',
+    'audio decode + FFT spectrum (symphonia + rustfft) + multi-track mix + mux into export',
+    'AUDIO-DRIVEN MOTION (sync to music) — `useAudioBeats(src)` analyzes a clip into `{ tempo, beats, onsets, onsetEnv }` in FRAME units (deterministic, preview == export). Drive motion with the pure helper `beatPulse(frame, beats, decay)` (a 1→0 punch on each beat): `scaleX={1 + 0.3 * beatPulse(frame, b.beats)}` HITS an element on the beat; `isBeat(frame, beats)` for hard cuts; `onsetEnv[frame]` (0..1) for transient-driven glows. The "edited TO the music" layer — cut on the beat, punch on the kick, drop text on a transient. Both backends + live preview',
     'deterministic CPU==GPU verification; parallel frame export',
     'blend modes (multiply / screen / overlay / soft-light / …, GPU)',
     'procedural film grain (onda-noise source + overlay blend, GPU)',
@@ -447,10 +448,16 @@ export const ENGINE_CAPABILITIES = {
     'particles — `<Particles count seed x y speed angle spread gravity lifetime emitOver loop size opacity colors spin>` is a DETERMINISTIC emitter (bursts / fountains / confetti / sparks / dust / snow): every particle is a pure function of frame+seed+index, frame-based, rendered as plain shapes (position/size/opacity/colour are CPU==GPU; `spin` is rotation → GPU-only)',
     'Camera — pan / zoom viewport primitive for 2.5D camera moves',
     'depth of field — 2.5D rack focus: layers carry a `depth`, the comp sets `dof={{ focus, aperture }}`, and each layer defocuses by its distance from the focus plane (animate `focus` for a focus pull); resolves to a per-layer blur, so both backends + live preview',
+    '3D SCENE (3D layers + perspective camera) — `<Scene3D camera={{ position, target, fov }}>` places its children in ONE shared 3D world: each is a flat plane positioned by `position3d={[x,y,z]}` (z INTO the screen, AE convention) and tilted by `rotation3d={[x,y,z]}` degrees, viewed through a perspective camera with a real depth buffer (occlude + intersect by true depth). Camera fly-throughs, card walls / cover-flow, parallax, exploded UI. z=0 + no rotation == the 2D placement. GPU = true perspective + out-of-plane rotation; CPU/web preview degrade to a 2.5D depth-sorted projection (scale + position, no tilt) → judge 3D on a NATIVE/export render',
+    'EXTRUDED 3D solids (3D logos & titles) — inside a `<Scene3D>`, a shape or text layer becomes a LIT 3D SOLID via `extrude={depth}`: `<Text extrude={80}>ONDA</Text>` / `<Rect extrude={80}>` / `<Path extrude={80}>` grows front + back faces (lyon-tessellated, holes handled) + side walls, shaded by a directional light so it catches the light as it rotates — the spinning solid logo / kinetic 3D title. GPU only; the CPU reference + live preview draw the flat outline → judge on a NATIVE/export render',
     'no-Chromium export (ffmpeg / GIF / PNG)',
   ],
   unsupported: [
-    { feature: '3D / perspective transforms', status: '2d-affine-only' },
+    {
+      feature:
+        'imported 3D MODELS / glTF meshes (3D *layers* AND extruded shapes/text ARE supported via <Scene3D> + extrude)',
+      status: 'no-model-import',
+    },
     { feature: 'SVG filters / embedded text+image / gradient paint', status: 'flattened-to-solid' },
     { feature: 'color / emoji glyphs / variable fonts', status: 'outline-only' },
   ],

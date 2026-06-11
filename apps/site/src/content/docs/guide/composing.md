@@ -103,6 +103,55 @@ works on both backends and the live preview — no true 3D, the depth is yours t
 `aperture` = blur px per unit of depth past the in-focus band (bigger = shallower DoF);
 `range` = a sharp band ± `focus`; `maxBlur` clamps the σ (default 40).
 
+### 3D scene (`<Scene3D camera={…}>` + `position3d` / `rotation3d`)
+
+`<Scene3D>` places its direct children in **one shared perspective 3D world**. Each
+child is a flat plane (its rendered 2D content) positioned by `position3d={[x, y, z]}`
+and tilted by `rotation3d={[x, y, z]}` (degrees: X pitch, Y yaw, Z roll), viewed through
+a perspective `camera`. Layers depth-sort and occlude (a real depth buffer — they can
+even intersect). This is the mograph core of "3D": camera fly-throughs, card walls /
+cover-flow, parallax, exploded UI, billboard/3D titles.
+
+`z` goes **into the screen** (the After Effects convention): larger `z` is farther
+(smaller), negative `z` nearer the camera. `z = 0` is the framing plane — a layer there
+with no rotation renders **pixel-identical to its 2D placement**, so wrapping content in
+`<Scene3D>` changes nothing until you push layers in z. Default `position3d` is the
+layer's center on its world point. Omit `camera` fields to get a default camera that
+frames `z = 0` to fill the comp.
+
+```tsx
+import { Scene3D } from '@onda/react'
+
+<Scene3D camera={{ position: [960, 540, -1400], target: [960, 540, 0], fov: 45 }}>
+  <Card position3d={[640, 540, 250]} rotation3d={[0, 55, 0]} />   {/* yawed, behind */}
+  <Card position3d={[960, 540, 0]} />                             {/* flat, at framing plane */}
+  <Card position3d={[1280, 540, 250]} rotation3d={[0, -55, 0]} />
+  <Title position3d={[960, 180, -120]} />                         {/* nearer → larger */}
+</Scene3D>
+```
+
+**Extruded 3D solids** (`extrude`) — inside a `<Scene3D>`, a **shape or text** layer
+becomes a **lit 3D solid** instead of a flat plane: `extrude={depth}` grows a front +
+back face (tessellated with holes handled) joined by side walls, shaded by a directional
+light so it catches the light as it rotates. The **spinning solid logo / kinetic 3D
+title**:
+
+```tsx
+<Scene3D camera={{ position: [640, 360, -1500], fov: 42 }}>
+  <Text fontSize={220} color="#e8edff" position3d={[640, 360, 0]}
+        rotation3d={[16, 28, 0]} extrude={80}>ONDA</Text>
+  <Path d="M120 40 H200 …Z" fill="#f5b942" position3d={[300, 360, 0]}
+        rotation3d={[16, -34, 0]} extrude={80} />
+</Scene3D>
+```
+
+> **Judge 3D on a native/export render, never the live preview.** The GPU (Vello) path
+> runs the **true perspective + out-of-plane rotation** (the trapezoidal foreshortening
+> of a yawed card) and the **lit extruded solids**. The CPU reference and the **web
+> preview** degrade to a 2.5D depth-sorted projection — perspective *scale + position*
+> only, no tilt — and draw extruded layers as their flat outline. (Importing arbitrary
+> 3D **models** / glTF meshes is a later phase; shapes, paths, and text extrude today.)
+
 ### Shape operators (mograph)
 
 Operations on the path/geometry itself, the AE-shape-layer vocabulary:
@@ -187,6 +236,36 @@ with the effect wrapping the layers it should affect:
   <Background /> <Subject />
 </Group>
 ```
+
+### Audio-driven motion (sync to music)
+
+`useAudioBeats(src)` (from `@onda/components`) analyzes an audio clip into
+`{ tempo, beats, onsets, onsetEnv }` — **all in frame units** — using the same
+`@onda/wasm-audio` as the FFT, so it's deterministic and identical in preview and
+export. `beats` / `onsets` are frame indices; `onsetEnv[frame]` is a `0..1` strength.
+
+Drive any property with the pure helper **`beatPulse(frame, beats, decay)`** — a `1 → 0`
+punch that fires on each beat — so an element **hits on the beat**:
+
+```tsx
+import { useAudioBeats, beatPulse, isBeat } from '@onda/components'
+
+function Kick() {
+  const frame = useCurrentFrame()
+  const b = useAudioBeats('/music.mp3')
+  const beats = b?.beats ?? []
+  const punch = beatPulse(frame, beats, 8)            // 1 on the beat → 0 over 8 frames
+  return <Ellipse width={300 * (1 + 0.4 * punch)} … />  // scales up on every beat
+}
+```
+
+`isBeat(frame, beats)` gates hard cuts/swaps; `onsetEnv[frame]` drives a glow off any
+transient (not just the grid). This is the "edited **to** the music" layer — cut on the
+beat, punch on the kick, drop text on a transient.
+
+> For a fully deterministic export an agent can bake the `beats` array into the
+> composition as a constant (analyze once) and use the pure helpers directly — no async
+> load at render time.
 
 ### Colors
 
