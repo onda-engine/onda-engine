@@ -38,20 +38,31 @@ import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
-/** Broadcast lower-third placement regions — the corners a name bar lives in. */
-export type LowerThirdPlacement = 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right'
+/** Broadcast lower-third placement regions — the corners (or centered edge) a
+ *  name bar lives in. The `*-center` variants center the block on the canvas
+ *  mid-line, for a single credit/URL line under a closing card. */
+export type LowerThirdPlacement =
+  | 'bottom-left'
+  | 'bottom-right'
+  | 'bottom-center'
+  | 'top-left'
+  | 'top-right'
+  | 'top-center'
 
 /** Resolved canvas anchor for a placement: fractional x/y of the anchor point
  *  plus which visual side the bar sits on (drives slide direction + alignment).
- *  Margins match ondajs's `REGION_MAP` (10% safe inset on each axis). */
+ *  Margins match ondajs's `REGION_MAP` (10% safe inset on each axis); centered
+ *  variants anchor at x = 0.5 and align each line about the block center. */
 const PLACEMENT_MAP: Record<
   LowerThirdPlacement,
-  { x: number; y: number; side: 'left' | 'right'; vertical: 'top' | 'bottom' }
+  { x: number; y: number; side: 'left' | 'right' | 'center'; vertical: 'top' | 'bottom' }
 > = {
   'bottom-left': { x: 0.1, y: 0.9, side: 'left', vertical: 'bottom' },
   'bottom-right': { x: 0.9, y: 0.9, side: 'right', vertical: 'bottom' },
+  'bottom-center': { x: 0.5, y: 0.9, side: 'center', vertical: 'bottom' },
   'top-left': { x: 0.1, y: 0.1, side: 'left', vertical: 'top' },
   'top-right': { x: 0.9, y: 0.1, side: 'right', vertical: 'top' },
+  'top-center': { x: 0.5, y: 0.1, side: 'center', vertical: 'top' },
 }
 
 /** Engine line-box height as a multiple of font size (matches the typography
@@ -129,16 +140,18 @@ export function LowerThird({
   // crashing on an unmapped key.
   const { x: ax, y: ay, side, vertical } = PLACEMENT_MAP[placement] ?? PLACEMENT_MAP['bottom-left']
   const isLeft = side === 'left'
+  const isCenter = side === 'center'
 
   // Name slides in from the bar's side — subtle horizontal travel reinforces
-  // which corner the bar belongs to (ondajs: 'left'/'right', distance 16).
+  // which corner the bar belongs to (ondajs: 'left'/'right', distance 16). A
+  // centered block has no "side", so it just fades up in place (distance 0).
   const slide = entrySlide({
     frame,
     fps,
     delay,
     durationInFrames: DURATION.base,
     direction: isLeft ? 'left' : 'right',
-    distance: 16,
+    distance: isCenter ? 0 : 16,
   })
 
   // Role fades in 4 frames after the name lands.
@@ -194,14 +207,15 @@ export function LowerThird({
   // growth never trigger a reflow (the BarChart pattern).
   const anchorX = ax * width
   const anchorY = ay * height
-  const originX = isLeft ? anchorX : anchorX - blockWidth
+  const originX = isCenter ? anchorX - blockWidth / 2 : isLeft ? anchorX : anchorX - blockWidth
   const originY = vertical === 'bottom' ? anchorY - blockHeight : anchorY
 
-  // Per-line flush alignment: left lines start at 0; right lines are pushed so
-  // their (estimated) right edge tracks the block's right edge.
-  const nameX = isLeft ? 0 : blockWidth - nameWidth
-  const roleX = isLeft ? 0 : blockWidth - roleWidth
-  const accentX = isLeft ? 0 : blockWidth - accentWidth
+  // Per-line alignment within the block: left lines start at 0; right lines are
+  // pushed flush-right; centered lines are centered about the block's mid-line.
+  const lineX = (w: number) => (isCenter ? (blockWidth - w) / 2 : isLeft ? 0 : blockWidth - w)
+  const nameX = lineX(nameWidth)
+  const roleX = lineX(roleWidth)
+  const accentX = lineX(accentWidth)
 
   return (
     <Group x={originX} y={originY}>

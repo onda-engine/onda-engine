@@ -86,8 +86,6 @@ const UNDERLINE_OFFSET = DURATION.base - 4 // underline starts drawing just as t
  *  word). The hero rule is laid inline here so it spans the FULL title at the
  *  engine's own per-glyph estimate. */
 const CHAR_WIDTH_FACTOR = 0.6
-/** Engine line-box height as a multiple of font size (matches `Underline`). */
-const LINE_RATIO = 1.2
 /** Rule geometry — mirrors the values previously passed to `Underline`. */
 const LINE_THICKNESS = 3
 const LINE_OFFSET = 6
@@ -115,7 +113,11 @@ export function EndCard({
   const color = colorProp ?? theme.text
   const handlesColor = handlesColorProp ?? theme.textMuted
   const accentColor = accentColorProp ?? theme.accent
-  const fontFamily = fontFamilyProp ?? theme.fontFamily
+  // The CTA is the headline → it follows the theme's display face
+  // (`headingFamily ?? fontFamily`); the handles strip is metadata → it stays on
+  // the body `fontFamily`. An explicit `fontFamily` prop overrides both.
+  const ctaFontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
+  const handlesFontFamily = fontFamilyProp ?? theme.fontFamily
 
   // Vertical gap between the CTA and the handles strip, scaled off the CTA size
   // so the rhythm holds at any headline size (~40px at the default 96px CTA).
@@ -156,11 +158,14 @@ export function EndCard({
   })
   // A full-pill radius on a thin sliver would bulge; cap at half its own size.
   const ruleRadius = Math.min(LINE_THICKNESS / 2, ruleWidth / 2)
-  // The rule sits just below the text's line box (`ctaFontSize * LINE_RATIO`)
-  // plus the gap — matching the offset previously delegated to `Underline`.
-  const ruleY = ctaFontSize * LINE_RATIO + LINE_OFFSET
-  // Reserve a fixed-height row spanning the estimated text box + rule so the
-  // animated rule width never reflows the centered column.
+  // The rule is a flex sibling stacked directly BELOW the CTA text, so the
+  // column already accounts for the title's line box. `ruleY` is therefore just
+  // the small underline gap UNDER the text — a previous version added a whole
+  // line box here (`ctaFontSize * 1.2 + …`), double-counting it and dropping the
+  // rule ~1.2×fontSize too far below the title.
+  const ruleY = LINE_OFFSET + Math.round(ctaFontSize * 0.12)
+  // The row only needs to span the gap + the rule itself; the fixed-WIDTH
+  // transparent spacer below is what keeps the animated rule from reflowing.
   const ruleRowHeight = ruleY + LINE_THICKNESS
 
   return (
@@ -182,7 +187,7 @@ export function EndCard({
               <Text
                 fontSize={ctaFontSize}
                 color={color}
-                fontFamily={fontFamily}
+                fontFamily={ctaFontFamily}
                 fontWeight={ctaFontWeight}
               >
                 {cta}
@@ -209,7 +214,7 @@ export function EndCard({
             <Text
               fontSize={ctaFontSize}
               color={color}
-              fontFamily={fontFamily}
+              fontFamily={ctaFontFamily}
               fontWeight={ctaFontWeight}
             >
               {cta}
@@ -233,7 +238,7 @@ export function EndCard({
                 <Text
                   fontSize={handlesFontSize}
                   color={handlesColor}
-                  fontFamily={fontFamily}
+                  fontFamily={handlesFontFamily}
                   fontWeight={handlesFontWeight}
                 >
                   {handle}

@@ -548,6 +548,18 @@ const CASES: { name: string; frame: number; props: Record<string, unknown> }[] =
     },
   },
   {
+    name: 'LogoReveal',
+    frame: 18,
+    props: {
+      src: 'DEMO_IMAGE',
+      width: 520,
+      height: 260,
+      preset: 'focus',
+      delay: 0,
+      durationInFrames: 28,
+    },
+  },
+  {
     name: 'LogoSting',
     frame: 42,
     props: {
@@ -703,6 +715,17 @@ const CASES: { name: string; frame: number; props: Record<string, unknown> }[] =
       fontSize: 80,
       duration: 24,
       stagger: 5,
+    },
+  },
+  {
+    name: 'PriceTag',
+    frame: 30,
+    props: {
+      name: 'Montana Dangles',
+      price: '$70',
+      sold: false,
+      delay: 0,
+      size: 1,
     },
   },
   {

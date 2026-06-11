@@ -8,7 +8,7 @@ import { z } from 'zod'
 export const lowerThirdSchema = z.object({
   name: z.string().default('Rodrigo').describe("The person's name (the primary line)."),
   role: z.string().default('CEO, Onda').describe("The person's role / title (the secondary line)."),
-  placement: z.enum(['bottom-left', 'bottom-right', 'top-left', 'top-right']).default('bottom-left').describe("Which canvas corner the bar sits in; drives the slide-in direction and flush alignment."),
+  placement: z.enum(['bottom-left', 'bottom-right', 'bottom-center', 'top-left', 'top-right', 'top-center']).default('bottom-left').describe("Which canvas region the bar sits in; corners flush left/right, *-center centers the block on the mid-line (for a single credit/URL line)."),
   delay: z.number().int().default(0).describe("Frames before the name slides in."),
   accent: z.boolean().default(true).describe("Show the accent rule beneath the name."),
   color: z.string().optional().describe("Name color (defaults to theme text)."),
