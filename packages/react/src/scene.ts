@@ -317,10 +317,55 @@ export interface SceneNode {
   blend?: BlendMode
   /** Ordered screen-space effects applied to this node + subtree (render-to-texture). */
   effects?: Effect[]
+  /** 3D SCENE ROOT: makes this node's direct children 3D layers, placed in one
+   *  shared 3D world by their `transform3d` and rendered through this perspective
+   *  camera (depth-sorted, composited as one layer). GPU runs true perspective;
+   *  the CPU reference degrades to a 2.5D depth-sorted composite. */
+  camera3d?: Camera3D
+  /** This node's placement as a 3D layer (only meaningful inside a 3D scene). */
+  transform3d?: Transform3D
+  /** Extrude this layer's 2D outline into a lit 3D solid (GPU only; CPU draws flat). */
+  extrude?: Extrude
   /** Flex-lay-out this node's direct children. */
   layout?: Layout
   kind: NodeKind
   children?: SceneNode[]
+}
+
+/** Extrude a 3D layer's 2D outline into a lit solid — the "3D logo / title" move
+ *  (mirrors scene-rs `Extrude`). Shape/text layer inside a `<Scene3D>` only. */
+export interface Extrude {
+  /** Thickness along z, in world units (the solid spans ±depth/2 about the plane). */
+  depth: number
+}
+
+/** A perspective camera for a 3D scene (mirrors scene-rs `Camera3D`). World units
+ *  are composition pixels (x→right, y→down); `+z` points away from the camera, into
+ *  the screen (larger z = farther = smaller), the After Effects convention. Leaving
+ *  fields default frames the `z = 0` plane to fill the comp, so a layer at `z = 0`
+ *  with no rotation matches its 2D placement. */
+export interface Camera3D {
+  /** Eye position `[x, y, z]`. Omit to derive from `fov` (centered, looking at +z). */
+  position?: [number, number, number]
+  /** Look-at point `[x, y, z]`. Omit ⇒ comp center at z = 0. */
+  target?: [number, number, number]
+  /** Up vector. Omit ⇒ `[0, -1, 0]` (screen up). */
+  up?: [number, number, number]
+  /** Vertical field of view, degrees. Default 50. */
+  fov?: number
+  near?: number
+  far?: number
+}
+
+/** The 3D placement of a layer inside a 3D scene (mirrors scene-rs `Transform3D`). */
+export interface Transform3D {
+  /** World position of the anchor `[x, y, z]` in comp pixels. z = 0 is the framing
+   *  plane; larger z is farther into the screen (smaller), negative z nearer the camera. */
+  position?: [number, number, number]
+  /** Degrees about each axis (Z·Y·X order): X pitch, Y yaw, Z roll. */
+  rotation?: [number, number, number]
+  /** Pivot within the layer's content plane (comp px). Omit ⇒ layer center. */
+  anchor?: [number, number]
 }
 
 export interface Scene {

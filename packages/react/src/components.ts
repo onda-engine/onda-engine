@@ -13,7 +13,7 @@ import type { ClipInput } from './clip.js'
 import type { ColorInput } from './color.js'
 import { useCurrentFrame, useVideoConfig } from './frame.js'
 import type { GradientInput } from './gradient.js'
-import type { BlendMode, Effect, ImageFit, Layout, MatteMode } from './scene.js'
+import type { BlendMode, Camera3D, Effect, ImageFit, Layout, MatteMode } from './scene.js'
 
 /** Properties shared by every scene node: identity, placement, opacity, clip. */
 export interface NodeProps {
@@ -40,6 +40,23 @@ export interface NodeProps {
    *  reconciler computes from the camera aperture). Animate the comp's `focus` for a
    *  rack-focus pull. No effect unless the comp sets `dof`. */
   depth?: number
+  /** 3D LAYER position `[x, y, z]` in world pixels — meaningful only inside a
+   *  `<Scene3D>`. `z = 0` is the framing plane (matches the 2D placement); larger
+   *  `z` is farther into the screen (smaller), negative `z` nearer the camera (After
+   *  Effects convention). Animate for fly-throughs / parallax / exploded views. */
+  position3d?: [number, number, number]
+  /** 3D LAYER rotation `[x, y, z]` in degrees (Z·Y·X): X pitch (tilt toward/away),
+   *  Y yaw (swing), Z roll (in-plane spin). Inside `<Scene3D>` only. GPU-only — the
+   *  CPU reference degrades to a flat depth-sorted composite (no out-of-plane tilt). */
+  rotation3d?: [number, number, number]
+  /** Pivot within this layer's content plane (px) that `position3d`/`rotation3d`
+   *  act about. Default: the layer's center. */
+  anchor3d?: [number, number]
+  /** EXTRUDE this layer's 2D outline into a lit 3D SOLID (the "3D logo / title"):
+   *  inside a `<Scene3D>`, a shape or text layer becomes a mesh with `depth`
+   *  thickness + side walls, shaded by a directional light so it catches the light
+   *  as it rotates. GPU only — the CPU reference + live preview draw the flat outline. */
+  extrude?: number | { depth: number }
   /** Blend this node's subtree against the backdrop (CSS mix-blend-mode).
    *  GPU/Vello-rendered (e.g. `'screen'`, `'multiply'`, `'overlay'`). */
   blendMode?: BlendMode
@@ -344,6 +361,36 @@ export function Flex(props: FlexProps) {
   return createElement('onda-group', { ...rest, layout })
 }
 
+export interface CenterProps extends Omit<NodeProps, 'children'> {
+  /** Top of the centering row (px). Default 0. */
+  y?: number
+  /** Height of the row the content is centered within (px). Omit to size to content. */
+  height?: number
+  children?: ReactNode
+}
+
+/** Horizontally CENTER children across the composition width at vertical position `y` —
+ *  sugar for a full-width `<Flex justify="center">`. The reliable way to center text:
+ *  the layout pass measures the real glyph width natively, so you never hand-compute an
+ *  `x` (which mis-centers the moment the text, font, or size changes). */
+export function Center(props: CenterProps) {
+  const { children, y, height, ...rest } = props
+  const { width } = useVideoConfig()
+  return createElement(
+    Flex,
+    {
+      ...rest,
+      x: 0,
+      y: y ?? 0,
+      width,
+      ...(height !== undefined ? { height } : {}),
+      justify: 'center',
+      align: 'center',
+    },
+    children,
+  )
+}
+
 export type AbsoluteFillProps = Omit<FlexProps, 'width' | 'height'>
 
 /** A full-canvas flex container (like Remotion's `<AbsoluteFill>`): fills the
@@ -397,6 +444,33 @@ export function Camera(props: CameraProps) {
       createElement(Group, { x: -fx, y: -fy }, children),
     ),
   )
+}
+
+export interface Scene3DProps extends Omit<NodeProps, 'children'> {
+  /** The perspective camera for this 3D world. Omit fields to derive a default that
+   *  frames the `z = 0` plane to fill the comp (so layers at `z = 0` match their 2D
+   *  placement). Animate `position`/`target` per frame for camera moves. */
+  camera?: Camera3D
+  /** The 3D LAYERS — direct children, each placed by its `position3d` / `rotation3d`
+   *  / `anchor3d`. Layers without a `position3d` sit at `z = 0` (their 2D spot). */
+  children?: ReactNode
+}
+
+/**
+ * A 3D SCENE: its direct children become 3D LAYERS in one shared 3D world, viewed
+ * through a perspective `camera`. Each layer is a flat plane (its rendered 2D
+ * content) placed by `position3d` (world x/y/z) and tilted by `rotation3d`, then
+ * depth-sorted and composited as a single layer. The mograph core of "3D" —
+ * camera fly-throughs, card walls, parallax, exploded UI, billboard text.
+ *
+ * GPU (Vello) runs true perspective; the CPU reference degrades to a 2.5D
+ * depth-sorted composite (per-layer distance scale, no out-of-plane tilt). A layer
+ * at `z = 0` with no rotation renders pixel-identical to its 2D placement, so
+ * wrapping content in `<Scene3D>` changes nothing until you move layers in z.
+ */
+export function Scene3D(props: Scene3DProps) {
+  const { camera, children, ...rest } = props
+  return createElement('onda-group', { ...rest, camera3d: camera ?? {} }, children)
 }
 
 export interface RectProps extends NodeProps, PaintProps {

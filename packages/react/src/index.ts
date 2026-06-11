@@ -23,6 +23,8 @@ export {
   type AbsoluteFillProps,
   Camera,
   type CameraProps,
+  Center,
+  type CenterProps,
   Composition,
   type CompositionProps,
   Ellipse,
@@ -44,6 +46,8 @@ export {
   type RectProps,
   Repeater,
   type RepeaterProps,
+  Scene3D,
+  type Scene3DProps,
   Svg,
   type SvgProps,
   Text,
@@ -122,9 +126,11 @@ export {
 export { clearRegisteredFonts, registerFont, registeredFonts } from './fonts.js'
 export { registerEngineWarmer, runEngineWarmers } from './warmers.js'
 export type {
+  Camera3D,
   Color,
   Composition as CompositionData,
   Effect,
+  Extrude,
   Gradient,
   GradientStop,
   Layout,
@@ -136,5 +142,6 @@ export type {
   Size,
   Stroke,
   Transform,
+  Transform3D,
   Vec2,
 } from './scene.js'
