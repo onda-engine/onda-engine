@@ -153,10 +153,21 @@ export function preloadTextMetrics(): Promise<void> {
           // Node: explicit bytes. `node:` imports are @vite-ignored so the
           // browser bundle never tries to include them.
           const { readFileSync } = await import(/* @vite-ignore */ 'node:fs')
-          const { fileURLToPath } = await import(/* @vite-ignore */ 'node:url')
-          const jsUrl = import.meta.resolve('@onda/wasm')
-          const wasmUrl = new URL('./onda_wasm_bg.wasm', jsUrl)
-          mod.initSync({ module: readFileSync(fileURLToPath(wasmUrl)) })
+          // `ONDA_WASM_PATH` overrides where the `.wasm` is read from — required
+          // when a bundler INLINES the JS glue (e.g. the vendored ONDA Studio
+          // bundle), where `import.meta.resolve` can't locate the adjacent file.
+          // Falls back to auto-locating next to the resolved `@onda/wasm` JS.
+          const override = process.env.ONDA_WASM_PATH
+          let wasmBytes: BufferSource
+          if (override) {
+            wasmBytes = readFileSync(override)
+          } else {
+            const { fileURLToPath } = await import(/* @vite-ignore */ 'node:url')
+            const jsUrl = import.meta.resolve('@onda/wasm')
+            const wasmUrl = new URL('./onda_wasm_bg.wasm', jsUrl)
+            wasmBytes = readFileSync(fileURLToPath(wasmUrl))
+          }
+          mod.initSync({ module: wasmBytes })
         } else {
           await mod.default()
         }

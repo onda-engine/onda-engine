@@ -21,7 +21,7 @@
 //! sub-region; the engine has no equivalent layout primitive here, so this port
 //! always fills the full composition (the ondajs default, `placement` omitted).
 
-import { Group, Image, clipRect, interpolate, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Image, interpolate, useCurrentFrame, useVideoConfig } from '@onda/react'
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
 
@@ -75,15 +75,17 @@ export function KenBurns({
   const pivotX = originX * compWidth
   const pivotY = originY * compHeight
 
+  // NB: KenBurns ALWAYS fills the full composition, so the over-scanned zoom is
+  // already masked by the canvas — no wrapping `<Group clip>` is needed. (That
+  // clip also tripped a renderer bug where a clip layer occludes LATER siblings,
+  // so text/graphics placed over a KenBurns in the same scene vanished.)
   return (
-    <Group clip={clipRect(compWidth, compHeight)}>
-      <Group x={pivotX} y={pivotY}>
-        <Group scaleX={zoom} scaleY={zoom}>
-          <Group x={-pivotX} y={-pivotY}>
-            {/* The renderer covers the photo to the composition box for any source
-                aspect (measures the decoded image — no intrinsic size needed). */}
-            <Image src={src} width={compWidth} height={compHeight} fit="cover" />
-          </Group>
+    <Group x={pivotX} y={pivotY}>
+      <Group scaleX={zoom} scaleY={zoom}>
+        <Group x={-pivotX} y={-pivotY}>
+          {/* The renderer covers the photo to the composition box for any source
+              aspect (measures the decoded image — no intrinsic size needed). */}
+          <Image src={src} width={compWidth} height={compHeight} fit="cover" />
         </Group>
       </Group>
     </Group>

@@ -79,6 +79,13 @@ export function KineticText({
   fontFamily,
   fontWeight = 600,
 }: KineticTextProps) {
+  // KineticText is the engine's DISPLAY-statement component, so it follows the
+  // theme's heading family by default (`headingFamily ?? fontFamily`) — set
+  // `fontDisplay` on the brand and the kinetic lines pick up the title face,
+  // while body components keep `fontFamily`. An explicit prop still wins.
+  const theme = useTheme()
+  const resolvedFamily = fontFamily ?? theme.headingFamily ?? theme.fontFamily
+
   // `wave` is a decaying sine ripple (a function of progress AND index), not a
   // from→to channel — it keeps its own small path. Everything else is the general
   // engine with a preset channel map.
@@ -92,7 +99,7 @@ export function KineticText({
         delay={delay}
         align={align}
         color={color}
-        fontFamily={fontFamily}
+        fontFamily={resolvedFamily}
         fontWeight={fontWeight}
       />
     )
@@ -109,7 +116,7 @@ export function KineticText({
       align={align}
       fontSize={fontSize}
       color={color}
-      fontFamily={fontFamily}
+      fontFamily={resolvedFamily}
       fontWeight={fontWeight}
     />
   )

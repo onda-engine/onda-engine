@@ -164,7 +164,11 @@ const PLACEMENT_COORDS: Record<string, [number, number]> = {
 // Components that consume `placement` THEMSELVES (anchoring their own assembly to
 // a canvas corner) — the bridge must NOT also shift them, or placement applies
 // twice and they fly off-canvas.
-const SELF_ANCHORING = new Set(['LowerThird', 'Callout'])
+// Components that anchor their OWN assembly to a canvas position via their `placement`
+// prop (top/bottom/center, a corner, …). The bridge must NOT also apply placementOffset
+// for these, or `placement` is applied TWICE (e.g. BlurReveal `placement:"bottom"` got
+// shifted a half-canvas down by the bridge AND anchored bottom by itself → off-screen).
+const SELF_ANCHORING = new Set(['LowerThird', 'Callout', 'BlurReveal', 'Captions'])
 
 /** Centre→anchor pixel offset for an entry's `placement` prop (string slug or
  *  `{x,y}` fractions). Returns `[0,0]` for centre / unknown. */
