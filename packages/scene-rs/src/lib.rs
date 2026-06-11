@@ -406,6 +406,105 @@ impl Effect {
     }
 }
 
+/// A perspective camera for a 3D scene (set on a node via [`Node::camera3d`],
+/// making that node a 3D SCENE ROOT). Positions an eye in the shared 3D world and
+/// projects its 3D-layer children onto the 2D frame. World units are composition
+/// pixels with the same axes as 2D (x→right, y→down); `+z` points **away from** the
+/// camera, into the screen — a layer with larger `z` is farther, so it renders
+/// smaller (the After Effects convention; the camera sits at negative `z` looking
+/// toward `+z`). The default camera (when authored fields are left at their
+/// defaults) frames the `z = 0` plane to exactly fill the composition, so a 3D
+/// layer at `z = 0` with no rotation renders pixel-identical to its 2D placement —
+/// turning a scene 3D changes nothing until layers move in z.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Camera3D {
+    /// Eye position in world space. `None` ⇒ derived to preserve the `z = 0`
+    /// "fills the frame" invariant for the given `fov` (centered, looking at `+z`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position: Option<[f32; 3]>,
+    /// Look-at point in world space. `None` ⇒ the composition center at `z = 0`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<[f32; 3]>,
+    /// World up vector. Defaults to `(0, -1, 0)` (screen up, since `+y` is down).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub up: Option<[f32; 3]>,
+    /// Vertical field of view in **degrees**.
+    #[serde(default = "Camera3D::default_fov")]
+    pub fov: f32,
+    /// Near clip plane (world units). Geometry nearer than this is culled.
+    #[serde(default = "Camera3D::default_near")]
+    pub near: f32,
+    /// Far clip plane (world units).
+    #[serde(default = "Camera3D::default_far")]
+    pub far: f32,
+}
+
+impl Camera3D {
+    fn default_fov() -> f32 {
+        50.0
+    }
+    fn default_near() -> f32 {
+        1.0
+    }
+    fn default_far() -> f32 {
+        10_000.0
+    }
+}
+
+impl Default for Camera3D {
+    fn default() -> Self {
+        Camera3D {
+            position: None,
+            target: None,
+            up: None,
+            fov: Camera3D::default_fov(),
+            near: Camera3D::default_near(),
+            far: Camera3D::default_far(),
+        }
+    }
+}
+
+/// The 3D placement of a layer inside a 3D scene (set via [`Node::transform3d`]).
+/// Positions and orients the layer's flat content plane in the shared 3D world.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Transform3D {
+    /// World-space position of the layer's anchor: `[x, y, z]` in composition
+    /// pixels. `z = 0` is the framing plane (see [`Camera3D`]); larger `z` is
+    /// farther into the screen (renders smaller), negative `z` is nearer the camera.
+    #[serde(default)]
+    pub position: [f32; 3],
+    /// Rotation in **degrees** about each world axis, applied in Z·Y·X order, about
+    /// `anchor`. X tilts toward/away (pitch), Y swings left/right (yaw), Z spins in-plane (roll).
+    #[serde(default)]
+    pub rotation: [f32; 3],
+    /// The pivot within the layer's local content plane (composition pixels) that
+    /// `position`/`rotation` act about. `None` ⇒ the layer's center.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<[f32; 2]>,
+}
+
+impl Default for Transform3D {
+    fn default() -> Self {
+        Transform3D {
+            position: [0.0, 0.0, 0.0],
+            rotation: [0.0, 0.0, 0.0],
+            anchor: None,
+        }
+    }
+}
+
+/// EXTRUDE a 3D layer's 2D outline into a lit solid (the "3D logo / title" move) —
+/// set via [`Node::extrude`] on a shape (or text) layer inside a 3D scene. The GPU
+/// builds the front + back faces and the side walls and shades them with a directional
+/// light, so the solid catches the light differently as it rotates. The mesh is
+/// centered on `z = 0` (spanning ±`depth`/2). The CPU reference degrades to the flat
+/// 2D outline (no thickness or lighting), consistent with the rest of the 3D degrade.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Extrude {
+    /// Thickness along z, in world units (the solid spans `±depth/2` about the layer's plane).
+    pub depth: f32,
+}
+
 /// A node in the scene graph: shared properties plus a kind-specific payload and
 /// an ordered list of children. Children inherit nothing implicitly except draw
 /// order; transform/opacity composition is the renderer's job.
@@ -442,6 +541,27 @@ pub struct Node {
     /// backends that don't yet read it draw the subtree as-is.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub effects: Vec<Effect>,
+    /// 3D SCENE ROOT: when set, this node's direct children become 3D LAYERS —
+    /// each placed in one shared 3D world by its [`Transform3D`] and rendered
+    /// through this perspective [`Camera3D`] (depth-sorted, then composited as a
+    /// single layer via render-to-texture, exactly like an effect). Omitted from
+    /// JSON when `None`, so existing scenes stay byte-identical. The GPU (Vello)
+    /// path runs the true perspective projection; the CPU reference degrades to a
+    /// 2.5D depth-sorted composite (per-layer distance scale only — no
+    /// out-of-plane rotation or intersection), consistent with the CPU path
+    /// ignoring rotation elsewhere.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub camera3d: Option<Camera3D>,
+    /// 3D placement of this node *as a layer inside a 3D scene* — meaningful only
+    /// when an ancestor carries [`Camera3D`]. Positions/orients the layer's content
+    /// plane in the shared 3D world. Ignored outside a 3D scene; omitted when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transform3d: Option<Transform3D>,
+    /// EXTRUDE this layer's 2D outline into a lit 3D solid ([`Extrude`]) — a shape or
+    /// text layer inside a 3D scene becomes a mesh with depth + side walls instead of a
+    /// flat plane. GPU only; the CPU reference draws the flat outline. Omitted when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extrude: Option<Extrude>,
     /// Optional flex layout: when set, this node positions its direct children
     /// (sets their `transform.translate`) per the rules — resolved by the
     /// `onda-layout` pre-pass before rendering, so backends just draw.
@@ -492,6 +612,9 @@ impl Node {
             matte: None,
             blend: BlendMode::Normal,
             effects: Vec::new(),
+            camera3d: None,
+            transform3d: None,
+            extrude: None,
             layout: None,
             kind,
             children: Vec::new(),
@@ -507,6 +630,26 @@ impl Node {
     /// Builder: append an effect to this node's chain (applied in order).
     pub fn with_effect(mut self, effect: Effect) -> Self {
         self.effects.push(effect);
+        self
+    }
+
+    /// Builder: make this node a 3D SCENE ROOT viewed through `camera` — its direct
+    /// children become 3D layers, placed by their [`Node::with_transform3d`].
+    pub fn with_camera3d(mut self, camera: Camera3D) -> Self {
+        self.camera3d = Some(camera);
+        self
+    }
+
+    /// Builder: place this node as a 3D LAYER inside a 3D scene (an ancestor with a
+    /// [`Camera3D`]). Ignored outside a 3D scene.
+    pub fn with_transform3d(mut self, transform: Transform3D) -> Self {
+        self.transform3d = Some(transform);
+        self
+    }
+
+    /// Builder: EXTRUDE this layer's 2D outline into a lit 3D solid ([`Extrude`]).
+    pub fn with_extrude(mut self, extrude: Extrude) -> Self {
+        self.extrude = Some(extrude);
         self
     }
 

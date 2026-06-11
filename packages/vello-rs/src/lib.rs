@@ -13,8 +13,8 @@ use std::collections::HashMap;
 
 use onda_core::{Color, Size, Transform};
 use onda_scene::{
-    BlendMode, BooleanOp, Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin,
-    Matte, MatteMode, Node, NodeKind, Scene, Shadow, ShapeGeometry, Text, TrimDash,
+    BlendMode, BooleanOp, Camera3D, Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap,
+    LineJoin, Matte, MatteMode, Node, NodeKind, Scene, Shadow, ShapeGeometry, Text, TrimDash,
 };
 use onda_typography::{FontContext, StyledRun};
 use vello::kurbo::{Affine, BezPath, Cap, Ellipse, Join, Rect, RoundedRect, Shape, Stroke};
@@ -30,6 +30,9 @@ use effects::{
     LinearFinish, PixelFx, PIXELFX_CHROMATIC, PIXELFX_CHROMA_KEY, PIXELFX_DUOTONE,
     PIXELFX_POSTERIZE, PIXELFX_VIGNETTE,
 };
+mod extrude;
+mod scene3d;
+use scene3d::{Layer3D, Mesh3D, Scene3D};
 
 /// A rendered frame: straight-alpha RGBA8, row-major, top-left origin.
 pub struct Frame {
@@ -77,6 +80,9 @@ pub struct VelloRenderer {
     /// Composition-level cinematic FINISH chain (decode→linear-HDR bloom→ACES). Built
     /// lazily the first time a comp carries a `Composition::finish`, then reused.
     linearfinish_pipeline: Option<LinearFinish>,
+    /// The perspective 3D pass (textured-quad render pipeline + depth + un-premultiply).
+    /// Built lazily the first time a comp carries a `camera3d` scene, then reused.
+    scene3d_pipeline: Option<Scene3D>,
     /// True on the WebGPU (browser) backend, where buffer mapping is async-only.
     /// The effect path can't read a texture back synchronously mid-build there, so
     /// on the web effects are resolved up front by `prepare_effect_images` (async
@@ -159,6 +165,7 @@ impl VelloRenderer {
             fbm_pipeline: None,
             grain_pipeline: None,
             linearfinish_pipeline: None,
+            scene3d_pipeline: None,
             web,
         })
     }
@@ -252,6 +259,7 @@ impl VelloRenderer {
                     matte_pipeline: &mut self.matte_pipeline,
                     fbm_pipeline: &mut self.fbm_pipeline,
                     grain_pipeline: &mut self.grain_pipeline,
+                    scene3d_pipeline: &mut self.scene3d_pipeline,
                     effect_overrides: &mut Vec::new(),
                     linear: false,
                     web: true,
@@ -333,6 +341,7 @@ impl VelloRenderer {
                     matte_pipeline: &mut self.matte_pipeline,
                     fbm_pipeline: &mut self.fbm_pipeline,
                     grain_pipeline: &mut self.grain_pipeline,
+                    scene3d_pipeline: &mut self.scene3d_pipeline,
                     effect_overrides: &mut Vec::new(),
                     linear: false,
                     web: true,
@@ -405,6 +414,7 @@ impl VelloRenderer {
                         matte_pipeline: &mut self.matte_pipeline,
                         fbm_pipeline: &mut self.fbm_pipeline,
                         grain_pipeline: &mut self.grain_pipeline,
+                        scene3d_pipeline: &mut self.scene3d_pipeline,
                         effect_overrides: &mut Vec::new(),
                         linear: false,
                         web: true,
@@ -494,6 +504,7 @@ impl VelloRenderer {
                 matte_pipeline: &mut self.matte_pipeline,
                 fbm_pipeline: &mut self.fbm_pipeline,
                 grain_pipeline: &mut self.grain_pipeline,
+                scene3d_pipeline: &mut self.scene3d_pipeline,
                 effect_overrides: &mut effect_overrides,
                 linear: scene.composition.linear,
                 web: self.web,
@@ -577,6 +588,8 @@ struct Ctx<'a> {
     matte_pipeline: &'a mut Option<AlphaMatte>,
     fbm_pipeline: &'a mut Option<FbmGradient>,
     grain_pipeline: &'a mut Option<Grain>,
+    /// The perspective 3D pass — built lazily for a `camera3d` scene, reused after.
+    scene3d_pipeline: &'a mut Option<Scene3D>,
     /// Native GPU-resident effect compositing: the placeholder `peniko::Image`s whose
     /// Blob ids key `Renderer::override_image` to each effect's GPU texture, so Vello
     /// GPU→GPU-copies the result into its atlas instead of us reading it back. Filled
@@ -784,6 +797,22 @@ fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, pa
             }
             return;
         }
+    }
+
+    // 3D SCENE ROOT (`camera3d`): the children are 3D LAYERS placed in one shared
+    // world and viewed through a perspective camera. Each child is rasterized to its
+    // own texture (the effect-capture seam) and drawn as a textured quad. Native runs
+    // the true GPU 3D pass (perspective + out-of-plane rotation + a depth buffer, so
+    // layers occlude and intersect by real depth); the web preview degrades to a 2.5D
+    // affine projection (perspective scale + position, depth-sorted — no tilt),
+    // matching the CPU reference. Replaces the node's draw and returns.
+    if let Some(cam) = node.camera3d {
+        if ctx.web {
+            render_scene3d_2d(vscene, ctx, node, &cam, affine, opacity);
+        } else {
+            render_scene3d_gpu(vscene, ctx, node, &cam, affine, opacity);
+        }
+        return;
     }
 
     // Render-to-texture effect chain (e.g. blur): if this node carries effects,
@@ -1354,6 +1383,300 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
     }
 
     Some((texture, tw, th, x0, y0))
+}
+
+/// Resolve a [`Camera3D`] to pinhole parameters for a `w×h` frame: focal length `f`
+/// (px, from the vertical fov) and eye position `[px, py, pz]`. The default eye is
+/// centered and pulled back by `f` so the `z = 0` plane fills the frame.
+fn resolve_camera3d(cam: &Camera3D, w: f32, h: f32) -> (f32, [f32; 3]) {
+    let fov = cam
+        .fov
+        .to_radians()
+        .clamp(1e-3, std::f32::consts::PI - 1e-3);
+    let f = (h * 0.5) / (fov * 0.5).tan();
+    let eye = cam.position.unwrap_or([w * 0.5, h * 0.5, -f]);
+    (f, eye)
+}
+
+/// The straight-pinhole view-projection that EXACTLY matches the CPU/2.5D projection
+/// (so a `z = 0` layer projects 1:1, the framing invariant), with a standard `[0,1]`
+/// depth mapping over `[near, far]`. Out-of-plane rotation is added per layer via the
+/// model matrix. Columns are the coefficients of X, Y, Z and the constant term —
+/// `clip = VP · (X, Y, Z, 1)`, screen y (down) flipped into NDC y (up).
+fn scene3d_view_proj(f: f32, eye: [f32; 3], w: f32, h: f32, near: f32, far: f32) -> glam::Mat4 {
+    let [px, py, pz] = eye;
+    let a = far / (far - near);
+    let b = -a * (pz + near);
+    glam::Mat4::from_cols(
+        glam::vec4(2.0 * f / w, 0.0, 0.0, 0.0),
+        glam::vec4(0.0, -2.0 * f / h, 0.0, 0.0),
+        glam::vec4(0.0, 0.0, a, 1.0),
+        glam::vec4(-(2.0 * f / w) * px, (2.0 * f / h) * py, b, -pz),
+    )
+}
+
+/// The per-layer model matrix: place the unit quad (`[0,1]²` over the layer's `tw×th`
+/// content texture) into the world — scaled to content size, rotated about the anchor
+/// (Z·Y·X, degrees), then translated to the world `position`.
+fn scene3d_model(pos: [f32; 3], rot_deg: [f32; 3], qa: (f32, f32), tw: f32, th: f32) -> glam::Mat4 {
+    let [wx, wy, wz] = pos;
+    let [rx, ry, rz] = rot_deg;
+    glam::Mat4::from_translation(glam::vec3(wx, wy, wz))
+        * glam::Mat4::from_rotation_z(rz.to_radians())
+        * glam::Mat4::from_rotation_y(ry.to_radians())
+        * glam::Mat4::from_rotation_x(rx.to_radians())
+        * glam::Mat4::from_translation(glam::vec3(-qa.0, -qa.1, 0.0))
+        * glam::Mat4::from_scale(glam::vec3(tw, th, 1.0))
+}
+
+/// A skrifa outline pen that appends a glyph's contours to a kurbo path, scaled to px
+/// and flipped into ONDA's y-down space at the glyph's baseline origin `(ox, oy)`.
+struct KurboPen<'a> {
+    path: &'a mut BezPath,
+    ox: f64,
+    oy: f64,
+}
+
+impl skrifa::outline::OutlinePen for KurboPen<'_> {
+    fn move_to(&mut self, x: f32, y: f32) {
+        self.path.move_to((self.ox + x as f64, self.oy - y as f64));
+    }
+    fn line_to(&mut self, x: f32, y: f32) {
+        self.path.line_to((self.ox + x as f64, self.oy - y as f64));
+    }
+    fn quad_to(&mut self, cx: f32, cy: f32, x: f32, y: f32) {
+        self.path.quad_to(
+            (self.ox + cx as f64, self.oy - cy as f64),
+            (self.ox + x as f64, self.oy - y as f64),
+        );
+    }
+    fn curve_to(&mut self, c0x: f32, c0y: f32, c1x: f32, c1y: f32, x: f32, y: f32) {
+        self.path.curve_to(
+            (self.ox + c0x as f64, self.oy - c0y as f64),
+            (self.ox + c1x as f64, self.oy - c1y as f64),
+            (self.ox + x as f64, self.oy - y as f64),
+        );
+    }
+    fn close(&mut self) {
+        self.path.close_path();
+    }
+}
+
+/// Build the combined VECTOR OUTLINE (kurbo path) of a text node's glyphs in the text's
+/// local layout space — for extruding text into a 3D solid. Lays the text out exactly
+/// like the 2D draw, then pulls each glyph's outline via skrifa. Returns the path plus
+/// the first glyph's fill colour, or `None` if nothing lays out.
+fn text_outline_path(fonts: &mut FontContext, text: &Text) -> Option<(BezPath, [f32; 4])> {
+    use skrifa::MetadataProvider;
+    let resolved = text.resolved_runs();
+    let styled: Vec<StyledRun> = resolved
+        .iter()
+        .map(|r| StyledRun {
+            text: &r.text,
+            font_size: r.font_size,
+            color: [r.color.r, r.color.g, r.color.b, r.color.a],
+            family: r.font_family.as_deref(),
+            weight: r.weight,
+            italic: r.italic,
+            letter_spacing: text.letter_spacing,
+        })
+        .collect();
+    let layout = fonts.layout_rich(&styled);
+    if layout.glyphs.is_empty() {
+        return None;
+    }
+    let color = layout.glyphs[0].color;
+    let mut path = BezPath::new();
+    for gl in &layout.glyphs {
+        let Some(blob) = layout.fonts.iter().find(|b| b.key == gl.font_key) else {
+            continue;
+        };
+        let Ok(font) = skrifa::FontRef::from_index(blob.data.as_slice(), blob.index) else {
+            continue;
+        };
+        let Some(glyph) = font.outline_glyphs().get(skrifa::GlyphId::new(gl.id)) else {
+            continue;
+        };
+        let mut pen = KurboPen {
+            path: &mut path,
+            ox: gl.x as f64,
+            oy: gl.y as f64,
+        };
+        let settings = skrifa::outline::DrawSettings::unhinted(
+            skrifa::instance::Size::new(gl.font_size),
+            skrifa::instance::LocationRef::default(),
+        );
+        let _ = glyph.draw(settings, &mut pen);
+    }
+    if path.elements().is_empty() {
+        return None;
+    }
+    Some((path, color))
+}
+
+/// Native GPU 3D pass: capture each 3D layer to a texture (the effect-capture seam),
+/// place it as a textured quad through the perspective camera (with a depth buffer so
+/// layers occlude/intersect by true depth), and composite the comp-sized result via
+/// `override_image` — GPU-resident, exactly like an effect.
+fn render_scene3d_gpu(
+    vscene: &mut VelloScene,
+    ctx: &mut Ctx,
+    node: &Node,
+    cam: &Camera3D,
+    affine: Affine,
+    opacity: f32,
+) {
+    let (cw, ch) = (ctx.comp.0 as f32, ctx.comp.1 as f32);
+    let (f, eye) = resolve_camera3d(cam, cw, ch);
+    let pz = eye[2];
+    let near = cam.near.max(1e-3);
+    let far = cam.far.max(near + 1.0);
+    let vp = scene3d_view_proj(f, eye, cw, ch, near, far);
+
+    // Build each child as either an EXTRUDED solid (a lit mesh) or a flat textured
+    // quad; cull those at/behind the near plane.
+    let mut entries: Vec<(f32, Layer3D)> = Vec::with_capacity(node.children.len());
+    let mut meshes: Vec<Mesh3D> = Vec::new();
+    for child in &node.children {
+        let t3 = child.transform3d.unwrap_or_default();
+        let [wx, wy, wz] = t3.position;
+        if wz - pz <= near {
+            continue;
+        }
+        // EXTRUDED shape or text → lit solid mesh (front/back faces + side walls).
+        if let Some(ext) = child.extrude {
+            let outline: Option<(BezPath, [f32; 4])> = match &child.kind {
+                NodeKind::Shape(shape) => Some((
+                    shape_path(&shape.geometry),
+                    shape
+                        .fill
+                        .map_or([1.0, 1.0, 1.0, 1.0], |c| [c.r, c.g, c.b, c.a]),
+                )),
+                NodeKind::Text(t) => text_outline_path(ctx.fonts, t),
+                _ => None,
+            };
+            if let Some((path, color)) = outline {
+                if let Some(vertices) = extrude::extrude_path(&path, ext.depth) {
+                    let bb = path.bounding_box();
+                    let (ax, ay) = match t3.anchor {
+                        Some([ax, ay]) => (ax, ay),
+                        None => (
+                            ((bb.x0 + bb.x1) * 0.5) as f32,
+                            ((bb.y0 + bb.y1) * 0.5) as f32,
+                        ),
+                    };
+                    let [rx, ry, rz] = t3.rotation;
+                    // No unit-quad scale here — the mesh vertices are already in local px.
+                    let model = glam::Mat4::from_translation(glam::vec3(wx, wy, wz))
+                        * glam::Mat4::from_rotation_z(rz.to_radians())
+                        * glam::Mat4::from_rotation_y(ry.to_radians())
+                        * glam::Mat4::from_rotation_x(rx.to_radians())
+                        * glam::Mat4::from_translation(glam::vec3(-ax, -ay, 0.0));
+                    meshes.push(Mesh3D {
+                        vertices,
+                        mvp: vp * model,
+                        model,
+                        color,
+                    });
+                    continue;
+                }
+            }
+            // Degenerate / non-extrudable → fall through to the flat-quad capture below.
+        }
+        let Some((texture, tw, th, x0, y0)) = build_effect_texture(ctx, child) else {
+            continue;
+        };
+        // Anchor in the layer's local space: an explicit pivot, else the content center.
+        let (ax, ay) = match t3.anchor {
+            Some([ax, ay]) => (ax as f64, ay as f64),
+            None => (x0 + tw as f64 * 0.5, y0 + th as f64 * 0.5),
+        };
+        let qa = ((ax - x0) as f32, (ay - y0) as f32);
+        let model = scene3d_model([wx, wy, wz], t3.rotation, qa, tw as f32, th as f32);
+        entries.push((
+            wz,
+            Layer3D {
+                texture,
+                mvp: vp * model,
+            },
+        ));
+    }
+    if entries.is_empty() && meshes.is_empty() {
+        return;
+    }
+    // Far (large z) first — the depth buffer resolves occlusion, but back-to-front
+    // keeps blended/AA edges compositing correctly.
+    entries.sort_by(|x, y| y.0.total_cmp(&x.0));
+    let layers: Vec<Layer3D> = entries.into_iter().map(|(_, l)| l).collect();
+
+    let (device, queue) = (ctx.device, ctx.queue);
+    let pass = ctx
+        .scene3d_pipeline
+        .get_or_insert_with(|| Scene3D::new(device));
+    let out = pass.run(device, queue, &layers, &meshes, ctx.comp.0, ctx.comp.1);
+
+    // Composite the comp-sized 3D render at the scene root's place/opacity (GPU-resident).
+    let placeholder = effect_placeholder(ctx.comp.0, ctx.comp.1);
+    draw_peniko_image(vscene, &placeholder, affine, opacity);
+    ctx.renderer.override_image(
+        &placeholder,
+        Some(wgpu::ImageCopyTextureBase {
+            texture: std::sync::Arc::new(out),
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        }),
+    );
+    ctx.effect_overrides.push(placeholder);
+}
+
+/// Web preview degrade of the 3D pass: project each layer to a 2.5D affine (perspective
+/// scale + position, depth-sorted; no out-of-plane rotation) and build it normally —
+/// the same projection the CPU reference uses. The native GPU pass is the truth.
+fn render_scene3d_2d(
+    vscene: &mut VelloScene,
+    ctx: &mut Ctx,
+    node: &Node,
+    cam: &Camera3D,
+    affine: Affine,
+    opacity: f32,
+) {
+    let (cw, ch) = (ctx.comp.0 as f32, ctx.comp.1 as f32);
+    let (f, eye) = resolve_camera3d(cam, cw, ch);
+    let [px, py, pz] = eye;
+    let near = cam.near.max(1e-3);
+
+    // (world z, child index, projection affine), built then depth-sorted far→near.
+    let mut entries: Vec<(f32, usize, Affine)> = Vec::with_capacity(node.children.len());
+    for (i, child) in node.children.iter().enumerate() {
+        let t3 = child.transform3d.unwrap_or_default();
+        let [wx, wy, wz] = t3.position;
+        let d = wz - pz;
+        if d <= near {
+            continue;
+        }
+        let s = (f / d) as f64;
+        let sx = (cw * 0.5 + f * (wx - px) / d) as f64;
+        let sy = (ch * 0.5 + f * (wy - py) / d) as f64;
+        let (ax, ay) = match t3.anchor {
+            Some([ax, ay]) => (ax as f64, ay as f64),
+            None => match subtree_local_bounds(ctx.fonts, child) {
+                Some(b) => ((b.x0 + b.x1) * 0.5, (b.y0 + b.y1) * 0.5),
+                None => (0.0, 0.0),
+            },
+        };
+        let proj = Affine::translate((sx, sy)) * Affine::scale(s) * Affine::translate((-ax, -ay));
+        entries.push((wz, i, proj));
+    }
+    entries.sort_by(|a, b| b.0.total_cmp(&a.0));
+    for (_, i, proj) in entries {
+        // Neutralize the child's own transform so `position3d` governs (matching native).
+        let local = Node {
+            transform: Transform::IDENTITY,
+            ..node.children[i].clone()
+        };
+        build(vscene, ctx, &local, affine * proj, opacity);
+    }
 }
 
 /// Native inline effect path: build the effect texture, read it back synchronously

@@ -22,8 +22,8 @@ use std::path::PathBuf;
 use onda_core::{Color, Size, Transform, Vec2};
 use onda_renderer::Renderer;
 use onda_scene::{
-    BooleanOp, BooleanOperand, Composition, Effect, Gradient, GradientStop, Matte, MatteMode, Node,
-    NodeKind, Scene, Shape, ShapeGeometry, Text, Trim,
+    BooleanOp, BooleanOperand, Camera3D, Composition, Effect, Gradient, GradientStop, Matte,
+    MatteMode, Node, NodeKind, Scene, Shape, ShapeGeometry, Text, Transform3D, Trim,
 };
 
 fn text_node(content: &str, size: f32, color: Color) -> Node {
@@ -166,6 +166,45 @@ fn fixtures() -> Vec<(&'static str, Scene)> {
                         Node::shape(Shape::rect(Size::new(90.0, 90.0)).with_fill(Color::WHITE))
                             .with_transform(translate(80.0, 45.0)),
                     ]),
+            ),
+        ),
+        // 3D scene (CPU 2.5D degrade): over a dark backdrop, three cards stepping back
+        // in z — each perspective-scaled by depth, center-anchored on its world
+        // position, and depth-sorted far→near (cyan nearest, on top of the rose).
+        (
+            "scene3d_depth",
+            scene(
+                Node::group().with_children([
+                    Node::shape(
+                        Shape::rect(Size::new(W as f32, H as f32))
+                            .with_fill(Color::from_rgba8(0x0B, 0x10, 0x20, 0xFF)),
+                    ),
+                    Node::group()
+                        .with_camera3d(Camera3D::default())
+                        .with_children([
+                            Node::shape(
+                                Shape::rect(Size::new(80.0, 80.0))
+                                    .with_fill(Color::from_rgba8(0x1E, 0x29, 0x3B, 0xFF)),
+                            )
+                            .with_transform3d(Transform3D {
+                                position: [120.0, 75.0, 600.0],
+                                ..Default::default()
+                            }),
+                            Node::shape(Shape::rect(Size::new(80.0, 80.0)).with_fill(rose))
+                                .with_transform3d(Transform3D {
+                                    position: [95.0, 75.0, 220.0],
+                                    ..Default::default()
+                                }),
+                            Node::shape(
+                                Shape::rect(Size::new(80.0, 80.0))
+                                    .with_fill(Color::from_rgba8(0x22, 0xD3, 0xEE, 0xFF)),
+                            )
+                            .with_transform3d(Transform3D {
+                                position: [150.0, 75.0, 0.0],
+                                ..Default::default()
+                            }),
+                        ]),
+                ]),
             ),
         ),
         // Text (bundled font → deterministic glyph coverage).
