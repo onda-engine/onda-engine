@@ -34,3 +34,8 @@ symphonia = { version = "0.5", features = [
 rustfft = { version = "6", default-features = false }
 # Declarative synth graph is serde data (travels as JSON, like a composition).
 serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+# Examples parse an AudioGraph from JSON — incl. `synth_json`, the CLI the
+# ONDA Studio MCP `audio_synth` tool shells to.
+serde_json = "1"
