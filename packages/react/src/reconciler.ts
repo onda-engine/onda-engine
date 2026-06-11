@@ -11,8 +11,10 @@ import { type HostNode, type RootContainer, hostConfig } from './host-config.js'
 import type {
   BooleanOp,
   BooleanOperand,
+  Camera3D,
   Color,
   Effect,
+  Extrude,
   Finish,
   Gradient,
   Layout,
@@ -23,6 +25,7 @@ import type {
   ShapeGeometry,
   Stroke,
   Transform,
+  Transform3D,
 } from './scene.js'
 
 const reconciler = Reconciler(hostConfig)
@@ -236,6 +239,50 @@ function dofBlur(depth: number, dof: NonNullable<ReturnType<typeof parseDof>>): 
   return Math.min(dist * dof.aperture, dof.maxBlur)
 }
 
+function isVec3(v: unknown): v is [number, number, number] {
+  return Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number')
+}
+function isVec2(v: unknown): v is [number, number] {
+  return Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === 'number')
+}
+
+/** Resolve a `<Scene3D camera>` prop into a scene `Camera3D`, keeping only set fields
+ *  (the engine derives the rest to frame the z = 0 plane). */
+function parseCamera3D(input: unknown): Camera3D {
+  const c = (input ?? {}) as Record<string, unknown>
+  const out: Camera3D = {}
+  if (isVec3(c.position)) out.position = c.position
+  if (isVec3(c.target)) out.target = c.target
+  if (isVec3(c.up)) out.up = c.up
+  if (typeof c.fov === 'number') out.fov = c.fov
+  if (typeof c.near === 'number') out.near = c.near
+  if (typeof c.far === 'number') out.far = c.far
+  return out
+}
+
+/** Resolve a layer's `extrude` prop (a `depth` number or `{ depth }`) into an
+ *  `Extrude`, or null when absent / non-positive. */
+function parseExtrude(input: unknown): Extrude | null {
+  if (typeof input === 'number') return input > 0 ? { depth: input } : null
+  if (input && typeof input === 'object') {
+    const d = (input as { depth?: unknown }).depth
+    if (typeof d === 'number' && d > 0) return { depth: d }
+  }
+  return null
+}
+
+/** Build a layer's `Transform3D` from its `position3d`/`rotation3d`/`anchor3d` props,
+ *  or null when the layer carries none (so it serializes only where used). */
+function parseTransform3D(props: Record<string, unknown>): Transform3D | null {
+  const { position3d, rotation3d, anchor3d } = props
+  if (!isVec3(position3d) && !isVec3(rotation3d) && !isVec2(anchor3d)) return null
+  const out: Transform3D = {}
+  if (isVec3(position3d)) out.position = position3d
+  if (isVec3(rotation3d)) out.rotation = rotation3d
+  if (isVec2(anchor3d)) out.anchor = anchor3d
+  return out
+}
+
 function compositionToScene(node: HostNode): Scene {
   const { props } = node
   // Depth of field: read by every descendant's `toNode` via the module-level activeDof.
@@ -357,6 +404,13 @@ function toNode(node: HostNode): SceneNode {
     if (sigma > 0.4) effects.unshift({ effect: 'blur', sigma })
   }
   if (effects.length) base.effects = effects
+  // 3D: a `camera3d` prop makes this node a 3D scene root; `position3d`/`rotation3d`/
+  // `anchor3d` place this node as a layer inside an ancestor 3D scene.
+  if (props.camera3d !== undefined) base.camera3d = parseCamera3D(props.camera3d)
+  const transform3d = parseTransform3D(props)
+  if (transform3d) base.transform3d = transform3d
+  const extrude = parseExtrude(props.extrude)
+  if (extrude) base.extrude = extrude
   if (props.layout !== undefined) base.layout = parseLayout(props.layout as Layout)
   const children = node.children.map(toNode)
   const withChildren = children.length ? { children } : {}
