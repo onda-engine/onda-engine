@@ -79,7 +79,9 @@ fn load_node(
 
     if let NodeKind::Image(image) = &node.kind {
         if image.data.is_none() {
-            if let Some(mut data) = decode_src_cached(&image.src, base_dir, cache)? {
+            if let Some(mut data) =
+                decode_src_cached(&image.src, base_dir, display_max_dim(image), cache)?
+            {
                 // Optional gaussian "focus pull": blurring here (in the shared
                 // decode pass) keeps native/GPU/CPU byte-identical and needs no
                 // renderer support. Sigma is in source pixels; animating it
@@ -103,7 +105,7 @@ fn load_node(
     // any still-unresolved video src is simply left for the renderer to skip.
     if let NodeKind::Video(video) = &node.kind {
         if video.data.is_none() && video.src.starts_with("data:") {
-            if let Some(data) = decode_src_cached(&video.src, base_dir, cache)? {
+            if let Some(data) = decode_src_cached(&video.src, base_dir, None, cache)? {
                 return Ok(Node {
                     kind: NodeKind::Video(video.clone().with_data(data)),
                     children,
@@ -119,24 +121,86 @@ fn load_node(
     })
 }
 
-/// [`decode_src`] with a cross-call cache for stable sources. The cached value is the
-/// SHARP decode (pre-blur); the caller applies any per-node blur to a clone, so the
-/// stored entry is reused untouched. `onda-noise:` (per-frame procedural) and `data:`
+/// Headroom over a node's display box when right-sizing its decoded image. The
+/// texture stays crisp under a moderate camera zoom (≤1.5×) without holding the
+/// full source resolution: a 12 MP phone photo drawn in a 400 px tile becomes
+/// ~0.4 MP instead of a 48 MB RGBA texture, so many large images no longer
+/// overrun the GPU texture budget (which silently DROPPED the overflow before).
+const DISPLAY_HEADROOM: f32 = 1.5;
+
+/// The longest decoded dimension worth keeping for an [`Image`] node, or `None`
+/// to leave it at source resolution. We only right-size when the node has an
+/// explicit width×height box AND no active blur — an intrinsic-size image has no
+/// known draw size, and a focus-pull (`blur > 0`) measures its sigma in SOURCE
+/// pixels, so downscaling mid-pull would change the blur. (A box with blur is
+/// left full-res until the pull resolves to `blur == 0`, then right-sized.)
+fn display_max_dim(image: &onda_scene::Image) -> Option<u32> {
+    if image.blur > 0.0 {
+        return None;
+    }
+    match (image.width, image.height) {
+        (Some(w), Some(h)) if w > 0.0 && h > 0.0 => {
+            Some((w.max(h) * DISPLAY_HEADROOM).ceil().max(1.0) as u32)
+        }
+        _ => None,
+    }
+}
+
+/// Shrink a decoded image so its longest side is ≤ `max_dim`, preserving aspect.
+/// Only ever DOWNscales — an image already at/under the box is returned untouched
+/// (so small assets and the wasm path keep byte-identical output). Lanczos3 keeps
+/// downsized photos clean.
+fn downscale_to_fit(data: ImageData, max_dim: u32) -> ImageData {
+    let longest = data.width.max(data.height);
+    if max_dim == 0 || longest <= max_dim {
+        return data;
+    }
+    let scale = max_dim as f32 / longest as f32;
+    let nw = ((data.width as f32 * scale).round() as u32).max(1);
+    let nh = ((data.height as f32 * scale).round() as u32).max(1);
+    match image::RgbaImage::from_raw(data.width, data.height, (*data.rgba).clone()) {
+        Some(buf) => {
+            let resized =
+                image::imageops::resize(&buf, nw, nh, image::imageops::FilterType::Lanczos3);
+            ImageData {
+                width: nw,
+                height: nh,
+                rgba: Arc::new(resized.into_raw()),
+            }
+        }
+        None => data,
+    }
+}
+
+/// [`decode_src`] with a cross-call cache for stable sources, right-sized to the
+/// node's display box (`max_dim` = longest kept dimension; `None` keeps source
+/// resolution). The cached value is the SHARP, right-sized decode (pre-blur); the
+/// caller applies any per-node blur to a clone, so the stored entry is reused
+/// untouched. Keyed by `(src, max_dim)` so the same image drawn at two sizes
+/// caches separately. `onda-noise:` (per-frame procedural) and `data:`
 /// (potentially distinct + large per frame) are never cached.
 fn decode_src_cached(
     src: &str,
     base_dir: &Path,
+    max_dim: Option<u32>,
     cache: &mut HashMap<String, Option<ImageData>>,
 ) -> Result<Option<ImageData>, ImageError> {
     let cacheable = !src.starts_with("onda-noise:") && !src.starts_with("data:");
+    let key = match max_dim {
+        Some(m) => format!("{src}\u{1}{m}"),
+        None => src.to_string(),
+    };
     if cacheable {
-        if let Some(hit) = cache.get(src) {
+        if let Some(hit) = cache.get(&key) {
             return Ok(hit.clone());
         }
     }
-    let decoded = decode_src(src, base_dir)?;
+    let decoded = match (decode_src(src, base_dir)?, max_dim) {
+        (Some(data), Some(m)) => Some(downscale_to_fit(data, m)),
+        (other, _) => other,
+    };
     if cacheable {
-        cache.insert(src.to_string(), decoded.clone());
+        cache.insert(key, decoded.clone());
     }
     Ok(decoded)
 }
@@ -388,6 +452,71 @@ mod tests {
             blurred.rgba[idx]
         );
         assert_eq!(blurred.rgba[idx + 3], 255, "alpha stays opaque");
+    }
+
+    /// A solid `w×h` RGBA PNG (gray), base64-able — for size-related tests.
+    fn solid_png(w: u32, h: u32) -> Vec<u8> {
+        let mut buf = Vec::new();
+        {
+            let mut enc = png::Encoder::new(&mut buf, w, h);
+            enc.set_color(png::ColorType::Rgba);
+            enc.set_depth(png::BitDepth::Eight);
+            let mut wr = enc.write_header().unwrap();
+            wr.write_image_data(&vec![180u8; (w * h * 4) as usize])
+                .unwrap();
+        }
+        buf
+    }
+
+    #[test]
+    fn downscale_only_ever_shrinks() {
+        let big = ImageData {
+            width: 400,
+            height: 200,
+            rgba: Arc::new(vec![200u8; 400 * 200 * 4]),
+        };
+        let sized = downscale_to_fit(big, 150);
+        assert_eq!(sized.width.max(sized.height), 150); // longest side hits the cap
+        assert_eq!(sized.width, 150);
+        assert_eq!(sized.height, 75); // aspect preserved
+
+        let small = ImageData {
+            width: 80,
+            height: 60,
+            rgba: Arc::new(vec![0u8; 80 * 60 * 4]),
+        };
+        let kept = downscale_to_fit(small, 150);
+        assert_eq!((kept.width, kept.height), (80, 60)); // never upscaled
+    }
+
+    #[test]
+    fn display_max_dim_uses_the_box_and_skips_blur_and_unboxed() {
+        let mut img = onda_scene::Image::new("x".to_string());
+        assert_eq!(display_max_dim(&img), None); // no box → intrinsic size, no downscale
+        img.width = Some(100.0);
+        img.height = Some(200.0);
+        assert_eq!(display_max_dim(&img), Some(300)); // max(100,200) × 1.5 headroom
+        img.blur = 2.0;
+        assert_eq!(display_max_dim(&img), None); // a focus-pull keeps full source res
+    }
+
+    #[test]
+    fn an_oversized_image_is_right_sized_to_its_display_box() {
+        let b64 = base64::engine::general_purpose::STANDARD.encode(solid_png(400, 400));
+        let mut img = onda_scene::Image::new(format!("data:image/png;base64,{b64}"));
+        img.width = Some(100.0);
+        img.height = Some(100.0);
+        let scene = Scene {
+            composition: Composition::new(8, 8, 30.0, 1),
+            root: Node::new(NodeKind::Image(img)),
+        };
+        let loaded = load_images(&scene, Path::new("")).expect("decode + right-size");
+        let NodeKind::Image(out) = &loaded.root.kind else {
+            panic!("expected image node");
+        };
+        let data = out.data.as_ref().expect("pixels attached");
+        // 400×400 source drawn in a 100×100 box → 100 × 1.5 headroom = 150.
+        assert_eq!(data.width.max(data.height), 150);
     }
 
     #[test]
