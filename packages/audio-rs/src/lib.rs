@@ -22,8 +22,14 @@ use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 
+mod beats;
 mod spectrum;
+mod synth;
+pub use beats::{detect_beats, BeatTrack};
 pub use spectrum::{frame_bands, spectrogram, SpectrumOpts};
+pub use synth::{
+    synthesize, AudioGraph, Envelope, Filter, FilterKind, Reverb, Source, Tremolo, Voice, Wave,
+};
 
 /// Decoded PCM audio: interleaved f32 samples (`channels` per frame), in `-1..=1`.
 #[derive(Debug, Clone, PartialEq)]

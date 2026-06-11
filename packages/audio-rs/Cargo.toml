@@ -32,3 +32,5 @@ symphonia = { version = "0.5", features = [
 # Scalar FFT (default-features off → no avx/sse/wasm_simd) so preview (wasm) and
 # export (native) run the IDENTICAL algorithm — bit-identical spectra.
 rustfft = { version = "6", default-features = false }
+# Declarative synth graph is serde data (travels as JSON, like a composition).
+serde = { version = "1", features = ["derive"] }
