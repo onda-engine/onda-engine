@@ -9214,6 +9214,192 @@ export const MANIFEST: ManifestEntry[] = RAW.map((e) => {
 /** The PascalCase names of every catalogued component. */
 export const MANIFEST_NAMES: readonly string[] = MANIFEST.map((e) => e.name)
 
+// ─── CAPABILITIES — the engine's "verbs" (the director applies them) ────────────
+//
+// `MANIFEST` is the NOUNS — placeable components. `CAPABILITIES` is the VERBS — the
+// composition treatments, per-node effects, 3D modes, and audio moves a director
+// reaches for. They're NOT components (they're props/options/APIs), so they never
+// showed up in the catalog the agent reads — which is exactly why the Studio couldn't
+// direct a cinematic finish, a 3D logo, or a generated score. Carried here, in the
+// pure-data manifest the Studio consumes, so the agent knows the FULL toolbox.
+
+/** A capability the director APPLIES (a verb), vs. a `MANIFEST` component (a noun). */
+export interface Capability {
+  /** Stable id. */
+  id: string
+  /** composition (whole-comp) | effect (per-node) | 3d | audio. */
+  category: 'composition' | 'effect' | '3d' | 'audio'
+  /** Short title. */
+  title: string
+  /** What it does + when to reach for it. */
+  description: string
+  /** HOW to apply it — the prop/option/API, with a concrete example. */
+  apply: string
+  /** `both` = CPU==GPU + live preview | `gpu` = needs Vello | `export` = N×-cost, export-only. */
+  backend: 'both' | 'gpu' | 'export'
+  /** A caveat the agent MUST respect (e.g. judge the look on a native render). */
+  note?: string
+}
+
+export const CAPABILITIES: Capability[] = [
+  // — Composition-level treatments —
+  {
+    id: 'cinematic-finish',
+    category: 'composition',
+    title: 'Cinematic finish',
+    description:
+      "The 'looks shot' output transform as ONE composition prop — the whole finishing chain run in scene-linear HDR ending in a single ACES film tone-map (bloom bleeds REAL light past 1.0, plus halation, grade, vignette, grain), landing the comp as one photographed image. The #1 premium tell for cinematic/luxury/brand-film work.",
+    apply:
+      '<Composition finish={{ bloom: { sigma: 16, threshold: 0.6, intensity: 1.4 }, halation: 0.3, temperature: 0.2, contrast: 1.1, saturation: 1.05, vignette: 0.4, grain: 0.05 }}>',
+    backend: 'export',
+    note: 'GPU/export only — the live preview shows the raw gamma frame; judge the look on a native/export render.',
+  },
+  {
+    id: 'depth-of-field',
+    category: 'composition',
+    title: 'Depth of field (rack focus)',
+    description:
+      'Give each layer a `depth` and the comp a `dof`; every layer defocuses by its distance from the focus plane. Animate `focus` for a rack-focus pull between layers — the lens move that separates a subject from its world.',
+    apply: "<Composition dof={{ focus: 400, aperture: 0.06 }}> with <Group depth={900}>…</Group>",
+    backend: 'both',
+  },
+  {
+    id: 'motion-blur',
+    category: 'composition',
+    title: 'Per-object motion blur',
+    description:
+      'Shutter-angle temporal supersampling — every MOVING element smears by its own motion (translation/rotation/scale) while static stays razor-sharp. The single biggest amateur-vs-pro tell in motion.',
+    apply: '<Composition motionBlur={{ shutter: 180, samples: 16 }}>',
+    backend: 'export',
+    note: 'N× render cost — export-only (the live preview shows the sharp frame).',
+  },
+  // — Per-node effects (render-to-texture) —
+  {
+    id: 'bloom',
+    category: 'effect',
+    title: 'Bloom',
+    description:
+      'Bright pixels bleed a soft halo of real light — the most-reached-for premium glow. Put it on accents, highlights, or a logo.',
+    apply: 'bloom={{ sigma: 14, threshold: 0.7, intensity: 1.2 }}',
+    backend: 'gpu',
+  },
+  {
+    id: 'grade',
+    category: 'effect',
+    title: 'Color grade',
+    description:
+      "Grade a node's exposure/contrast/saturation/temperature/tint. The agent's main tool to MATCH dropped-in AI/stock media to the comp's look (warm it, darken it, punch it).",
+    apply: 'grade={{ exposure: -0.1, contrast: 1.12, saturation: 1.08, temperature: 0.16 }}',
+    backend: 'gpu',
+  },
+  {
+    id: 'film-grain',
+    category: 'effect',
+    title: 'Film grain',
+    description:
+      'Luminance-banded monochrome noise over a node — ties mismatched sources (AI plate, real product, vector type) into ONE photographed image and dithers 8-bit banding. Animate `seed` with the frame so it lives.',
+    apply: 'grain={{ intensity: 0.05, size: 1.2, seed: frame }}',
+    backend: 'gpu',
+  },
+  {
+    id: 'light-wrap',
+    category: 'effect',
+    title: 'Light-wrap',
+    description:
+      "Bleed the blurred backdrop light onto a subject's feathered edges so it reads SHOT IN the scene, not pasted on. The #1 tell for landing AI-generated or stock media inside a composition.",
+    apply: 'lightWrap={{ sigma: 30, strength: 1 }}   // on an Image/Video',
+    backend: 'gpu',
+    note: 'Native/export only.',
+  },
+  {
+    id: 'backdrop-blur',
+    category: 'effect',
+    title: 'Backdrop blur (frosted glass)',
+    description:
+      'Blur the rendered scene BEHIND a node (sampled), composited under it — frosted-glass panels, depth.',
+    apply: 'backdropBlur={{ sigma: 20 }}',
+    backend: 'gpu',
+  },
+  {
+    id: 'blur',
+    category: 'effect',
+    title: 'Gaussian blur',
+    description: 'Blur a node + its subtree — soft reveals, focus, depth.',
+    apply: 'blur={24}   // px std-dev',
+    backend: 'both',
+  },
+  {
+    id: 'chromatic-aberration',
+    category: 'effect',
+    title: 'Chromatic aberration (RGB split)',
+    description:
+      'Split the R/B channels by a few px — a glitch/energy accent (pulse it on the beat) or a subtle lens-real edge.',
+    apply: 'chromaticAberration={6}',
+    backend: 'gpu',
+  },
+  {
+    id: 'chroma-key',
+    category: 'effect',
+    title: 'Chroma key',
+    description: 'Knock out a key color (with a soft matte) to composite real media onto a new background.',
+    apply: 'chromaKey={{ color: "#00ff00", threshold: 0.4, smoothness: 0.1 }}',
+    backend: 'gpu',
+  },
+  {
+    id: 'stylize',
+    category: 'effect',
+    title: 'Stylize (vignette / posterize / duotone)',
+    description:
+      'Per-pixel looks: `vignette` (radial edge darkening), `posterize` (quantize to N levels — poster/retro), `duotone` (map luminance to two colors — bold editorial).',
+    apply: 'vignette={0.4}  ·  posterize={6}  ·  duotone={{ shadow: "#1a0b2e", highlight: "#f5b942" }}',
+    backend: 'gpu',
+  },
+  // — 3D —
+  {
+    id: 'scene-3d',
+    category: '3d',
+    title: '3D scene (layers + perspective camera)',
+    description:
+      'Place layers in ONE shared perspective 3D world — each a flat plane positioned by `position3d` and tilted by `rotation3d`, viewed through a perspective camera with a real depth buffer. Camera fly-throughs, card walls / cover-flow, parallax, exploded UI, billboard text.',
+    apply:
+      '<Scene3D camera={{ position: [960, 540, -1400], fov: 45 }}><Card position3d={[640, 540, 250]} rotation3d={[0, 40, 0]} /></Scene3D>',
+    backend: 'gpu',
+    note: 'GPU runs true perspective + out-of-plane rotation; CPU/web preview degrade to a 2.5D projection → judge 3D on a native/export render.',
+  },
+  {
+    id: 'extrude-3d',
+    category: '3d',
+    title: 'Extruded 3D solids (logos & titles)',
+    description:
+      'Extrude a shape, path, or TEXT into a LIT 3D SOLID (front/back faces + side walls) inside a <Scene3D> — the spinning solid logo / kinetic 3D title. Built from your vector shapes and fonts, no model files.',
+    apply: '<Text extrude={80} position3d={[960, 540, 0]} rotation3d={[14, 28, 0]}>BRAND</Text>',
+    backend: 'gpu',
+    note: 'GPU only; the live preview + CPU draw the flat outline → judge on a native/export render.',
+  },
+  // — Audio —
+  {
+    id: 'audio-beats',
+    category: 'audio',
+    title: 'Audio-driven motion (sync to the beat)',
+    description:
+      'Analyze a track into beats / onsets / tempo (frame units), then drive motion with `beatPulse(frame, beats)` — a 1→0 punch on each beat. Cut on the beat, punch on the kick, drop text on a transient. The #1 professionally-edited tell for music-driven content.',
+    apply:
+      "const b = useAudioBeats('/music.mp3'); …scaleX={1 + 0.3 * beatPulse(frame, b?.beats ?? [])}",
+    backend: 'both',
+  },
+  {
+    id: 'audio-synth',
+    category: 'audio',
+    title: 'Generate a score / SFX',
+    description:
+      'GENERATE a bespoke soundtrack + sound design — a declarative audio graph (oscillators/chords/noise → envelopes → filter → reverb) synthesized to a track and muxed into the export. Pads, drones, risers, impacts, whooshes, chimes, simple beats — the score + SFX layer.',
+    apply:
+      'an AudioGraph of timed Voices (Source.Osc/Chord/Noise + Envelope + Filter + Reverb) → synthesize() → mux',
+    backend: 'both',
+    note: 'Great for ambient beds / risers / impacts / SFX / simple beats — NOT real vocals, orchestra, or foley (bring real audio for those).',
+  },
+]
+
 /** Look up a manifest entry by slug or PascalCase name. */
 export function manifestEntry(key: string): ManifestEntry | undefined {
   return MANIFEST.find((e) => e.slug === key || e.name === key)
