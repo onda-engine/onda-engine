@@ -3,6 +3,7 @@
 // grade, goo), each played live by the engine (Vello/WebGPU, CPU fallback).
 // Standalone page (not a Starlight doc) so the player can use a full-width layout.
 import EffectsGallery from '../components/EffectsGallery.tsx'
+import BeatSyncPlayer from '../components/BeatSyncPlayer.tsx'
 const REPO = 'https://github.com/degueba/onda-engine'
 
 // Cinematic finishing — the export/native premium moves whose before/after is a
@@ -59,6 +60,38 @@ const CINEMATIC = {
 </Composition>`,
       before: { src: '/effects/dof-before.png', label: 'no dof · flat' },
       after: { src: '/effects/dof-after.png', label: 'focus → subject' },
+    },
+    {
+      title: '3D scene — layers in a perspective world',
+      blurb:
+        'Wrap layers in <code>&lt;Scene3D&gt;</code> and they share ONE perspective 3D world: each becomes a flat plane placed by <code>position3d={[x, y, z]}</code> and tilted by <code>rotation3d</code>, viewed through a perspective camera with a real depth buffer. Left, three cards laid out flat in 2D; right, the same cards in 3D — the centre faces us while the side cards YAW inward, foreshortening into trapezoids a 2.5D scale can never fake. The mograph core of "3D": camera fly-throughs, card walls / cover-flow, parallax, exploded UI, 3D titles. A layer at <code>z=0</code> with no rotation matches its 2D placement, so going 3D costs nothing until you move in z. The GPU runs the true perspective and out-of-plane rotation; the live preview and CPU reference degrade to a 2.5D depth-sorted projection — so judge the tilt on a native/export render.',
+      snippet: `<Scene3D camera={{ position: [640, 360, -1150], fov: 46 }}>
+  <Card position3d={[250, 360, 260]} rotation3d={[0, 55, 0]} />
+  <Card position3d={[640, 360, 0]} />
+  <Card position3d={[1030, 360, 260]} rotation3d={[0, -55, 0]} />
+</Scene3D>`,
+      before: { src: '/effects/scene3d-before.png', label: 'flat · 2D row' },
+      after: { src: '/effects/scene3d-after.png', label: '3D · cover-flow' },
+    },
+    {
+      title: 'Extruded 3D — solid logos & titles',
+      blurb:
+        'Inside a <code>&lt;Scene3D&gt;</code>, give a shape or a line of text an <code>extrude</code> depth and it stops being a flat plane — it becomes a LIT 3D SOLID, with a front face, a back face, and side walls the light catches as it turns. Left, a flat 2D wordmark and icon; right, the same two EXTRUDED into solids and tilted in perspective: the letter counters (the holes in O, D, A) cut clean through, and the side walls shade darker than the faces. The spinning-logo / kinetic-3D-title move — built from your existing vector shapes and fonts, no model files. GPU only; the live preview and CPU draw the flat outline.',
+      snippet: `<Scene3D camera={{ position: [640, 360, -1500], fov: 42 }}>
+  <Text fontSize={170} color="#e8edff" extrude={80}
+    position3d={[800, 360, 0]} rotation3d={[16, 28, 0]}>ONDA</Text>
+</Scene3D>`,
+      before: { src: '/effects/extrude-before.png', label: 'flat · 2D' },
+      after: { src: '/effects/extrude-after.png', label: 'extruded · 3D' },
+    },
+    {
+      title: 'Audio-driven motion — synced to the beat',
+      blurb:
+        'The single biggest "professionally edited" tell for anything with music. <code>useAudioBeats(src)</code> analyzes a track into beats, onsets, and tempo — in FRAME units, deterministic, identical in preview and export — and the pure helper <code>beatPulse(frame, beats)</code> turns each beat into a 1→0 punch you multiply into any property. Below, the ACTUAL ONDA wasm engine renders this LIVE in your browser, synced to a 120 BPM kick the engine detected itself — the kick swells, the EQ bars jump, and a shockwave fires on every beat. It plays automatically; <strong>unmute</strong> to hear the kick it locks to. Cut on the beat, punch on the kick, drop text on a transient — it plays live on both backends, no GPU finishing pass.',
+      snippet: `const b = useAudioBeats('/music.mp3')
+const punch = beatPulse(frame, b?.beats ?? [], 9)
+<Ellipse width={300 * (1 + 0.5 * punch)} … />`,
+      player: 'beatsync',
     },
     {
       title: 'Light-wrap',
@@ -213,8 +246,13 @@ const CINEMATIC = {
                     <span class="cfx__num">{String(i + 1).padStart(2, '0')}</span>
                     <h3 class="cfx__title">{e.title}</h3>
                   </div>
-                  <div class={e.strip ? 'cfx__media cfx__media--strip' : 'cfx__media'}>
-                    {e.strip ? (
+                  <div class={e.player || e.strip ? 'cfx__media cfx__media--strip' : 'cfx__media'}>
+                    {e.player === 'beatsync' ? (
+                      <figure class="cfx__live">
+                        <BeatSyncPlayer client:only="react" />
+                        <figcaption>rendered live by the ONDA wasm engine — unmute to hear the beat</figcaption>
+                      </figure>
+                    ) : e.strip ? (
                       <figure class="cfx__strip">
                         <img src={e.strip} alt={e.title} loading="lazy" />
                         <figcaption>{e.stripLabel}</figcaption>
