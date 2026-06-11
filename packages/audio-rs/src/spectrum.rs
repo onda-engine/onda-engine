@@ -135,7 +135,7 @@ pub fn frame_bands(buffer: &AudioBuffer, frame: usize, fps: f32, opts: &Spectrum
 }
 
 /// Hann window of length `n` (periodic-ish; `0.5 - 0.5·cos(2πi/(n-1))`).
-fn hann(n: usize) -> Vec<f32> {
+pub(crate) fn hann(n: usize) -> Vec<f32> {
     if n <= 1 {
         return vec![1.0; n];
     }
@@ -153,7 +153,7 @@ fn band_edges(min_hz: f32, max_hz: f32, bands: usize) -> Vec<f32> {
 }
 
 /// Downmix an interleaved buffer to mono f32.
-fn downmix_mono(buffer: &AudioBuffer) -> Vec<f32> {
+pub(crate) fn downmix_mono(buffer: &AudioBuffer) -> Vec<f32> {
     let ch = buffer.channels.max(1) as usize;
     if ch == 1 {
         return buffer.samples.clone();

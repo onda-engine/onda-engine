@@ -9,8 +9,42 @@
 //! Empty on non-wasm targets so it never touches the native build.
 #![cfg(target_arch = "wasm32")]
 
-use onda_audio::{decode_from_bytes, spectrogram, AudioBuffer, SpectrumOpts};
+use onda_audio::{decode_from_bytes, detect_beats, spectrogram, AudioBuffer, SpectrumOpts};
 use wasm_bindgen::prelude::*;
+
+/// Beat / onset / tempo analysis of a clip, all in VIDEO-FRAME units. Returned by
+/// [`AudioAnalyzer::beats`]; read `tempo` + the typed arrays from JS.
+#[wasm_bindgen]
+pub struct Beats {
+    tempo: f32,
+    beats: Vec<u32>,
+    onsets: Vec<u32>,
+    env: Vec<f32>,
+}
+
+#[wasm_bindgen]
+impl Beats {
+    /// Estimated tempo in beats per minute (0 if undetectable).
+    #[wasm_bindgen(getter)]
+    pub fn tempo(&self) -> f32 {
+        self.tempo
+    }
+    /// Frame indices on the beat grid (`Uint32Array`).
+    #[wasm_bindgen(getter)]
+    pub fn beats(&self) -> Vec<u32> {
+        self.beats.clone()
+    }
+    /// Frame indices of picked onsets — any transient (`Uint32Array`).
+    #[wasm_bindgen(getter)]
+    pub fn onsets(&self) -> Vec<u32> {
+        self.onsets.clone()
+    }
+    /// Per-frame onset strength `0..1`, one value per frame (`Float32Array`).
+    #[wasm_bindgen(getter, js_name = onsetEnv)]
+    pub fn onset_env(&self) -> Vec<f32> {
+        self.env.clone()
+    }
+}
 
 /// A decoded audio clip you can sample a per-frame spectrum from.
 #[wasm_bindgen]
@@ -40,6 +74,18 @@ impl AudioAnalyzer {
             ..SpectrumOpts::default()
         };
         spectrogram(&self.buffer, fps, frame_count, &opts)
+    }
+
+    /// BEAT / onset / tempo analysis over `frame_count` frames at `fps`, for syncing
+    /// motion to the music. Deterministic — identical to the native export.
+    pub fn beats(&self, fps: f32, frame_count: usize) -> Beats {
+        let t = detect_beats(&self.buffer, fps, frame_count);
+        Beats {
+            tempo: t.tempo_bpm,
+            beats: t.beats.iter().map(|&b| b as u32).collect(),
+            onsets: t.onsets.iter().map(|&o| o as u32).collect(),
+            env: t.onset_env,
+        }
     }
 
     /// Clip duration in seconds.
