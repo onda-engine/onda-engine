@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="ONDA preview — a live, browser-free viewer for an ONDA composition payload, rendered by the actual Rust engine in WebAssembly. No video render needed."
+    />
+    <title>ONDA preview</title>
+    <link rel="icon" type="image/svg+xml" href="./onda-mark.svg" />
+    <style>
+      /* ONDA brand tokens (dark-first) — see assets/brand/BRAND.md. */
+      :root {
+        --bg: #0e0e12;
+        --bg-deep: #08080a;
+        --surface: #121217;
+        --surface-2: #18181d;
+        --border: #26262c;
+        --text: #f2f2f4;
+        --text-muted: #8e8e98;
+        --text-dim: #56565f;
+        --accent: #d96b82;
+        --accent-600: #c8576f;
+        --on-accent: #0e0e12;
+        --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", monospace;
+        --onda-font-body: var(--font-body);
+        --onda-font-mono: var(--font-mono);
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font-body);
+        font-size: 16px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      #root {
+        min-height: 100%;
+      }
+      /* Gentle pulse for the "● live" auto-update indicator in the top bar. */
+      @keyframes onda-live-pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

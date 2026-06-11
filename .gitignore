@@ -59,3 +59,9 @@ packages/react/examples/assets/svg.json
 # VitePress build cache
 **/.vitepress/cache/
 refs/
+
+# ONDA Studio MCP — local dev/test client config (points at ../onda-studio; not OSS-engine source)
+/.mcp.json
+
+# built preview app (regenerated)
+apps/preview/dist/
