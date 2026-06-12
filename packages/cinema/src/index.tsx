@@ -61,6 +61,7 @@ import type {
   Brand,
   CameraMove,
   CompositionPayload,
+  Entry,
   EntryAnimation,
   EntryClip,
   EntryEffects,
@@ -512,26 +513,54 @@ function AnimatedEntry({
   )
 }
 
+/** During a magic-move overlap the matched element is drawn ONCE by the morph
+ *  layer (above the spine). This window — in the entry's OWN sequence-local frame
+ *  space — suppresses the underlying instance so it doesn't double. */
+interface MorphSuppress {
+  /** First local frame (inclusive) to hide the entry. */
+  from: number
+  /** Last local frame (exclusive) to hide the entry. */
+  to: number
+}
+
+/** Hide `children` while the (sequence-local) frame is inside `[s.from, s.to)`
+ *  — the morph layer is drawing this element instead. */
+function MorphSuppressGate({
+  suppress,
+  children,
+}: { suppress: MorphSuppress; children: ReactElement }): ReactElement | null {
+  const frame = useCurrentFrame()
+  if (frame >= suppress.from && frame < suppress.to) return null
+  return children
+}
+
 function EntrySlot({
   entry,
   registry,
-}: { entry: Track['entries'][number]; registry: Registry }): ReactElement {
+  suppress,
+}: {
+  entry: Track['entries'][number]
+  registry: Registry
+  /** Hide this entry during a magic-move overlap (window in entry-local frames). */
+  suppress?: MorphSuppress
+}): ReactElement {
   const { fps } = useVideoConfig()
+  const animated = createElement(AnimatedEntry, {
+    component: entry.component,
+    props: entry.props,
+    animate: entry.animate,
+    effects: entry.effects,
+    depth: entry.depth,
+    transform3d: entry.transform3d,
+    matte: entry.matte,
+    clip: entry.clip,
+    durationInFrames: toFrames(entry.for, fps),
+    registry,
+  })
   return createElement(
     Sequence,
     { from: toFrames(entry.at, fps), durationInFrames: toFrames(entry.for, fps) },
-    createElement(AnimatedEntry, {
-      component: entry.component,
-      props: entry.props,
-      animate: entry.animate,
-      effects: entry.effects,
-      depth: entry.depth,
-      transform3d: entry.transform3d,
-      matte: entry.matte,
-      clip: entry.clip,
-      durationInFrames: toFrames(entry.for, fps),
-      registry,
-    }),
+    suppress ? createElement(MorphSuppressGate, { suppress, children: animated }) : animated,
   )
 }
 
@@ -573,7 +602,16 @@ function AnimatedCamera({
   )
 }
 
-function SceneTracks({ scene, registry }: { scene: Scene; registry: Registry }): ReactElement {
+function SceneTracks({
+  scene,
+  registry,
+  suppress,
+}: {
+  scene: Scene
+  registry: Registry
+  /** entry → its magic-move suppression window (entry-local frames). */
+  suppress?: Map<Entry, MorphSuppress>
+}): ReactElement {
   return createElement(
     Group,
     null,
@@ -582,11 +620,197 @@ function SceneTracks({ scene, registry }: { scene: Scene; registry: Registry }):
         Group,
         { key: track.id ?? `track-${ti}` },
         ...track.entries.map((entry, ei) =>
-          createElement(EntrySlot, { key: entry.id ?? `entry-${ei}`, entry, registry }),
+          createElement(EntrySlot, {
+            key: entry.id ?? `entry-${ei}`,
+            entry,
+            registry,
+            suppress: suppress?.get(entry),
+          }),
         ),
       ),
     ),
   )
+}
+
+// ── Magic move (matched-element continuity across a cut) ──────────────────────
+//
+// When an entry in scene A and an entry in scene B share a `morphKey`, the element
+// should MORPH its position/scale across the cut (one continuous move) rather than
+// hard-cut/cross-fade — Keynote Magic Move / a matched cut. A TransitionPresentation
+// only sees the WHOLE scene flat, so it can't tween a single element. Instead, during
+// the transition OVERLAP we draw ONE interpolating instance (built from B's entry)
+// ABOVE the spine, and suppress the duplicate in A's tail + B's head so it never
+// doubles. v1 morphs translate + scale (resolved the SAME way the renderer places an
+// entry: placementOffset + canvas centre); opacity holds.
+
+/** An entry's resolved screen TRANSFORM at rest — the pixel translate the renderer
+ *  applies for its `placement` (matching `AnimatedEntry`'s `placementOffset`) plus a
+ *  uniform scale. Animation Motion is intentionally NOT baked in: the morph reads
+ *  the element's settled placement, which is the dominant magic-move signal. */
+interface MorphTransform {
+  x: number
+  y: number
+  scale: number
+}
+
+function entryTransform(entry: Entry, w: number, h: number): MorphTransform {
+  const [px, py] = SELF_ANCHORING.has(entry.component)
+    ? [0, 0]
+    : placementOffset(entry.props, w, h)
+  const s = entry.props?.scale
+  return { x: px, y: py, scale: typeof s === 'number' && Number.isFinite(s) ? s : 1 }
+}
+
+/** A matched magic-move pair: the destination entry (drawn morphing) and the
+ *  endpoints + absolute overlap window it tweens across. */
+interface MorphPair {
+  /** Built from B (the destination) — same component + props. */
+  to: Entry
+  from: MorphTransform
+  toT: MorphTransform
+  /** Absolute frame the overlap (and the morph) starts. */
+  overlapStart: number
+  /** Overlap length in frames. */
+  overlapFrames: number
+}
+
+/** Find which `morphKey`s an entry holds AT a scene boundary, with the entry. A
+ *  morph only fires for an entry that's actually on-screen at the cut: in scene A
+ *  the entry must still be live in A's last `overlap` frames; in scene B it must be
+ *  live in B's first `overlap` frames. */
+function morphEntriesAtTail(
+  scene: Scene,
+  fps: number,
+  sceneDur: number,
+  overlap: number,
+): Map<string, Entry> {
+  const m = new Map<string, Entry>()
+  const cutStart = sceneDur - overlap
+  for (const track of scene.tracks) {
+    for (const e of track.entries) {
+      if (!e.morphKey) continue
+      const start = toFrames(e.at, fps)
+      const end = start + toFrames(e.for, fps)
+      // Live during the tail overlap window [cutStart, sceneDur).
+      if (start < sceneDur && end > cutStart) m.set(e.morphKey, e)
+    }
+  }
+  return m
+}
+
+function morphEntriesAtHead(scene: Scene, fps: number, overlap: number): Map<string, Entry> {
+  const m = new Map<string, Entry>()
+  for (const track of scene.tracks) {
+    for (const e of track.entries) {
+      if (!e.morphKey) continue
+      const start = toFrames(e.at, fps)
+      const end = start + toFrames(e.for, fps)
+      // Live during the head overlap window [0, overlap).
+      if (start < overlap && end > 0) m.set(e.morphKey, e)
+    }
+  }
+  return m
+}
+
+/** A morphing element above the spine: B's element wrapped in a Group that tweens
+ *  translate + scale from A's placement to B's over the overlap (smoothstep). */
+function MorphLayer({
+  pair,
+  registry,
+}: { pair: MorphPair; registry: Registry }): ReactElement {
+  const frame = useCurrentFrame()
+  const { width, height } = useVideoConfig()
+  const n = pair.overlapFrames
+  const p = n > 1 ? Math.min(1, Math.max(0, frame / (n - 1))) : 1
+  const e = p * p * (3 - 2 * p) // smoothstep ease-in-out
+  const lerp = (a: number, b: number): number => a + (b - a) * e
+  const x = lerp(pair.from.x, pair.toT.x)
+  const y = lerp(pair.from.y, pair.toT.y)
+  const scale = lerp(pair.from.scale, pair.toT.scale)
+
+  const Comp = registry[pair.to.component]
+  const base = Comp
+    ? createElement(Comp, adaptProps(pair.to.component, pair.to.props, width, height))
+    : errorPlaceholder(pair.to.component)
+  const cx = width / 2
+  const cy = height / 2
+  // Translate to the morphed placement, then scale about the canvas centre
+  // (matching AnimatedEntry's scale-about-centre pivot).
+  return createElement(
+    Group,
+    { x, y },
+    createElement(
+      Group,
+      { x: cx, y: cy },
+      createElement(
+        Group,
+        { scaleX: scale, scaleY: scale },
+        createElement(Group, { x: -cx, y: -cy }, base),
+      ),
+    ),
+  )
+}
+
+/** Plan the magic-move layers for a composition: for each adjacent A→B pair sharing
+ *  a `morphKey`, an absolute-timed morph layer + the per-entry suppression windows
+ *  (so the underlying duplicate hides during the overlap). `sceneStart` and
+ *  `sceneDur` are the per-scene absolute start / duration in frames. */
+interface MorphPlan {
+  /** Absolute-timed morph layers to render above the spine. */
+  pairs: MorphPair[]
+  /** scene index → (entry → suppression window in that entry's LOCAL frames). */
+  suppress: Map<number, Map<Entry, MorphSuppress>>
+}
+
+function planMorphs(
+  scenes: Scene[],
+  fps: number,
+  w: number,
+  h: number,
+  sceneStart: number[],
+  sceneDur: number[],
+): MorphPlan {
+  const pairs: MorphPair[] = []
+  const suppress = new Map<number, Map<Entry, MorphSuppress>>()
+  const addSuppress = (sceneIdx: number, entry: Entry, win: MorphSuppress): void => {
+    let m = suppress.get(sceneIdx)
+    if (!m) {
+      m = new Map<Entry, MorphSuppress>()
+      suppress.set(sceneIdx, m)
+    }
+    m.set(entry, win)
+  }
+
+  for (let i = 1; i < scenes.length; i++) {
+    const prev = scenes[i - 1]
+    const cur = scenes[i]
+    if (!prev || !cur || !cur.transition) continue
+    const overlap = transitionOverlapFrames(prev, cur, fps)
+    if (overlap <= 0) continue
+    const prevDur = sceneDur[i - 1] ?? 0
+    const aMap = morphEntriesAtTail(prev, fps, prevDur, overlap)
+    if (aMap.size === 0) continue
+    const bMap = morphEntriesAtHead(cur, fps, overlap)
+    if (bMap.size === 0) continue
+    const overlapStart = sceneStart[i] ?? 0 // scene B starts where the overlap begins
+
+    for (const [key, aEntry] of aMap) {
+      const bEntry = bMap.get(key)
+      if (!bEntry) continue
+      pairs.push({
+        to: bEntry,
+        from: entryTransform(aEntry, w, h),
+        toT: entryTransform(bEntry, w, h),
+        overlapStart,
+        overlapFrames: overlap,
+      })
+      // Suppress A's tail (last `overlap` local frames) and B's head (first
+      // `overlap` local frames) so only the morphing instance shows.
+      addSuppress(i - 1, aEntry, { from: prevDur - overlap, to: prevDur })
+      addSuppress(i, bEntry, { from: 0, to: overlap })
+    }
+  }
+  return { pairs, suppress }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -633,6 +857,22 @@ export function buildComposition(
   const registry = opts.registry ?? defaultRegistry()
   const total = totalFrames(payload, fps)
 
+  // Per-scene absolute start frame + duration — the same placement
+  // <TransitionSeries> computes (a scene starts where the previous one ends MINUS
+  // its incoming transition overlap). The magic-move planner needs these to time
+  // the morph layer to the cut window.
+  const sceneDur = scenes.map((s) => sceneDurationFrames(s, fps))
+  const sceneStart: number[] = []
+  {
+    let offset = 0
+    scenes.forEach((scene, i) => {
+      if (i > 0) offset -= transitionOverlapFrames(scenes[i - 1], scene, fps)
+      sceneStart.push(offset)
+      offset += sceneDur[i] ?? 0
+    })
+  }
+  const morphPlan = planMorphs(scenes, fps, width, height, sceneStart, sceneDur)
+
   const seriesChildren: ReactElement[] = []
   scenes.forEach((scene, i) => {
     if (i > 0 && scene.transition) {
@@ -646,20 +886,35 @@ export function buildComposition(
         }),
       )
     }
+    const sceneSuppress = morphPlan.suppress.get(i)
     seriesChildren.push(
       createElement(
         TransitionSeries.Sequence,
-        { key: scene.id, durationInFrames: sceneDurationFrames(scene, fps) },
+        { key: scene.id, durationInFrames: sceneDur[i] ?? sceneDurationFrames(scene, fps) },
         scene.camera
           ? createElement(AnimatedCamera, {
               move: scene.camera,
-              durationInFrames: sceneDurationFrames(scene, fps),
-              children: createElement(SceneTracks, { scene, registry }),
+              durationInFrames: sceneDur[i] ?? sceneDurationFrames(scene, fps),
+              children: createElement(SceneTracks, { scene, registry, suppress: sceneSuppress }),
             })
-          : createElement(SceneTracks, { scene, registry }),
+          : createElement(SceneTracks, { scene, registry, suppress: sceneSuppress }),
       ),
     )
   })
+
+  // Magic-move layers: one interpolating instance per matched A→B pair, absolute-
+  // timed to the transition overlap and drawn ABOVE the spine.
+  const morphLayers: ReactElement[] = morphPlan.pairs.map((pair, i) =>
+    createElement(
+      Sequence,
+      {
+        key: `morph-${i}`,
+        from: pair.overlapStart,
+        durationInFrames: pair.overlapFrames,
+      },
+      createElement(MorphLayer, { pair, registry }),
+    ),
+  )
 
   const layerEls = (under: boolean): ReactElement[] =>
     layers
@@ -696,6 +951,8 @@ export function buildComposition(
     createElement(Rect, { width, height, fill: brand?.bg ?? '#08080a' }),
     ...layerEls(true),
     createElement(TransitionSeries, null, ...seriesChildren),
+    // Magic-move morph layers ride ABOVE the spine (drawn during the cut overlap).
+    ...morphLayers,
     ...layerEls(false),
   )
   const content = brand
