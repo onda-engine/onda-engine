@@ -122,14 +122,23 @@ export function LookbookShot({
   const pad = 18
 
   // ── Mat (framed print) geometry ──────────────────────────────────────────
-  const matH = centered ? Math.round(W * 0.32 * 1.24) : Math.round(H * 0.9)
-  const matW = centered ? Math.round(W * 0.32) : Math.round(matH * 0.76)
+  // Portrait canvases (9:16 / 4:5): size the centered print off HEIGHT and seat it
+  // a touch above center — a width-based mat is tiny and stuck at the top in
+  // portrait, leaving the lower frame empty. Landscape math is unchanged
+  // (matW = matH * 0.806 ≡ the old W*0.32 with matH = W*0.32*1.24).
+  const portrait = centered && H > W
+  const matH = centered
+    ? Math.round(portrait ? H * 0.44 : W * 0.32 * 1.24)
+    : Math.round(H * 0.9)
+  const matW = centered ? Math.round(matH * 0.806) : Math.round(matH * 0.76)
   const matX = centered
     ? Math.round((W - matW) / 2)
     : layout === 'spread-right'
       ? W - matW - margin
       : margin
-  const matY = centered ? Math.round(H * 0.075) : Math.round((H - matH) / 2)
+  const matY = centered
+    ? Math.round(portrait ? H * 0.17 : H * 0.075)
+    : Math.round((H - matH) / 2)
 
   // ── Card motion: entrance settle + a slow "breath" scale (one unit, no clip).
   const enter = spring({ frame: Math.max(0, frame - delay), fps, config: SPRING_SMOOTH, durationInFrames: DURATION.base })
@@ -149,7 +158,9 @@ export function LookbookShot({
 
   // Centering needs measured widths (the LowerThird pattern).
   const nameMetrics = useTextMetrics(name, baseName, { fontFamily: nameFont, fontWeight: 500 })
-  const eyebrowMetrics = useTextMetrics(eyebrow, eyebrowSize, { fontFamily: bodyFont, fontWeight: 600 })
+  // Measure WITH the same letter-spacing the eyebrow renders with (4px) — else the
+  // shaped width is ~4·(n-1)px too small and the centered eyebrow drifts right.
+  const eyebrowMetrics = useTextMetrics(eyebrow, eyebrowSize, { fontFamily: bodyFont, fontWeight: 600, letterSpacing: 4 })
 
   if (centered) {
     const labelTop = matY + matH + Math.round(H * 0.05)
