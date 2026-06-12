@@ -45,6 +45,41 @@ export function buildComposition(payload: unknown, opts?: BuildOptions): Composi
  *  GPU-only components. Returns `[]` when the composition is clean. */
 export function validateComposition(payload: unknown, opts?: BuildOptions): Diagnostic[]
 
+export interface InspectOptions {
+  /** Override the inferred output format (`'16:9' | '9:16' | '1:1' | '4:5'`). */
+  format?: '16:9' | '9:16' | '1:1' | '4:5'
+  /** Frame indices intended as stills/thumbnails — flagged when they land
+   *  mid-transition. */
+  frames?: number[]
+}
+
+export interface InspectViolation {
+  check: string
+  severity: 'error' | 'warn' | 'info'
+  targetId: string
+  sceneId?: string
+  message: string
+  /** Mechanical fix metadata (e.g. the minimum passing value) when computable. */
+  fix?: { prop: string; suggested: unknown }
+}
+
+export interface InspectReport {
+  violations: InspectViolation[]
+  summary: { errors: number; warnings: number; infos: number }
+  format: string
+  fps: number
+  totalFrames: number
+  density: unknown[]
+}
+
+/** The quality-metrics INSPECTOR: deterministic measurements over a resolved
+ *  composition — text legibility (font floors + WCAG contrast), layout overflow
+ *  vs per-platform safe areas, reading time, focal-entrance collisions +
+ *  transition budget, per-scene density, and mid-transition still capture.
+ *  Run `validateComposition` first; `inspect` assumes structural validity.
+ *  Never blocks — enforcement policy belongs to the caller. */
+export function inspect(payload: unknown, opts?: InspectOptions): InspectReport
+
 // ── @onda/render ────────────────────────────────────────────────────────────
 
 export type Backend = 'auto' | 'vello' | 'cpu'
