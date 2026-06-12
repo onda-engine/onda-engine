@@ -81,6 +81,12 @@ export interface Entry {
   matte?: EntryMatte
   /** Clip to a rect/ellipse/path region. */
   clip?: EntryClip
+  /** Magic-move continuity key. When the SAME `morphKey` appears on an entry in
+   *  two ADJACENT scenes, the element MORPHS its position/scale across the cut
+   *  (one continuous move) instead of cross-fading — Keynote Magic Move / a
+   *  matched cut. The morphing instance is built from the destination scene's
+   *  entry (same component + props). */
+  morphKey?: string
   id?: string
   label?: string
 }
