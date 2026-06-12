@@ -26,6 +26,7 @@ import {
   useState,
 } from 'react'
 import { type AudioClip, collectAudioClips } from './audio.js'
+import { PreviewAudio } from './audio-engine.js'
 import { type FrameDrawer, drawScene } from './canvas-renderer.js'
 import { type RenderEngine, engineDrawer } from './engine-drawer.js'
 import { applyResolvedImages, collectImageUrls, resolveImageUrl } from './images.js'
@@ -262,12 +263,26 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   const videoOverlayRef = useRef<HTMLDivElement>(null)
 
   // Non-visual <Audio> clips to play for preview (frame-independent, so derive
-  // once per composition). One <audio> element each, synced below.
+  // once per composition). Played via the Web Audio transport below (decoded
+  // buffers on the audio thread — immune to the main-thread render jank that made
+  // HTML <audio> glitch).
   const audioClips: AudioClip[] = useMemo(
     () => collectAudioClips(renderFrame(composition, 0).root as never),
     [composition],
   )
-  const audioRefs = useRef<(HTMLAudioElement | null)[]>([])
+  // One Web Audio transport per player. Created lazily (browser-only) so SSR and
+  // pre-gesture mounts never spin up an AudioContext.
+  const audioRef = useRef<PreviewAudio | null>(null)
+  if (audioRef.current === null && typeof window !== 'undefined') {
+    audioRef.current = new PreviewAudio()
+  }
+  useEffect(
+    () => () => {
+      audioRef.current?.dispose()
+      audioRef.current = null
+    },
+    [],
+  )
   const [volume, setVolume] = useState(1)
   const [muted, setMuted] = useState(false)
 
@@ -297,6 +312,9 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   const [playing, setPlaying] = useState(autoPlay)
   const [loop, setLoop] = useState(initialLoop)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  // Bumped by every explicit seek (scrubber/keyboard/host), so the audio
+  // transport re-anchors only on a real seek — never on normal frame advance.
+  const [seekNonce, setSeekNonce] = useState(0)
   // Preview playback speed (1 = real-time). Preview-only: the clock advances
   // `rate`× as fast; export is unaffected. `speedOpen` toggles the preset menu.
   const [rate, setRate] = useState(() => clampRate(playbackRate))
@@ -461,44 +479,52 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
     }
   }, [playing, videoOverlays])
 
-  // Audio gain = master volume × per-clip volume, muted → 0.
-  useEffect(() => {
-    audioClips.forEach((clip, i) => {
-      const el = audioRefs.current[i]
-      if (el) el.volume = Math.max(0, Math.min(1, (muted ? 0 : volume) * clip.volume))
-    })
-  }, [volume, muted, audioClips])
+  // ── Web Audio transport ──────────────────────────────────────────────────
+  // The clips/period feed the transport; play/pause/seek/rate/volume drive it.
+  // Note the conspicuous absence of a per-`frame` effect: the audio runs on the
+  // AudioContext clock anchored at play-time, NOT chasing the visual frame each
+  // tick — that's what keeps it gapless and jank-proof.
+  const compSeconds = useCallback(
+    (f: number) => f / Math.max(1, config.fps),
+    [config.fps],
+  )
 
-  // Play/pause + seek each audio clip in lockstep with the timeline. During
-  // playback we let the <audio> run and only correct large drift; while paused
-  // (scrubbing) we seek it to the playhead. Clips before their `start` stay paused.
+  // Clip set + timeline period (one loop cycle, seconds).
   useEffect(() => {
-    const tc = frame / Math.max(1, config.fps)
-    audioClips.forEach((clip, i) => {
-      const el = audioRefs.current[i]
-      if (!el) return
-      // Match the audio to the preview speed so it stays in sync with the frame
-      // clock; preserve pitch so sped-up narration doesn't chipmunk.
-      el.playbackRate = rate
-      el.preservesPitch = true
-      if (tc < clip.start) {
-        el.pause()
-        return
-      }
-      const desired = clip.startAt + (tc - clip.start)
-      if (playing) {
-        if (el.paused) {
-          seekAudio(el, desired)
-          void el.play().catch(() => {})
-        } else if (Math.abs(el.currentTime - desired) > 0.3) {
-          seekAudio(el, desired) // resync drift
-        }
-      } else {
-        el.pause()
-        if (Math.abs(el.currentTime - desired) > 0.05) seekAudio(el, desired)
-      }
-    })
-  }, [frame, playing, audioClips, config.fps, rate])
+    audioRef.current?.setClips(audioClips, totalFrames / Math.max(1, config.fps))
+  }, [audioClips, totalFrames, config.fps])
+
+  // Master volume / mute (click-free ramp inside the engine).
+  useEffect(() => {
+    audioRef.current?.setGain(volume, muted)
+  }, [volume, muted])
+
+  useEffect(() => {
+    audioRef.current?.setLoop(loop)
+  }, [loop])
+
+  // Preview speed: the engine re-anchors and plays silent at ≠ 1× (raw rate would
+  // pitch-shift), audible again at 1×.
+  useEffect(() => {
+    audioRef.current?.setRate(rate)
+  }, [rate])
+
+  // Play / pause — anchor at the current playhead on play, stop on pause. The
+  // playhead is read live (not from the `frame` closure) so it's exact at the
+  // moment play starts.
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (playing) audio.play(compSeconds(liveRef.current.frame))
+    else audio.pause()
+  }, [playing, compSeconds])
+
+  // Re-anchor on an explicit seek (bumped by seekTo/goToFrame) — but only while
+  // playing; a paused seek just records the position for the next play. Normal
+  // playback advances `frame` without bumping this, so the audio is never yanked.
+  useEffect(() => {
+    if (liveRef.current.playing) audioRef.current?.seek(compSeconds(liveRef.current.frame))
+  }, [seekNonce, compSeconds])
 
   // Playback paced to the composition's fps via requestAnimationFrame, scaled by
   // the preview `rate` (read live from the ref — `rate > 1` skips frames, `< 1`
@@ -510,9 +536,14 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
     let raf = 0
     const tick = (now: number) => {
       if (last === null) last = now
-      const steps = Math.floor(((now - last) * liveRef.current.rate) / frameDuration)
+      const r = liveRef.current.rate
+      const steps = Math.floor(((now - last) * r) / frameDuration)
       if (steps > 0) {
-        last = now
+        // Advance `last` by exactly the time consumed (NOT to `now`), so the
+        // sub-frame remainder carries over instead of being discarded. Discarding
+        // it biased the clock slow under jank, letting the audio (real-time on the
+        // AudioContext clock) drift ahead of the visual.
+        last += (steps * frameDuration) / r
         setFrame((current) => {
           const next = current + steps
           if (next <= lastFrame) return next
@@ -558,6 +589,7 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
     (next: number) => {
       setPlaying(false)
       setFrame(Math.min(lastFrame, Math.max(0, next)))
+      setSeekNonce((n) => n + 1)
     },
     [lastFrame],
   )
@@ -569,6 +601,7 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
     (next: number) => {
       const clamped = Math.min(lastFrame, Math.max(0, Math.floor(next)))
       setFrame(clamped)
+      setSeekNonce((n) => n + 1)
       emit('seeked', clamped)
     },
     [lastFrame, emit],
@@ -895,19 +928,9 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
             </button>
           </div>
         </div>
-
-        {/* Non-visual audio clips, played for preview (synced + volume above). */}
-        {audioClips.map((clip, i) => (
-          // biome-ignore lint/a11y/useMediaCaption: timeline audio track, not media content
-          <audio
-            key={`${clip.src}#${i}`}
-            ref={(el) => {
-              audioRefs.current[i] = el
-            }}
-            src={clip.src}
-            preload="auto"
-          />
-        ))}
+        {/* Audio is played via the Web Audio transport (see the effects above), not
+            DOM <audio> elements — decoded buffers on the audio thread stay glitch-
+            free under the main-thread render load. */}
       </div>
     </div>
   )
@@ -925,16 +948,6 @@ function clampRate(rate: number): number {
 /** Format a rate for the UI, e.g. `0.5×`, `1×`, `1.5×` (≤2 decimals). */
 function formatRate(rate: number): string {
   return `${Math.round(rate * 100) / 100}×`
-}
-
-/** Seek an `<audio>` element, swallowing the throw if it isn't seekable yet
- *  (currentTime before metadata loads). */
-function seekAudio(el: HTMLAudioElement, time: number): void {
-  try {
-    el.currentTime = time
-  } catch {
-    // not seekable yet (metadata still loading) — the next sync tick will retry
-  }
 }
 
 function PlayIcon(): ReactElement {
@@ -1089,6 +1102,10 @@ const styles: Record<string, CSSProperties> = {
     // byte-identical) and NOT present in exported video.
     isolation: 'isolate',
     contain: 'paint',
+    // A query container (inline axis only, so aspect-ratio still drives height) so
+    // the control bar can adapt to narrow widths (e.g. 9:16) — see the @container
+    // rule in the stylesheet.
+    containerType: 'inline-size',
   },
   // `translateZ(0)` promotes the canvas to its OWN GPU layer, so its per-frame
   // pixel updates don't invalidate / re-raster sibling layers (see `stage`).
@@ -1173,6 +1190,34 @@ const PLAYER_CSS = `
 }
 .onda-player__row { display: flex; align-items: center; gap: 14px; }
 .onda-player__spacer { flex: 1 1 auto; }
+/* Responsive control bar — the overlay is an inline-size query container, so
+   these adapt to the PLAYER width regardless of canvas aspect (9:16, 4:5, 1:1,
+   16:9 all just resolve to a width).
+
+   KEY: the widest thing in the bar is the time readout ("0:07.80 / 0:11.06"),
+   NOT the buttons — so the right move on a narrow player is to compact the TIME,
+   which then lets every button (play · mute · speed · loop) stay in one row. We
+   only start dropping controls at sizes far below any real editor preview.
+
+   Tier 1 (≤440px — most 9:16 / smaller 4:5·1:1): readout → CURRENT time only
+     (the scrubber already shows the end point), tighten gaps. All buttons stay.
+   Tier 2 (≤340px — tight 9:16): collapse volume to a mute TOGGLE (its 56px
+     hover-out slider is the only thing left that would overflow). Muting works.
+   Tier 3 (≤280px — last resort, a very small player): drop the preview-only
+     speed control. */
+@container (max-width: 440px) {
+  .onda-player__overlay { padding-left: 12px; padding-right: 12px; }
+  .onda-player__row { gap: 9px; }
+  .onda-player__sep, .onda-player__total { display: none; }
+}
+@container (max-width: 340px) {
+  .onda-player__overlay { padding-left: 9px; padding-right: 9px; }
+  .onda-player__row { gap: 7px; }
+  .onda-player__volume-slider { display: none; }
+}
+@container (max-width: 280px) {
+  .onda-player__speed { display: none; }
+}
 /* Engine/preview badge (top-left), fades with the controls. */
 .onda-player__badge {
   position: absolute; top: 12px; left: 12px;
@@ -1285,7 +1330,7 @@ const PLAYER_CSS = `
   transition: width 160ms ease-out, opacity 160ms ease-out;
 }
 .onda-player__volume:hover .onda-player__volume-slider,
-.onda-player__volume:focus-within .onda-player__volume-slider { width: 72px; opacity: 1; }
+.onda-player__volume:focus-within .onda-player__volume-slider { width: 56px; opacity: 1; }
 .onda-player__volume-slider::-webkit-slider-runnable-track {
   height: 4px; border-radius: 999px; background: rgba(255,255,255,.32);
 }
