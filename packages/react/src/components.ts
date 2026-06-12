@@ -213,6 +213,10 @@ export interface CompositionProps {
     /** Film grain intensity added in linear light (luminance-banded). 0 = off; the
      *  current frame is used as the animation seed automatically. */
     grain?: number
+    /** A cinematic 3D color LUT applied as the FINAL finish step (after grade + ACES
+     *  + sRGB), as a trilinear lookup. `table` holds `size³` RGB triples in 0..1 with
+     *  RED varying fastest, then green, then blue. Honored by BOTH backends. */
+    lut?: { size: number; table: number[] }
   }
   /** Per-object MOTION BLUR via temporal supersampling: each output frame is the
    *  average of `samples` sub-frames spread across the shutter window, so anything

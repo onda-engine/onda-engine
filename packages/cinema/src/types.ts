@@ -187,6 +187,10 @@ export interface CompositionFinish {
   saturation?: number
   vignette?: number
   grain?: number
+  /** A cinematic 3D color LUT applied as the FINAL finish step (after grade + ACES
+   *  + sRGB), as a trilinear lookup. `table` holds `size³` RGB triples in 0..1 with
+   *  RED varying fastest, then green, then blue. Honored by BOTH backends. */
+  lut?: { size: number; table: number[] }
 }
 
 export interface CompositionPayload {
