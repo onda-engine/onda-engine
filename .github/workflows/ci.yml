@@ -1,0 +1,171 @@
+# ONDA engine CI.
+#
+# Three jobs:
+#   rust         — fmt, clippy, workspace tests, golden-frame regression, wasm32 checks.
+#   ts           — pnpm monorepo: build the core packages, biome, @onda/react tests.
+#   render-smoke — THE production gate: prove the render substrate (headless Linux +
+#                  lavapipe software Vulkan) can drive the Vello GPU backend end-to-end.
+#
+# The repo is private; nothing here assumes a public repo.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust (fmt, clippy, tests, wasm32)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable + wasm32-unknown-unknown)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: rustfmt
+        run: cargo fmt --check
+
+      # onda-segment is excluded from clippy/test: its `ort` (ONNX Runtime) dependency
+      # tree is heavy (native runtime download + long build) and the `segment` feature
+      # is opt-in on onda-cli anyway — the default builds never enable it.
+      #
+      # No `-D warnings`: the workspace is not warning-clean today (verified locally:
+      # 2x clippy::redundant_closure in onda-layout + 1 unused import in the renderer
+      # golden test). Re-add `-- -D warnings` once those are fixed.
+      - name: clippy
+        run: cargo clippy --workspace --exclude onda-segment --all-targets
+
+      - name: cargo test
+        run: cargo test --workspace --exclude onda-segment
+
+      # Golden-frame determinism harness: CPU reference renders diffed against
+      # committed PNGs (packages/renderer-rs/tests/golden). Gated behind the `png`
+      # feature, so the plain workspace test run above does not include it.
+      - name: golden-frame regression
+        run: cargo test -p onda-renderer --features png --test golden
+
+      # The browser-preview path is a core path: the wasm bindings must keep
+      # building for wasm32-unknown-unknown (native-only deps stay feature-gated).
+      - name: wasm32 check
+        run: cargo check -p onda-wasm -p onda-wasm-vello -p onda-wasm-audio --target wasm32-unknown-unknown
+
+  ts:
+    name: TS (build, biome, tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # @onda/components dynamic-imports @onda/wasm and @onda/wasm-audio, and tsc
+      # resolves their types from pkg/ — which is gitignored. So the TS job needs
+      # Rust + wasm-bindgen to mint the wasm pkg/ dirs before the TS builds run.
+      - name: Install Rust (stable + wasm32-unknown-unknown)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Must match the `wasm-bindgen` crate version in Cargo.lock exactly (the CLI
+      # refuses a mismatched .wasm). Bump this pin when the lockfile bumps.
+      - name: Install wasm-bindgen CLI
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.122
+
+      # Version is read from the root package.json "packageManager" field.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build wasm bindings (pkg/)
+        run: |
+          pnpm --filter @onda/wasm build
+          pnpm --filter @onda/wasm-audio build
+
+      # pnpm runs the selected packages' builds in dependency (topological) order.
+      - name: Build core packages
+        run: pnpm --filter @onda/react --filter @onda/components --filter @onda/cinema --filter @onda/render --filter @onda/player build
+
+      - name: biome
+        run: pnpm exec biome ci .
+
+      - name: '@onda/react tests'
+        run: pnpm --filter @onda/react test
+
+  # Proves the production render substrate: a headless Linux box with NO GPU renders
+  # through the Vello (GPU) backend on lavapipe (Mesa's software Vulkan). If this
+  # fails, server-side rendering is broken no matter what the unit tests say.
+  render-smoke:
+    name: Render smoke (Vello on lavapipe)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # Pin the Vulkan loader to lavapipe (the only working ICD on a GPU-less
+      # runner anyway; pinning keeps it deterministic). Older loaders read
+      # VK_ICD_FILENAMES, newer ones VK_DRIVER_FILES — set both.
+      VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+      VK_DRIVER_FILES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install software Vulkan (lavapipe) + tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools ffmpeg
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Default features only — no `segment` (ONNX) and no `video`; the smoke
+      # renders a still PNG, which needs neither.
+      - name: Build release CLI
+        run: cargo build --release -p onda-cli
+
+      - name: Vulkan diagnostics
+        run: vulkaninfo --summary || true
+
+      # The exact command below was verified locally on macOS/Metal (same code path,
+      # different wgpu backend): renders examples/hello-onda.json -> 1200x360 RGBA
+      # PNG, ~18 KB. `--backend vello` is forced (no CPU fallback), so a pass here
+      # means wgpu found a Vulkan adapter (lavapipe) and Vello rendered on it.
+      - name: Render a frame through Vello on lavapipe
+        run: |
+          set -euo pipefail
+          out=/tmp/onda-smoke.png
+          ./target/release/onda render examples/hello-onda.json "$out" --backend vello
+          test -f "$out" || { echo "::error::smoke render produced no file"; exit 1; }
+          bytes=$(wc -c < "$out")
+          if [ "$bytes" -le 1024 ]; then
+            echo "::error::smoke PNG suspiciously small ($bytes bytes) — likely a blank frame"
+            exit 1
+          fi
+          file "$out"
+          file "$out" | grep -q "PNG image data, 1200 x 360" || {
+            echo "::error::unexpected output (want a 1200 x 360 PNG)"
+            exit 1
+          }
+          echo "lavapipe render OK: $bytes bytes, 1200x360"

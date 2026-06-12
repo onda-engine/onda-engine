@@ -1,0 +1,125 @@
+# Tagged releases: build the Studio vendor bundle (linux x86_64), smoke-test the
+# just-built binary on lavapipe (a release that can't render on headless Linux
+# must fail), and attach the tarball to a GitHub Release.
+#
+# Works on a private repo: the default GITHUB_TOKEN with `contents: write` is all
+# the release creation needs.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # Pin the Vulkan loader to lavapipe for the smoke render (see ci.yml).
+  VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+  VK_DRIVER_FILES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+
+jobs:
+  studio-bundle:
+    name: Studio bundle (x86_64 linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install software Vulkan (lavapipe) + tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools ffmpeg
+
+      - name: Install Rust (stable + wasm32-unknown-unknown)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Must match the `wasm-bindgen` crate version in Cargo.lock exactly (the CLI
+      # refuses a mismatched .wasm). Bump this pin when the lockfile bumps.
+      - name: Install wasm-bindgen CLI
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.122
+
+      # Version is read from the root package.json "packageManager" field.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # bun bundles the studio vendor entry inside build-studio-bundle.sh.
+      - uses: oven-sh/setup-bun@v2
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      # build-studio-bundle.sh requires packages/wasm/pkg/onda_wasm_bg.wasm to exist,
+      # and pkg/ is gitignored — mint it the same way the repo does (the package's
+      # own cargo + wasm-bindgen build script). @onda/wasm-audio is built too: the
+      # bun-bundled vendor entry resolves it through @onda/components.
+      - name: Build wasm bindings (pkg/)
+        run: |
+          pnpm --filter @onda/wasm build
+          pnpm --filter @onda/wasm-audio build
+
+      - name: Build studio bundle
+        run: bash scripts/build-studio-bundle.sh --out dist/studio-bundle
+
+      # The script's output contract — fail loudly if any piece is missing.
+      - name: Verify bundle contents
+        run: |
+          set -euo pipefail
+          missing=0
+          for f in onda synth_json beats_json onda-engine.js onda-engine.d.ts onda_wasm_bg.wasm manifest.json; do
+            if [ ! -e "dist/studio-bundle/$f" ]; then
+              echo "::error::bundle is missing $f"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ]
+          ls -la dist/studio-bundle/
+
+      # Gate the release on the JUST-BUILT binary rendering through Vello on
+      # lavapipe — the exact substrate production runs on. Same smoke as ci.yml
+      # (command verified locally on macOS/Metal: 1200x360 PNG, ~18 KB).
+      - name: Smoke-render with the release binary (Vello on lavapipe)
+        run: |
+          set -euo pipefail
+          vulkaninfo --summary || true
+          out=/tmp/onda-release-smoke.png
+          ./dist/studio-bundle/onda render examples/hello-onda.json "$out" --backend vello
+          test -f "$out" || { echo "::error::smoke render produced no file"; exit 1; }
+          bytes=$(wc -c < "$out")
+          if [ "$bytes" -le 1024 ]; then
+            echo "::error::smoke PNG suspiciously small ($bytes bytes) — likely a blank frame"
+            exit 1
+          fi
+          file "$out"
+          file "$out" | grep -q "PNG image data, 1200 x 360" || {
+            echo "::error::unexpected output (want a 1200 x 360 PNG)"
+            exit 1
+          }
+          echo "release binary renders on lavapipe: $bytes bytes, 1200x360"
+
+      - name: Package tarball
+        run: |
+          set -euo pipefail
+          tarball="onda-studio-bundle-${GITHUB_REF_NAME}-x86_64-linux.tar.gz"
+          tar -czf "$tarball" -C dist studio-bundle
+          ls -la "$tarball"
+          echo "TARBALL=$tarball" >> "$GITHUB_ENV"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          files: ${{ env.TARBALL }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true
