@@ -293,7 +293,7 @@ impl VideoDecoder {
     pub fn resolve_scene(&mut self, scene: &Scene) -> Result<Scene, VideoError> {
         let fps = scene.composition.fps;
         Ok(Scene {
-            composition: scene.composition,
+            composition: scene.composition.clone(),
             root: self.resolve_node(&scene.root, fps)?,
         })
     }
@@ -336,7 +336,7 @@ pub fn load_video_frames(scene: &Scene) -> Result<Scene, VideoError> {
     };
     let mut cache: HashMap<(String, i64), ImageData> = HashMap::new();
     Ok(Scene {
-        composition: scene.composition,
+        composition: scene.composition.clone(),
         root: load_node(&scene.root, fps, &mut cache)?,
     })
 }

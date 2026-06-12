@@ -22,7 +22,7 @@ use kurbo::{BezPath, PathEl, Shape as _};
 use onda_core::{Color, Size, Transform, Vec2};
 use onda_scene::{
     BooleanOp, Camera3D, Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin,
-    Matte, MatteMode, Node, NodeKind, Scene, Shape, ShapeGeometry, Text, TrimDash,
+    Lut, Matte, MatteMode, Node, NodeKind, Scene, Shape, ShapeGeometry, Text, TrimDash,
 };
 pub use onda_typography::{FontContext, TextMetrics, TextRaster};
 use tiny_skia as tsk;
@@ -802,6 +802,82 @@ pub fn color_grade_framebuffer(
     }
 }
 
+/// Apply a 3D color LUT to a straight-alpha RGBA8 framebuffer in place (the CPU
+/// reference for [`onda_scene::Finish::lut`]). For each pixel, its sRGB rgb in 0..1 is
+/// mapped to LUT grid coordinates and TRILINEAR-interpolated across the 8 surrounding
+/// cube entries, producing the remapped rgb. Alpha is preserved; fully-transparent
+/// pixels (`a == 0`) are skipped (mirroring [`color_grade_framebuffer`]'s iteration).
+///
+/// This is the display-space "instant cinematic look" — applied AFTER the grade +
+/// ACES tone-map + sRGB encode, exactly like a `.cube` LUT in a grading suite. The
+/// table layout matches [`onda_scene::Lut`]: `size³` RGB triples, RED fastest then
+/// green then blue. An IDENTITY LUT (each grid node mapping to its own normalized
+/// coordinate) is a no-op fast path, so a LUT that does nothing leaves `fb`
+/// byte-identical to the no-LUT output.
+///
+/// A degenerate table (`size < 2` or the wrong length) is ignored (left unchanged),
+/// validating at the boundary rather than panicking deep in the hot loop.
+pub fn lut_framebuffer(fb: &mut [u8], width: u32, height: u32, lut: &Lut) {
+    let size = lut.size as usize;
+    let expected = size * size * size * 3;
+    if size < 2 || width == 0 || height == 0 || lut.table.len() != expected {
+        return; // degenerate / no-op LUT — leave the framebuffer untouched.
+    }
+    let max = (size - 1) as f32;
+    // Fetch the RGB triple at integer grid cell (r, g, b) — red fastest, then g, then b.
+    let at = |r: usize, g: usize, b: usize| -> [f32; 3] {
+        let idx = ((b * size + g) * size + r) * 3;
+        [lut.table[idx], lut.table[idx + 1], lut.table[idx + 2]]
+    };
+
+    for px in fb.chunks_exact_mut(4) {
+        if px[3] == 0 {
+            continue; // fully transparent → no visible color to remap
+        }
+        // sRGB byte → 0..1 → continuous grid coordinate (clamped into the cube).
+        let coord = |c: u8| -> f32 { (c as f32 / 255.0).clamp(0.0, 1.0) * max };
+        let (cr, cg, cb) = (coord(px[0]), coord(px[1]), coord(px[2]));
+
+        // Floor cell + fractional offset; the upper neighbor is clamped to the last
+        // node so a value exactly at 1.0 (coord == max) samples the top corner.
+        let lo = |c: f32| -> (usize, f32) {
+            let f = c.floor();
+            let i = (f as usize).min(size - 2);
+            (i, c - i as f32)
+        };
+        let (r0, fr) = lo(cr);
+        let (g0, fg) = lo(cg);
+        let (b0, fb_) = lo(cb);
+        let (r1, g1, b1) = (r0 + 1, g0 + 1, b0 + 1);
+
+        // Trilinear blend of the 8 corner samples.
+        let c000 = at(r0, g0, b0);
+        let c100 = at(r1, g0, b0);
+        let c010 = at(r0, g1, b0);
+        let c110 = at(r1, g1, b0);
+        let c001 = at(r0, g0, b1);
+        let c101 = at(r1, g0, b1);
+        let c011 = at(r0, g1, b1);
+        let c111 = at(r1, g1, b1);
+
+        let lerp = |a: f32, b: f32, t: f32| a + (b - a) * t;
+        let mut out = [0u8; 3];
+        for k in 0..3 {
+            let x00 = lerp(c000[k], c100[k], fr);
+            let x10 = lerp(c010[k], c110[k], fr);
+            let x01 = lerp(c001[k], c101[k], fr);
+            let x11 = lerp(c011[k], c111[k], fr);
+            let y0 = lerp(x00, x10, fg);
+            let y1 = lerp(x01, x11, fg);
+            let v = lerp(y0, y1, fb_);
+            out[k] = (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+        }
+        px[0] = out[0];
+        px[1] = out[1];
+        px[2] = out[2];
+    }
+}
+
 /// Film grain (CPU reference): luminance-banded, animated monochrome noise added to
 /// the captured subtree in GAMMA space. Mirrors the Vello [`Grain`] WGSL (same hash /
 /// value-noise / midtone `2·√(l·(1-l))` response, same per-frame `seed` offset) so the
@@ -924,6 +1000,17 @@ impl Renderer {
     pub fn render(&mut self, scene: &Scene) -> Framebuffer {
         let mut fb = Framebuffer::new(scene.composition.width, scene.composition.height);
         self.render_node(&mut fb, &scene.root, Transform::IDENTITY, 1.0);
+        // Composition-level cinematic FINISH (CPU reference): the GPU runs the full
+        // linear-HDR finish chain; the CPU reference doesn't, BUT a display-space 3D
+        // LUT is a pure final remap of the encoded sRGB frame, so we apply it here as
+        // a last post-process. This keeps the preview/CPU output honest about the
+        // composition's "look" even without the GPU finish. `None` → no-op.
+        if let Some(finish) = &scene.composition.finish {
+            if let Some(lut) = &finish.lut {
+                let (w, h) = (fb.width, fb.height);
+                lut_framebuffer(&mut fb.pixels, w, h, lut);
+            }
+        }
         fb
     }
 
@@ -2912,6 +2999,125 @@ mod tests {
         color_grade_framebuffer(&mut gray, 0.0, 1.0, 0.0, 0.0, 0.0);
         let [r, g, b, _a] = gray.pixel(0, 0);
         assert_eq!((r, g, b), (76, 76, 76), "sat 0 → Rec.601 luma gray");
+    }
+
+    /// Build a size-2 LUT whose 8 cube-corner entries are produced by `map(corner)`
+    /// (`corner` and the result are `[r, g, b]` in 0..1). The table is in the
+    /// documented order: red fastest, then green, then blue.
+    fn lut_2(map: impl Fn([f32; 3]) -> [f32; 3]) -> onda_scene::Lut {
+        let mut table = Vec::with_capacity(8 * 3);
+        for b in 0..2 {
+            for g in 0..2 {
+                for r in 0..2 {
+                    let out = map([r as f32, g as f32, b as f32]);
+                    table.extend_from_slice(&out);
+                }
+            }
+        }
+        onda_scene::Lut { size: 2, table }
+    }
+
+    /// A scene with a few graded swatches — enough hues to exercise the trilinear
+    /// lookup across the cube (not just the corners).
+    fn lut_test_scene(finish: Option<onda_scene::Finish>) -> Scene {
+        let mut composition = comp(16, 16);
+        composition.finish = finish;
+        Scene::new(composition).with_root(
+            Node::group().with_children([
+                Node::shape(Shape::rect(Size::new(8.0, 8.0)).with_fill(Color::rgb(0.8, 0.2, 0.1))),
+                Node::shape(Shape::rect(Size::new(8.0, 8.0)).with_fill(Color::rgb(0.1, 0.7, 0.3)))
+                    .with_transform(Transform {
+                        translate: Vec2::new(8.0, 0.0),
+                        ..Transform::IDENTITY
+                    }),
+                Node::shape(Shape::rect(Size::new(8.0, 8.0)).with_fill(Color::rgb(0.2, 0.4, 0.9)))
+                    .with_transform(Transform {
+                        translate: Vec2::new(0.0, 8.0),
+                        ..Transform::IDENTITY
+                    }),
+                Node::shape(Shape::rect(Size::new(8.0, 8.0)).with_fill(Color::rgb(0.5, 0.5, 0.5)))
+                    .with_transform(Transform {
+                        translate: Vec2::new(8.0, 8.0),
+                        ..Transform::IDENTITY
+                    }),
+            ]),
+        )
+    }
+
+    #[test]
+    fn lut_identity_is_a_noop() {
+        // An IDENTITY LUT (size 2, the 8 cube corners mapping to themselves) is a pure
+        // pass-through: a finish carrying it must render PIXEL-IDENTICAL to no LUT,
+        // proving the trilinear lookup reconstructs the input exactly across the cube.
+        let identity = onda_scene::Finish {
+            lut: Some(lut_2(|c| c)),
+            ..onda_scene::Finish::default()
+        };
+        let with_lut = render(&lut_test_scene(Some(identity)));
+        let without = render(&lut_test_scene(None));
+        assert_eq!(
+            with_lut.as_bytes(),
+            without.as_bytes(),
+            "an identity LUT must be a no-op (byte-identical to no LUT)"
+        );
+    }
+
+    #[test]
+    fn lut_channel_swap_swaps_red_and_blue() {
+        // A CHANNEL-SWAP LUT (size 2) mapping every corner (r,g,b) → (b,g,r) must swap
+        // the R and B channels of every opaque pixel (green untouched). Because the
+        // swap is a permutation of the cube corners, trilinear interpolation of any
+        // interior color also swaps exactly — so we can compare against the no-LUT
+        // render with R/B transposed.
+        let swap = onda_scene::Finish {
+            lut: Some(lut_2(|[r, g, b]| [b, g, r])),
+            ..onda_scene::Finish::default()
+        };
+        let swapped = render(&lut_test_scene(Some(swap)));
+        let plain = render(&lut_test_scene(None));
+
+        for (s, p) in swapped
+            .as_bytes()
+            .chunks_exact(4)
+            .zip(plain.as_bytes().chunks_exact(4))
+        {
+            if p[3] == 0 {
+                assert_eq!(s, p, "transparent pixels are left untouched");
+                continue;
+            }
+            // R↔B swapped, G + A preserved. (Allow ±1 for the round-trip rounding
+            // through the 0..255 ↔ 0..1 ↔ trilinear path.)
+            assert!(
+                (s[0] as i16 - p[2] as i16).abs() <= 1,
+                "out.R should equal in.B (got {} vs {})",
+                s[0],
+                p[2]
+            );
+            assert!(
+                (s[2] as i16 - p[0] as i16).abs() <= 1,
+                "out.B should equal in.R (got {} vs {})",
+                s[2],
+                p[0]
+            );
+            assert_eq!(s[1], p[1], "green is untouched by an R↔B swap LUT");
+            assert_eq!(s[3], p[3], "alpha is preserved");
+        }
+    }
+
+    #[test]
+    fn lut_degenerate_table_is_ignored() {
+        // A LUT whose table length doesn't match size³ (here size=2 needs 24 floats,
+        // given 3) is rejected at the boundary — the framebuffer is left unchanged
+        // rather than panicking in the hot loop.
+        let mut fb = Framebuffer::filled(4, 4, Color::rgb(0.3, 0.6, 0.9));
+        let before = fb.as_bytes().to_vec();
+        let bad = onda_scene::Lut {
+            size: 2,
+            table: vec![0.0, 0.0, 0.0],
+        };
+        let (w, h) = (fb.width, fb.height);
+        lut_framebuffer(&mut fb.pixels, w, h, &bad);
+        assert_eq!(fb.as_bytes(), &before[..], "a malformed LUT is a no-op");
     }
 
     #[cfg(feature = "parallel")]

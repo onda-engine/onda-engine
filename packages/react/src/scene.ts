@@ -90,6 +90,13 @@ export interface Finish {
   grain?: number
   /** Grain animation seed (the reconciler injects the current frame). */
   grain_seed?: number
+  /** A cinematic 3D color LUT (`.cube`-style lookup table) applied as the FINAL
+   *  finish step, in DISPLAY space (after the grade + ACES tone-map + sRGB encode),
+   *  as a trilinear lookup. `table` holds `size³` RGB triples in 0..1, **red varying
+   *  fastest, then green, then blue** (the entry for grid cell (r,g,b) is at
+   *  `((b*size + g)*size + r) * 3`). Omitted = no LUT (identity). Honored by both the
+   *  GPU (3D texture) and the CPU reference (software trilinear). */
+  lut?: { size: number; table: number[] }
 }
 
 export type ShapeGeometry =
