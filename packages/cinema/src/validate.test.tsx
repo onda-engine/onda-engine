@@ -56,4 +56,54 @@ describe('validateComposition — agent linter', () => {
     const d = validateComposition(comp([entry({ component: 'TitleCard' })]))
     expect(d.filter((x) => x.level !== 'info')).toEqual([])
   })
+
+  it('errors on an invalid entry role (and accepts the three valid ones)', () => {
+    const bad = validateComposition(
+      comp([entry({ component: 'TitleCard', role: 'hero' as never })]),
+    )
+    expect(bad.some((x) => x.level === 'error' && x.path.endsWith('.role'))).toBe(true)
+    for (const role of ['focal', 'support', 'ambient'] as const) {
+      const d = validateComposition(comp([entry({ component: 'TitleCard', role })]))
+      expect(d.filter((x) => x.level !== 'info')).toEqual([])
+    }
+  })
+})
+
+describe("unknown-props policy — warn, don't strip", () => {
+  it('warns (not errors) on an unknown prop and says it passes through', () => {
+    const d = validateComposition(
+      comp([entry({ component: 'TitleCard', props: { title: 'Hi', glow: true } })]),
+    )
+    const w = d.find((x) => x.path.endsWith('.props.glow'))
+    expect(w?.level).toBe('warning')
+    expect(w?.message).toMatch(/unknown prop "glow" on TitleCard — passed through/)
+  })
+
+  it('keeps the unknown prop in the payload (preserved, not stripped)', () => {
+    const payload = comp([entry({ component: 'TitleCard', props: { title: 'Hi', glow: true } })])
+    validateComposition(payload)
+    expect(payload.scenes[0]?.tracks[0]?.entries[0]?.props).toEqual({ title: 'Hi', glow: true })
+  })
+
+  it('accepts the Studio prop vocabulary: aliases and bridge props never warn', () => {
+    const d = validateComposition(
+      comp([
+        entry({
+          component: 'StatCard',
+          // numberSize is a Studio ALIAS (→ valueSize); placement is bridge-consumed.
+          props: { value: 54, label: 'units', numberSize: 'hero', accent: true, placement: 'left' },
+        }),
+      ]),
+    )
+    expect(d.filter((x) => x.path.includes('.props.'))).toEqual([])
+  })
+
+  it('unknown COMPONENTS stay errors (with the did-you-mean)', () => {
+    const d = validateComposition(comp([entry({ component: 'TitleCrd', props: { anything: 1 } })]))
+    const e = d.find((x) => /unknown component/.test(x.message))
+    expect(e?.level).toBe('error')
+    expect(e?.message).toMatch(/did you mean "TitleCard"/)
+    // No prop-level warnings for a component we can't know the props of.
+    expect(d.some((x) => x.path.includes('.props.'))).toBe(false)
+  })
 })
