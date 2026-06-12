@@ -52,6 +52,15 @@ export {
   useTextMetricsReady,
 } from './text-metrics.js'
 
+// Backend divergence — "what I see vs what ships", queryable per scene.
+export {
+  type Divergence,
+  type DivergenceOpts,
+  divergenceReport,
+  matchesExport,
+  type RenderBackend,
+} from './divergence.js'
+
 // Engine render-fidelity metadata — the capability signal for the agent contract.
 export {
   type Backend,
