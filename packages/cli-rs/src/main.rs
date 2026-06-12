@@ -264,6 +264,7 @@ fn run(args: Vec<String>) -> Result<()> {
         "export" => export_command(&args[1..]),
         "export-frames" => export_frames_command(&args[1..]),
         "lint" => lint_command(&args[1..]),
+        "segment" => segment_command(&args[1..]),
         other => bail!("unknown command '{other}'\n\n{USAGE}"),
     }
 }
@@ -374,6 +375,62 @@ fn load_font_bytes(paths: &[PathBuf]) -> Result<Vec<Vec<u8>>> {
         .iter()
         .map(|p| std::fs::read(p).with_context(|| format!("reading font '{}'", p.display())))
         .collect()
+}
+
+/// `onda segment <input> <output.png>` — cut the salient subject out of an
+/// image (the native replacement for Python rembg). Runs U²-Net via ONNX
+/// Runtime and writes an RGBA PNG with the background made transparent. Only
+/// built with `--features segment` (it pulls in onnxruntime, which can't target
+/// wasm32, so it stays out of the default + wasm builds).
+#[cfg(feature = "segment")]
+fn segment_command(args: &[String]) -> Result<()> {
+    let mut positionals: Vec<&str> = Vec::new();
+    for arg in args {
+        if let Some(flag) = arg.strip_prefix("--") {
+            bail!("unknown flag '--{flag}' for segment\n\n{USAGE}");
+        }
+        positionals.push(arg);
+    }
+    let [input, output] = positionals.as_slice() else {
+        bail!("segment needs exactly an input image and an output .png path\n\n{USAGE}");
+    };
+
+    let cutout = onda_segment::segment_to_rgba(Path::new(input))
+        .with_context(|| format!("segmenting '{input}'"))?;
+    let (w, h) = (cutout.width(), cutout.height());
+
+    // Report the alpha range so the caller can sanity-check the cutout (a real
+    // matte spans ~0..255: subject opaque, background transparent).
+    let (mut amin, mut amax, mut opaque) = (255u8, 0u8, 0u64);
+    for px in cutout.pixels() {
+        let a = px.0[3];
+        amin = amin.min(a);
+        amax = amax.max(a);
+        if a >= 128 {
+            opaque += 1;
+        }
+    }
+    let total = (w as u64) * (h as u64);
+    let pct = if total > 0 {
+        100.0 * opaque as f64 / total as f64
+    } else {
+        0.0
+    };
+
+    cutout
+        .save(Path::new(output))
+        .with_context(|| format!("writing PNG '{output}'"))?;
+    println!(
+        "segmented {input} -> {output} ({w}x{h} RGBA, alpha {amin}..{amax}, {pct:.1}% opaque)"
+    );
+    Ok(())
+}
+
+/// Stub when the `segment` feature is off: keep the dispatch arm compiling while
+/// onnxruntime stays out of the default + wasm builds.
+#[cfg(not(feature = "segment"))]
+fn segment_command(_args: &[String]) -> Result<()> {
+    bail!("`onda segment` is not built in — rebuild onda-cli with `--features segment`")
 }
 
 fn render_command(args: &[String]) -> Result<()> {

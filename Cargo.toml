@@ -20,6 +20,10 @@ members = [
     "packages/audio-rs",
     "packages/video-rs",
     "packages/wasm-audio",
+    # Native-only (ort/onnxruntime can't target wasm32); a workspace member for
+    # `cargo build/test`, but only an onda-cli dependency under the `segment`
+    # feature, so it never leaks into the wasm builds.
+    "packages/segment-rs",
 ]
 
 [workspace.package]

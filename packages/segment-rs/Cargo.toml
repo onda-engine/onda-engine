@@ -1,0 +1,31 @@
+[package]
+name = "onda-segment"
+description = "Native subject segmentation for ONDA: cut the salient subject (e.g. a person) out of an image with U²-Net (ONNX Runtime), writing an RGBA cutout (background → transparent). The native replacement for Python rembg."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+# NATIVE-ONLY. `ort`/onnxruntime cannot target wasm32-unknown-unknown, so this
+# crate is deliberately NOT a workspace member that the wasm builds pull in — it
+# is depended on only behind the `segment` feature of onda-cli.
+
+[dependencies]
+# ONNX Runtime Rust bindings. The default features include `download-binaries`,
+# which fetches a prebuilt onnxruntime (CPU execution provider) for the host at
+# build time — no system install needed (links on macOS arm64). Pinned to a
+# verified rc of the 2.x API. (CPU EP only; CoreML is not required.)
+ort = "=2.0.0-rc.10"
+# Decode/resize the input image + build the RGBA cutout. default-features off to
+# match the rest of the tree; png/jpeg/webp cover the common cases.
+image = { version = "0.25", default-features = false, features = [
+    "png",
+    "jpeg",
+    "webp",
+] }
+# Lightweight blocking HTTP for the one-time model download (rustls, no tokio).
+ureq = "2"
+anyhow = { workspace = true }
