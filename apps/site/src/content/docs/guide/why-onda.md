@@ -30,15 +30,15 @@ The "**100× better than Remotion**" claim is **architectural**, and it is measu
 
 | Backend                           |   fps | ms/frame |
 | --------------------------------- | ----: | -------: |
-| Remotion (Chromium, 1 worker)     |  26.8 |    37.34 |
-| Remotion (Chromium, default pool) |  76.1 |    13.14 |
-| ONDA — CPU (1 thread)             | 119.5 |     8.37 |
-| ONDA — CPU (all cores, rayon)     | 709.7 |     1.41 |
-| ONDA — GPU (offscreen + readback) | 377.1 |     2.65 |
+| Remotion (Chromium, 1 worker)     |  26.8 |    37.30 |
+| Remotion (Chromium, default pool) |  85.5 |    11.69 |
+| ONDA — CPU (1 thread)             | 101.8 |     9.82 |
+| ONDA — CPU (all cores, rayon)     | 865.6 |     1.16 |
+| ONDA — GPU (offscreen + readback) | 298.0 |     3.36 |
 
 This is a **trivial** scene (a title plus a few shapes) — Remotion's *best* case. The honest read:
 
-- **~4.5× per-thread** (ONDA CPU 1-thread vs Remotion 1-worker) and **~9.3× machine-throughput** (all cores each, default settings) — already, on the easy case.
+- **~3.8× per-thread** (ONDA CPU 1-thread vs Remotion 1-worker) and **~10× machine-throughput** (all cores vs Remotion's default pool) — already, on the easy case. On a *complex* scene the per-thread gap widens to **~8.5×** (ONDA GPU vs a Remotion worker).
 - Remotion's ~37 ms/frame/worker is mostly **fixed browser overhead** independent of content; ONDA's cost scales with what is actually drawn.
 - ONDA's parallel scaling (~6× with `rayon`) also beats Remotion's (~3×): its per-worker browser tax makes concurrency sublinear.
 
@@ -55,10 +55,10 @@ So: lead with the **measured per-thread multiple and the trajectory**; claim 100
 
 - **GPU-first rendering** — headless Chrome *disables* the GPU by default.
 - **Determinism by construction** — no time-API patching, no compositor "warmup"; identical output every run and every machine (use `--backend cpu` for bit-identical results — see [Backends](/guide/backends)).
-- **Native media** — encoding/decoding is Remotion's most fragile subsystem and is a natural strength for a native engine (audio/video are on the roadmap, not shipped yet).
+- **Native media** — encoding/decoding is Remotion's most fragile subsystem and a natural strength for a native engine. ONDA now draws `<Image>` and `<Video>` and composes audio (FFT spectrum, beat-sync, a declarative synth) directly in the graph.
 
 ## What ONDA does *not* claim yet
 
-Speed is the easy structural win; **DX parity is the moat and the open risk**. Remotion gets all of CSS/flexbox, mature audio/video, a Studio, and a Player for free. ONDA today has the reconciler, the animation primitives, and the vector renderer — but not layout, audio/video, or a Studio. See [What is ONDA?](/guide/introduction) for the precise list of what exists.
+Speed is the easy structural win; **DX parity is the moat and the open risk**. Remotion gets all of CSS/flexbox, a mature Studio, and a Player for free. ONDA today has the reconciler, the animation primitives, the vector renderer, a cinematic effects stack, and native media — but not CSS-style layout or a hosted Studio. See [What is ONDA?](/guide/introduction) for the precise list of what exists.
 
 *Numbers above are from the repository's benchmark suite (`apps/benchmark`) and `techspecs/gap-analysis.md`. No performance claims without benchmarks.*
