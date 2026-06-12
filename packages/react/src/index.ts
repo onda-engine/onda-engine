@@ -110,8 +110,10 @@ export {
   slide,
   springTiming,
   typeMask,
+  whipPan,
   wipe,
   zoom,
+  zoomBlur,
 } from './transitions.js'
 export {
   motionBlurConfig,
