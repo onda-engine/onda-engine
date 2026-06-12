@@ -8,8 +8,12 @@ use onda_audio::{synthesize, write_wav, AudioGraph};
 
 fn main() {
     let mut args = std::env::args().skip(1);
-    let in_path = args.next().expect("usage: synth_json <graph.json> <out.wav>");
-    let out_path = args.next().expect("usage: synth_json <graph.json> <out.wav>");
+    let in_path = args
+        .next()
+        .expect("usage: synth_json <graph.json> <out.wav>");
+    let out_path = args
+        .next()
+        .expect("usage: synth_json <graph.json> <out.wav>");
 
     let json = std::fs::read_to_string(&in_path).expect("read graph json");
     let graph: AudioGraph = serde_json::from_str(&json).expect("parse AudioGraph json");

@@ -22,8 +22,8 @@ use std::path::PathBuf;
 use onda_core::{Color, Size, Transform, Vec2};
 use onda_renderer::Renderer;
 use onda_scene::{
-    BooleanOp, BooleanOperand, Camera3D, Composition, Effect, Gradient, GradientStop, Matte,
-    MatteMode, Node, NodeKind, Scene, Shape, ShapeGeometry, Text, Transform3D, Trim,
+    BooleanOp, BooleanOperand, Camera3D, Composition, Effect, Gradient, GradientStop, MatteMode,
+    Node, NodeKind, Scene, Shape, ShapeGeometry, Text, Transform3D, Trim,
 };
 
 fn text_node(content: &str, size: f32, color: Color) -> Node {

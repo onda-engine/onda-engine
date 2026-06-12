@@ -119,8 +119,8 @@ fn arrange(layout: &Layout, children: &mut [Node], sizes: &[Size]) -> Size {
             bottom: length(layout.padding),
         },
         size: TaffySize {
-            width: layout.width.map(|w| length(w)).unwrap_or_else(auto),
-            height: layout.height.map(|h| length(h)).unwrap_or_else(auto),
+            width: layout.width.map(length).unwrap_or_else(auto),
+            height: layout.height.map(length).unwrap_or_else(auto),
         },
         ..Default::default()
     };
