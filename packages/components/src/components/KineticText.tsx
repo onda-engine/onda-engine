@@ -16,6 +16,7 @@
 //!             ripple phase is the glyph index, so the wave travels the line.
 
 import { Group, Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { useFittedFontSize } from '../bounds.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { glyphLayout, useTextMetricsReady } from '../text-metrics.js'
@@ -30,6 +31,13 @@ export interface KineticTextProps {
   text?: string
   /** Font size in px (default 96). */
   fontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
+   *  line cannot exceed the frame minus the safe margins. Default `'none'`
+   *  (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the line; combines with `fit` (the smaller
+   *  cap wins). */
+  maxWidth?: number
   /** Per-glyph entrance flavor (default `'rise'`). */
   preset?: KineticTextPreset
   /** Frames between consecutive glyphs entering (default `STAGGER` = 5). */
@@ -75,6 +83,8 @@ const PRESET_ANIMATE: Record<Exclude<KineticTextPreset, 'wave'>, TextAnimate> = 
 export function KineticText({
   text = 'kinetic',
   fontSize = 96,
+  fit,
+  maxWidth,
   preset = 'rise',
   stagger = STAGGER,
   durationInFrames = DURATION.base,
@@ -93,6 +103,8 @@ export function KineticText({
       <KineticWave
         text={text}
         fontSize={fontSize}
+        fit={fit}
+        maxWidth={maxWidth}
         stagger={stagger}
         durationInFrames={durationInFrames}
         delay={delay}
@@ -110,6 +122,8 @@ export function KineticText({
       text={text}
       units="glyph"
       animate={PRESET_ANIMATE[preset]}
+      fit={fit}
+      maxWidth={maxWidth}
       stagger={stagger}
       durationInFrames={durationInFrames}
       delay={delay}
@@ -126,6 +140,8 @@ export function KineticText({
 interface KineticWaveProps {
   text: string
   fontSize: number
+  fit?: 'none' | 'frame'
+  maxWidth?: number
   stagger: number
   durationInFrames: number
   delay: number
@@ -141,7 +157,9 @@ interface KineticWaveProps {
  *  left-to-right about the canvas center) so only the motion differs. */
 function KineticWave({
   text,
-  fontSize,
+  fontSize: fontSizeProp,
+  fit,
+  maxWidth,
   stagger,
   durationInFrames,
   delay,
@@ -159,6 +177,9 @@ function KineticWave({
 
   useTextMetricsReady()
   const measureOpts = { fontFamily, fontWeight }
+
+  // Opt-in auto-fit (same contract as TextAnimator).
+  const fontSize = useFittedFontSize(text, fontSizeProp, { ...measureOpts, fit, maxWidth })
 
   // Kerning-accurate resting positions (see TextAnimator for the rationale).
   const clusters = glyphLayout(text, fontSize, measureOpts)

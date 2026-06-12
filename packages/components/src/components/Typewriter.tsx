@@ -20,6 +20,7 @@
 //! primary path, so this is an acceptable degradation.
 
 import { Text, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { useFittedFontSize } from '../bounds.js'
 import { useTextReveal } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
@@ -42,6 +43,13 @@ export interface TypewriterProps {
   color?: string
   /** Font size in px (default 64). */
   fontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
+   *  measured line cannot exceed the frame minus the safe margins. Default
+   *  `'none'` (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the line; combines with `fit` (the smaller
+   *  cap wins). */
+  maxWidth?: number
   /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (default 500 — reads more "terminal"). */
@@ -67,7 +75,9 @@ export function Typewriter({
   cursor = true,
   cursorColor: cursorColorProp,
   color: colorProp,
-  fontSize = 64,
+  fontSize: fontSizeProp = 64,
+  fit,
+  maxWidth,
   fontFamily: fontFamilyProp,
   fontWeight = 500,
   italic = false,
@@ -81,6 +91,9 @@ export function Typewriter({
   const cursorColor = cursorColorProp ?? theme.accent
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
+
+  // Opt-in auto-fit: scale the size down so the FULL line fits the cap.
+  const fontSize = useFittedFontSize(text, fontSizeProp, { fontFamily, fontWeight, fit, maxWidth })
 
   // Real shaped width of the FULL string (proportional — exact); falls back to
   // a glyph-count estimate until the wasm engine warms in the browser.

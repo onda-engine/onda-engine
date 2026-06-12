@@ -919,6 +919,24 @@ const RAW: RawEntry[] = [
         description:
           'Starting blur in px (gaussian sigma) for the soft→sharp focus-pull; ramps to 0 as the reveal settles.',
       },
+      {
+        name: 'fit',
+        type: 'enum',
+        role: 'enum',
+        themeable: false,
+        required: false,
+        enumValues: ['none', 'frame'],
+        description:
+          "Opt-in auto-fit: 'frame' scales the font size DOWN (never up) so the line cannot exceed the frame minus the safe margins. Default 'none'.",
+      },
+      {
+        name: 'maxWidth',
+        type: 'number',
+        role: 'number',
+        themeable: false,
+        required: false,
+        description: 'Explicit width cap in px for the line; combines with fit (the smaller cap wins).',
+      },
     ],
     schema: blurRevealSchema,
   },
@@ -2007,6 +2025,24 @@ const RAW: RawEntry[] = [
         description:
           'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'.',
       },
+      {
+        name: 'fit',
+        type: 'enum',
+        role: 'enum',
+        themeable: false,
+        required: false,
+        enumValues: ['none', 'frame'],
+        description:
+          "Opt-in auto-fit: 'frame' scales the font size DOWN (never up) so the line cannot exceed the frame minus the safe margins. Default 'none'.",
+      },
+      {
+        name: 'maxWidth',
+        type: 'number',
+        role: 'number',
+        themeable: false,
+        required: false,
+        description: 'Explicit width cap in px for the line; combines with fit (the smaller cap wins).',
+      },
     ],
     schema: chapterCardSchema,
   },
@@ -2640,6 +2676,24 @@ const RAW: RawEntry[] = [
         required: false,
         description:
           'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'. Omitted -> the legacy origin-relative x/y translate.',
+      },
+      {
+        name: 'fit',
+        type: 'enum',
+        role: 'enum',
+        themeable: false,
+        required: false,
+        enumValues: ['none', 'frame'],
+        description:
+          "Opt-in auto-fit: 'frame' scales the font size DOWN (never up) so the line cannot exceed the frame minus the safe margins. Default 'none'.",
+      },
+      {
+        name: 'maxWidth',
+        type: 'number',
+        role: 'number',
+        themeable: false,
+        required: false,
+        description: 'Explicit width cap in px for the line; combines with fit (the smaller cap wins).',
       },
     ],
     schema: countUpSchema,
@@ -4396,6 +4450,24 @@ const RAW: RawEntry[] = [
         description:
           'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'.',
       },
+      {
+        name: 'fit',
+        type: 'enum',
+        role: 'enum',
+        themeable: false,
+        required: false,
+        enumValues: ['none', 'frame'],
+        description:
+          "Opt-in auto-fit: 'frame' scales the font size DOWN (never up) so the line cannot exceed the frame minus the safe margins. Default 'none'.",
+      },
+      {
+        name: 'maxWidth',
+        type: 'number',
+        role: 'number',
+        themeable: false,
+        required: false,
+        description: 'Explicit width cap in px for the line; combines with fit (the smaller cap wins).',
+      },
     ],
     schema: kineticTextSchema,
   },
@@ -5042,6 +5114,24 @@ const RAW: RawEntry[] = [
         description:
           'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'.',
       },
+      {
+        name: 'fit',
+        type: 'enum',
+        role: 'enum',
+        themeable: false,
+        required: false,
+        enumValues: ['none', 'frame'],
+        description:
+          "Opt-in auto-fit: 'frame' scales the font size DOWN (never up) so the line cannot exceed the frame minus the safe margins. Default 'none'.",
+      },
+      {
+        name: 'maxWidth',
+        type: 'number',
+        role: 'number',
+        themeable: false,
+        required: false,
+        description: 'Explicit width cap in px for the line; combines with fit (the smaller cap wins).',
+      },
     ],
     schema: maskRevealSchema,
   },
@@ -5216,6 +5306,24 @@ const RAW: RawEntry[] = [
         required: false,
         description:
           'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'. Supersedes the deprecated px x/y props.',
+      },
+      {
+        name: 'fit',
+        type: 'enum',
+        role: 'enum',
+        themeable: false,
+        required: false,
+        enumValues: ['none', 'frame'],
+        description:
+          "Opt-in auto-fit: 'frame' scales the font size DOWN (never up) so the line cannot exceed the frame minus the safe margins. Default 'none'.",
+      },
+      {
+        name: 'maxWidth',
+        type: 'number',
+        role: 'number',
+        themeable: false,
+        required: false,
+        description: 'Explicit width cap in px for the line; combines with fit (the smaller cap wins).',
       },
     ],
     schema: matrixDecodeSchema,
@@ -7248,6 +7356,24 @@ const RAW: RawEntry[] = [
         description:
           'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'. Supersedes the deprecated px x/y props.',
       },
+      {
+        name: 'fit',
+        type: 'enum',
+        role: 'enum',
+        themeable: false,
+        required: false,
+        enumValues: ['none', 'frame'],
+        description:
+          "Opt-in auto-fit: 'frame' scales the font size DOWN (never up) so the line cannot exceed the frame minus the safe margins. Default 'none'.",
+      },
+      {
+        name: 'maxWidth',
+        type: 'number',
+        role: 'number',
+        themeable: false,
+        required: false,
+        description: 'Explicit width cap in px for the line; combines with fit (the smaller cap wins).',
+      },
     ],
     schema: slotMachineRollSchema,
   },
@@ -8435,6 +8561,24 @@ const RAW: RawEntry[] = [
         description:
           'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'.',
       },
+      {
+        name: 'fit',
+        type: 'enum',
+        role: 'enum',
+        themeable: false,
+        required: false,
+        enumValues: ['none', 'frame'],
+        description:
+          "Opt-in auto-fit: 'frame' scales the font size DOWN (never up) so the line cannot exceed the frame minus the safe margins. Default 'none'.",
+      },
+      {
+        name: 'maxWidth',
+        type: 'number',
+        role: 'number',
+        themeable: false,
+        required: false,
+        description: 'Explicit width cap in px for the line; combines with fit (the smaller cap wins).',
+      },
     ],
     schema: titleCardSchema,
   },
@@ -8730,6 +8874,24 @@ const RAW: RawEntry[] = [
         required: false,
         description:
           'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'. Supersedes the deprecated px x/y props.',
+      },
+      {
+        name: 'fit',
+        type: 'enum',
+        role: 'enum',
+        themeable: false,
+        required: false,
+        enumValues: ['none', 'frame'],
+        description:
+          "Opt-in auto-fit: 'frame' scales the font size DOWN (never up) so the line cannot exceed the frame minus the safe margins. Default 'none'.",
+      },
+      {
+        name: 'maxWidth',
+        type: 'number',
+        role: 'number',
+        themeable: false,
+        required: false,
+        description: 'Explicit width cap in px for the line; combines with fit (the smaller cap wins).',
       },
     ],
     schema: typewriterSchema,

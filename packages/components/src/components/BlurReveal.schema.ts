@@ -33,6 +33,8 @@ export const blurRevealSchema = z.object({
     .describe(
       'Starting blur in px (gaussian sigma) for the soft→sharp focus-pull; ramps to 0 as the reveal settles.',
     ),
+  fit: z.enum(['none', 'frame']).optional().describe("Opt-in auto-fit: 'frame' scales the font size DOWN (never up) so the line cannot exceed the frame minus the safe margins. Default 'none'."),
+  maxWidth: z.number().optional().describe("Explicit width cap in px for the line; combines with fit (the smaller cap wins)."),
 })
 
 export type BlurRevealSchemaProps = z.infer<typeof blurRevealSchema>

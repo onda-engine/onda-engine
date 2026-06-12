@@ -7,6 +7,7 @@
 //! heading family); pass explicit props to override.
 
 import { AbsoluteFill, Flex, Text } from '@onda/react'
+import { useFittedFontSize } from '../bounds.js'
 import { DURATION, staggerFrames } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
 import { useTheme } from '../theme.js'
@@ -17,6 +18,13 @@ export interface TitleCardProps {
   subtitle?: string
   /** Title font size in px (default 120). */
   titleSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the TITLE size DOWN (never up) so the
+   *  title line cannot exceed the frame minus the safe margins. Default
+   *  `'none'` (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the title line; combines with `fit` (the
+   *  smaller cap wins). */
+  maxWidth?: number
   /** Subtitle font size in px (default 36). */
   subtitleSize?: number
   /** Title color (default: theme `text`). */
@@ -36,7 +44,9 @@ export interface TitleCardProps {
 export function TitleCard({
   title,
   subtitle,
-  titleSize = 120,
+  titleSize: titleSizeProp = 120,
+  fit,
+  maxWidth,
   subtitleSize = 36,
   titleColor,
   subtitleColor,
@@ -48,6 +58,15 @@ export function TitleCard({
   const titleCol = titleColor ?? theme.text
   const subtitleCol = subtitleColor ?? theme.textMuted
   const family = fontFamily ?? theme.headingFamily ?? theme.fontFamily
+
+  // Opt-in auto-fit on the title line (tracking scales with the size).
+  const titleSize = useFittedFontSize(title, titleSizeProp, {
+    fontFamily: family,
+    fontWeight: 700,
+    letterSpacing: Math.round(titleSizeProp * -0.02),
+    fit,
+    maxWidth,
+  })
 
   return (
     <PlacementShift placement={placement}>

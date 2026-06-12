@@ -23,6 +23,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import type { ReactNode } from 'react'
+import { useFittedFontSize } from '../bounds.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
 import { useTheme } from '../theme.js'
@@ -44,6 +45,13 @@ export interface BlurRevealProps {
   color?: string
   /** Text size in px. Ignored when `children` is set. */
   fontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
+   *  measured line cannot exceed the frame minus the safe margins. Default
+   *  `'none'` (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the line; combines with `fit` (the smaller
+   *  cap wins). */
+  maxWidth?: number // (Ignored when `children` is set.)
   /** Loaded font family. Ignored when `children` is set. (default: theme `fontFamily`) */
   fontFamily?: string
   /** Font weight (display default 600). Ignored when `children` is set. */
@@ -68,7 +76,9 @@ export function BlurReveal({
   delay = 0,
   durationInFrames = DURATION.base,
   color: colorProp,
-  fontSize = 96,
+  fontSize: fontSizeProp = 96,
+  fit,
+  maxWidth,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   placement = 'center',
@@ -80,6 +90,9 @@ export function BlurReveal({
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
+
+  // Opt-in auto-fit for the single-line `text` form (children own their box).
+  const fontSize = useFittedFontSize(text, fontSizeProp, { fontFamily, fontWeight, fit, maxWidth })
 
   // One house spring drives opacity, rise, and the focus-pull blur so they read
   // as a single motion — mirrors the ondajs original, where opacity, blur, and

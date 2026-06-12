@@ -24,8 +24,9 @@
 //! origin-relative (like `SlideIn`/`Underline`): position it via a parent `x`/`y`
 //! or an `<AbsoluteFill>` rather than as a measured `<Flex>` child.
 
-import { Group, Text, clipRect } from '@onda/react'
+import { Group, Text, clipRect, useVideoConfig } from '@onda/react'
 import type { ReactNode } from 'react'
+import { fitFontSize, fitMaxWidth } from '../bounds.js'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
@@ -57,6 +58,13 @@ export interface MaskRevealProps {
   color?: string
   /** Text size in px (default 96). */
   fontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
+   *  padded clip box cannot exceed the frame minus the safe margins. Default
+   *  `'none'` (the historical behavior). Text mode only. */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the padded clip box; combines with `fit`
+   *  (the smaller cap wins). Text mode only. */
+  maxWidth?: number
   /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `headingFamily ?? fontFamily`). */
   fontFamily?: string
   /** Font weight (display default 600). */
@@ -81,7 +89,9 @@ export function MaskReveal({
   duration = DURATION.base,
   direction = 'left',
   color: colorProp,
-  fontSize = 96,
+  fontSize: fontSizeProp = 96,
+  fit,
+  maxWidth,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
@@ -96,6 +106,17 @@ export function MaskReveal({
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
+
+  // Opt-in auto-fit (text mode): the cap applies to the PADDED clip box, so
+  // the text must fit cap minus the sweep padding.
+  const { width: frameW } = useVideoConfig()
+  const cap = fitMaxWidth({ fit, maxWidth }, frameW)
+  const textPad = width != null ? 0 : (BOX_PAD + AXIS_PAD) * 2
+  const fontSize =
+    cap !== undefined && children == null
+      ? fitFontSize(text, fontSizeProp, Math.max(1, cap - textPad), { fontFamily, fontWeight })
+      : fontSizeProp
+
   // Real shaped text width — the engine measures the glyphs (proportional, exact);
   // falls back to a glyph-count estimate until the wasm engine warms in the browser.
   const measured = useTextMetrics(text, fontSize, { fontFamily, fontWeight })
