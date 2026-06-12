@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { placementSchema } from '../placement.js'
 
 export const kineticTextSchema = z.object({
   text: z
@@ -33,6 +34,7 @@ export const kineticTextSchema = z.object({
   color: z.string().optional().describe('Text color; defaults to theme text color.'),
   fontFamily: z.string().optional().describe('Loaded font family; defaults to theme font family.'),
   fontWeight: z.number().default(600).describe('Font weight (display default).'),
+  placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
 })
 
 export type KineticTextSchemaProps = z.infer<typeof kineticTextSchema>

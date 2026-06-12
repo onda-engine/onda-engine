@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { placementSchema } from '../placement.js'
 
 export const buttonSchema = z.object({
   label: z.string().default('Get started').describe("The button label."),
@@ -24,6 +25,7 @@ export const buttonSchema = z.object({
   durationInFrames: z.number().int().optional().describe("Entrance duration in frames (default DURATION.base = 18)."),
   press: z.boolean().default(true).describe("Play the click-dip press animation."),
   pressFrame: z.number().int().default(30).describe("Frame the press dip lands on (relative to the local timeline)."),
+  placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
 })
 
 export type ButtonSchemaProps = z.infer<typeof buttonSchema>

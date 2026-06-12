@@ -17,6 +17,7 @@
 
 import { Group, Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
+import { type Placement, usePlacement } from '../placement.js'
 import { glyphLayout, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 import { type TextAnimate, TextAnimator } from './TextAnimator.js'
@@ -45,6 +46,10 @@ export interface KineticTextProps {
   fontFamily?: string
   /** Font weight (display default 600). */
   fontWeight?: number
+  /** Where the line sits: a region keyword (`'center'`, `'lower-third'`, …) or
+   *  normalized `{x,y}` (0–1, line center). The shared placement contract;
+   *  default `'center'` (the historical centering). */
+  placement?: Placement
 }
 
 /** Starting rise distance in px for the `rise` preset (the house 24px envelope). */
@@ -78,6 +83,7 @@ export function KineticText({
   color,
   fontFamily,
   fontWeight = 600,
+  placement,
 }: KineticTextProps) {
   // `wave` is a decaying sine ripple (a function of progress AND index), not a
   // from→to channel — it keeps its own small path. Everything else is the general
@@ -94,6 +100,7 @@ export function KineticText({
         color={color}
         fontFamily={fontFamily}
         fontWeight={fontWeight}
+        placement={placement}
       />
     )
   }
@@ -111,6 +118,7 @@ export function KineticText({
       color={color}
       fontFamily={fontFamily}
       fontWeight={fontWeight}
+      placement={placement}
     />
   )
 }
@@ -125,6 +133,7 @@ interface KineticWaveProps {
   color?: string
   fontFamily?: string
   fontWeight: number
+  placement?: Placement
 }
 
 /** The `wave` preset: a gentle decaying sine ripple across glyphs. Placement
@@ -140,9 +149,10 @@ function KineticWave({
   color: colorProp,
   fontFamily: fontFamilyProp,
   fontWeight,
+  placement,
 }: KineticWaveProps) {
   const frame = useCurrentFrame()
-  const { fps, width, height } = useVideoConfig()
+  const { fps } = useVideoConfig()
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
@@ -163,10 +173,12 @@ function KineticWave({
   const last = clusters[clusters.length - 1]
   const lineWidth = last ? last.x + last.advance : 0
 
-  const anchorX = Math.round(width / 2)
+  // Shared placement contract (matches TextAnimator's anchoring exactly).
+  const resolved = usePlacement(placement, { width: lineWidth, height: fontSize * 1.2 })
+  const anchorX = Math.round(resolved.x)
   const startX =
     align === 'center' ? anchorX - lineWidth / 2 : align === 'right' ? anchorX - lineWidth : anchorX
-  const baseY = Math.round(height / 2 - fontSize * 0.6)
+  const baseY = Math.round(resolved.y - fontSize * 0.6)
 
   return (
     <Group>

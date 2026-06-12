@@ -892,13 +892,13 @@ const RAW: RawEntry[] = [
       },
       {
         name: 'placement',
-        type: 'enum',
-        role: 'enum',
+        type: 'unknown',
+        role: 'placement',
         themeable: false,
         required: false,
-        enumValues: ['center', 'top', 'bottom'],
         default: "'center'",
-        description: 'Vertical placement within the composition.',
+        description:
+          "Where the reveal sits - the shared placement contract (region keyword or normalized {x,y}, element-center anchored). Legacy 'top'/'bottom' keep their historical edge-flush meaning.",
       },
       {
         name: 'travelPx',
@@ -1409,6 +1409,15 @@ const RAW: RawEntry[] = [
         default: '30',
         description: 'Frame the press dip lands on (relative to the local timeline).',
       },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'. Supersedes the deprecated centerX/centerY props.',
+      },
     ],
     schema: buttonSchema,
   },
@@ -1611,6 +1620,15 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         description: 'Explicit bubble width in px. Overrides the measured text extent.',
+      },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'. Supersedes the deprecated fractional x/y props.',
       },
     ],
     schema: calloutSchema,
@@ -1837,7 +1855,7 @@ const RAW: RawEntry[] = [
         enumValues: ['center', 'top', 'bottom', 'upper-third', 'lower-third'],
         default: "'lower-third'",
         description:
-          'Vertical placement band of the caption block; defaults to the broadcast lower-third subtitle position.',
+          'Vertical placement band of the caption block (defaults to the broadcast lower-third subtitle position); also accepts a normalized {x,y} point (0-1, line center) per the shared placement contract.',
       },
       {
         name: 'maxWidth',
@@ -1979,6 +1997,15 @@ const RAW: RawEntry[] = [
         required: false,
         description:
           'Onda display font applied to both number and title; defaults to theme headingFamily ?? fontFamily.',
+      },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'.',
       },
     ],
     schema: chapterCardSchema,
@@ -2605,6 +2632,15 @@ const RAW: RawEntry[] = [
         default: '0',
         description: 'Pixel translate on the y axis for placement.',
       },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'. Omitted -> the legacy origin-relative x/y translate.',
+      },
     ],
     schema: countUpSchema,
   },
@@ -3077,6 +3113,15 @@ const RAW: RawEntry[] = [
         themeable: true,
         required: false,
         description: 'Loaded display font for both CTA and handles (defaults to theme fontFamily).',
+      },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'.',
       },
     ],
     schema: endCardSchema,
@@ -3962,6 +4007,15 @@ const RAW: RawEntry[] = [
         default: '0.5',
         description: 'Vertical center of the field as a 0\u20131 fraction of canvas height.',
       },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'. Supersedes the deprecated fractional x/y props.',
+      },
     ],
     schema: inputFieldSchema,
   },
@@ -4332,6 +4386,15 @@ const RAW: RawEntry[] = [
         required: false,
         default: '600',
         description: 'Font weight (display default).',
+      },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'.',
       },
     ],
     schema: kineticTextSchema,
@@ -4970,6 +5033,15 @@ const RAW: RawEntry[] = [
         required: false,
         description: 'Clip-box height in px; otherwise fontSize times 1.2.',
       },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'.',
+      },
     ],
     schema: maskRevealSchema,
   },
@@ -5135,6 +5207,15 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         description: 'Absolute y (top-ish) of the line. Defaults to vertical center.',
+      },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'. Supersedes the deprecated px x/y props.',
       },
     ],
     schema: matrixDecodeSchema,
@@ -5831,6 +5912,15 @@ const RAW: RawEntry[] = [
         required: false,
         description: "Local-space y of the card's top-left. Omit to center on the composition.",
       },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'. Supersedes the deprecated px x/y props.',
+      },
     ],
     schema: pricingCardSchema,
   },
@@ -6330,6 +6420,15 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         description: 'Wrap width for the quote in px (defaults to ~44% of the composition width).',
+      },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'.',
       },
     ],
     schema: quoteCardSchema,
@@ -7140,6 +7239,15 @@ const RAW: RawEntry[] = [
         required: false,
         description: "Absolute y of the block's top. Defaults to vertically centering the row.",
       },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'. Supersedes the deprecated px x/y props.',
+      },
     ],
     schema: slotMachineRollSchema,
   },
@@ -7783,6 +7891,15 @@ const RAW: RawEntry[] = [
         default: '0',
         description: 'Frames to delay before the staggered fade-in begins.',
       },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'.',
+      },
     ],
     schema: statCardSchema,
   },
@@ -7962,6 +8079,15 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         description: "Absolute y of the window's top-left; defaults to vertically centered.",
+      },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'. Supersedes the deprecated px x/y props.',
       },
     ],
     schema: terminalSchema,
@@ -8300,6 +8426,15 @@ const RAW: RawEntry[] = [
         default: '0',
         description: 'Frame the title begins fading in; the subtitle follows by one stagger step.',
       },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'.',
+      },
     ],
     schema: titleCardSchema,
   },
@@ -8586,6 +8721,15 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         description: 'Absolute y top of the text (defaults to vertical center).',
+      },
+      {
+        name: 'placement',
+        type: 'unknown',
+        role: 'placement',
+        themeable: false,
+        required: false,
+        description:
+          'Where the element sits: a region keyword (\'center\', \'lower-third\', \'upper-third\', \'top\', \'bottom\', \'left\', \'right\', \'top-left\', \'top-right\', \'bottom-left\', \'bottom-right\') or normalized {x,y} (0-1 canvas fractions, element-center anchored). The shared placement contract; default \'center\'. Supersedes the deprecated px x/y props.',
       },
     ],
     schema: typewriterSchema,

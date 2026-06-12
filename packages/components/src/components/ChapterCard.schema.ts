@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { placementSchema } from '../placement.js'
 
 export const chapterCardSchema = z.object({
   chapter: z.string().describe("The chapter heading \u2014 the focal text on the card."),
@@ -18,6 +19,7 @@ export const chapterCardSchema = z.object({
   titleFontSize: z.number().default(96).describe("Chapter title font size in px \u2014 the focal element."),
   titleFontWeight: z.number().default(600).describe("Title font weight."),
   fontFamily: z.string().optional().describe("Onda display font applied to both number and title; defaults to theme headingFamily ?? fontFamily."),
+  placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
 })
 
 export type ChapterCardSchemaProps = z.infer<typeof chapterCardSchema>

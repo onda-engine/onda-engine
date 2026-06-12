@@ -61,6 +61,28 @@ export {
   type PropMeta,
 } from './manifest.js'
 
+// Placement — the ONE placement contract every placeable component speaks
+// (region keywords or normalized {x,y}, element-center anchored).
+export {
+  type ElementSize,
+  type FrameSize,
+  isPlacement,
+  PLACEMENT_DESCRIPTION,
+  PLACEMENT_REGIONS,
+  type Placement,
+  type PlacementPoint,
+  type PlacementRegion,
+  type PlacedProps,
+  Placed,
+  PlacementShift,
+  type PlacementShiftProps,
+  placementSchema,
+  type ResolvedPlacement,
+  resolvePlacement,
+  SAFE_MARGIN,
+  usePlacement,
+} from './placement.js'
+
 // Theme (brand tokens — colors, fonts, logo) via React context
 export {
   type Theme,

@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { placementSchema } from '../placement.js'
 
 export const quoteCardSchema = z.object({
   quote: z.string().default('Motion is the difference between art and craft.').describe("The pull-quote body, revealed word-by-word on a slower-than-canonical stagger."),
@@ -20,6 +21,7 @@ export const quoteCardSchema = z.object({
   accentColor: z.string().optional().describe("Divider color (defaults to theme accent)."),
   fontFamily: z.string().optional().describe("Loaded font family for every line (defaults to theme fontFamily)."),
   quoteWidth: z.number().optional().describe("Wrap width for the quote in px (defaults to ~44% of the composition width)."),
+  placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
 })
 
 export type QuoteCardSchemaProps = z.infer<typeof quoteCardSchema>

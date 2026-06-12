@@ -22,6 +22,7 @@
 import { Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useTextReveal } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
@@ -47,10 +48,15 @@ export interface TypewriterProps {
   fontWeight?: number
   /** Italic text. */
   italic?: boolean
-  /** Absolute x of the text's left edge. Defaults to a centered origin derived
-   *  from the measured full-text width. */
+  /** Where the line sits: a region keyword (`'center'`, `'lower-third'`, …) or
+   *  normalized `{x,y}` (0–1, anchored at the FULL line's measured center). The
+   *  shared placement contract; default `'center'`. */
+  placement?: Placement
+  /** @deprecated Legacy alias — absolute x of the text's left edge in px.
+   *  Prefer `placement`. */
   x?: number
-  /** Absolute y baseline-ish top of the text. Defaults to vertical center. */
+  /** @deprecated Legacy alias — absolute y (baseline-ish top) in px. Prefer
+   *  `placement`. */
   y?: number
 }
 
@@ -65,11 +71,12 @@ export function Typewriter({
   fontFamily: fontFamilyProp,
   fontWeight = 500,
   italic = false,
+  placement,
   x,
   y,
 }: TypewriterProps) {
   const frame = useCurrentFrame()
-  const { width, height, fps } = useVideoConfig()
+  const { fps } = useVideoConfig()
   const theme = useTheme()
   const cursorColor = cursorColorProp ?? theme.accent
   const color = colorProp ?? theme.text
@@ -92,13 +99,14 @@ export function Typewriter({
   const showCursor = cursor && !done && cursorVisible
 
   // Absolute placement so the growing string never triggers a Flex reflow.
-  // The centered left origin is derived from the MEASURED width of the FULL
-  // string. Centering on the full width — not the growing substring — keeps the
-  // origin rock-steady (the line would slide sideways otherwise) while the
-  // completed line reads centered on the canvas. The single line is vertically
-  // centered by offsetting the top by ~half the cap height.
-  const px = x ?? Math.round(width / 2 - measured.width / 2)
-  const py = y ?? Math.round(height / 2 - fontSize * 0.6)
+  // The anchor is derived from the MEASURED width of the FULL string via the
+  // shared placement contract. Anchoring on the full width — not the growing
+  // substring — keeps the origin rock-steady (the line would slide sideways
+  // otherwise) while the completed line reads placed as asked. Legacy px
+  // `x`/`y` win per-axis; the default `'center'` is the historical centering.
+  const resolved = usePlacement(placement, { width: measured.width, height: fontSize * 1.2 })
+  const px = x ?? Math.round(resolved.originX)
+  const py = y ?? Math.round(resolved.y - fontSize * 0.6)
 
   // Append the cursor as a separate styled run so the engine measures the text
   // and positions the "|" right after the last revealed glyph.

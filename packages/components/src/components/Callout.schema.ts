@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { placementSchema } from '../placement.js'
 
 export const calloutSchema = z.object({
   label: z.string().default('Look here').describe("Bubble label. Single line \u2014 no auto-wrap."),
@@ -27,6 +28,7 @@ export const calloutSchema = z.object({
   pointerWidth: z.number().default(18).describe("Pointer triangle base width in px."),
   pointerLength: z.number().default(12).describe("Pointer triangle length (how far it pokes out) in px."),
   width: z.number().optional().describe("Explicit bubble width in px. Overrides the measured text extent."),
+  placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
 })
 
 export type CalloutSchemaProps = z.infer<typeof calloutSchema>

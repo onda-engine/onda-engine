@@ -8,6 +8,7 @@
 
 import { AbsoluteFill, Flex, Text } from '@onda/react'
 import { DURATION, staggerFrames } from '../motion.js'
+import { type Placement, PlacementShift } from '../placement.js'
 import { useTheme } from '../theme.js'
 import { FadeIn } from './FadeIn.js'
 
@@ -26,6 +27,10 @@ export interface TitleCardProps {
   fontFamily?: string
   /** Frame the title begins fading in (subtitle follows by one stagger step). */
   delay?: number
+  /** Where the card sits: a region keyword (`'center'`, `'lower-third'`, …) or
+   *  normalized `{x,y}` (0–1, card center). The shared placement contract;
+   *  default `'center'` (the historical self-centering). */
+  placement?: Placement
 }
 
 export function TitleCard({
@@ -37,6 +42,7 @@ export function TitleCard({
   subtitleColor,
   fontFamily,
   delay = 0,
+  placement,
 }: TitleCardProps) {
   const theme = useTheme()
   const titleCol = titleColor ?? theme.text
@@ -44,27 +50,29 @@ export function TitleCard({
   const family = fontFamily ?? theme.headingFamily ?? theme.fontFamily
 
   return (
-    <AbsoluteFill justify="center" align="center">
-      <Flex direction="column" align="center" gap={Math.round(subtitleSize * 0.8)}>
-        <FadeIn delay={delay} durationInFrames={DURATION.slow}>
-          <Text
-            fontSize={titleSize}
-            color={titleCol}
-            fontFamily={family}
-            fontWeight={700}
-            letterSpacing={Math.round(titleSize * -0.02)}
-          >
-            {title}
-          </Text>
-        </FadeIn>
-        {subtitle ? (
-          <FadeIn delay={delay + staggerFrames(2)} durationInFrames={DURATION.base}>
-            <Text fontSize={subtitleSize} color={subtitleCol} fontFamily={family}>
-              {subtitle}
+    <PlacementShift placement={placement}>
+      <AbsoluteFill justify="center" align="center">
+        <Flex direction="column" align="center" gap={Math.round(subtitleSize * 0.8)}>
+          <FadeIn delay={delay} durationInFrames={DURATION.slow}>
+            <Text
+              fontSize={titleSize}
+              color={titleCol}
+              fontFamily={family}
+              fontWeight={700}
+              letterSpacing={Math.round(titleSize * -0.02)}
+            >
+              {title}
             </Text>
           </FadeIn>
-        ) : null}
-      </Flex>
-    </AbsoluteFill>
+          {subtitle ? (
+            <FadeIn delay={delay + staggerFrames(2)} durationInFrames={DURATION.base}>
+              <Text fontSize={subtitleSize} color={subtitleCol} fontFamily={family}>
+                {subtitle}
+              </Text>
+            </FadeIn>
+          ) : null}
+        </Flex>
+      </AbsoluteFill>
+    </PlacementShift>
   )
 }

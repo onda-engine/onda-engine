@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { placementSchema } from '../placement.js'
 
 export const inputFieldSchema = z.object({
   value: z.string().default('hello@onda.video').describe("The field's value; with `typed` on, this is what types itself in."),
@@ -24,6 +25,7 @@ export const inputFieldSchema = z.object({
   fieldColor: z.string().optional().describe("Field background fill, the glass surface; defaults to the theme `surface`."),
   x: z.number().default(0.5).describe("Horizontal center of the field as a 0\u20131 fraction of canvas width."),
   y: z.number().default(0.5).describe("Vertical center of the field as a 0\u20131 fraction of canvas height."),
+  placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
 })
 
 export type InputFieldSchemaProps = z.infer<typeof inputFieldSchema>

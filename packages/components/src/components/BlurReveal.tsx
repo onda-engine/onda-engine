@@ -24,6 +24,7 @@ import {
 } from '@onda/react'
 import type { ReactNode } from 'react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { type Placement, PlacementShift } from '../placement.js'
 import { useTheme } from '../theme.js'
 
 export interface BlurRevealProps {
@@ -47,8 +48,11 @@ export interface BlurRevealProps {
   fontFamily?: string
   /** Font weight (display default 600). Ignored when `children` is set. */
   fontWeight?: number
-  /** Vertical placement within the composition. */
-  placement?: 'center' | 'top' | 'bottom'
+  /** Where the reveal sits. The legacy `'top'`/`'bottom'` keywords keep their
+   *  historical edge-flush meaning (layout `justify`); every other region
+   *  keyword and normalized `{x,y}` (0-1, content center) goes through the
+   *  shared placement contract. Default `'center'`. */
+  placement?: Placement
   /** Rise distance in px (the original's 16px envelope; small on purpose). */
   travelPx?: number
   /** Starting blur in px (gaussian sigma) for the soft→sharp focus-pull; ramps
@@ -93,6 +97,9 @@ export function BlurReveal({
   // subtree by `blur` px, ramping fromBlur → 0 as the reveal settles.
   const blur = interpolate(progress, [0, 1], [fromBlur, 0], CLAMP)
 
+  // Legacy keywords keep their exact pre-contract behavior (edge-flush via the
+  // layout pass); everything else resolves through the shared contract.
+  const isLegacy = placement === 'center' || placement === 'top' || placement === 'bottom'
   const justify = placement === 'top' ? 'start' : placement === 'bottom' ? 'end' : 'center'
 
   const content: ReactNode = children ?? (
@@ -102,12 +109,14 @@ export function BlurReveal({
   )
 
   return (
-    <AbsoluteFill justify={justify} align="center">
-      {/* Inner group carries the motion translate/blur/opacity; the outer
-          AbsoluteFill owns positioning (don't translate a direct layout child). */}
-      <Group y={y} blur={blur} opacity={opacity}>
-        {content}
-      </Group>
-    </AbsoluteFill>
+    <PlacementShift placement={isLegacy ? undefined : placement}>
+      <AbsoluteFill justify={isLegacy ? justify : 'center'} align="center">
+        {/* Inner group carries the motion translate/blur/opacity; the outer
+            AbsoluteFill owns positioning (don't translate a direct layout child). */}
+        <Group y={y} blur={blur} opacity={opacity}>
+          {content}
+        </Group>
+      </AbsoluteFill>
+    </PlacementShift>
   )
 }

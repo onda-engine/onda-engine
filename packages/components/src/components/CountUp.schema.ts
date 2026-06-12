@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { placementSchema } from '../placement.js'
 
 export const countUpSchema = z.object({
   from: z.number().default(0).describe("Starting value the counter animates from."),
@@ -21,6 +22,7 @@ export const countUpSchema = z.object({
   snappy: z.boolean().default(false).describe("Use the snappier spring for the count instead of the smooth one."),
   x: z.number().default(0).describe("Pixel translate on the x axis for placement."),
   y: z.number().default(0).describe("Pixel translate on the y axis for placement."),
+  placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
 })
 
 export type CountUpSchemaProps = z.infer<typeof countUpSchema>

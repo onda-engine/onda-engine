@@ -161,10 +161,32 @@ const PLACEMENT_COORDS: Record<string, [number, number]> = {
   'lower-third': [0.5, 0.72],
 }
 
-// Components that consume `placement` THEMSELVES (anchoring their own assembly to
-// a canvas corner) — the bridge must NOT also shift them, or placement applies
-// twice and they fly off-canvas.
-const SELF_ANCHORING = new Set(['LowerThird', 'Callout'])
+// Components that consume `placement` THEMSELVES (the shared placement contract
+// in @onda/components, or their own legacy anchoring) — the bridge must NOT also
+// shift them, or placement applies twice and they fly off-canvas. Every
+// component migrated onto `usePlacement`/`PlacementShift` belongs here.
+const SELF_ANCHORING = new Set([
+  'LowerThird',
+  'Callout',
+  'BlurReveal',
+  'Button',
+  'Captions',
+  'ChapterCard',
+  'CountUp',
+  'EndCard',
+  'InputField',
+  'KineticText',
+  'MaskReveal',
+  'MatrixDecode',
+  'PricingCard',
+  'QuoteCard',
+  'SlotMachineRoll',
+  'StatCard',
+  'Terminal',
+  'TextAnimator',
+  'TitleCard',
+  'Typewriter',
+])
 
 /** Centre→anchor pixel offset for an entry's `placement` prop (string slug or
  *  `{x,y}` fractions). Returns `[0,0]` for centre / unknown. */

@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { placementSchema } from '../placement.js'
 
 export const terminalSchema = z.object({
   command: z.string().default('npx ondajs add code-block').describe("The command that types itself out after the prompt."),
@@ -24,6 +25,7 @@ export const terminalSchema = z.object({
   cornerRadius: z.number().optional().describe("Window corner radius in px (default: theme radius)."),
   x: z.number().optional().describe("Absolute x of the window's top-left; defaults to horizontally centered."),
   y: z.number().optional().describe("Absolute y of the window's top-left; defaults to vertically centered."),
+  placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
 })
 
 export type TerminalSchemaProps = z.infer<typeof terminalSchema>

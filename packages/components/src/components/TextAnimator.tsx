@@ -23,8 +23,8 @@
 //! measures against the default and may drift from the render.
 
 import {
-  type SpringConfig,
   Group,
+  type SpringConfig,
   Text,
   interpolate,
   interpolateColors,
@@ -34,6 +34,7 @@ import {
 } from '@onda/react'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
+import { type Placement, usePlacement } from '../placement.js'
 import { glyphLayout, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
@@ -92,8 +93,12 @@ export interface TextAnimatorProps {
   fontFamily?: string
   /** Font weight (display default 600). */
   fontWeight?: number
-  /** Horizontal alignment of each line about the canvas center (default `'center'`). */
+  /** Horizontal alignment of each line about the placement anchor (default `'center'`). */
   align?: 'left' | 'center' | 'right'
+  /** Where the text block sits: a region keyword (`'center'`, `'lower-third'`,
+   *  …) or normalized `{x,y}` (0–1, block center). The shared placement
+   *  contract; default `'center'` (the historical centering). */
+  placement?: Placement
 }
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
@@ -139,9 +144,10 @@ export function TextAnimator({
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   align = 'center',
+  placement,
 }: TextAnimatorProps) {
   const frame = useCurrentFrame()
-  const { fps, width, height } = useVideoConfig()
+  const { fps } = useVideoConfig()
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
@@ -208,15 +214,22 @@ export function TextAnimator({
   })
 
   const n = placed.length
-  const anchorX = Math.round(width / 2)
+  // Anchor the block on the shared placement contract (block CENTER at the
+  // resolved point; corner regions sit flush on the safe margin). The default
+  // `'center'` reproduces the historical canvas-centering exactly.
+  const blockWidth = lineWidths.length > 0 ? Math.max(...lineWidths) : 0
+  const blockHeight = (lines.length - 1) * lineHeight + fontSize * 1.2
+  const resolved = usePlacement(placement, { width: blockWidth, height: blockHeight })
+  const anchorX = Math.round(resolved.x)
   const startXOf = (lineIndex: number) => {
     const lw = lineWidths[lineIndex] ?? 0
     return align === 'center' ? anchorX - lw / 2 : align === 'right' ? anchorX - lw : anchorX
   }
-  // Center the whole block vertically; one line reduces to KineticText's baseline.
+  // Center the whole block vertically about the anchor; one line reduces to
+  // KineticText's baseline.
   const blockOffset = ((lines.length - 1) * lineHeight) / 2
   const baseYOf = (lineIndex: number) =>
-    Math.round(height / 2 - fontSize * 0.6) + lineIndex * lineHeight - blockOffset
+    Math.round(resolved.y - fontSize * 0.6) + lineIndex * lineHeight - blockOffset
 
   return (
     <Group>
@@ -225,7 +238,15 @@ export function TextAnimator({
         const local = Math.max(0, frame - delay - staggerFrames(order, stagger))
         const progress = springConfig
           ? spring({ frame: local, fps, config: springConfig, durationInFrames })
-          : interpolate(frame, [delay + staggerFrames(order, stagger), delay + staggerFrames(order, stagger) + durationInFrames], [0, 1], { ...CLAMP, easing: ease })
+          : interpolate(
+              frame,
+              [
+                delay + staggerFrames(order, stagger),
+                delay + staggerFrames(order, stagger) + durationInFrames,
+              ],
+              [0, 1],
+              { ...CLAMP, easing: ease },
+            )
 
         const at = (p: Pair | undefined, fallback: number) =>
           p ? interpolate(progress, [0, 1], p, CLAMP) : fallback

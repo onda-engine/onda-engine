@@ -54,6 +54,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
+import { type Placement, usePlacement } from '../placement.js'
 import { useTheme } from '../theme.js'
 
 /** Estimated cell advance as a fraction of font size — the per-character column
@@ -90,12 +91,18 @@ export interface SlotMachineRollProps {
   fontWeight?: number
   /** Italic glyphs. */
   italic?: boolean
-  /** Horizontal anchoring of the whole block (default `'center'`). */
+  /** Horizontal anchoring of the whole block (default `'center'`). Only applies
+   *  to the legacy `x` anchor — `placement` always anchors the block's center. */
   align?: 'left' | 'center' | 'right'
-  /** Absolute x of the block's anchor. Defaults to the canvas horizontal center
-   *  (respecting `align`). */
+  /** Where the row sits: a region keyword (`'center'`, `'lower-third'`,
+   *  `'top-left'`, …) or normalized `{x,y}` (0–1, block center). The shared
+   *  placement contract; default `'center'`. */
+  placement?: Placement
+  /** @deprecated Legacy alias — absolute x of the block's anchor in px
+   *  (respecting `align`). Prefer `placement`. */
   x?: number
-  /** Absolute y of the block's top. Defaults to vertically centering the row. */
+  /** @deprecated Legacy alias — absolute y of the block's top in px. Prefer
+   *  `placement`. */
   y?: number
 }
 
@@ -113,6 +120,7 @@ export function SlotMachineRoll({
   fontWeight = 600,
   italic = false,
   align = 'center',
+  placement,
   x,
   y,
 }: SlotMachineRollProps) {
@@ -138,13 +146,20 @@ export function SlotMachineRoll({
   })
   const totalWidth = cursor
 
-  // Anchor the block. `align` decides which edge `x` pins; default centers it on
-  // the canvas. `y` defaults to vertically centering the single row of cells.
-  const defaultCenterX = width / 2
-  const anchorX = x ?? defaultCenterX
+  // Anchor the block on the shared placement contract (block CENTER at the
+  // resolved point; corner regions sit flush on the safe margin). Legacy px
+  // `x`/`y` win per-axis when given: `align` decides which edge `x` pins, `y`
+  // pins the block's top — exactly the pre-placement behavior.
+  const resolved = usePlacement(placement, { width: totalWidth, height: cell })
   const originX =
-    align === 'left' ? anchorX : align === 'right' ? anchorX - totalWidth : anchorX - totalWidth / 2
-  const originY = y ?? Math.round(height / 2 - cell / 2)
+    x !== undefined
+      ? align === 'left'
+        ? x
+        : align === 'right'
+          ? x - totalWidth
+          : x - totalWidth / 2
+      : resolved.originX
+  const originY = y ?? Math.round(resolved.originY)
 
   const local = frame - delay
 

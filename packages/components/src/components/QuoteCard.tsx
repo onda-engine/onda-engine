@@ -35,6 +35,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER } from '../motion.js'
+import { type Placement, PlacementShift } from '../placement.js'
 import { useTheme } from '../theme.js'
 import { FadeIn } from './FadeIn.js'
 import { WordStagger } from './WordStagger.js'
@@ -81,6 +82,10 @@ export interface QuoteCardProps {
    *  (the ondajs `40vw` pull-quote feel), so long quotes wrap onto multiple
    *  lines. */
   quoteWidth?: number
+  /** Where the card sits: a region keyword (`'center'`, `'lower-third'`, ...) or
+   *  normalized `{x,y}` (0-1, card center). The shared placement contract;
+   *  default `'center'` (the historical self-centering). */
+  placement?: Placement
 }
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
@@ -100,6 +105,7 @@ export function QuoteCard({
   accentColor: accentColorProp,
   fontFamily: fontFamilyProp,
   quoteWidth,
+  placement,
 }: QuoteCardProps) {
   const frame = useCurrentFrame()
   const { fps, width } = useVideoConfig()
@@ -137,57 +143,61 @@ export function QuoteCard({
   const dividerRevealed = interpolate(dividerProgress, [0, 1], [0, DIVIDER_WIDTH], CLAMP)
 
   return (
-    <AbsoluteFill justify="center" align="center">
-      <Flex direction="column" align="center" gap={32}>
-        {/* Quote — words stagger in slowly so the line reads. WordStagger's
+    // The flex column self-centers; PlacementShift moves the centered stack by
+    // the center->placement delta (no-op for the default 'center').
+    <PlacementShift placement={placement}>
+      <AbsoluteFill justify="center" align="center">
+        <Flex direction="column" align="center" gap={32}>
+          {/* Quote — words stagger in slowly so the line reads. WordStagger's
             wrapping Flex wraps long quotes within `quoteWidth`. */}
-        <WordStagger
-          text={quote}
-          delay={delay}
-          stagger={QUOTE_STAGGER}
-          justify="center"
-          color={color}
-          fontSize={quoteFontSize}
-          fontFamily={fontFamily}
-          fontWeight={quoteFontWeight}
-          width={resolvedQuoteWidth}
-        />
+          <WordStagger
+            text={quote}
+            delay={delay}
+            stagger={QUOTE_STAGGER}
+            justify="center"
+            color={color}
+            fontSize={quoteFontSize}
+            fontFamily={fontFamily}
+            fontWeight={quoteFontWeight}
+            width={resolvedQuoteWidth}
+          />
 
-        {/* Divider — accent rule that draws in from the left. Skipped entirely
+          {/* Divider — accent rule that draws in from the left. Skipped entirely
             when `accent` is false; the column gap still keeps the layout
             breathing. The full-size Rect reserves the slot; the clip reveals
             it. */}
-        {accent ? (
-          <Group clip={clipRect(dividerRevealed, DIVIDER_HEIGHT)}>
-            <Rect width={DIVIDER_WIDTH} height={DIVIDER_HEIGHT} fill={accentColor} />
-          </Group>
-        ) : null}
+          {accent ? (
+            <Group clip={clipRect(dividerRevealed, DIVIDER_HEIGHT)}>
+              <Rect width={DIVIDER_WIDTH} height={DIVIDER_HEIGHT} fill={accentColor} />
+            </Group>
+          ) : null}
 
-        {/* Attribution — author + role fade in together after the divider; the
+          {/* Attribution — author + role fade in together after the divider; the
             role sits dim beneath the author in the same centered column. */}
-        <Flex direction="column" align="center" gap={4}>
-          <FadeIn delay={attributionDelay}>
-            <Text
-              fontSize={authorFontSize}
-              color={color}
-              fontFamily={fontFamily}
-              fontWeight={authorFontWeight}
-            >
-              {author}
-            </Text>
-          </FadeIn>
-          <FadeIn delay={attributionDelay}>
-            <Text
-              fontSize={authorFontSize}
-              color={authorColor}
-              fontFamily={fontFamily}
-              fontWeight={authorFontWeight}
-            >
-              {role}
-            </Text>
-          </FadeIn>
+          <Flex direction="column" align="center" gap={4}>
+            <FadeIn delay={attributionDelay}>
+              <Text
+                fontSize={authorFontSize}
+                color={color}
+                fontFamily={fontFamily}
+                fontWeight={authorFontWeight}
+              >
+                {author}
+              </Text>
+            </FadeIn>
+            <FadeIn delay={attributionDelay}>
+              <Text
+                fontSize={authorFontSize}
+                color={authorColor}
+                fontFamily={fontFamily}
+                fontWeight={authorFontWeight}
+              >
+                {role}
+              </Text>
+            </FadeIn>
+          </Flex>
         </Flex>
-      </Flex>
-    </AbsoluteFill>
+      </AbsoluteFill>
+    </PlacementShift>
   )
 }

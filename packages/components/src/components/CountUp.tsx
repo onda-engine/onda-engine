@@ -16,6 +16,8 @@
 import { Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH, SPRING_SNAPPY } from '../motion.js'
+import { type Placement, usePlacement } from '../placement.js'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
 export interface CountUpProps {
@@ -47,8 +49,16 @@ export interface CountUpProps {
   /** Use the snappier spring (`SPRING_SNAPPY`) for the count (default `false`,
    *  i.e. `SPRING_SMOOTH` — matches ondajs). */
   snappy?: boolean
-  /** Pixel translate for placement. */
+  /** Where the counter sits: a region keyword (`'center'`, `'lower-third'`, …)
+   *  or normalized `{x,y}` (0–1, anchored at the FINAL value's measured
+   *  center, so the line never slides as it counts). The shared placement
+   *  contract. Omitted → the legacy origin-relative `x`/`y` translate. */
+  placement?: Placement
+  /** @deprecated Legacy — pixel translate from the local origin. Prefer
+   *  `placement`. */
   x?: number
+  /** @deprecated Legacy — pixel translate from the local origin. Prefer
+   *  `placement`. */
   y?: number
 }
 
@@ -88,6 +98,7 @@ export function CountUp({
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   snappy = false,
+  placement,
   x = 0,
   y = 0,
 }: CountUpProps) {
@@ -125,10 +136,19 @@ export function CountUp({
 
   const formatted = formatNumber(value, decimals, useGrouping)
 
+  // Shared placement contract, anchored on the FINAL value's measured width so
+  // the line never slides sideways as digits count up. Without `placement` the
+  // legacy origin-relative `x`/`y` translate applies unchanged.
+  const finalText = `${prefix}${formatNumber(to, decimals, useGrouping)}${suffix}`
+  const measured = useTextMetrics(finalText, fontSize, { fontFamily, fontWeight })
+  const resolved = usePlacement(placement, { width: measured.width, height: fontSize * 1.2 })
+  const px = placement !== undefined ? Math.round(resolved.originX) : x
+  const py = placement !== undefined ? Math.round(resolved.y - fontSize * 0.6) : y
+
   return (
     <Text
-      x={x}
-      y={y}
+      x={px}
+      y={py}
       opacity={opacity}
       color={color}
       fontSize={fontSize}

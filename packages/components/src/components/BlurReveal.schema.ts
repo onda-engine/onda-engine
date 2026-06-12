@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { placementSchema } from '../placement.js'
 
 export const blurRevealSchema = z.object({
   text: z.string().default('Onda').describe('What to reveal. Rendered as a single-line Text node.'),
@@ -20,10 +21,11 @@ export const blurRevealSchema = z.object({
   fontSize: z.number().default(96).describe('Text size in px.'),
   fontFamily: z.string().optional().describe('Loaded font family; defaults to theme fontFamily.'),
   fontWeight: z.number().default(600).describe('Font weight (display default 600).'),
-  placement: z
-    .enum(['center', 'top', 'bottom'])
+  placement: placementSchema
     .default('center')
-    .describe('Vertical placement within the composition.'),
+    .describe(
+      "Where the reveal sits - the shared placement contract (region keyword or normalized {x,y}). Legacy 'top'/'bottom' keep their historical edge-flush meaning.",
+    ),
   travelPx: z.number().default(16).describe('Rise distance in px (small on purpose).'),
   fromBlur: z
     .number()

@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { placementSchema } from '../placement.js'
 
 export const maskRevealSchema = z.object({
   text: z.string().default('Onda').describe("The single line of text to reveal."),
@@ -17,6 +18,7 @@ export const maskRevealSchema = z.object({
   italic: z.boolean().default(false).describe("Render the text in italic."),
   width: z.number().optional().describe("Clip-box width in px; otherwise estimated from the measured text."),
   height: z.number().optional().describe("Clip-box height in px; otherwise fontSize times 1.2."),
+  placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
 })
 
 export type MaskRevealSchemaProps = z.infer<typeof maskRevealSchema>

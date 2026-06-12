@@ -72,8 +72,16 @@ export interface CaptionsProps {
   /** Text alignment of the caption block within its line(s). */
   align?: 'left' | 'center' | 'right'
   /** Vertical placement band of the block. Captions sit in the lower third by
-   *  default; `'center'`/`'top'`/`'upper-third'`/`'bottom'` reposition it. */
-  placement?: 'center' | 'top' | 'bottom' | 'upper-third' | 'lower-third'
+   *  default; `'center'`/`'top'`/`'upper-third'`/`'bottom'` reposition it (the
+   *  historical band values). A normalized `{x,y}` point (0-1, line center) is
+   *  also accepted per the shared placement contract. */
+  placement?:
+    | 'center'
+    | 'top'
+    | 'bottom'
+    | 'upper-third'
+    | 'lower-third'
+    | { x?: number; y?: number }
   /** Max line width as a 0–1 fraction of canvas width — the block wraps within
    *  this (default 0.8). */
   maxWidth?: number
@@ -88,7 +96,10 @@ const DEFAULT_CAPTIONS: CaptionEntry[] = [
 // Vertical placement → the caption baseline-band centre as a 0–1 fraction of
 // canvas height. `lower-third` (the broadcast subtitle position, ~0.78) is the
 // default; the others reposition the band toward an edge or centre.
-const PLACEMENT_TO_BAND: Record<NonNullable<CaptionsProps['placement']>, number> = {
+const PLACEMENT_TO_BAND: Record<
+  'center' | 'top' | 'bottom' | 'upper-third' | 'lower-third',
+  number
+> = {
   top: 0.12,
   'upper-third': 0.22,
   center: 0.5,
@@ -171,13 +182,19 @@ export function Captions({
   // so left/right placements never kiss the frame edge.
   const margin = Math.round((width * (1 - Math.max(0, Math.min(1, maxWidth)))) / 2)
   const cx =
-    align === 'left'
-      ? margin + lineWidth / 2
-      : align === 'right'
-        ? width - margin - lineWidth / 2
-        : width / 2
-  // Vertical anchor: the placement band centre (lower-third ≈ 0.78 by default).
-  const cy = height * PLACEMENT_TO_BAND[placement]
+    typeof placement === 'object' && placement.x !== undefined
+      ? placement.x * width
+      : align === 'left'
+        ? margin + lineWidth / 2
+        : align === 'right'
+          ? width - margin - lineWidth / 2
+          : width / 2
+  // Vertical anchor: the placement band centre (lower-third ≈ 0.78 by default,
+  // the broadcast subtitle position), or a normalized point's y.
+  const cy =
+    typeof placement === 'object'
+      ? (placement.y ?? 0.5) * height
+      : height * PLACEMENT_TO_BAND[placement]
 
   return (
     // The Group sits at the band anchor; the words are placed from the line's
