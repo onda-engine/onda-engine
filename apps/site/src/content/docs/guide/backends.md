@@ -21,36 +21,40 @@ It renders offscreen and reads the frame back into a framebuffer, so the existin
 
 ## CPU — the deterministic reference
 
-`onda-renderer` is the CPU reference rasterizer. It walks the scene and produces an in-memory RGBA8 framebuffer with **no GPU**, deliberately dependency-light, so the scene-graph → pixels *contract* can be pinned down and tested. It is the **correctness oracle** the GPU backend is checked against.
+`onda-renderer` is the CPU reference rasterizer, built on **tiny-skia** (the Skia raster pipeline) + kurbo — no GPU, deliberately dependency-light, so the scene-graph → pixels *contract* can be pinned down and tested. It is the **correctness oracle** the GPU backend is checked against, and it is far from a toy: across the bulk of the surface it is **byte-identical to Vello**.
 
-It is intentionally limited. The CPU backend draws:
+The CPU backend draws, matching Vello pixel-for-pixel:
 
-- Filled **rectangles** and **ellipses** (square corners only)
-- **Text**, composited from `onda-typography` coverage masks
+- **Anti-aliased fills _and_ strokes** (cap / join / dash)
+- **Real rounded rectangles** (`cornerRadius`)
+- **Arbitrary Bézier paths** (`<Path>`)
+- **Linear & radial gradients**
+- **Native text** and **images**
+- The full per-pixel **[effect chain](/guide/effects)** — blur, directional blur, bloom, color-grade, grain, duotone, posterize, vignette, chromatic aberration, goo, chroma-key, backdrop-blur, and **mattes**
 
-And it **does not** draw:
+A narrow set is **GPU (Vello) only** — the CPU reference skips it or degrades:
 
-- **Anti-aliasing** — hard (aliased) edges
-- **Strokes**
-- **Paths** (`<Path>`) — skipped entirely
-- **Gradients** — falls back to the **first stop's color**
-- **Clips** — ignored
-- **Rounded corners** — `cornerRadius` is ignored
+- **Rotation** (`rotation` / `rotation3d`) — ignored
+- **Clipping** (`clip`) — ignored; use a **`matte`** instead, which the CPU honors
+- **Blend modes** (`blendMode`) — composite as Normal
+- **Per-run rich text** and `letterSpacing` — drawn in the node's base style
+- **3D** out-of-plane tilt and **`extrude`** — degrade to a flat 2.5D composite
+- **light-wrap**, the cinematic **`finish` / `linear`** and **motion blur** — export/native only on *either* backend
 
 ## Which to use
 
-| You want…                                         | Use            |
-| ------------------------------------------------- | -------------- |
-| Highest visual quality (AA, paths, gradients, clips, crisp text) | **`vello`** |
+| You want…                                          | Use            |
+| -------------------------------------------------- | -------------- |
+| Rotation, clipping, blend modes, true 3D / extrude | **`vello`** |
 | Bit-identical, reproducible output across machines | **`cpu`** (bundled font) |
-| Sensible default that picks the GPU when present   | **`auto`** (the default) |
+| A sensible default that picks the GPU when present | **`auto`** (the default) |
 
 ## The determinism caveat
 
 The CPU backend is **bit-identical** across runs and machines when using the bundled default font — which is why it's the reference oracle and the right pick for reproducible pipelines. Passing `--system-fonts` uses the host's fonts and makes CPU output machine-dependent.
 
-The GPU (Vello) backend gives far better quality but is **not guaranteed bit-identical** across different GPUs and drivers. If you need reproducibility, render on the CPU; if you need quality and have a GPU, render with Vello.
+The GPU (Vello) backend is **not guaranteed bit-identical** across different GPUs and drivers. If you need reproducibility, render on the CPU; if you need rotation/clip/blend/3D or have a GPU, render with Vello.
 
 :::caution[Backend-specific features]
-`<Path>`, `gradient`, `clip`, `stroke`, `cornerRadius`, and anti-aliased text are **GPU-only** today. If you render a path-only scene on the CPU backend, the canvas stays transparent. The `auto` default sidesteps this whenever a GPU is present.
+**Rotation, `clip`, `blendMode`, out-of-plane 3D tilt and `extrude` are GPU-only** — on the CPU backend they're ignored or degrade to a flat composite. *Everything else* — fills, strokes, paths, gradients, rounded corners, anti-aliased text, images, and the full [effect chain](/guide/effects) — renders **identically** on both. The `auto` default picks the GPU whenever one is present.
 :::

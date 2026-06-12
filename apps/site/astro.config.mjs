@@ -78,6 +78,15 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Capabilities',
+          items: [
+            { label: 'Effects & finishing', link: '/guide/effects' },
+            { label: '3D — Scene3D & extrude', link: '/guide/3d' },
+            { label: 'Audio — spectrum, beats, synth', link: '/guide/audio' },
+            { label: 'Media — Image & Video', link: '/guide/media' },
+          ],
+        },
+        {
           label: 'Reference',
           items: [{ label: 'Architecture', link: '/guide/architecture' }],
         },

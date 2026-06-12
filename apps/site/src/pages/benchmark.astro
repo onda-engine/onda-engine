@@ -1,0 +1,1576 @@
+---
+// ONDA benchmark — the proof page. A standalone static page in the landing's
+// design language (shares the .onda-landing token system, nav and footer). All
+// numbers are synced to the repository suite (apps/benchmark/README.md): an
+// apples-to-apples render of an equivalent 1080p composition on one machine,
+// scaled from a trivial scene (1 cluster / 6 nodes) to a complex one (40
+// clusters / 201 nodes). Higher fps is better.
+const REPO = 'https://github.com/degueba/onda-engine'
+const BENCH = `${REPO}/tree/main/apps/benchmark`
+const STUDIO_URL = 'https://studio.onda.video'
+const year = new Date().getFullYear()
+
+// --- Data (Apple M4 Pro, 1920×1080, 120 frames; one warm-up). fps; higher = better.
+type Row = { label: string; fps: number; ms: number; kind: 'onda' | 'remotion'; best?: boolean }
+
+// Raster throughput — draw only (no encode).
+const rasterTrivial: Row[] = [
+  { label: 'ONDA · CPU (all cores)', fps: 865.6, ms: 1.16, kind: 'onda' },
+  { label: 'ONDA · GPU (Vello)', fps: 298.0, ms: 3.36, kind: 'onda', best: true },
+  { label: 'ONDA · CPU (1 thread)', fps: 101.8, ms: 9.82, kind: 'onda' },
+  { label: 'Remotion · default pool', fps: 85.5, ms: 11.69, kind: 'remotion' },
+  { label: 'Remotion · 1 worker', fps: 26.8, ms: 37.3, kind: 'remotion' },
+]
+const rasterComplex: Row[] = [
+  { label: 'ONDA · GPU (Vello)', fps: 217.4, ms: 4.6, kind: 'onda', best: true },
+  { label: 'ONDA · CPU (all cores)', fps: 116.3, ms: 8.6, kind: 'onda' },
+  { label: 'Remotion · default pool', fps: 56.7, ms: 17.63, kind: 'remotion' },
+  { label: 'Remotion · 1 worker', fps: 25.7, ms: 38.88, kind: 'remotion' },
+  { label: 'ONDA · CPU (1 thread)', fps: 11.7, ms: 85.32, kind: 'onda' },
+]
+// Full pipeline — render + readback + encode → mp4 (the number an export costs).
+const exportTrivial: Row[] = [
+  { label: 'ONDA · Vello + libx264', fps: 145.8, ms: 6.86, kind: 'onda', best: true },
+  { label: 'ONDA · Vello + HW encode', fps: 98.7, ms: 10.13, kind: 'onda' },
+  { label: 'Remotion · default pool', fps: 83.9, ms: 11.93, kind: 'remotion' },
+  { label: 'Remotion · 1 worker', fps: 26.9, ms: 37.24, kind: 'remotion' },
+]
+const exportComplex: Row[] = [
+  { label: 'ONDA · Vello + libx264', fps: 107.6, ms: 9.29, kind: 'onda', best: true },
+  { label: 'ONDA · Vello + HW encode', fps: 80.5, ms: 12.42, kind: 'onda' },
+  { label: 'Remotion · default pool', fps: 58.9, ms: 16.98, kind: 'remotion' },
+  { label: 'Remotion · 1 worker', fps: 26.1, ms: 38.24, kind: 'remotion' },
+]
+const maxOf = (rows: Row[]) => Math.max(...rows.map((r) => r.fps))
+const charts = [
+  { id: 'raster-trivial', rows: rasterTrivial },
+  { id: 'raster-complex', rows: rasterComplex },
+  { id: 'export-trivial', rows: exportTrivial },
+  { id: 'export-complex', rows: exportComplex },
+]
+const maxes = Object.fromEntries(charts.map((c) => [c.id, maxOf(c.rows)]))
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ONDA — Benchmark: GPU-native vs the browser pipeline</title>
+    <meta
+      name="description"
+      content="Apples-to-apples render benchmarks: ONDA's GPU-native pipeline vs Remotion's headless-browser pipeline, on the same machine, same scene, same encoder. Reproducible."
+    />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0e0e12" />
+    {/* Inline (not bundled) so the dark canvas paints on the very first frame —
+        prevents a background flash on reload before the scoped CSS loads. */}
+    <style is:inline>
+      html,
+      body {
+        margin: 0;
+        background: #0e0e12;
+      }
+    </style>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ONDA — Benchmark: GPU-native vs the browser pipeline" />
+    <meta
+      property="og:description"
+      content="Apples-to-apples render benchmarks against Remotion — same machine, same scene, same encoder. Reproducible."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script is:inline>
+      if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.documentElement.classList.add('anim')
+      }
+    </script>
+    <script>
+      if (import.meta.env.DEV) import('react-grab')
+    </script>
+  </head>
+  <body>
+    <div class="onda-landing">
+      <a class="skip-link" href="#main">Skip to content</a>
+      <div class="scroll-rail" aria-hidden="true"><span class="scroll-rail__fill"></span></div>
+      <div class="atmos" aria-hidden="true">
+        <span class="atmos__blob atmos__blob--rose"></span>
+        <span class="atmos__blob atmos__blob--violet"></span>
+        <span class="atmos__blob atmos__blob--deep"></span>
+      </div>
+
+      <!-- ============ STICKY NAV ============ -->
+      <header class="nav" id="site-nav">
+        <div class="container nav__inner">
+          <a class="brand" href="/" aria-label="ONDA — home">
+            <img class="brand__mark-img" src="/onda-mark.svg" alt="" width="88" height="22" />
+            <span class="brand__word">ONDA</span>
+          </a>
+          <nav class="nav__links" id="nav-links" aria-label="Primary">
+            <a href="/#features">Features</a>
+            <a href="/components">Components</a>
+            <a href="/transitions">Transitions</a>
+            <a href="/effects">Effects</a>
+            <a href="/guide/introduction">Docs</a>
+            <a class="nav__studio-link" href={STUDIO_URL} rel="noopener">
+              <svg class="nav__studio-spark" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 6.6L20 10.5l-6.1 1.9L12 19l-1.9-6.6L4 10.5l6.1-1.9z"/></svg>
+              Studio
+            </a>
+          </nav>
+          <button class="nav__toggle" type="button" aria-expanded="false" aria-controls="nav-links" aria-label="Open menu">
+            <svg class="nav__toggle-bars" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+            <svg class="nav__toggle-x" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5 5 19"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <main id="main">
+        <!-- ============ INTRO ============ -->
+        <section class="bench-hero">
+          <div class="container">
+            <p class="eyebrow"><span class="eyebrow__tick">●</span> Benchmark</p>
+            <h1 class="bench-hero__title">ONDA vs Remotion, <span class="accent-text">measured</span>.</h1>
+            <p class="bench-hero__sub">
+              The same 1080p composition, rendered on the same machine, with the same encoder. ONDA
+              draws natively on the GPU; Remotion drives every frame through a headless browser. The
+              numbers below are from the repo's reproducible suite — higher fps is better.
+            </p>
+            <div class="bench-hero__actions">
+              <a class="btn btn--primary" href="#reproduce">Reproduce it ↓</a>
+              <a class="btn btn--ghost" href={BENCH} rel="noopener">
+                <svg class="btn__icon" width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+                </svg>
+                Benchmark source
+              </a>
+            </div>
+
+            <!-- The headline contrast that explains every chart below. -->
+            <div class="bench-headline">
+              <article class="bench-headline__card">
+                <p class="bench-headline__num" data-count="26" data-decimals="0" data-suffix=" fps">26 fps</p>
+                <p class="bench-headline__k">Remotion, per worker</p>
+                <p class="bench-headline__v">Holds ~26 fps whether the scene has <strong>6 nodes or 201</strong> — you pay the browser tax, not for the drawing.</p>
+              </article>
+              <article class="bench-headline__card bench-headline__card--us">
+                <p class="bench-headline__num"><span class="accent-text" data-count="217" data-decimals="0" data-suffix=" fps">217 fps</span></p>
+                <p class="bench-headline__k">ONDA GPU, the heavy scene</p>
+                <p class="bench-headline__v">Renders the <strong>33× heavier</strong> scene only 1.4× slower than trivial. Cost tracks the graphics, not the browser.</p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ METHODOLOGY (bento) ============ -->
+        <section class="section section--alt" aria-labelledby="method-title">
+          <div class="container">
+            <header class="section__head">
+              <p class="eyebrow">How it's measured</p>
+              <h2 id="method-title" class="section__title">Same scene. Same machine. Same encoder.</h2>
+              <p class="section__lede">
+                <code>onda-bench</code>'s <code>cluster(i)</code> and Remotion's <code>&lt;Cluster i&gt;</code>
+                use identical geometry and scatter formula, so the two stay directly comparable as the
+                scene scales from trivial to complex.
+              </p>
+            </header>
+            <ul class="bento" role="list">
+              <li class="bento__cell"><span class="bento__k">Apple M4 Pro</span><span class="bento__v">macOS, same machine for both</span></li>
+              <li class="bento__cell"><span class="bento__k">1920 × 1080</span><span class="bento__v">120 frames, one warm-up</span></li>
+              <li class="bento__cell"><span class="bento__k">libx264</span><span class="bento__v">identical encoder on both engines</span></li>
+              <li class="bento__cell bento__cell--wide"><span class="bento__k">The scene: a cluster</span><span class="bento__v">two translucent discs, an accent bar, a title and a subtitle. <code>repeats</code> scatters N identical clusters — from 1 (6 nodes) to 40 (201 nodes, heavy overdraw + 80 text runs).</span></li>
+              <li class="bento__cell"><span class="bento__k">Steady-state</span><span class="bento__v">measured after warm-up; small run-to-run variance</span></li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- ============ RASTER THROUGHPUT ============ -->
+        <section class="section" aria-labelledby="raster-title">
+          <div class="container">
+            <header class="section__head">
+              <p class="eyebrow">Raster throughput · draw only</p>
+              <h2 id="raster-title" class="section__title">Remotion's cost is flat. ONDA's tracks the scene.</h2>
+              <p class="section__lede">
+                Pure drawing throughput, before any encode. On a trivial scene ONDA already pulls
+                ahead; on a complex one the gap widens — because Remotion pays a fixed browser tax
+                per frame while ONDA only pays for what it actually draws.
+              </p>
+            </header>
+
+            <div class="chart-block">
+              <div class="chart-block__head">
+                <h3 class="chart-block__title">Trivial scene <span class="chart-block__meta">1 cluster · 6 nodes · Remotion's best case</span></h3>
+                <span class="chart-legend"><i class="chart-legend__sw chart-legend__sw--onda"></i>ONDA<i class="chart-legend__sw chart-legend__sw--them"></i>Remotion</span>
+              </div>
+              <div class="chart" id="raster-trivial" role="list" aria-label="Trivial scene render throughput, frames per second">
+                {rasterTrivial.map((r) => (
+                  <div class="bar" style={`--w:${r.fps / maxes['raster-trivial']}`} role="listitem" aria-label={`${r.label}: ${r.fps} frames per second`}>
+                    <span class="bar__name">{r.label}</span>
+                    <div class="bar__track"><span class={`bar__fill ${r.kind === 'onda' ? 'bar__fill--onda' : 'bar__fill--them'}${r.best ? ' is-best' : ''}`}></span></div>
+                    <span class="bar__val" data-count={r.fps} data-decimals="1" data-suffix=" fps">{r.fps.toFixed(1)} fps</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div class="chart-block">
+              <div class="chart-block__head">
+                <h3 class="chart-block__title">Complex scene <span class="chart-block__meta">40 clusters · 201 nodes · heavy overdraw</span></h3>
+                <span class="chart-legend"><i class="chart-legend__sw chart-legend__sw--onda"></i>ONDA<i class="chart-legend__sw chart-legend__sw--them"></i>Remotion</span>
+              </div>
+              <div class="chart" id="raster-complex" role="list" aria-label="Complex scene render throughput, frames per second">
+                {rasterComplex.map((r) => (
+                  <div class="bar" style={`--w:${r.fps / maxes['raster-complex']}`} role="listitem" aria-label={`${r.label}: ${r.fps} frames per second`}>
+                    <span class="bar__name">{r.label}</span>
+                    <div class="bar__track"><span class={`bar__fill ${r.kind === 'onda' ? 'bar__fill--onda' : 'bar__fill--them'}${r.best ? ' is-best' : ''}`}></span></div>
+                    <span class="bar__val" data-count={r.fps} data-decimals="1" data-suffix=" fps">{r.fps.toFixed(1)} fps</span>
+                  </div>
+                ))}
+              </div>
+              <p class="chart-note">
+                Honest caveat: ONDA's <strong>CPU</strong> reference rasterizer is software and
+                overdraw-bound, so it falls behind on heavy scenes — use the GPU path for those. The
+                GPU renders the 33×-heavier scene only 1.4× slower than trivial.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ FULL EXPORT ============ -->
+        <section class="section section--alt" aria-labelledby="export-title">
+          <div class="container">
+            <header class="section__head">
+              <p class="eyebrow">Full pipeline · render → MP4</p>
+              <h2 id="export-title" class="section__title">What an export actually costs</h2>
+              <p class="section__lede">
+                End-to-end: GPU render, readback, and the same <code>libx264</code> encode both engines
+                use. One single-threaded ONDA process still beats Remotion's whole multi-worker pool.
+              </p>
+            </header>
+
+            <div class="chart-block">
+              <div class="chart-block__head">
+                <h3 class="chart-block__title">Trivial scene <span class="chart-block__meta">1 cluster · full export → mp4</span></h3>
+                <span class="chart-legend"><i class="chart-legend__sw chart-legend__sw--onda"></i>ONDA<i class="chart-legend__sw chart-legend__sw--them"></i>Remotion</span>
+              </div>
+              <div class="chart" id="export-trivial" role="list" aria-label="Trivial scene full export throughput, frames per second">
+                {exportTrivial.map((r) => (
+                  <div class="bar" style={`--w:${r.fps / maxes['export-trivial']}`} role="listitem" aria-label={`${r.label}: ${r.fps} frames per second`}>
+                    <span class="bar__name">{r.label}</span>
+                    <div class="bar__track"><span class={`bar__fill ${r.kind === 'onda' ? 'bar__fill--onda' : 'bar__fill--them'}${r.best ? ' is-best' : ''}`}></span></div>
+                    <span class="bar__val" data-count={r.fps} data-decimals="1" data-suffix=" fps">{r.fps.toFixed(1)} fps</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div class="chart-block">
+              <div class="chart-block__head">
+                <h3 class="chart-block__title">Complex scene <span class="chart-block__meta">40 clusters · full export → mp4</span></h3>
+                <span class="chart-legend"><i class="chart-legend__sw chart-legend__sw--onda"></i>ONDA<i class="chart-legend__sw chart-legend__sw--them"></i>Remotion</span>
+              </div>
+              <div class="chart" id="export-complex" role="list" aria-label="Complex scene full export throughput, frames per second">
+                {exportComplex.map((r) => (
+                  <div class="bar" style={`--w:${r.fps / maxes['export-complex']}`} role="listitem" aria-label={`${r.label}: ${r.fps} frames per second`}>
+                    <span class="bar__name">{r.label}</span>
+                    <div class="bar__track"><span class={`bar__fill ${r.kind === 'onda' ? 'bar__fill--onda' : 'bar__fill--them'}${r.best ? ' is-best' : ''}`}></span></div>
+                    <span class="bar__val" data-count={r.fps} data-decimals="1" data-suffix=" fps">{r.fps.toFixed(1)} fps</span>
+                  </div>
+                ))}
+              </div>
+              <p class="chart-note">
+                With libx264 on both, one ONDA process exports <strong>~5.4×</strong> faster than a
+                Remotion worker on the trivial scene and <strong>~4.1×</strong> on the complex one —
+                and ~1.7–1.8× faster than Remotion's whole pool, single-threaded. Hardware encode is
+                <em>slower</em> here: VideoToolbox's per-call overhead loses to libx264 on short clips
+                (it pays off at 4K / long renders), so libx264 stays the portable default.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ THE 100x TRAJECTORY ============ -->
+        <section class="section" aria-labelledby="traj-title">
+          <div class="container">
+            <header class="section__head">
+              <p class="eyebrow">The trajectory</p>
+              <h2 id="traj-title" class="section__title">Measured multiples today. A 100× architectural ceiling.</h2>
+              <p class="section__lede">
+                The per-thread gap already grows with scene complexity. The <strong>100×</strong> figure
+                is the realized goal on real workloads — it comes from what this microbenchmark doesn't
+                capture: cold-start (ONDA ~ms vs a Chromium launch + bundle + warmup), a real-time GPU
+                present, and offloaded codec work. It's a target, not a single-scene result.
+              </p>
+            </header>
+            <ol class="traj" aria-label="Performance trajectory from measured to target">
+              <li class="traj__step">
+                <span class="traj__num">3.8×</span>
+                <span class="traj__k">trivial scene</span>
+                <span class="traj__v">per thread · ONDA CPU vs a Remotion worker</span>
+              </li>
+              <li class="traj__arrow" aria-hidden="true">→</li>
+              <li class="traj__step">
+                <span class="traj__num">8.5×</span>
+                <span class="traj__k">complex scene</span>
+                <span class="traj__v">per thread · ONDA GPU vs a Remotion worker</span>
+              </li>
+              <li class="traj__arrow" aria-hidden="true">→</li>
+              <li class="traj__step traj__step--target">
+                <span class="traj__num traj__num--target">100×</span>
+                <span class="traj__tag">target</span>
+                <span class="traj__k">architectural ceiling</span>
+                <span class="traj__v">complex × GPU present × cold-start × concurrency — not a single benchmark</span>
+              </li>
+            </ol>
+          </div>
+        </section>
+
+        <!-- ============ REPRODUCE ============ -->
+        <section class="section section--alt" id="reproduce" aria-labelledby="repro-title">
+          <div class="container">
+            <header class="section__head">
+              <p class="eyebrow">Reproduce</p>
+              <h2 id="repro-title" class="section__title">Run it yourself</h2>
+              <p class="section__lede">
+                No performance claim without a benchmark. The full harness lives in the repo — clone it
+                and run both engines on your own hardware.
+              </p>
+            </header>
+            <figure class="code-card" aria-label="Commands to run the ONDA and Remotion benchmarks">
+              <figcaption class="code-card__bar">
+                <span class="code-card__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="code-card__file">benchmark</span>
+                <button class="code-card__copy" type="button" data-copy="bench-code" aria-label="Copy commands to clipboard">Copy</button>
+              </figcaption>
+              <pre class="code-card__pre"><code id="bench-code"><span class="tok-comment"># ONDA (Rust, CPU + GPU backends) — args: &lt;frames&gt; &lt;clusters&gt;</span>
+<span class="tok-fn">cargo</span> run --release -p onda-bench -- 120 1      <span class="tok-comment"># trivial</span>
+<span class="tok-fn">cargo</span> run --release -p onda-bench -- 120 40     <span class="tok-comment"># complex</span>
+
+<span class="tok-comment"># Remotion (React → headless Chromium → screenshot → encode)</span>
+<span class="tok-fn">pnpm</span> --filter benchmark bench 1
+<span class="tok-fn">pnpm</span> --filter benchmark bench 40
+
+<span class="tok-comment"># ONDA full export (Vello raster + readback + encode → mp4)</span>
+<span class="tok-fn">pnpm</span> --filter benchmark bench:onda 120 1
+<span class="tok-fn">pnpm</span> --filter benchmark bench:onda 120 40</code></pre>
+            </figure>
+            <p class="stats__foot">
+              Numbers on this page are steady-state on an Apple M4 Pro and vary a little run-to-run and
+              by hardware, scene and configuration. <a href={BENCH} rel="noopener">Full method, tables &amp; source →</a>
+            </p>
+          </div>
+        </section>
+
+        <!-- ============ CTA ============ -->
+        <section class="cta" aria-labelledby="cta-title">
+          <div class="container cta__inner">
+            <h2 id="cta-title" class="cta__title">Render your first frame without a browser</h2>
+            <p class="cta__sub">Clone the repo, write a composition, ship a video. It's all open source.</p>
+            <a class="btn btn--primary btn--lg" href="/guide/getting-started">Get started</a>
+          </div>
+        </section>
+      </main>
+
+      <!-- ============ FOOTER ============ -->
+      <footer class="footer">
+        <div class="container footer__inner">
+          <div class="footer__brand">
+            <a class="brand" href="/" aria-label="ONDA — home">
+              <img class="brand__mark-img" src="/onda-mark.svg" alt="" width="80" height="20" />
+              <span class="brand__word">ONDA</span>
+            </a>
+            <p class="footer__tag">The rendering foundation for the next decade of motion graphics.</p>
+          </div>
+          <nav class="footer__nav" aria-label="Footer">
+            <h3 class="footer__col-title">Project</h3>
+            <a href="/#features">Features</a>
+            <a href="/components">Components</a>
+            <a href="/transitions">Transitions</a>
+            <a href="/effects">Effects</a>
+            <a href="/benchmark">Benchmark</a>
+            <a href="/guide/introduction">Docs</a>
+          </nav>
+          <nav class="footer__nav" aria-label="Resources">
+            <h3 class="footer__col-title">Resources</h3>
+            <a href={REPO} rel="noopener">GitHub repository</a>
+            <a href="/guide/getting-started">Getting started</a>
+            <a href={BENCH} rel="noopener">Benchmark source</a>
+            <a href={`${REPO}/blob/main/LICENSE`} rel="noopener">License</a>
+          </nav>
+        </div>
+        <div class="container footer__bottom">
+          <p>© {year} ONDA. Open source under <strong>MIT OR Apache-2.0</strong>.</p>
+          <a href={REPO} rel="noopener">github.com/degueba/onda-engine</a>
+        </div>
+        <div class="container footer__legal">
+          <p>
+            ONDA Engine is an independent, open-source project — not affiliated with, endorsed by,
+            or sponsored by Remotion GmbH or Adobe Inc. “Remotion” is a trademark of Remotion GmbH.
+            “Adobe” and “After Effects” are trademarks of Adobe Inc. All other product names and
+            logos are the property of their respective owners and are used here for identification
+            and comparison only, which does not imply any affiliation or endorsement. Benchmark
+            figures reflect the configurations and hardware described above and in the
+            <a href={BENCH} rel="noopener">benchmark methodology</a>; results vary by scene,
+            hardware and configuration.
+          </p>
+        </div>
+      </footer>
+    </div>
+
+    <script>
+      import { animate, inView, stagger, scroll } from 'motion'
+
+      // Sticky nav shadow.
+      const nav = document.getElementById('site-nav')
+      if (nav) {
+        const onScroll = () => nav.classList.toggle('is-scrolled', window.scrollY > 8)
+        onScroll()
+        window.addEventListener('scroll', onScroll, { passive: true })
+
+        // Mobile menu toggle (links collapse behind a hamburger ≤768px).
+        const toggle = nav.querySelector('.nav__toggle')
+        const navLinks = document.getElementById('nav-links')
+        if (toggle && navLinks) {
+          const setOpen = (open) => {
+            nav.classList.toggle('is-open', open)
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false')
+            toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu')
+          }
+          toggle.addEventListener('click', () => setOpen(!nav.classList.contains('is-open')))
+          for (const a of navLinks.querySelectorAll('a')) a.addEventListener('click', () => setOpen(false))
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') setOpen(false)
+          })
+        }
+      }
+
+      // Copy-to-clipboard.
+      for (const btn of document.querySelectorAll('.code-card__copy')) {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-copy')
+          const target = id ? document.getElementById(id) : null
+          if (!target) return
+          navigator.clipboard
+            ?.writeText(target.innerText)
+            .then(() => {
+              btn.textContent = 'Copied'
+              btn.classList.add('is-copied')
+              window.setTimeout(() => {
+                btn.textContent = 'Copy'
+                btn.classList.remove('is-copied')
+              }, 1600)
+            })
+            .catch(() => {})
+        })
+      }
+
+      // Read-progress rail.
+      const rail = document.querySelector('.scroll-rail__fill')
+      if (rail) scroll(animate(rail, { scaleX: [0, 1] }, { ease: 'linear' }))
+
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      if (!reduce) {
+        const EASE = [0.16, 1, 0.3, 1]
+        const hide = (els) => {
+          for (const el of els) el.style.opacity = '0'
+        }
+
+        const reveal = (el, keyframes, opts = {}) => {
+          if (!el) return
+          el.style.opacity = '0'
+          inView(
+            el,
+            () => animate(el, { opacity: [0, 1], ...keyframes }, { duration: 0.7, ease: EASE, ...opts }),
+            { amount: 0.2 },
+          )
+        }
+        const group = (container, childSel, keyframes) => {
+          if (!container) return
+          const kids = Array.from(container.querySelectorAll(childSel))
+          hide(kids)
+          inView(
+            container,
+            () =>
+              animate(kids, { opacity: [0, 1], ...keyframes }, { delay: stagger(0.08), duration: 0.55, ease: EASE }),
+            { amount: 0.15 },
+          )
+        }
+
+        for (const head of document.querySelectorAll('.section__head')) reveal(head, { y: [22, 0] })
+        group(document.querySelector('.bench-headline'), '.bench-headline__card', { y: [22, 0] })
+        group(document.querySelector('.bento'), '.bento__cell', { y: [18, 0] })
+        group(document.querySelector('.traj'), '.traj__step, .traj__arrow', { y: [18, 0] })
+
+        // Grow each chart's bars (scaleX from the left) once it scrolls in.
+        for (const chart of document.querySelectorAll('.chart')) {
+          const fills = Array.from(chart.querySelectorAll('.bar__fill'))
+          inView(
+            chart,
+            () => animate(fills, { scaleX: [0, 1] }, { delay: stagger(0.06), duration: 0.9, ease: EASE }),
+            { amount: 0.3 },
+          )
+        }
+
+        // Count-ups on every [data-count] (bars + headline figures).
+        for (const el of document.querySelectorAll('[data-count]')) {
+          const target = parseFloat(el.getAttribute('data-count') || '0')
+          const decimals = parseInt(el.getAttribute('data-decimals') || '0', 10)
+          const suffix = el.getAttribute('data-suffix') || ''
+          let played = false
+          inView(
+            el,
+            () => {
+              if (played) return
+              played = true
+              animate(0, target, {
+                duration: 1.1,
+                ease: EASE,
+                onUpdate: (v) => {
+                  el.textContent = v.toFixed(decimals) + suffix
+                },
+              })
+            },
+            { amount: 0.6 },
+          )
+        }
+      }
+    </script>
+
+    <style>
+      /* Shares the landing's .onda-landing token system + chrome (nav, footer,
+         buttons, code-card, atmosphere). Astro scopes these styles to this page. */
+      @property --bd-angle {
+        syntax: '<angle>';
+        initial-value: 0deg;
+        inherits: false;
+      }
+
+      .onda-landing {
+        --bg: #0e0e12;
+        --bg-deep: #08080a;
+        --surface: #121217;
+        --surface-2: #18181d;
+        --border: #26262c;
+        --text: #f2f2f4;
+        --text-muted: #8e8e98;
+        --text-dim: #56565f;
+        --accent: #d96b82;
+        --accent-600: #c8576f;
+        --accent-soft: rgba(217, 107, 130, 0.12);
+        --on-accent: #0e0e12;
+        --studio: #b06cff;
+        --studio-600: #9a52f5;
+        --studio-glow: rgba(176, 108, 255, 0.4);
+        --on-studio: #160a22;
+        --font-head: 'Clash Display', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+        --font-body: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+        --font-code: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+        --fs-sm: 0.875rem;
+        --fs-base: 1rem;
+        --fs-md: 1.125rem;
+        --fs-lg: 1.25rem;
+        --fs-xl: 1.5rem;
+        --fs-2xl: 2rem;
+        --fs-3xl: 3rem;
+        --fs-4xl: 4rem;
+        --fs-5xl: 5.5rem;
+        --s-1: 4px;
+        --s-2: 8px;
+        --s-3: 12px;
+        --s-4: 16px;
+        --s-6: 24px;
+        --s-8: 32px;
+        --s-12: 48px;
+        --s-16: 64px;
+        --s-20: 80px;
+        --s-24: 96px;
+        --s-32: 128px;
+        --r-control: 8px;
+        --r-card: 14px;
+        --r-pill: 999px;
+        --elev-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 10px 34px rgba(0, 0, 0, 0.45);
+        --ease: cubic-bezier(0.16, 1, 0.3, 1);
+        --dur: 220ms;
+        --maxw: 1200px;
+        position: relative;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font-body);
+        font-size: var(--fs-base);
+        line-height: 1.6;
+        min-height: 100vh;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        overflow-x: hidden;
+      }
+      .onda-landing *,
+      .onda-landing *::before,
+      .onda-landing *::after {
+        box-sizing: border-box;
+      }
+      .onda-landing img,
+      .onda-landing svg {
+        display: block;
+        max-width: 100%;
+      }
+      .onda-landing :where(h1, h2, h3) {
+        font-family: var(--font-head);
+        line-height: 1.02;
+        margin: 0;
+        letter-spacing: -0.015em;
+        font-weight: 600;
+      }
+      .onda-landing :where(p) {
+        margin: 0;
+      }
+      .onda-landing a {
+        color: var(--accent);
+        text-decoration: none;
+        transition: color var(--dur) var(--ease);
+      }
+      .onda-landing a:hover {
+        color: var(--accent-600);
+      }
+      .onda-landing code {
+        font-family: var(--font-code);
+        font-size: 0.92em;
+        color: var(--text);
+      }
+      .onda-landing strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .onda-landing em {
+        font-style: italic;
+        color: var(--text);
+      }
+      .onda-landing :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+      .onda-landing :where([id]) {
+        scroll-margin-top: 84px;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        :global(html) {
+          scroll-behavior: smooth;
+        }
+      }
+
+      .skip-link {
+        position: absolute;
+        left: var(--s-4);
+        top: -120%;
+        z-index: 200;
+        background: var(--accent);
+        color: var(--on-accent);
+        padding: var(--s-3) var(--s-4);
+        border-radius: var(--r-control);
+        font-weight: 600;
+        transition: top var(--dur) var(--ease);
+      }
+      .skip-link:focus {
+        top: var(--s-4);
+        color: var(--on-accent);
+      }
+
+      .scroll-rail {
+        position: fixed;
+        inset: 0 0 auto 0;
+        height: 2px;
+        z-index: 150;
+        pointer-events: none;
+      }
+      .scroll-rail__fill {
+        display: block;
+        height: 100%;
+        width: 100%;
+        transform: scaleX(0);
+        transform-origin: 0 50%;
+        background: linear-gradient(90deg, var(--accent), #e89aab 60%, var(--studio));
+        box-shadow: 0 0 12px -2px rgba(217, 107, 130, 0.6);
+      }
+
+      .atmos {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        overflow: hidden;
+      }
+      .atmos__blob {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(80px);
+        opacity: 0.5;
+      }
+      .atmos__blob--rose {
+        top: -10%;
+        right: -8%;
+        width: 46vw;
+        height: 46vw;
+        background: radial-gradient(circle, rgba(217, 107, 130, 0.16), transparent 65%);
+      }
+      .atmos__blob--violet {
+        bottom: -14%;
+        left: -10%;
+        width: 42vw;
+        height: 42vw;
+        background: radial-gradient(circle, rgba(176, 108, 255, 0.12), transparent 65%);
+      }
+      .atmos__blob--deep {
+        top: 38%;
+        left: 44%;
+        width: 36vw;
+        height: 36vw;
+        background: radial-gradient(circle, rgba(120, 90, 200, 0.08), transparent 65%);
+      }
+      .onda-landing::after {
+        content: '';
+        position: fixed;
+        inset: 0;
+        z-index: 140;
+        pointer-events: none;
+        opacity: 0.04;
+        mix-blend-mode: soft-light;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        background-size: 160px 160px;
+      }
+      /* nav keeps z-index:100 (sticky + mobile dropdown over content) — not here. */
+      .onda-landing > main,
+      .onda-landing > .footer {
+        position: relative;
+        z-index: 1;
+      }
+
+      .container {
+        width: 100%;
+        max-width: var(--maxw);
+        margin-inline: auto;
+        padding-inline: var(--s-6);
+      }
+      .section {
+        padding-block: var(--s-24);
+      }
+      .section--alt {
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        background: rgba(8, 8, 10, 0.45);
+      }
+      .section__head {
+        max-width: 64ch;
+        margin-bottom: var(--s-12);
+      }
+      .section__title {
+        font-size: var(--fs-3xl);
+        font-weight: 600;
+        margin-bottom: var(--s-6);
+        letter-spacing: -0.02em;
+      }
+      .section__lede {
+        font-size: var(--fs-md);
+        color: var(--text-muted);
+      }
+      .section__lede code,
+      .section__head code {
+        color: var(--text);
+        background: var(--surface-2);
+        padding: 1px 5px;
+        border-radius: 5px;
+        font-size: 0.9em;
+      }
+      .eyebrow {
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        margin-bottom: var(--s-6);
+        display: inline-flex;
+        align-items: center;
+        gap: var(--s-3);
+      }
+      .eyebrow__tick {
+        color: var(--accent);
+      }
+      .accent-text {
+        color: var(--accent);
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--s-2);
+        min-height: 44px;
+        padding: 0 var(--s-6);
+        border-radius: var(--r-control);
+        font-family: var(--font-body);
+        font-weight: 600;
+        font-size: var(--fs-base);
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease),
+          transform var(--dur) var(--ease), color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+        white-space: nowrap;
+      }
+      .btn:active {
+        transform: translateY(1px);
+      }
+      .onda-landing .btn--primary {
+        background: var(--accent);
+        color: var(--on-accent);
+        box-shadow: 0 8px 30px -10px rgba(217, 107, 130, 0.5);
+      }
+      .onda-landing .btn--primary:hover {
+        background: var(--accent-600);
+        color: var(--on-accent);
+        box-shadow: 0 10px 38px -8px rgba(217, 107, 130, 0.7);
+        transform: translateY(-1px);
+      }
+      .onda-landing .btn--ghost {
+        background: transparent;
+        color: var(--text);
+        border-color: var(--border);
+      }
+      .onda-landing .btn--ghost:hover {
+        background: var(--surface-2);
+        color: var(--text);
+        border-color: #34343c;
+      }
+      .btn--lg {
+        min-height: 52px;
+        padding: 0 var(--s-8);
+        font-size: var(--fs-md);
+      }
+      .btn__icon {
+        flex: none;
+      }
+
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: rgba(14, 14, 18, 0.97);
+        border-bottom: 1px solid transparent;
+        transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+      }
+      .nav.is-scrolled {
+        border-bottom-color: var(--border);
+        background: rgba(14, 14, 18, 0.9);
+      }
+      .nav__inner {
+        display: flex;
+        align-items: center;
+        gap: var(--s-6);
+        min-height: 64px;
+      }
+      .onda-landing .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--s-3);
+        color: var(--text);
+        font-family: var(--font-head);
+      }
+      .onda-landing .brand:hover {
+        color: var(--text);
+      }
+      .brand__mark-img {
+        height: 22px;
+        width: auto;
+      }
+      .brand__word {
+        font-weight: 700;
+        font-size: var(--fs-lg);
+        letter-spacing: 0.02em;
+      }
+      .nav__links {
+        display: flex;
+        gap: var(--s-6);
+        margin-left: auto;
+      }
+      .nav__links a {
+        color: var(--text-muted);
+        font-weight: 500;
+        padding: var(--s-2) 0;
+      }
+      .nav__links a:hover {
+        color: var(--text);
+      }
+      .nav__links a[aria-current='page'] {
+        color: var(--text);
+      }
+      /* Studio is the paid product — a glowing violet pill that pulls the eye. */
+      .onda-landing .nav__links a.nav__studio-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 15px;
+        border-radius: var(--r-pill);
+        background: linear-gradient(135deg, var(--studio-600), var(--studio));
+        color: var(--on-studio);
+        font-weight: 600;
+        box-shadow: 0 0 0 1px rgba(176, 108, 255, 0.45), 0 6px 22px -6px var(--studio-glow);
+        transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+          color var(--dur) var(--ease);
+      }
+      .onda-landing .nav__links a.nav__studio-link:hover {
+        color: var(--on-studio);
+        transform: translateY(-1px) scale(1.03);
+        box-shadow: 0 0 0 1px var(--studio), 0 12px 30px -6px var(--studio-glow);
+      }
+      .nav__studio-spark {
+        width: 13px;
+        height: 13px;
+        flex: none;
+      }
+      .nav__toggle {
+        display: none;
+        width: 44px;
+        height: 44px;
+        align-items: center;
+        justify-content: center;
+        flex: none;
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: var(--r-control);
+        color: var(--text);
+        cursor: pointer;
+      }
+      .nav__toggle:hover {
+        background: var(--surface-2);
+        border-color: #34343c;
+      }
+      /* Prefixed with .onda-landing so it outranks the `.onda-landing svg`
+         reset (display:block) — otherwise the X shows alongside the bars. */
+      .onda-landing .nav__toggle-x {
+        display: none;
+      }
+      .nav.is-open .nav__toggle-bars {
+        display: none;
+      }
+      .nav.is-open .nav__toggle-x {
+        display: block;
+      }
+
+      /* ===================== Benchmark intro ===================== */
+      .bench-hero {
+        position: relative;
+        padding-block: var(--s-20) var(--s-16);
+      }
+      .bench-hero__title {
+        font-size: clamp(2.6rem, 6.5vw, 4.4rem);
+        font-weight: 700;
+        line-height: 0.98;
+        letter-spacing: -0.025em;
+        margin-bottom: var(--s-6);
+      }
+      .bench-hero__sub {
+        font-size: var(--fs-lg);
+        color: var(--text-muted);
+        max-width: 62ch;
+        margin-bottom: var(--s-8);
+      }
+      .bench-hero__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--s-4);
+        margin-bottom: var(--s-16);
+      }
+      .bench-headline {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--s-8);
+      }
+      .bench-headline__card {
+        border: 1px solid var(--border);
+        border-radius: var(--r-card);
+        padding: var(--s-12);
+        background: var(--surface);
+      }
+      .bench-headline__card--us {
+        border-color: rgba(217, 107, 130, 0.4);
+        box-shadow: 0 10px 50px -22px rgba(217, 107, 130, 0.4);
+      }
+      .bench-headline__num {
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: var(--fs-4xl);
+        line-height: 1;
+        letter-spacing: -0.02em;
+        color: var(--text-dim);
+        font-variant-numeric: tabular-nums;
+        margin-bottom: var(--s-3);
+      }
+      .bench-headline__card--us .bench-headline__num {
+        color: var(--text);
+      }
+      .bench-headline__k {
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--text-muted);
+        margin-bottom: var(--s-6);
+      }
+      .bench-headline__v {
+        color: var(--text-muted);
+      }
+
+      /* ===================== Methodology bento ===================== */
+      .bento {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--s-4);
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .bento__cell {
+        display: flex;
+        flex-direction: column;
+        gap: var(--s-2);
+        padding: var(--s-8);
+        border: 1px solid var(--border);
+        border-radius: var(--r-card);
+        background: var(--surface);
+      }
+      .bento__cell--wide {
+        grid-column: span 2;
+      }
+      .bento__k {
+        font-family: var(--font-head);
+        font-weight: 600;
+        font-size: var(--fs-lg);
+        color: var(--text);
+      }
+      .bento__v {
+        color: var(--text-muted);
+        font-size: var(--fs-sm);
+      }
+      .bento__v code {
+        color: var(--text);
+        background: var(--surface-2);
+        padding: 1px 5px;
+        border-radius: 5px;
+      }
+
+      /* ===================== Charts ===================== */
+      .chart-block {
+        margin-top: var(--s-16);
+      }
+      .chart-block__head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: var(--s-4);
+        margin-bottom: var(--s-8);
+        padding-bottom: var(--s-4);
+        border-bottom: 1px solid var(--border);
+      }
+      .chart-block__title {
+        font-size: var(--fs-lg);
+        font-weight: 600;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: var(--s-4);
+      }
+      .chart-block__meta {
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        font-weight: 400;
+        color: var(--text-dim);
+        letter-spacing: 0.02em;
+      }
+      .chart-legend {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--s-2);
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        color: var(--text-muted);
+      }
+      .chart-legend__sw {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        margin-left: var(--s-3);
+      }
+      .chart-legend__sw--onda {
+        background: var(--accent);
+      }
+      .chart-legend__sw--them {
+        background: #34343c;
+      }
+      .chart {
+        display: flex;
+        flex-direction: column;
+        gap: var(--s-3);
+      }
+      .bar {
+        display: grid;
+        grid-template-columns: 190px 1fr 6em;
+        align-items: center;
+        gap: var(--s-6);
+        min-height: 34px;
+      }
+      .bar__name {
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        color: var(--text-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .bar__track {
+        position: relative;
+        height: 34px;
+        background: var(--bg-deep);
+        border: 1px solid var(--border);
+        border-radius: var(--r-control);
+        overflow: hidden;
+      }
+      .bar__fill {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: calc(var(--w) * 100%);
+        min-width: 3px;
+        transform-origin: left center;
+        border-radius: inherit;
+      }
+      .bar__fill--them {
+        background: linear-gradient(180deg, #3a3a43, #2c2c33);
+      }
+      .bar__fill--onda {
+        background: linear-gradient(90deg, var(--accent-600), var(--accent));
+      }
+      .bar__fill--onda.is-best {
+        background: linear-gradient(90deg, var(--accent), #e89aab);
+        box-shadow: 0 0 26px -6px rgba(217, 107, 130, 0.7);
+      }
+      .bar__val {
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: var(--fs-md);
+        color: var(--text);
+        text-align: right;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .chart-note {
+        margin-top: var(--s-8);
+        color: var(--text-muted);
+        font-size: var(--fs-sm);
+        max-width: 78ch;
+      }
+      /* Pre-collapse bars before paint so they grow in (only when motion is on). */
+      :global(html.anim) .bar__fill {
+        transform: scaleX(0);
+      }
+
+      /* ===================== 100x trajectory ===================== */
+      .traj {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr auto 1fr;
+        align-items: stretch;
+        gap: var(--s-6);
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .traj__step {
+        display: flex;
+        flex-direction: column;
+        gap: var(--s-2);
+        padding: var(--s-12) var(--s-8);
+        border: 1px solid var(--border);
+        border-radius: var(--r-card);
+        background: var(--surface);
+      }
+      .traj__step--target {
+        border-style: dashed;
+        border-color: rgba(217, 107, 130, 0.5);
+        background: repeating-linear-gradient(
+          -45deg,
+          transparent,
+          transparent 9px,
+          rgba(255, 255, 255, 0.015) 9px,
+          rgba(255, 255, 255, 0.015) 10px
+        );
+      }
+      .traj__num {
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: var(--fs-4xl);
+        line-height: 1;
+        letter-spacing: -0.02em;
+        color: var(--accent);
+      }
+      .traj__num--target {
+        color: var(--text-dim);
+        -webkit-text-stroke: 1px var(--accent);
+      }
+      .traj__tag {
+        align-self: flex-start;
+        font-family: var(--font-code);
+        font-size: 0.6rem;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent);
+        border: 1px solid rgba(217, 107, 130, 0.4);
+        border-radius: var(--r-pill);
+        padding: 2px 8px;
+      }
+      .traj__k {
+        font-weight: 600;
+        color: var(--text);
+        margin-top: var(--s-2);
+      }
+      .traj__v {
+        color: var(--text-muted);
+        font-size: var(--fs-sm);
+      }
+      .traj__arrow {
+        display: grid;
+        place-items: center;
+        color: var(--text-dim);
+        font-size: var(--fs-xl);
+      }
+
+      /* ===================== code-card (reproduce) ===================== */
+      .code-card {
+        margin: 0;
+        background: var(--bg-deep);
+        border: 1px solid var(--border);
+        border-radius: var(--r-card);
+        box-shadow: var(--elev-card);
+        overflow: hidden;
+      }
+      .code-card__bar {
+        display: flex;
+        align-items: center;
+        gap: var(--s-3);
+        padding: var(--s-3) var(--s-4);
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+      }
+      .code-card__dots {
+        display: inline-flex;
+        gap: 6px;
+      }
+      .code-card__dots i {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+      }
+      .code-card__file {
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        color: var(--text-muted);
+      }
+      .code-card__copy {
+        margin-left: auto;
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        padding: var(--s-1) var(--s-3);
+        border-radius: var(--r-control);
+        min-height: 32px;
+        cursor: pointer;
+        transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+      }
+      .code-card__copy:hover {
+        color: var(--text);
+        border-color: #34343c;
+        background: var(--surface-2);
+      }
+      .code-card__copy.is-copied {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+      .code-card__pre {
+        margin: 0;
+        padding: var(--s-6);
+        overflow-x: auto;
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        line-height: 1.8;
+        tab-size: 2;
+      }
+      .code-card__pre code {
+        color: var(--text);
+        white-space: pre;
+        font-family: var(--font-code);
+        background: none;
+        padding: 0;
+      }
+      .tok-fn {
+        color: var(--accent);
+      }
+      .tok-comment {
+        color: var(--text-dim);
+        font-style: italic;
+      }
+      .stats__foot {
+        margin-top: var(--s-8);
+        color: var(--text-muted);
+        font-size: var(--fs-sm);
+        max-width: 78ch;
+      }
+
+      /* ===================== CTA + footer ===================== */
+      .cta {
+        border-top: 1px solid var(--border);
+        padding-block: var(--s-32);
+      }
+      .cta__inner {
+        text-align: center;
+        max-width: 60ch;
+        margin-inline: auto;
+      }
+      .cta__title {
+        font-size: var(--fs-3xl);
+        font-weight: 600;
+        margin-bottom: var(--s-6);
+        letter-spacing: -0.02em;
+      }
+      .cta__sub {
+        color: var(--text-muted);
+        font-size: var(--fs-md);
+        margin-bottom: var(--s-8);
+      }
+
+      .footer {
+        padding-top: var(--s-20);
+        border-top: 1px solid var(--border);
+      }
+      .footer__inner {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr;
+        gap: var(--s-8);
+        padding-bottom: var(--s-16);
+      }
+      .footer__tag {
+        color: var(--text-muted);
+        margin-top: var(--s-4);
+        max-width: 38ch;
+      }
+      .footer__nav {
+        display: flex;
+        flex-direction: column;
+        gap: var(--s-3);
+      }
+      .footer__col-title {
+        font-family: var(--font-head);
+        font-size: var(--fs-base);
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: var(--s-3);
+      }
+      .footer__nav a {
+        color: var(--text-muted);
+        font-weight: 500;
+      }
+      .footer__nav a:hover {
+        color: var(--text);
+      }
+      .footer__bottom {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--s-4);
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid var(--border);
+        padding-block: var(--s-6);
+        color: var(--text-muted);
+        font-size: var(--fs-sm);
+      }
+      .footer__bottom a {
+        color: var(--text-muted);
+        font-family: var(--font-code);
+      }
+      .footer__bottom a:hover {
+        color: var(--accent);
+      }
+      .footer__legal {
+        padding-block: var(--s-2) var(--s-16);
+      }
+      .footer__legal p {
+        color: var(--text-dim);
+        font-size: 0.78rem;
+        line-height: 1.65;
+        max-width: 92ch;
+      }
+      .footer__legal a {
+        color: var(--text-dim);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+      .footer__legal a:hover {
+        color: var(--text-muted);
+      }
+
+      /* ===================== Ambient drift (motion only) ===================== */
+      @media (prefers-reduced-motion: no-preference) {
+        .atmos__blob--rose {
+          animation: atmos-drift 20s ease-in-out infinite alternate;
+        }
+        .atmos__blob--violet {
+          animation: atmos-drift 26s ease-in-out infinite alternate-reverse;
+        }
+        .atmos__blob--deep {
+          animation: atmos-drift 32s ease-in-out infinite alternate;
+        }
+        /* The Studio pill gently breathes its glow to draw the eye (pauses on hover). */
+        .onda-landing .nav__links a.nav__studio-link {
+          animation: studio-pulse 3.2s ease-in-out infinite;
+        }
+        .onda-landing .nav__links a.nav__studio-link:hover {
+          animation-play-state: paused;
+        }
+        .nav__studio-spark {
+          animation: studio-spark 3.2s ease-in-out infinite;
+        }
+      }
+      @keyframes atmos-drift {
+        from {
+          transform: translate3d(0, 0, 0);
+        }
+        to {
+          transform: translate3d(4%, -3%, 0);
+        }
+      }
+      @keyframes studio-pulse {
+        0%,
+        100% {
+          box-shadow: 0 0 0 1px rgba(176, 108, 255, 0.45), 0 6px 22px -6px var(--studio-glow);
+        }
+        50% {
+          box-shadow: 0 0 0 1px var(--studio), 0 8px 30px 0 rgba(176, 108, 255, 0.55);
+        }
+      }
+      @keyframes studio-spark {
+        0%,
+        100% {
+          transform: rotate(0deg) scale(1);
+          opacity: 0.85;
+        }
+        50% {
+          transform: rotate(90deg) scale(1.18);
+          opacity: 1;
+        }
+      }
+
+      /* ===================== Responsive ===================== */
+      @media (max-width: 1024px) {
+        .footer__inner {
+          grid-template-columns: 1fr 1fr;
+        }
+        .footer__brand {
+          grid-column: 1 / -1;
+        }
+      }
+      @media (max-width: 768px) {
+        .section {
+          padding-block: var(--s-20);
+        }
+        .section__title,
+        .cta__title {
+          font-size: var(--fs-2xl);
+        }
+        .bench-headline,
+        .bento {
+          grid-template-columns: 1fr;
+        }
+        .bento__cell--wide {
+          grid-column: auto;
+        }
+        .nav__toggle {
+          display: inline-flex;
+          margin-left: auto;
+        }
+        .nav__links {
+          display: none;
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          flex-direction: column;
+          gap: 0;
+          margin-left: 0;
+          padding: var(--s-2) var(--s-6) var(--s-4);
+          background: var(--bg);
+          border-bottom: 1px solid var(--border);
+          box-shadow: 0 24px 48px -24px rgba(0, 0, 0, 0.7);
+        }
+        .nav.is-open .nav__links {
+          display: flex;
+        }
+        .nav__links a:not(.nav__studio-link) {
+          min-height: 48px;
+          display: flex;
+          align-items: center;
+          padding: var(--s-2) 0;
+          border-bottom: 1px solid var(--border);
+        }
+        /* Studio stays a pill — full-width, centered, as the menu's standout CTA. */
+        .onda-landing .nav__links a.nav__studio-link {
+          justify-content: center;
+          margin-top: var(--s-4);
+          padding-block: 11px;
+        }
+        /* Trajectory stacks vertically; arrows rotate to point down. */
+        .traj {
+          grid-template-columns: 1fr;
+        }
+        .traj__arrow {
+          transform: rotate(90deg);
+          padding: var(--s-2) 0;
+        }
+        /* Bars: name on its own line above the track. */
+        .bar {
+          grid-template-columns: 1fr auto;
+          grid-template-areas: 'name name' 'track val';
+          gap: var(--s-2) var(--s-4);
+        }
+        .bar__name {
+          grid-area: name;
+        }
+        .bar__track {
+          grid-area: track;
+        }
+        .bar__val {
+          grid-area: val;
+        }
+      }
+      @media (max-width: 480px) {
+        .container {
+          padding-inline: var(--s-4);
+        }
+        .footer__inner {
+          grid-template-columns: 1fr;
+        }
+        .code-card__pre {
+          font-size: 0.78rem;
+          padding: var(--s-4);
+        }
+      }
+    </style>
+  </body>
+</html>

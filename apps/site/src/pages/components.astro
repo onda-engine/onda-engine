@@ -43,6 +43,7 @@ const REPO = 'https://github.com/degueba/onda-engine'
           <a href="/components" aria-current="page">Components</a>
           <a href="/transitions">Transitions</a>
           <a href="/effects">Effects</a>
+          <a href="/benchmark">Benchmark</a>
           <a href="/guide/introduction">Docs</a>
           <a href={REPO} rel="noopener">GitHub</a>
         </nav>
@@ -112,7 +113,13 @@ const REPO = 'https://github.com/degueba/onda-engine'
         color: #f2f2f4; background: #18181d; padding: 1px 6px; border-radius: 5px;
       }
       @media (max-width: 760px) {
-        .gnav__links { display: none; }
+        .gnav__links {
+          display: flex; margin-left: 0; flex: 1; min-width: 0;
+          gap: 18px; padding-left: 16px; overflow-x: auto;
+          scrollbar-width: none; -webkit-overflow-scrolling: touch;
+        }
+        .gnav__links::-webkit-scrollbar { display: none; }
+        .gnav__links a { flex: none; padding: 6px 0; }
         .gmain { padding: 32px 20px 64px; }
       }
     </style>

@@ -41,18 +41,19 @@ ONDA's Rust crates live under `packages/*-rs` (and `packages/wasm`). The crates 
 | Crate            | Role |
 | ---------------- | ---- |
 | **`onda-core`**      | Tiny shared primitives: `Vec2`, `Size`, `Color`, `Transform` (translate + scale; linear-space color helpers). Dependency-light; everything builds on it. |
-| **`onda-scene`**     | The scene graph: `Scene`, `Composition`, `Node`, `NodeKind` (`Group` / `Text` / `Image` / `Shape` / `Svg`), `ShapeGeometry` (`Rect` / `Ellipse` / `Path`), `Gradient`, `Stroke`, and `clip`. Plain serde data — the universal language. |
+| **`onda-scene`**     | The scene graph: `Scene`, `Composition`, `Node`, `NodeKind` (`Group` / `Text` / `Image` / `Video` / `Audio` / `Shape` / `Svg`), `ShapeGeometry` (`Rect` / `Ellipse` / `Path`), `Gradient`, `Stroke`, `clip`, `matte`, `blend`, `effects`, `camera3d` / `transform3d` / `extrude`, and `layout`. Plain serde data — the universal language. |
 | **`onda-animation`** | The animation runtime: a `Timeline` of keyframe `Track`s targeting nodes by id; `evaluate_frame` collapses it to a static `Scene`. Easings + springs over opacity/translate/scale. |
 | **`onda-typography`**| Shaping, layout, and glyph rasterization via `cosmic-text` + `swash`. Bundles Open Sans (SIL OFL 1.1) for deterministic, host-independent text; hands back coverage masks and per-glyph layout. |
-| **`onda-renderer`**  | The **CPU reference rasterizer**: deterministic, dependency-light, the correctness oracle. Rects + ellipses + text; no AA/strokes/paths/gradients/clips. Parallel frame rendering via `rayon`. |
-| **`onda-vello`**     | The **GPU-native vector backend** (Vello on `wgpu`): AA fills/strokes, rounded rects, paths, gradients, clips, per-glyph vector text. Offscreen render + readback. |
+| **`onda-renderer`**  | The **CPU reference rasterizer** (tiny-skia): deterministic, dependency-light, the correctness oracle. AA fills/strokes, rounded rects, paths, linear/radial gradients, text, images, and the render-to-texture **effect chain** — byte-identical to Vello; only rotation/clip/blend/3D-tilt deferred to the GPU. Parallel frame rendering via `rayon`. |
+| **`onda-vello`**     | The **GPU-native vector backend** (Vello on `wgpu`): AA fills/strokes, rounded rects, paths, gradients, clips, per-glyph vector text, the effect chain, blend modes, true 3D + extruded solids. Offscreen render + readback. |
+| **`onda-audio`**     | Audio: decode + FFT spectrum + beat/onset detection (`symphonia` + `rustfft`), and a declarative `AudioGraph` **synth**. Shared by browser + native via `@onda/wasm-audio`. |
 | **`onda-svg`**       | SVG import: `usvg` → flattened `Path` nodes (`import_svg` / `expand_svg`). |
-| **`onda-cli`**       | The `onda` command-line adapter: `render` / `export` / `export-frames`, backend selection, GIF/MP4 encoding. |
+| **`onda-cli`**       | The `onda` command-line adapter: `render` / `export` / `export-frames` / `render-frame` / `contact-sheet` / `lint`, backend + encoder selection, GIF/MP4 encoding. |
 | **`onda-wasm`**      | The CPU engine compiled to WebAssembly for the browser. |
 | **`bench-rs`**       | Benchmarks (compared continuously against Remotion). |
 
 :::tip[Crates land when they compile]
-The workspace only includes crates that build. Other directories named in the founding brief (e.g. `vector-rs`, `codecs-rs`, and the just-scaffolded `audio-rs`) are placeholders that join the workspace once they have real implementations — they are not documented as usable here.
+The workspace only includes crates that build. Other directories named in the founding brief (e.g. `vector-rs`, `codecs-rs`) are placeholders that join the workspace once they have real implementations — they are not documented as usable here.
 :::
 
 ## The TypeScript layer

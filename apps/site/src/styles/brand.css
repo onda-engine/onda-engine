@@ -1,11 +1,17 @@
 /* ONDA brand theming for Starlight — onda.video-aligned: neutral near-black
    surfaces + a single muted-rose accent, brand type. Tunes Starlight's CSS
-   custom properties; see https://starlight.astro.build/guides/css-and-tailwind/ */
+   custom properties + adds component polish (code, callouts, sidebar, tables,
+   cards). See https://starlight.astro.build/guides/css-and-tailwind/ */
 
 :root {
   /* Type — Space Grotesk (body), JetBrains Mono (code). Loaded in astro.config head. */
   --sl-font: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   --sl-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  /* Brand display face for headings. */
+  --onda-font-head: 'Clash Display', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  /* A touch wider reading measure + roomier content. */
+  --sl-content-width: 50rem;
+  --sl-text-code: 0.9em;
 }
 
 /* Dark theme (default brand surface) — rose accent + warm near-black. */
@@ -25,10 +31,23 @@
   --sl-color-gray-6: #18181d;
   --sl-color-black: #0e0e12;
   --sl-color-bg: #0e0e12;
-  --sl-color-bg-nav: rgba(14, 14, 18, 0.85);
+  --sl-color-bg-nav: rgba(14, 14, 18, 0.92);
   --sl-color-bg-sidebar: #0e0e12;
   --sl-color-hairline: #26262c;
   --sl-color-hairline-light: #26262c;
+
+  /* ONDA palette helpers (used by the component polish below). */
+  --onda-surface: #121217;
+  --onda-surface-2: #18181d;
+  --onda-border: #26262c;
+  --onda-rose: #d96b82;
+  --onda-rose-soft: rgba(217, 107, 130, 0.12);
+  --onda-violet: #b06cff;
+  --onda-violet-soft: rgba(176, 108, 255, 0.12);
+  --onda-amber: #e2b04a;
+  --onda-amber-soft: rgba(226, 176, 74, 0.12);
+  --onda-red: #e5687a;
+  --onda-red-soft: rgba(229, 104, 122, 0.12);
 }
 
 /* Light theme — keep the same rose so links/CTAs stay on-brand. */
@@ -37,17 +56,264 @@
   --sl-color-accent: #c8576f;
   --sl-color-accent-high: #5e1f2b;
   --sl-color-text-accent: #c8576f;
+
+  --onda-surface: #ffffff;
+  --onda-surface-2: #f5f5f7;
+  --onda-border: #e2e2e7;
+  --onda-rose-soft: rgba(200, 87, 111, 0.1);
+  --onda-violet: #7c3aed;
+  --onda-violet-soft: rgba(124, 58, 237, 0.1);
 }
 
+/* ===================== Typography ===================== */
 /* Headings in the display face, to match the landing. */
 .sl-markdown-content h1,
 .sl-markdown-content h2,
 .sl-markdown-content h3,
+.sl-markdown-content h4,
 .content-panel h1,
 h1.hero-title,
 .sl-heading,
-site-title,
+.site-title,
 .page-title {
-  font-family: 'Clash Display', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: -0.015em;
+  font-family: var(--onda-font-head);
+  letter-spacing: -0.018em;
+  font-weight: 600;
+}
+.sl-markdown-content h1,
+.content-panel h1 {
+  letter-spacing: -0.026em;
+}
+/* A hairline under section headings for rhythm; H2 sits a little prouder. */
+.sl-markdown-content h2 {
+  margin-top: 2.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--onda-border);
+}
+.sl-markdown-content h3 {
+  margin-top: 2rem;
+}
+/* Lead paragraph (first para after the title) reads a touch larger + calmer. */
+.sl-markdown-content > p:first-of-type {
+  font-size: var(--sl-text-lg);
+  color: var(--sl-color-gray-2);
+}
+.sl-markdown-content {
+  line-height: 1.7;
+}
+/* Anchor-link affordance on hover. */
+.sl-markdown-content :is(h2, h3, h4) > a:hover {
+  text-decoration: none;
+}
+
+/* Page title block — the big H1 at the top of each doc. */
+.content-panel .sl-heading,
+h1#_top {
+  font-family: var(--onda-font-head);
+}
+
+/* ===================== Links ===================== */
+.sl-markdown-content a {
+  text-underline-offset: 0.2em;
+  text-decoration-color: color-mix(in srgb, var(--sl-color-text-accent) 45%, transparent);
+  transition: text-decoration-color 0.15s ease, color 0.15s ease;
+}
+.sl-markdown-content a:hover {
+  text-decoration-color: var(--sl-color-text-accent);
+}
+
+/* ===================== Inline code ===================== */
+.sl-markdown-content :not(pre) > code {
+  background: var(--onda-surface-2);
+  border: 1px solid var(--onda-border);
+  border-radius: 6px;
+  padding: 0.12em 0.4em;
+  color: var(--sl-color-white);
+  font-size: 0.86em;
+}
+.sl-markdown-content a > code {
+  color: var(--sl-color-text-accent);
+}
+
+/* ===================== Code blocks (Expressive Code) ===================== */
+.expressive-code {
+  --ec-brdRad: 12px;
+  --ec-brdWd: 1px;
+  --ec-brdCol: var(--onda-border);
+  --ec-frm-edBg: var(--sl-color-black);
+  --ec-frm-edTabBarBg: var(--onda-surface);
+  --ec-frm-trmBg: var(--sl-color-black);
+  --ec-frm-trmTtbBg: var(--onda-surface);
+  --ec-frm-frameBoxShdCssVal: 0 1px 0 rgba(255, 255, 255, 0.03) inset,
+    0 8px 28px rgba(0, 0, 0, 0.4);
+}
+.expressive-code .frame {
+  border-radius: 12px;
+}
+/* Fallback for any non-Expressive-Code <pre>. */
+.sl-markdown-content pre:not([class*='expressive']) {
+  border: 1px solid var(--onda-border);
+  border-radius: 12px;
+  background: var(--sl-color-black);
+}
+
+/* ===================== Asides / callouts ===================== */
+/* On-brand: note = rose, tip = violet, caution = amber, danger = red.
+   A solid left bar + soft tinted surface + branded title. */
+.starlight-aside {
+  border-radius: 0 12px 12px 0;
+  border-inline-start-width: 3px;
+  padding: 1rem 1.25rem;
+}
+.starlight-aside__title {
+  font-family: var(--onda-font-head);
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+.starlight-aside--note {
+  background: var(--onda-rose-soft);
+  border-color: var(--onda-rose);
+  --sl-color-asides-text-accent: var(--sl-color-text-accent);
+}
+.starlight-aside--tip {
+  background: var(--onda-violet-soft);
+  border-color: var(--onda-violet);
+  --sl-color-asides-text-accent: #c79bff;
+}
+.starlight-aside--caution {
+  background: var(--onda-amber-soft);
+  border-color: var(--onda-amber);
+  --sl-color-asides-text-accent: var(--onda-amber);
+}
+.starlight-aside--danger {
+  background: var(--onda-red-soft);
+  border-color: var(--onda-red);
+  --sl-color-asides-text-accent: var(--onda-red);
+}
+.starlight-aside a {
+  color: var(--sl-color-white);
+}
+
+/* ===================== Tables ===================== */
+.sl-markdown-content table {
+  /* Scroll wide tables instead of clipping them — essential on narrow / 9:16
+     portrait screens where the comparison tables exceed the viewport. */
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--onda-border);
+  border-radius: 12px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.94em;
+}
+.sl-markdown-content th {
+  background: var(--onda-surface);
+  font-family: var(--sl-font-mono);
+  font-size: 0.82em;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--sl-color-gray-2);
+}
+.sl-markdown-content :is(th, td) {
+  border: 0;
+  border-bottom: 1px solid var(--onda-border);
+  padding: 0.6rem 0.9rem;
+}
+.sl-markdown-content tr:last-child td {
+  border-bottom: 0;
+}
+.sl-markdown-content tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+/* ===================== Sidebar ===================== */
+/* Group labels in mono caps; active page marked with the rose accent. */
+.sidebar-content summary .group-label .large,
+.sidebar-content > ul > li > details > summary .large,
+nav.sidebar-content .top-level > li > details > summary span,
+.sidebar-content .group-label > span {
+  font-family: var(--sl-font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sl-color-gray-3);
+}
+.sidebar-content a {
+  border-radius: 8px;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.sidebar-content a:hover {
+  background: var(--onda-surface-2);
+}
+.sidebar-content a[aria-current='page'] {
+  background: var(--onda-rose-soft);
+  color: var(--sl-color-white);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--sl-color-accent);
+}
+
+/* Sidebar badges (e.g. "agent", "new") in the brand accent. */
+.sidebar-content .sl-badge {
+  font-family: var(--sl-font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-color: var(--onda-border);
+}
+.sidebar-content .sl-badge.default {
+  background: var(--onda-violet-soft);
+  color: #c79bff;
+  border-color: rgba(176, 108, 255, 0.4);
+}
+
+/* ===================== On-this-page (right TOC) ===================== */
+starlight-toc a[aria-current='true'],
+.right-sidebar a[aria-current='true'] {
+  color: var(--sl-color-text-accent);
+  font-weight: 600;
+  border-inline-start-color: var(--sl-color-accent);
+}
+
+/* ===================== Cards (CardGrid / <Card>) ===================== */
+.sl-markdown-content .card,
+.card-grid .card {
+  background: var(--onda-surface);
+  border: 1px solid var(--onda-border);
+  border-radius: 14px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.sl-markdown-content .card:hover,
+.card-grid .card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(217, 107, 130, 0.4);
+  box-shadow: 0 10px 34px -16px rgba(217, 107, 130, 0.35);
+}
+.card .title {
+  font-family: var(--onda-font-head);
+  font-weight: 600;
+}
+.card .icon {
+  color: var(--sl-color-text-accent);
+  background: var(--onda-rose-soft);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+/* ===================== Hero (splash pages) ===================== */
+.hero h1 {
+  font-family: var(--onda-font-head);
+  letter-spacing: -0.03em;
+}
+.hero .tagline {
+  color: var(--sl-color-gray-2);
+}
+
+/* Top nav: hairline + slightly stronger blur so it reads above content. */
+.header {
+  border-bottom: 1px solid var(--onda-border);
 }
