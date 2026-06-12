@@ -58,7 +58,10 @@ cp scripts/onda-engine.d.ts "$OUT/onda-engine.d.ts"
 # ── 4. Native binaries: the CLI + the audio tools ────────────────────────────
 if [[ "$SKIP_BINARY" -eq 0 ]]; then
   step "Building native binaries (onda, synth_json, beats_json) --release"
-  cargo build --release -p onda-cli
+  # `segment` bakes U²-Net subject segmentation (text-behind-subject, auto-
+  # reframe) into the binary — onnxruntime statically linked (~+24MB). The
+  # model itself (~176MB) downloads once at first use to ~/.onda/models/.
+  cargo build --release -p onda-cli --features segment
   cargo build --release -p onda-audio --example synth_json --example beats_json
   cp target/release/onda "$OUT/onda"
   cp target/release/examples/synth_json "$OUT/synth_json"
