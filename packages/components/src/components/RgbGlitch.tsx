@@ -32,12 +32,13 @@
 import { Group, Text, random, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface RgbGlitchProps {
   /** The text to glitch. */
   text?: string
   /** Frames before the effect starts. */
-  delay?: number
+  delay?: TimeInput
   /** Constant baseline channel split in px (the always-on chromatic edge). */
   baseSplit?: number
   /** Peak extra split in px during a glitch burst. */
@@ -75,7 +76,7 @@ export interface RgbGlitchProps {
 
 export function RgbGlitch({
   text = 'GLITCH',
-  delay = 0,
+  delay: delayIn = 0,
   baseSplit = 2,
   intensity = 10,
   glitchPeriod = 48,
@@ -94,7 +95,9 @@ export function RgbGlitch({
   y,
 }: RgbGlitchProps) {
   const frame = useCurrentFrame()
-  const { width, height } = useVideoConfig()
+  const { width, height, fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const redColor = redColorProp ?? theme.accent

@@ -36,6 +36,7 @@ import { DURATION } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** Default bubble surface. The theme `surface` (~`#121217`) sits barely above
  *  the canvas (`#0a0d17`), so a speech bubble drawn with it vanishes. A callout
@@ -73,13 +74,13 @@ export interface CalloutProps {
   /** Side the pointer triangle sticks out from (default `'bottom'`). */
   direction?: CalloutDirection
   /** Frames before the bubble starts revealing. */
-  delay?: number
+  delay?: TimeInput
   /** Bubble scale-and-fade reveal duration in frames (default `DURATION.base`). */
-  duration?: number
+  duration?: TimeInput
   /** Frames after the bubble starts before the pointer eases in (default 6). */
-  lineDelay?: number
+  lineDelay?: TimeInput
   /** Pointer reveal duration in frames (default `DURATION.base`). */
-  lineDuration?: number
+  lineDuration?: TimeInput
   /** Label color (default: theme `text`). */
   color?: string
   /** Bubble background fill (default: an elevated translucent-white surface that
@@ -115,10 +116,10 @@ export function Callout({
   x,
   y,
   direction = 'bottom',
-  delay = 0,
-  duration = DURATION.base,
-  lineDelay = 6,
-  lineDuration = DURATION.base,
+  delay: delayIn = 0,
+  duration: durationIn = DURATION.base,
+  lineDelay: lineDelayIn = 6,
+  lineDuration: lineDurationIn = DURATION.base,
   color: colorProp,
   bgColor: bgColorProp,
   borderColor: borderColorProp,
@@ -135,6 +136,11 @@ export function Callout({
 }: CalloutProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const duration = framesOf(durationIn, fps)
+  const lineDelay = framesOf(lineDelayIn, fps)
+  const lineDuration = framesOf(lineDurationIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.text
   // Default to an elevated surface/border (not the near-black theme tokens) so

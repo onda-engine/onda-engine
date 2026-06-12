@@ -27,6 +27,7 @@ import { Group, Rect, Text, linearGradient, useVideoConfig } from '@onda/react'
 import { useStaggeredEntrance } from '../hooks.js'
 import { STAGGER } from '../motion.js'
 import { useTheme } from '../theme.js'
+import type { TimeInput } from '../time.js'
 
 /** A single bento cell. Spans default to 1×1; `accent` earns the rose tint. */
 export interface BentoItem {
@@ -58,9 +59,9 @@ export interface BentoGridProps {
   /** Inner padding of each cell in px (default 34). */
   padding?: number
   /** Frames before the first cell enters (default 0). */
-  delay?: number
+  delay?: TimeInput
   /** Frames between successive cells rising in. House stagger is 4. */
-  stagger?: number
+  stagger?: TimeInput
   /** Base title font size in px (default 30). */
   fontSize?: number
   /** Title color (default: theme `text`). */

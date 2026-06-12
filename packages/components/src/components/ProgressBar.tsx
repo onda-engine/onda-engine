@@ -22,14 +22,15 @@ import {
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface ProgressBarProps {
   /** Target fill, 0–100. The bar grows from 0 to this value. */
   value?: number
   /** Frames before the animation starts. */
-  delay?: number
+  delay?: TimeInput
   /** Frames to reach the full target value (default `DURATION.slow` = 24). */
-  duration?: number
+  duration?: TimeInput
   /** Track width in px — the full 0%→100% travel. */
   width?: number
   /** Bar thickness in px. */
@@ -52,8 +53,8 @@ export interface ProgressBarProps {
 
 export function ProgressBar({
   value = 64,
-  delay = 0,
-  duration = DURATION.slow,
+  delay: delayIn = 0,
+  duration: durationIn = DURATION.slow,
   width = 640,
   height = 12,
   radius = 999,
@@ -66,6 +67,9 @@ export function ProgressBar({
 }: ProgressBarProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const duration = framesOf(durationIn, fps)
   const theme = useTheme()
   const trackColor = trackColorProp ?? theme.surface
   const accentColor = accentColorProp ?? theme.accent

@@ -37,6 +37,7 @@ import { Group, Text, interpolate, spring, useCurrentFrame, useVideoConfig } fro
 import { DURATION, SPRING_SMOOTH, staggerFrames } from '../motion.js'
 import { letterSpacingPx, measureText, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** One transcript entry: a word and its `[startMs, endMs)` activation window. */
 export interface CaptionEntry {
@@ -50,7 +51,7 @@ export interface CaptionsProps {
    *  window — the format every STT / transcript tool already speaks. */
   captions?: CaptionEntry[]
   /** Frames before the timeline starts (shifts every `startMs` by this). */
-  delay?: number
+  delay?: TimeInput
   /** Settled word color — the near-white tone a word relaxes to once the eye has
    *  landed past it (the karaoke "already read" state) (default: theme `text`). */
   color?: string
@@ -109,7 +110,7 @@ const PLACEMENT_TO_BAND: Record<
 
 export function Captions({
   captions = DEFAULT_CAPTIONS,
-  delay = 0,
+  delay: delayIn = 0,
   color: colorProp,
   accentColor: accentColorProp,
   fontSize = 96,
@@ -122,6 +123,8 @@ export function Captions({
 }: CaptionsProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   // The active word carries the one earned accent; words the eye has passed
   // settle back to near-white `text`.

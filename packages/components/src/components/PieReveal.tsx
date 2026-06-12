@@ -33,6 +33,7 @@ import {
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** One pie slice: a numeric weight and its color. */
 export interface PieRevealSlice {
@@ -56,11 +57,11 @@ export interface PieRevealProps {
   /** Color filling the donut hole — match the composition background (default: theme `background`). */
   holeColor?: string
   /** Frames before the **first** slice starts sweeping. */
-  delay?: number
+  delay?: TimeInput
   /** Per-slice sweep duration on the house spring. */
-  duration?: number
+  duration?: TimeInput
   /** Frames between consecutive slices starting (default canonical `STAGGER`). */
-  stagger?: number
+  stagger?: TimeInput
   /** Horizontal center as a 0–1 fraction of canvas width. */
   x?: number
   /** Vertical center as a 0–1 fraction of canvas height. */
@@ -125,9 +126,9 @@ export function PieReveal({
   radius = 180,
   innerRadius = 0,
   holeColor: holeColorProp,
-  delay = 0,
-  duration = DURATION.slow,
-  stagger = STAGGER,
+  delay: delayIn = 0,
+  duration: durationIn = DURATION.slow,
+  stagger: staggerIn = STAGGER,
   x = 0.5,
   y = 0.5,
   showLabel = false,
@@ -138,6 +139,10 @@ export function PieReveal({
 }: PieRevealProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const duration = framesOf(durationIn, fps)
+  const stagger = framesOf(staggerIn, fps)
   const theme = useTheme()
   const holeColor = holeColorProp ?? theme.background
   const labelColor = labelColorProp ?? theme.text

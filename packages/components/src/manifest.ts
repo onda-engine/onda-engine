@@ -218,7 +218,7 @@ const RAW: RawEntry[] = [
         role: 'durationFrames',
         themeable: false,
         required: false,
-        description: 'Frames the fade-in / fade-out takes. Default 2 (~67ms @ 30fps).',
+        description: 'Frames the fade-in / fade-out takes. Default 2 (~67ms @ 30fps). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'loop',
@@ -387,7 +387,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the visualizer fades/grows in.',
+        description: 'Frames before the visualizer fades/grows in. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -396,7 +396,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.slow',
-        description: 'Frames for the entrance grow-in.',
+        description: 'Frames for the entrance grow-in. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
     ],
     schema: audioVisualizerSchema,
@@ -454,7 +454,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the first bar starts.',
+        description: 'Frames before the first bar starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'duration',
@@ -464,7 +464,7 @@ const RAW: RawEntry[] = [
         required: false,
         default: 'DURATION.slow',
         description:
-          'Per-bar grow duration in frames. Bars want more time than text (default slow).',
+          'Per-bar grow duration in frames. Bars want more time than text (default slow). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'stagger',
@@ -473,7 +473,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'STAGGER',
-        description: 'Frames between consecutive bars (canonical STAGGER = 4).',
+        description: 'Frames between consecutive bars (canonical STAGGER = 4). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'barHeight',
@@ -727,7 +727,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the first cell enters.',
+        description: 'Frames before the first cell enters. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'stagger',
@@ -736,7 +736,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'STAGGER',
-        description: 'Frames between successive cells rising in. House stagger is 4.',
+        description: 'Frames between successive cells rising in. House stagger is 4. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'fontSize',
@@ -845,7 +845,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the reveal starts.',
+        description: 'Frames before the reveal starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -854,7 +854,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Frames until the reveal fully settles (DURATION.base = 18).',
+        description: 'Frames until the reveal fully settles (DURATION.base = 18). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'color',
@@ -1023,7 +1023,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the outline starts revealing.',
+        description: 'Frames before the outline starts revealing. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'drawDuration',
@@ -1032,7 +1032,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.slow',
-        description: 'Frames to reveal the full outline (default 24).',
+        description: 'Frames to reveal the full outline (default 24). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'strokeWidth',
@@ -1127,7 +1127,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the entrance.',
+        description: 'Frames before the entrance. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'animate',
@@ -1398,7 +1398,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the entrance begins.',
+        description: 'Frames before the entrance begins. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -1407,7 +1407,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Entrance duration in frames (default DURATION.base = 18).',
+        description: 'Entrance duration in frames (default DURATION.base = 18). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'press',
@@ -1425,7 +1425,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '30',
-        description: 'Frame the press dip lands on (relative to the local timeline).',
+        description: 'Frame the press dip lands on (relative to the local timeline). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'placement',
@@ -1498,7 +1498,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the bubble starts revealing.',
+        description: 'Frames before the bubble starts revealing. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'duration',
@@ -1507,7 +1507,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Bubble scale-and-fade reveal duration in frames.',
+        description: 'Bubble scale-and-fade reveal duration in frames. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'lineDelay',
@@ -1516,7 +1516,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '6',
-        description: 'Frames after the bubble starts before the pointer eases in.',
+        description: 'Frames after the bubble starts before the pointer eases in. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'lineDuration',
@@ -1525,7 +1525,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Pointer reveal duration in frames.',
+        description: 'Pointer reveal duration in frames. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'color',
@@ -1672,7 +1672,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the shake starts; outside the window the offset is 0.',
+        description: 'Frames before the shake starts; outside the window the offset is 0. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'duration',
@@ -1682,7 +1682,7 @@ const RAW: RawEntry[] = [
         required: false,
         default: 'DURATION.slow',
         description:
-          'Frames the shake lasts; before delay and after delay + duration the offset is exactly 0.',
+          'Frames the shake lasts; before delay and after delay + duration the offset is exactly 0. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'intensity',
@@ -1790,7 +1790,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the timeline starts (shifts every startMs by this).',
+        description: 'Frames before the timeline starts (shifts every startMs by this). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'color',
@@ -1934,7 +1934,7 @@ const RAW: RawEntry[] = [
         required: false,
         default: '0',
         description:
-          'Frames before the number starts fading in; the whole card sequences off this.',
+          'Frames before the number starts fading in; the whole card sequences off this. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'accent',
@@ -2112,7 +2112,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the first line appears.',
+        description: 'Frames before the first line appears. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'lineDelay',
@@ -2121,7 +2121,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '3',
-        description: 'Frames between successive line reveals.',
+        description: 'Frames between successive line reveals. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'fontFamily',
@@ -2289,7 +2289,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the first line appears.',
+        description: 'Frames before the first line appears. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'lineDelay',
@@ -2298,7 +2298,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'STAGGER',
-        description: 'Frames between consecutive line reveals (canonical STAGGER = 4).',
+        description: 'Frames between consecutive line reveals (canonical STAGGER = 4). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'fontFamily',
@@ -2471,7 +2471,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the burst launches.',
+        description: 'Frames before the burst launches. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'duration',
@@ -2480,7 +2480,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '70',
-        description: 'Frames over which a piece travels, tumbles and fades out.',
+        description: 'Frames over which a piece travels, tumbles and fades out. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'spread',
@@ -2560,7 +2560,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames to wait before the count starts.',
+        description: 'Frames to wait before the count starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -2569,7 +2569,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.slow',
-        description: 'Frames spent counting from `from` to `to`.',
+        description: 'Frames spent counting from `from` to `to`. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'decimals',
@@ -2695,6 +2695,31 @@ const RAW: RawEntry[] = [
         required: false,
         description: 'Explicit width cap in px for the line; combines with fit (the smaller cap wins).',
       },
+      {
+        name: 'fitToClip',
+        type: 'boolean',
+        role: 'boolean',
+        themeable: false,
+        required: false,
+        description:
+          'Compress the whole timing envelope (delay, stagger, durations) so the entrance settles at least hold before the end of the enclosing clip. Opt-in.',
+      },
+      {
+        name: 'maxSettle',
+        type: 'unknown',
+        role: 'durationFrames',
+        themeable: false,
+        required: false,
+        description: "Hard cap on the settle time (frames or '0.5s'). Wins over fitToClip.",
+      },
+      {
+        name: 'hold',
+        type: 'unknown',
+        role: 'durationFrames',
+        themeable: false,
+        required: false,
+        description: 'Breathing room before the cut for fitToClip (default 6 frames).',
+      },
     ],
     schema: countUpSchema,
   },
@@ -2764,7 +2789,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '6',
-        description: 'Frames before the cursor starts moving.',
+        description: 'Frames before the cursor starts moving. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'travelDuration',
@@ -2773,7 +2798,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.slow',
-        description: 'Frames to travel from start to end on the house spring.',
+        description: 'Frames to travel from start to end on the house spring. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'click',
@@ -2791,7 +2816,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '6',
-        description: 'Frames after arrival before the click fires.',
+        description: 'Frames after arrival before the click fires. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'color',
@@ -2853,7 +2878,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the entrance begins.',
+        description: 'Frames before the entrance begins. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'animate',
@@ -2933,7 +2958,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the draw-on starts.',
+        description: 'Frames before the draw-on starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -2942,7 +2967,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.slow',
-        description: 'Frames to fully draw the path in (default `DURATION.slow` = 24).',
+        description: 'Frames to fully draw the path in (default `DURATION.slow` = 24). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
     ],
     schema: drawOnSchema,
@@ -3089,7 +3114,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the CTA starts; the whole card is sequenced relative to this.',
+        description: 'Frames before the CTA starts; the whole card is sequenced relative to this. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'accent',
@@ -3201,7 +3226,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames to wait before starting the fade.',
+        description: 'Frames to wait before starting the fade. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -3210,7 +3235,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Frames the fade takes to settle (default DURATION.base = 18).',
+        description: 'Frames the fade takes to settle (default DURATION.base = 18). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
     ],
     schema: fadeInSchema,
@@ -3236,7 +3261,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frame at which the exit (fade-out) begins.',
+        description: 'Frame at which the exit (fade-out) begins. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -3246,7 +3271,7 @@ const RAW: RawEntry[] = [
         required: false,
         default: 'DURATION.fast',
         description:
-          'Frames the fade-out takes (default DURATION.fast = 10 \u2014 exits are quick).',
+          'Frames the fade-out takes (default DURATION.fast = 10 \u2014 exits are quick). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
     ],
     schema: fadeOutSchema,
@@ -3393,7 +3418,7 @@ const RAW: RawEntry[] = [
         required: false,
         default: '0',
         description:
-          'Frames before the drift starts; while `frame < delay` the gradient sits at `angle`.',
+          'Frames before the drift starts; while `frame < delay` the gradient sits at `angle`. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
     ],
     schema: gradientShiftSchema,
@@ -3476,7 +3501,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '2',
-        description: 'Frames per re-seed bucket when animate is on; lower = busier shimmer.',
+        description: 'Frames per re-seed bucket when animate is on; lower = busier shimmer. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'count',
@@ -3535,7 +3560,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the text starts revealing.',
+        description: 'Frames before the text starts revealing. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'duration',
@@ -3544,7 +3569,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Text reveal duration in frames (default DURATION.base = 18).',
+        description: 'Text reveal duration in frames (default DURATION.base = 18). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'lineDelay',
@@ -3553,7 +3578,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '8',
-        description: 'Frames to wait after the text appears before the accent bar wipes in.',
+        description: 'Frames to wait after the text appears before the accent bar wipes in. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'lineDuration',
@@ -3563,7 +3588,7 @@ const RAW: RawEntry[] = [
         required: false,
         default: 'DURATION.fast',
         description:
-          'Accent-bar wipe duration. Fast on purpose \u2014 emphatic (default DURATION.fast).',
+          'Accent-bar wipe duration. Fast on purpose \u2014 emphatic (default DURATION.fast). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'color',
@@ -3713,7 +3738,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the pop starts.',
+        description: 'Frames before the pop starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -3722,7 +3747,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Frames the pop takes to settle (defaults to DURATION.base = 18).',
+        description: 'Frames the pop takes to settle (defaults to DURATION.base = 18). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'overshoot',
@@ -3821,7 +3846,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Frames to fully reveal the image (default DURATION.base = 18).',
+        description: 'Frames to fully reveal the image (default DURATION.base = 18). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'delay',
@@ -3830,7 +3855,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the reveal starts.',
+        description: 'Frames before the reveal starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'x',
@@ -3948,7 +3973,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before typing starts.',
+        description: 'Frames before typing starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'typeDuration',
@@ -3957,7 +3982,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '36',
-        description: 'Frames to type the whole value, linear pacing.',
+        description: 'Frames to type the whole value, linear pacing. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'focusRing',
@@ -4133,7 +4158,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the first card enters.',
+        description: 'Frames before the first card enters. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'stagger',
@@ -4142,7 +4167,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'STAGGER',
-        description: 'Frames between successive cards rising in (house stagger = 4).',
+        description: 'Frames between successive cards rising in (house stagger = 4). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'fontSize',
@@ -4261,7 +4286,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the drift starts.',
+        description: 'Frames before the drift starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'duration',
@@ -4270,7 +4295,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '150',
-        description: 'Frames over which the zoom and pan completes (150f \u2248 5s @ 30fps).',
+        description: 'Frames over which the zoom and pan completes (150f \u2248 5s @ 30fps). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'fromScale',
@@ -4386,7 +4411,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'STAGGER',
-        description: 'Frames between consecutive glyphs entering (canonical STAGGER = 5).',
+        description: 'Frames between consecutive glyphs entering (canonical STAGGER = 5). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -4404,7 +4429,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the first glyph starts.',
+        description: 'Frames before the first glyph starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'align',
@@ -4468,6 +4493,31 @@ const RAW: RawEntry[] = [
         required: false,
         description: 'Explicit width cap in px for the line; combines with fit (the smaller cap wins).',
       },
+      {
+        name: 'fitToClip',
+        type: 'boolean',
+        role: 'boolean',
+        themeable: false,
+        required: false,
+        description:
+          'Compress the whole timing envelope (delay, stagger, durations) so the entrance settles at least hold before the end of the enclosing clip. Opt-in.',
+      },
+      {
+        name: 'maxSettle',
+        type: 'unknown',
+        role: 'durationFrames',
+        themeable: false,
+        required: false,
+        description: "Hard cap on the settle time (frames or '0.5s'). Wins over fitToClip.",
+      },
+      {
+        name: 'hold',
+        type: 'unknown',
+        role: 'durationFrames',
+        themeable: false,
+        required: false,
+        description: 'Breathing room before the cut for fitToClip (default 6 frames).',
+      },
     ],
     schema: kineticTextSchema,
   },
@@ -4510,7 +4560,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the line starts drawing.',
+        description: 'Frames before the line starts drawing. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'duration',
@@ -4519,7 +4569,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '40',
-        description: 'Frames for the line to fully draw on.',
+        description: 'Frames for the line to fully draw on. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'color',
@@ -4626,7 +4676,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the sting starts.',
+        description: 'Frames before the sting starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'accent',
@@ -4785,7 +4835,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the name slides in.',
+        description: 'Frames before the name slides in. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'accent',
@@ -5024,7 +5074,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the reveal starts.',
+        description: 'Frames before the reveal starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'duration',
@@ -5033,7 +5083,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Frames for the mask to fully retreat.',
+        description: 'Frames for the mask to fully retreat. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'direction',
@@ -5172,7 +5222,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before decoding starts.',
+        description: 'Frames before decoding starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'charDelay',
@@ -5181,7 +5231,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '3',
-        description: 'Frames between successive characters settling (left-to-right).',
+        description: 'Frames between successive characters settling (left-to-right). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'scrambleDuration',
@@ -5190,7 +5240,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '18',
-        description: 'Frames each character scrambles before it settles (min 1).',
+        description: 'Frames each character scrambles before it settles (min 1). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'scrambleSpeed',
@@ -5199,7 +5249,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '2',
-        description: 'Frames between glyph swaps while scrambling. Lower = faster flicker (min 1).',
+        description: 'Frames between glyph swaps while scrambling. Lower = faster flicker (min 1). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'seed',
@@ -5324,6 +5374,31 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         description: 'Explicit width cap in px for the line; combines with fit (the smaller cap wins).',
+      },
+      {
+        name: 'fitToClip',
+        type: 'boolean',
+        role: 'boolean',
+        themeable: false,
+        required: false,
+        description:
+          'Compress the whole timing envelope (delay, stagger, durations) so the entrance settles at least hold before the end of the enclosing clip. Opt-in.',
+      },
+      {
+        name: 'maxSettle',
+        type: 'unknown',
+        role: 'durationFrames',
+        themeable: false,
+        required: false,
+        description: "Hard cap on the settle time (frames or '0.5s'). Wins over fitToClip.",
+      },
+      {
+        name: 'hold',
+        type: 'unknown',
+        role: 'durationFrames',
+        themeable: false,
+        required: false,
+        description: 'Breathing room before the cut for fitToClip (default 6 frames).',
       },
     ],
     schema: matrixDecodeSchema,
@@ -5476,7 +5551,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the constellation begins assembling.',
+        description: 'Frames before the constellation begins assembling. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'glow',
@@ -5625,7 +5700,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the drift starts.',
+        description: 'Frames before the drift starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'duration',
@@ -5634,7 +5709,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '180',
-        description: 'Frames over which the drift completes (180f is about 6s at 30fps).',
+        description: 'Frames over which the drift completes (180f is about 6s at 30fps). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'direction',
@@ -5742,7 +5817,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the first slice starts sweeping.',
+        description: 'Frames before the first slice starts sweeping. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'duration',
@@ -5751,7 +5826,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.slow',
-        description: 'Per-slice sweep duration on the house spring, in frames.',
+        description: 'Per-slice sweep duration on the house spring, in frames. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'stagger',
@@ -5760,7 +5835,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'STAGGER',
-        description: 'Frames between consecutive slices starting (default canonical STAGGER).',
+        description: 'Frames between consecutive slices starting (default canonical STAGGER). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'x',
@@ -5928,7 +6003,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the card enters.',
+        description: 'Frames before the card enters. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'width',
@@ -6069,7 +6144,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the animation starts.',
+        description: 'Frames before the animation starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'duration',
@@ -6078,7 +6153,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.slow',
-        description: 'Frames to reach the full target value.',
+        description: 'Frames to reach the full target value. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'width',
@@ -6207,7 +6282,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the fill animates.',
+        description: 'Frames before the fill animates. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'duration',
@@ -6216,7 +6291,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.slower',
-        description: 'Frames for the fill to travel to `current`.',
+        description: 'Frames for the fill to travel to `current`. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'accentColor',
@@ -6363,7 +6438,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '45',
-        description: 'Frames per pulse cycle.',
+        description: 'Frames per pulse cycle. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'x',
@@ -6442,7 +6517,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the quote starts.',
+        description: 'Frames before the quote starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'accent',
@@ -6579,7 +6654,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the effect starts.',
+        description: 'Frames before the effect starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'baseSplit',
@@ -6606,7 +6681,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '48',
-        description: 'Frames between glitch bursts.',
+        description: 'Frames between glitch bursts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'glitchDuration',
@@ -6615,7 +6690,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '8',
-        description: 'Frames a glitch burst lasts.',
+        description: 'Frames a glitch burst lasts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'seed',
@@ -6745,7 +6820,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames to wait before starting.',
+        description: 'Frames to wait before starting. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -6754,7 +6829,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Frames to settle to 0\u00b0 (default DURATION.base = 18).',
+        description: 'Frames to settle to 0\u00b0 (default DURATION.base = 18). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'fromDegrees',
@@ -6789,7 +6864,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames to wait before the animation starts.',
+        description: 'Frames to wait before the animation starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -6798,7 +6873,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Number of frames over which the entrance settles.',
+        description: 'Number of frames over which the entrance settles. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'from',
@@ -6850,7 +6925,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the sweep starts.',
+        description: 'Frames before the sweep starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'duration',
@@ -6859,7 +6934,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.slower',
-        description: 'Frames for one sweep pass (default DURATION.slower = 30).',
+        description: 'Frames for one sweep pass (default DURATION.slower = 30). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'loop',
@@ -6877,7 +6952,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '60',
-        description: 'Frames between sweeps when looping.',
+        description: 'Frames between sweeps when looping. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'color',
@@ -7000,7 +7075,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '48',
-        description: 'Frames for one shimmer pass across the card. Lower = faster sweep.',
+        description: 'Frames for one shimmer pass across the card. Lower = faster sweep. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'shimmerColor',
@@ -7043,7 +7118,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the card enters.',
+        description: 'Frames before the card enters. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'width',
@@ -7104,7 +7179,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames to wait before the animation starts.',
+        description: 'Frames to wait before the animation starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -7113,7 +7188,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Frames to fully settle into place.',
+        description: 'Frames to fully settle into place. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'direction',
@@ -7158,7 +7233,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the exit animation starts.',
+        description: 'Frames before the exit animation starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -7167,7 +7242,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.fast',
-        description: 'Frames to fully leave; exits are quicker than entrances.',
+        description: 'Frames to fully leave; exits are quicker than entrances. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'direction',
@@ -7229,7 +7304,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before rolling starts.',
+        description: 'Frames before rolling starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'charDelay',
@@ -7238,7 +7313,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '4',
-        description: 'Frames between successive characters starting their roll.',
+        description: 'Frames between successive characters starting their roll. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -7374,6 +7449,31 @@ const RAW: RawEntry[] = [
         required: false,
         description: 'Explicit width cap in px for the line; combines with fit (the smaller cap wins).',
       },
+      {
+        name: 'fitToClip',
+        type: 'boolean',
+        role: 'boolean',
+        themeable: false,
+        required: false,
+        description:
+          'Compress the whole timing envelope (delay, stagger, durations) so the entrance settles at least hold before the end of the enclosing clip. Opt-in.',
+      },
+      {
+        name: 'maxSettle',
+        type: 'unknown',
+        role: 'durationFrames',
+        themeable: false,
+        required: false,
+        description: "Hard cap on the settle time (frames or '0.5s'). Wins over fitToClip.",
+      },
+      {
+        name: 'hold',
+        type: 'unknown',
+        role: 'durationFrames',
+        themeable: false,
+        required: false,
+        description: 'Breathing room before the cut for fitToClip (default 6 frames).',
+      },
     ],
     schema: slotMachineRollSchema,
   },
@@ -7444,7 +7544,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the entrance.',
+        description: 'Frames before the entrance. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'width',
@@ -7554,7 +7654,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the reveal starts.',
+        description: 'Frames before the reveal starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -7563,7 +7663,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.slow',
-        description: 'Frames until the spotlight reaches its full radius.',
+        description: 'Frames until the spotlight reaches its full radius. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'color',
@@ -7644,7 +7744,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the card enters.',
+        description: 'Frames before the card enters. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'glowColor',
@@ -7824,7 +7924,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the first item starts.',
+        description: 'Frames before the first item starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'stagger',
@@ -7833,7 +7933,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'STAGGER',
-        description: 'Frames between consecutive items; canonical Onda stagger is 4.',
+        description: 'Frames between consecutive items; canonical Onda stagger is 4. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'duration',
@@ -7842,7 +7942,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Per-item reveal duration in frames.',
+        description: 'Per-item reveal duration in frames. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'direction',
@@ -8015,7 +8115,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames to delay before the staggered fade-in begins.',
+        description: 'Frames to delay before the staggered fade-in begins. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'placement',
@@ -8103,7 +8203,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before typing starts.',
+        description: 'Frames before typing starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'typeSpeed',
@@ -8112,7 +8212,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '30',
-        description: 'Frames to type the whole command (linear cadence).',
+        description: 'Frames to type the whole command (linear cadence). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'outputDelay',
@@ -8121,7 +8221,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '8',
-        description: 'Frames after the command finishes before output begins.',
+        description: 'Frames after the command finishes before output begins. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'fontFamily',
@@ -8263,7 +8363,7 @@ const RAW: RawEntry[] = [
         required: false,
         default: 'DURATION.hold',
         description:
-          'Frames before the crossfade begins; until then only `from` is shown (default 45).',
+          'Frames before the crossfade begins; until then only `from` is shown (default 45). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -8273,7 +8373,7 @@ const RAW: RawEntry[] = [
         required: false,
         default: 'DURATION.base',
         description:
-          'Frames the crossfade takes \u2014 old out over the first half, new in over the second (default 18).',
+          'Frames the crossfade takes \u2014 old out over the first half, new in over the second (default 18). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'fontSize',
@@ -8348,7 +8448,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the line begins to draw.',
+        description: 'Frames before the line begins to draw. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'lineDuration',
@@ -8357,7 +8457,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.slow',
-        description: 'Frames over which the vertical line reveals itself top-to-bottom.',
+        description: 'Frames over which the vertical line reveals itself top-to-bottom. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'dotDelay',
@@ -8366,7 +8466,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '8',
-        description: 'Frames between the line completing and the first dot appearing.',
+        description: 'Frames between the line completing and the first dot appearing. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'dotStagger',
@@ -8375,7 +8475,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'STAGGER',
-        description: 'Frames between consecutive dot entrances (canonical Onda stagger = 4).',
+        description: 'Frames between consecutive dot entrances (canonical Onda stagger = 4). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'dotDuration',
@@ -8384,7 +8484,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Per-dot entrance duration in frames.',
+        description: 'Per-dot entrance duration in frames. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'dotSize',
@@ -8550,7 +8650,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frame the title begins fading in; the subtitle follows by one stagger step.',
+        description: 'Frame the title begins fading in; the subtitle follows by one stagger step. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'placement',
@@ -8619,7 +8719,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the entrance starts.',
+        description: 'Frames before the entrance starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -8628,7 +8728,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.slow',
-        description: 'Frames until the text settles (default DURATION.slow = 24).',
+        description: 'Frames until the text settles (default DURATION.slow = 24). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'color',
@@ -8777,7 +8877,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before typing starts.',
+        description: 'Frames before typing starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -8787,7 +8887,7 @@ const RAW: RawEntry[] = [
         required: false,
         default: 'DURATION.slow',
         description:
-          'Frames to type the full string; linear pacing means chars-per-frame is constant (default 24).',
+          'Frames to type the full string; linear pacing means chars-per-frame is constant (default 24). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'cursor',
@@ -8893,6 +8993,31 @@ const RAW: RawEntry[] = [
         required: false,
         description: 'Explicit width cap in px for the line; combines with fit (the smaller cap wins).',
       },
+      {
+        name: 'fitToClip',
+        type: 'boolean',
+        role: 'boolean',
+        themeable: false,
+        required: false,
+        description:
+          'Compress the whole timing envelope (delay, stagger, durations) so the entrance settles at least hold before the end of the enclosing clip. Opt-in.',
+      },
+      {
+        name: 'maxSettle',
+        type: 'unknown',
+        role: 'durationFrames',
+        themeable: false,
+        required: false,
+        description: "Hard cap on the settle time (frames or '0.5s'). Wins over fitToClip.",
+      },
+      {
+        name: 'hold',
+        type: 'unknown',
+        role: 'durationFrames',
+        themeable: false,
+        required: false,
+        description: 'Breathing room before the cut for fitToClip (default 6 frames).',
+      },
     ],
     schema: typewriterSchema,
   },
@@ -8933,7 +9058,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the text starts revealing.',
+        description: 'Frames before the text starts revealing. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'duration',
@@ -8942,7 +9067,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Text reveal duration in frames (default DURATION.base = 18).',
+        description: 'Text reveal duration in frames (default DURATION.base = 18). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'lineDelay',
@@ -8951,7 +9076,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '8',
-        description: 'Frames to wait after the text lands before the rule starts drawing.',
+        description: 'Frames to wait after the text lands before the rule starts drawing. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'lineDuration',
@@ -8960,7 +9085,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.fast',
-        description: 'Rule draw duration. Fast on purpose \u2014 emphatic (default DURATION.fast).',
+        description: 'Rule draw duration. Fast on purpose \u2014 emphatic (default DURATION.fast). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'color',
@@ -9122,7 +9247,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames the clip waits before its fade-in begins.',
+        description: 'Frames the clip waits before its fade-in begins. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'fadeIn',
@@ -9131,7 +9256,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Frames the fade-in takes (0 = hard cut in).',
+        description: 'Frames the fade-in takes (0 = hard cut in). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'fadeOut',
@@ -9140,7 +9265,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: 'DURATION.base',
-        description: 'Frames the fade-out takes (0 = hard cut out).',
+        description: 'Frames the fade-out takes (0 = hard cut out). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'durationInFrames',
@@ -9149,7 +9274,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         description:
-          'Visible hold of the clip in frames, used to time the fade-out; omit to skip the fade-out.',
+          'Visible hold of the clip in frames, used to time the fade-out; omit to skip the fade-out. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'fit',
@@ -9307,7 +9432,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the first phrase begins to enter.',
+        description: 'Frames before the first phrase begins to enter. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'holdDuration',
@@ -9316,7 +9441,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '30',
-        description: 'Frames each phrase holds at full opacity before the next arrives.',
+        description: 'Frames each phrase holds at full opacity before the next arrives. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'transitionDuration',
@@ -9325,7 +9450,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '12',
-        description: 'Frames for a single phrase to fade in (and, separately, fade out).',
+        description: 'Frames for a single phrase to fade in (and, separately, fade out). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'color',
@@ -9491,7 +9616,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         default: '0',
-        description: 'Frames before the first word starts.',
+        description: 'Frames before the first word starts. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
       {
         name: 'stagger',
@@ -9499,7 +9624,7 @@ const RAW: RawEntry[] = [
         role: 'delayFrames',
         themeable: false,
         required: false,
-        description: 'Frames between consecutive words (defaults to STAGGER = 4).',
+        description: 'Frames between consecutive words (defaults to STAGGER = 4). Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
     ],
     schema: wordStaggerSchema,

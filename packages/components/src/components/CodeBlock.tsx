@@ -36,6 +36,7 @@ import { Ellipse, Group, Rect, Text, useVideoConfig } from '@onda/react'
 import type { TextRunInput } from '@onda/react'
 import { useStaggeredEntrance } from '../hooks.js'
 import { useTheme } from '../theme.js'
+import type { TimeInput } from '../time.js'
 
 export interface CodeBlockProps {
   /** The source to render. Newlines split into reveal-able lines. */
@@ -47,9 +48,9 @@ export interface CodeBlockProps {
   /** Reveal lines one-by-one instead of all at once. */
   revealLines?: boolean
   /** Frames before the first line appears. */
-  delay?: number
+  delay?: TimeInput
   /** Frames between successive line reveals. */
-  lineDelay?: number
+  lineDelay?: TimeInput
   /** Monospace font stack. Real monospace by default — code needs column alignment (default: theme `monoFamily`). */
   fontFamily?: string
   /** Code font size in px. Sized for a video canvas, not a screen UI. */

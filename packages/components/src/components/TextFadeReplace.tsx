@@ -31,6 +31,7 @@ import { AbsoluteFill, Group, Text, useCurrentFrame } from '@onda/react'
 import { stateSwap } from '../choreography.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
+import type { TimeInput } from '../time.js'
 
 export interface TextFadeReplaceProps {
   /** The outgoing phrase (shown first, fades out). */
@@ -39,10 +40,10 @@ export interface TextFadeReplaceProps {
   to: string
   /** Frames before the crossfade begins. Until then only `from` is shown
    *  (default `DURATION.hold` = 45, a settled beat before the swap). */
-  delay?: number
+  delay?: TimeInput
   /** Frames the crossfade takes — old out over the first half, new in over the
    *  second (default `DURATION.base` = 18). */
-  durationInFrames?: number
+  durationInFrames?: TimeInput
   /** Font size in px (default `96`, matching the ondajs display default). */
   fontSize?: number
   /** Text color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `text`). */

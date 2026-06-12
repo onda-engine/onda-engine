@@ -21,6 +21,8 @@ import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { glyphLayout, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
+import { staggeredSettle, useTimeScale } from '../timing.js'
 import { type TextAnimate, TextAnimator } from './TextAnimator.js'
 
 /** The per-glyph entrance presets. */
@@ -40,12 +42,20 @@ export interface KineticTextProps {
   maxWidth?: number
   /** Per-glyph entrance flavor (default `'rise'`). */
   preset?: KineticTextPreset
-  /** Frames between consecutive glyphs entering (default `STAGGER` = 5). */
-  stagger?: number
-  /** Frames each glyph's entrance takes to settle (default `DURATION.base`). */
-  durationInFrames?: number
-  /** Frames before the FIRST glyph starts (default 0). */
-  delay?: number
+  /** Time between consecutive glyphs entering (default `STAGGER` = 5 frames). */
+  stagger?: TimeInput
+  /** Time each glyph's entrance takes to settle (default `DURATION.base`). */
+  durationInFrames?: TimeInput
+  /** Time before the FIRST glyph starts (default 0). */
+  delay?: TimeInput
+  /** Compress the whole timing envelope (delay, stagger, durations) so the
+   *  entrance settles at least `hold` before the end of the enclosing clip
+   *  (`useVideoConfig().durationInFrames`, Sequence-scoped). Opt-in. */
+  fitToClip?: boolean
+  /** Hard cap on the settle time (frames or '0.5s'). Wins over `fitToClip`. */
+  maxSettle?: TimeInput
+  /** Breathing room before the cut for `fitToClip` (default 6 frames). */
+  hold?: TimeInput
   /** Horizontal alignment of the line about its anchor (default `'center'`). */
   align?: 'left' | 'center' | 'right'
   /** Text color (default: theme `text`). */
@@ -89,6 +99,9 @@ export function KineticText({
   stagger = STAGGER,
   durationInFrames = DURATION.base,
   delay = 0,
+  fitToClip,
+  maxSettle,
+  hold,
   align = 'center',
   color,
   fontFamily,
@@ -108,6 +121,9 @@ export function KineticText({
         stagger={stagger}
         durationInFrames={durationInFrames}
         delay={delay}
+        fitToClip={fitToClip}
+        maxSettle={maxSettle}
+        hold={hold}
         align={align}
         color={color}
         fontFamily={fontFamily}
@@ -127,6 +143,9 @@ export function KineticText({
       stagger={stagger}
       durationInFrames={durationInFrames}
       delay={delay}
+      fitToClip={fitToClip}
+      maxSettle={maxSettle}
+      hold={hold}
       align={align}
       fontSize={fontSize}
       color={color}
@@ -142,9 +161,12 @@ interface KineticWaveProps {
   fontSize: number
   fit?: 'none' | 'frame'
   maxWidth?: number
-  stagger: number
-  durationInFrames: number
-  delay: number
+  stagger: TimeInput
+  durationInFrames: TimeInput
+  delay: TimeInput
+  fitToClip?: boolean
+  maxSettle?: TimeInput
+  hold?: TimeInput
   align: 'left' | 'center' | 'right'
   color?: string
   fontFamily?: string
@@ -160,9 +182,12 @@ function KineticWave({
   fontSize: fontSizeProp,
   fit,
   maxWidth,
-  stagger,
-  durationInFrames,
-  delay,
+  stagger: staggerIn,
+  durationInFrames: durationIn,
+  delay: delayIn,
+  fitToClip,
+  maxSettle,
+  hold,
   align,
   color: colorProp,
   fontFamily: fontFamilyProp,
@@ -193,6 +218,16 @@ function KineticWave({
   }
   const last = clusters[clusters.length - 1]
   const lineWidth = last ? last.x + last.advance : 0
+
+  // Timing: parse + clip-fit (same contract as TextAnimator).
+  const staggerBase = framesOf(staggerIn, fps, STAGGER)
+  const durationBase = framesOf(durationIn, fps, DURATION.base)
+  const delayBase = framesOf(delayIn, fps)
+  const naturalSettle = staggeredSettle(placed.length, staggerBase, durationBase, delayBase)
+  const timeScale = useTimeScale(naturalSettle, { fitToClip, maxSettle, hold })
+  const stagger = staggerBase * timeScale
+  const durationInFrames = Math.max(1, durationBase * timeScale)
+  const delay = delayBase * timeScale
 
   // Shared placement contract (matches TextAnimator's anchoring exactly).
   const resolved = usePlacement(placement, { width: lineWidth, height: fontSize * 1.2 })

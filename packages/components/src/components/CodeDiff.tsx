@@ -31,6 +31,7 @@ import { Ellipse, Group, Rect, Text, useCurrentFrame, useVideoConfig } from '@on
 import { entryFadeRise } from '../choreography.js'
 import { DURATION, STAGGER, staggerFrames } from '../motion.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** Line kind — drives gutter symbol, color, and row treatment. */
 export type DiffLineType = 'add' | 'remove' | 'context'
@@ -53,9 +54,9 @@ export interface CodeDiffProps {
   /** Reveal lines one-by-one (else all appear together). */
   revealLines?: boolean
   /** Frames before the first line appears. */
-  delay?: number
+  delay?: TimeInput
   /** Frames between consecutive line reveals (default canonical `STAGGER` = 5). */
-  lineDelay?: number
+  lineDelay?: TimeInput
   /** Monospace font stack for code (and the title) (default: theme `monoFamily ?? fontFamily`). */
   fontFamily?: string
   /** Code font size in px. */
@@ -118,8 +119,8 @@ export function CodeDiff({
   title = 'motion.ts',
   chrome = true,
   revealLines = true,
-  delay = 0,
-  lineDelay = STAGGER,
+  delay: delayIn = 0,
+  lineDelay: lineDelayIn = STAGGER,
   fontFamily: fontFamilyProp,
   fontSize = 44,
   width = 760,
@@ -134,6 +135,9 @@ export function CodeDiff({
 }: CodeDiffProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const lineDelay = framesOf(lineDelayIn, fps)
   const theme = useTheme()
   const fontFamily = fontFamilyProp ?? theme.monoFamily ?? theme.fontFamily
   const textColor = textColorProp ?? theme.textMuted

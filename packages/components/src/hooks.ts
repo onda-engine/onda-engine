@@ -10,6 +10,7 @@ import { interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/reac
 import { type Motion, entryFade, entryFadeRise, entryScale, entrySlide } from './choreography.js'
 import { HOUSE_EASE } from './easing.js'
 import { DURATION, SPRING_SMOOTH, SPRING_SNAPPY, STAGGER, staggerFrames } from './motion.js'
+import { type TimeInput, framesOf } from './time.js'
 
 /** The entrance flavors {@link useEntrance} can produce. */
 export type EntranceType = 'fade' | 'rise' | 'scale' | 'slide'
@@ -17,8 +18,8 @@ export type EntranceType = 'fade' | 'rise' | 'scale' | 'slide'
 /** Shared entrance options. `type` picks the choreography pattern. */
 export type EntranceOptions = {
   type?: EntranceType
-  delay?: number
-  durationInFrames?: number
+  delay?: TimeInput
+  durationInFrames?: TimeInput
   /** For `type: 'slide'` — the settling direction. */
   direction?: 'up' | 'down' | 'left' | 'right'
   /** For `type: 'slide'` — travel distance in px (12–24 envelope). */
@@ -30,14 +31,9 @@ export type EntranceOptions = {
 // Internal: compute an entrance Motion given an explicit frame/fps. Kept pure so
 // useStaggeredEntrance can call it per-index after reading the frame once.
 function computeEntrance(frame: number, fps: number, opts: EntranceOptions): Motion {
-  const {
-    type = 'rise',
-    delay = 0,
-    durationInFrames = DURATION.base,
-    direction = 'up',
-    distance = 12,
-    from = 0.9,
-  } = opts
+  const { type = 'rise', direction = 'up', distance = 12, from = 0.9 } = opts
+  const delay = framesOf(opts.delay, fps, 0)
+  const durationInFrames = framesOf(opts.durationInFrames, fps, DURATION.base)
   switch (type) {
     case 'fade':
       return entryFade({ frame, fps, delay, durationInFrames })
@@ -63,23 +59,30 @@ export function useEntrance(opts: EntranceOptions = {}): Motion {
  *  `i`, staggered by {@link STAGGER}. The clean way to animate a list/grid
  *  without calling a hook in a loop. */
 export function useStaggeredEntrance(
-  opts: EntranceOptions & { increment?: number } = {},
+  opts: EntranceOptions & { increment?: TimeInput } = {},
 ): (index: number) => Motion {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
-  const { increment = STAGGER, delay = 0, ...rest } = opts
+  const { increment, delay, ...rest } = opts
+  const incrementFrames = framesOf(increment, fps, STAGGER)
+  const delayFrames = framesOf(delay, fps, 0)
   return (index: number) =>
-    computeEntrance(frame, fps, { ...rest, delay: delay + staggerFrames(index, increment) })
+    computeEntrance(frame, fps, {
+      ...rest,
+      delay: delayFrames + staggerFrames(index, incrementFrames),
+    })
 }
 
 /** The house spring value (0→1) for the current frame — the one-liner most
  *  components reach for to drive a custom interpolation. */
 export function useSpringValue(
-  opts: { delay?: number; durationInFrames?: number; snappy?: boolean } = {},
+  opts: { delay?: TimeInput; durationInFrames?: TimeInput; snappy?: boolean } = {},
 ): number {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
-  const { delay = 0, durationInFrames = DURATION.base, snappy = false } = opts
+  const { snappy = false } = opts
+  const delay = framesOf(opts.delay, fps, 0)
+  const durationInFrames = framesOf(opts.durationInFrames, fps, DURATION.base)
   return spring({
     frame: Math.max(0, frame - delay),
     fps,
@@ -92,10 +95,13 @@ export function useSpringValue(
  *  default. For opacity/color ramps and anything that isn't physical motion
  *  (use {@link useSpringValue} for position/scale). */
 export function useSceneProgress(
-  opts: { delay?: number; durationInFrames?: number; eased?: boolean } = {},
+  opts: { delay?: TimeInput; durationInFrames?: TimeInput; eased?: boolean } = {},
 ): number {
   const frame = useCurrentFrame()
-  const { delay = 0, durationInFrames = DURATION.base, eased = true } = opts
+  const { fps } = useVideoConfig()
+  const { eased = true } = opts
+  const delay = framesOf(opts.delay, fps, 0)
+  const durationInFrames = framesOf(opts.durationInFrames, fps, DURATION.base)
   return interpolate(frame - delay, [0, durationInFrames], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -108,12 +114,15 @@ export function useSceneProgress(
  *  cadence reads better than an eased one. Returns an integer in `[0, length]`. */
 export function useTextReveal(opts: {
   length: number
-  delay?: number
-  durationInFrames?: number
+  delay?: TimeInput
+  durationInFrames?: TimeInput
   eased?: boolean
 }): number {
   const frame = useCurrentFrame()
-  const { length, delay = 0, durationInFrames = DURATION.slower, eased = false } = opts
+  const { fps } = useVideoConfig()
+  const { length, eased = false } = opts
+  const delay = framesOf(opts.delay, fps, 0)
+  const durationInFrames = framesOf(opts.durationInFrames, fps, DURATION.slower)
   const raw = interpolate(frame - delay, [0, durationInFrames], [0, length], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',

@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 import { placementSchema } from '../placement.js'
 
 export const calloutSchema = z.object({
@@ -11,10 +12,10 @@ export const calloutSchema = z.object({
   x: z.number().default(0.5).describe("Bubble-center X as a 0..1 fraction of canvas width (default 0.5 = center)."),
   y: z.number().default(0.5).describe("Bubble-center Y as a 0..1 fraction of canvas height (default 0.5 = center)."),
   direction: z.enum(['top', 'bottom', 'left', 'right']).default('bottom').describe("Side the pointer triangle sticks out from (and the rough direction the callout is aimed)."),
-  delay: z.number().int().default(0).describe("Frames before the bubble starts revealing."),
-  duration: z.number().int().optional().describe("Bubble scale-and-fade reveal duration in frames."),
-  lineDelay: z.number().int().default(6).describe("Frames after the bubble starts before the pointer eases in."),
-  lineDuration: z.number().int().optional().describe("Pointer reveal duration in frames."),
+  delay: timeSchema.default(0).describe("Frames before the bubble starts revealing."),
+  duration: timeSchema.optional().describe("Bubble scale-and-fade reveal duration in frames."),
+  lineDelay: timeSchema.default(6).describe("Frames after the bubble starts before the pointer eases in."),
+  lineDuration: timeSchema.optional().describe("Pointer reveal duration in frames."),
   color: z.string().optional().describe("Label color (default: theme text)."),
   bgColor: z.string().optional().describe("Bubble background fill (default: an elevated translucent-white surface that lifts the bubble off the dark canvas)."),
   borderColor: z.string().optional().describe("Bubble border color (default: a bright translucent-white hairline)."),

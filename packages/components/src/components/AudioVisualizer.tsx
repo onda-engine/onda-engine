@@ -37,6 +37,7 @@ import { useAudioData } from '../audio.js'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
+import type { TimeInput } from '../time.js'
 
 /** Visualizer render style. Every style draws from the same amplitude array, so
  *  switching `type` is purely a change of geometry. */
@@ -84,9 +85,9 @@ export interface AudioVisualizerProps {
   /** Deterministic seed for the fake spectrum. */
   seed?: number | string
   /** Frames before the visualizer fades/grows in. */
-  delay?: number
+  delay?: TimeInput
   /** Frames for the entrance grow-in. */
-  durationInFrames?: number
+  durationInFrames?: TimeInput
 }
 
 /** Two-entry [top, bottom] color ramp from the `color` prop (single string

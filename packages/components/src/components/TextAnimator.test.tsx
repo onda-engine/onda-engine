@@ -24,7 +24,11 @@ const op = (n: SceneNode) => n.opacity ?? 1
 
 describe('TextAnimator — units', () => {
   it('emits one glyph node per non-space character (spaces advance, emit nothing)', () => {
-    expect(at(<TextAnimator text="ab c" units="glyph" />, 120).map(content)).toEqual(['a', 'b', 'c'])
+    expect(at(<TextAnimator text="ab c" units="glyph" />, 120).map(content)).toEqual([
+      'a',
+      'b',
+      'c',
+    ])
   })
 
   it('groups glyphs into whitespace-delimited words', () => {

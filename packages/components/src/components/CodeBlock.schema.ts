@@ -4,14 +4,15 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const codeBlockSchema = z.object({
   code: z.string().default("const onda = motion('identity');\nexport default onda;").describe("The source to render. Newlines split into reveal-able lines."),
   title: z.string().default('onda.ts').describe("Filename shown in the title bar. Empty hides the title (dots still show if chrome)."),
   chrome: z.boolean().default(true).describe("Show the macOS-style window chrome (three dots + title bar)."),
   revealLines: z.boolean().default(true).describe("Reveal lines one-by-one instead of all at once."),
-  delay: z.number().int().default(0).describe("Frames before the first line appears."),
-  lineDelay: z.number().int().default(3).describe("Frames between successive line reveals."),
+  delay: timeSchema.default(0).describe("Frames before the first line appears."),
+  lineDelay: timeSchema.default(3).describe("Frames between successive line reveals."),
   fontFamily: z.string().optional().describe("Monospace font stack; code needs column alignment (defaults to theme monoFamily)."),
   fontSize: z.number().default(48).describe("Code font size in px. Sized for a video canvas, not a screen UI."),
   width: z.number().default(900).describe("Panel width in px."),

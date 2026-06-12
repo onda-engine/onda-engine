@@ -35,6 +35,7 @@ import { Ellipse, Group, Path, interpolate, useCurrentFrame, useVideoConfig } fr
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface CursorProps {
   /** Start X as a 0..1 fraction of canvas width. */
@@ -46,7 +47,7 @@ export interface CursorProps {
   /** End Y as a 0..1 fraction of canvas height. */
   toY?: number
   /** Frames before the cursor starts moving. */
-  delay?: number
+  delay?: TimeInput
   /** Frames to travel from start to end on the house spring. */
   travelDuration?: number
   /** Emit a click ripple on arrival. */
@@ -74,7 +75,7 @@ export function Cursor({
   fromY = 0.72,
   toX = 0.6,
   toY = 0.42,
-  delay = 6,
+  delay: delayIn = 6,
   travelDuration = DURATION.slow,
   click = true,
   clickDelay = 6,
@@ -82,7 +83,9 @@ export function Cursor({
   size = 56,
 }: CursorProps) {
   const frame = useCurrentFrame()
-  const { width, height } = useVideoConfig()
+  const { width, height, fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.text
 

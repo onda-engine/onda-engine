@@ -45,6 +45,7 @@ import {
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION, SPRING_SMOOTH, staggerFrames } from '../motion.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** One orbiting satellite node in the constellation. */
 export interface Satellite {
@@ -74,7 +75,7 @@ export interface NodeGraphProps {
   /** Seed for the deterministic fly-in directions and connection-pulse phases. */
   seed?: number
   /** Frames before the constellation begins assembling. */
-  delay?: number
+  delay?: TimeInput
   /** Show the soft accent glow behind the hub. */
   glow?: boolean
   /** Hub node diameter in px. */
@@ -148,7 +149,7 @@ export function NodeGraph({
   accent: accentProp,
   ellipse = 0.92,
   seed = 7,
-  delay = 0,
+  delay: delayIn = 0,
   glow = true,
   hubDiameter = 120,
   hubFontSize = 34,
@@ -163,6 +164,8 @@ export function NodeGraph({
 }: NodeGraphProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const accent = accentProp ?? theme.accent
   const background = backgroundProp ?? theme.background

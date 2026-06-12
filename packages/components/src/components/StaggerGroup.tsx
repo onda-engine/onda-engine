@@ -25,16 +25,17 @@ import { AbsoluteFill, Flex, Group, Text, useCurrentFrame, useVideoConfig } from
 import { entryFadeRise } from '../choreography.js'
 import { DURATION, STAGGER, staggerFrames } from '../motion.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface StaggerGroupProps {
   /** The items to reveal, in source order (default: four short lines). */
   items?: string[]
   /** Frames before the FIRST item starts (default 0). */
-  delay?: number
+  delay?: TimeInput
   /** Frames between consecutive items. Canonical Onda stagger is `4`. */
-  stagger?: number
+  stagger?: TimeInput
   /** Per-item reveal duration (default `DURATION.base` = 18). */
-  duration?: number
+  duration?: TimeInput
   /** Layout direction for the items (default `'column'`). */
   direction?: 'row' | 'column'
   /** Pixels between items (default 16). */
@@ -53,9 +54,9 @@ export interface StaggerGroupProps {
 
 export function StaggerGroup({
   items = ['Less is more', 'Calm is power', 'Motion has a feel', 'Made to be edited'],
-  delay = 0,
-  stagger = STAGGER,
-  duration = DURATION.base,
+  delay: delayIn = 0,
+  stagger: staggerIn = STAGGER,
+  duration: durationIn = DURATION.base,
   direction = 'column',
   gap = 16,
   align = 'center',
@@ -66,6 +67,10 @@ export function StaggerGroup({
 }: StaggerGroupProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const stagger = framesOf(staggerIn, fps)
+  const duration = framesOf(durationIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily

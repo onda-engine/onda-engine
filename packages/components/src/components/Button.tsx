@@ -36,6 +36,7 @@ import { HOUSE_EASE } from '../easing.js'
 import { DURATION } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** Mean glyph advance as a fraction of the font size — a rough display-sans
  *  heuristic, used only to center the label (the engine measures the real text
@@ -98,13 +99,13 @@ export interface ButtonProps {
   /** Play the entrance (fade + rise on the house spring). */
   entrance?: boolean
   /** Frames before the entrance begins. */
-  delay?: number
+  delay?: TimeInput
   /** Entrance duration in frames (default `DURATION.base` = 18). */
-  durationInFrames?: number
+  durationInFrames?: TimeInput
   /** Play the click-dip press animation. */
   press?: boolean
   /** Frame the press dip lands on (relative to the local timeline). */
-  pressFrame?: number
+  pressFrame?: TimeInput
 }
 
 export function Button({
@@ -123,13 +124,17 @@ export function Button({
   centerX,
   centerY,
   entrance = true,
-  delay = 0,
-  durationInFrames = DURATION.base,
+  delay: delayIn = 0,
+  durationInFrames: durationInFramesIn = DURATION.base,
   press = true,
-  pressFrame = 30,
+  pressFrame: pressFrameIn = 30,
 }: ButtonProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const durationInFrames = framesOf(durationInFramesIn, fps)
+  const pressFrame = framesOf(pressFrameIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.accent
   const textColor = textColorProp ?? theme.text

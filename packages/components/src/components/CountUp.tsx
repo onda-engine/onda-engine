@@ -20,17 +20,27 @@ import { DURATION, SPRING_SMOOTH, SPRING_SNAPPY } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
+import { useTimeScale } from '../timing.js'
 
 export interface CountUpProps {
   /** Starting value (default `0`). */
   from?: number
   /** Ending value (default `100`). */
   to?: number
-  /** Frames before the count starts (default `0`). */
-  delay?: number
-  /** Frames to count from `from` to `to`. Numbers want more time than text
-   *  (default `DURATION.slow` = 24). */
-  durationInFrames?: number
+  /** Time before the count starts (default `0`) — frames or '0.5s'. */
+  delay?: TimeInput
+  /** Time to count from `from` to `to`. Numbers want more time than text
+   *  (default `DURATION.slow` = 24 frames). */
+  durationInFrames?: TimeInput
+  /** Compress the whole timing envelope (delay, stagger, durations) so the
+   *  entrance settles at least `hold` before the end of the enclosing clip
+   *  (`useVideoConfig().durationInFrames`, Sequence-scoped). Opt-in. */
+  fitToClip?: boolean
+  /** Hard cap on the settle time (frames or '0.5s'). Wins over `fitToClip`. */
+  maxSettle?: TimeInput
+  /** Breathing room before the cut for `fitToClip` (default 6 frames). */
+  hold?: TimeInput
   /** Fraction digits to render (default `0`). */
   decimals?: number
   /** Insert en-US thousands separators (default `true`). */
@@ -95,8 +105,11 @@ function formatNumber(value: number, decimals: number, useGrouping: boolean): st
 export function CountUp({
   from = 0,
   to = 100,
-  delay = 0,
-  durationInFrames = DURATION.slow,
+  delay: delayIn = 0,
+  durationInFrames: durationIn = DURATION.slow,
+  fitToClip,
+  maxSettle,
+  hold,
   decimals = 0,
   useGrouping = true,
   prefix = '',
@@ -117,6 +130,13 @@ export function CountUp({
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
+
+  // Timing: parse + clip-fit (the count compresses to land inside the clip).
+  const delayBase = framesOf(delayIn, fps)
+  const durationBase = framesOf(durationIn, fps, DURATION.slow)
+  const timeScale = useTimeScale(delayBase + durationBase, { fitToClip, maxSettle, hold })
+  const delay = delayBase * timeScale
+  const durationInFrames = Math.max(1, durationBase * timeScale)
 
   // Opt-in auto-fit, measured on the FINAL value (the widest the line gets).
   const finalText = `${prefix}${formatNumber(to, decimals, useGrouping)}${suffix}`

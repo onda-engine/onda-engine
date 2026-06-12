@@ -4,10 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const rgbGlitchSchema = z.object({
   text: z.string().default('GLITCH').describe("The text to glitch."),
-  delay: z.number().int().default(0).describe("Frames before the effect starts."),
+  delay: timeSchema.default(0).describe("Frames before the effect starts."),
   baseSplit: z.number().default(2).describe("Constant baseline channel split in px (the always-on chromatic edge)."),
   intensity: z.number().default(10).describe("Peak extra split in px during a glitch burst."),
   glitchPeriod: z.number().int().default(48).describe("Frames between glitch bursts."),

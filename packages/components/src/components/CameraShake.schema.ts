@@ -4,10 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const cameraShakeSchema = z.object({
-  delay: z.number().int().default(0).describe("Frames before the shake starts; outside the window the offset is 0."),
-  duration: z.number().int().optional().describe("Frames the shake lasts; before delay and after delay + duration the offset is exactly 0."),
+  delay: timeSchema.default(0).describe("Frames before the shake starts; outside the window the offset is 0."),
+  duration: timeSchema.optional().describe("Frames the shake lasts; before delay and after delay + duration the offset is exactly 0."),
   intensity: z.number().default(4).describe("Maximum positional offset in px; restrained by default, bump for impact moments."),
   rotationIntensity: z.number().default(0.6).describe("Maximum rotation amplitude in degrees (GPU/Vello only); set 0 for pure translational shake."),
   seed: z.number().default(0).describe("PRNG seed \u2014 the same seed always produces the same deterministic shake."),

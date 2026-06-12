@@ -4,13 +4,14 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 import { placementSchema } from '../placement.js'
 
 export const quoteCardSchema = z.object({
   quote: z.string().default('Motion is the difference between art and craft.').describe("The pull-quote body, revealed word-by-word on a slower-than-canonical stagger."),
   author: z.string().default('Saul Bass').describe("Attribution name."),
   role: z.string().default('Graphic Designer').describe("Attribution role / title."),
-  delay: z.number().int().default(0).describe("Frames before the quote starts."),
+  delay: timeSchema.default(0).describe("Frames before the quote starts."),
   accent: z.boolean().default(true).describe("Show the accent divider between quote and attribution."),
   quoteFontSize: z.number().default(56).describe("Quote font size in px."),
   quoteFontWeight: z.number().default(600).describe("Quote font weight (display default 600)."),

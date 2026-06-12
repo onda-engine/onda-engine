@@ -25,6 +25,7 @@ import { Ellipse, Group, Rect, Text, interpolate, useVideoConfig } from '@onda/r
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
+import type { TimeInput } from '../time.js'
 
 export interface ProgressStepsProps {
   /** Step labels, left to right. */
@@ -32,9 +33,9 @@ export interface ProgressStepsProps {
   /** How many steps are complete — the fill animates to this index (0-based count). */
   current?: number
   /** Frames before the fill animates. */
-  delay?: number
+  delay?: TimeInput
   /** Frames for the fill to travel to `current`. */
-  duration?: number
+  duration?: TimeInput
   /** Completed / active color — the earned accent (Onda rose) (default: theme `accent`). */
   accentColor?: string
   /** Pending color (dots + connector track) (default: theme `border`). */

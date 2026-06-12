@@ -40,6 +40,7 @@ import { DURATION, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** Engine line-box height as a multiple of font size (matches typography crate). */
 const LINE_RATIO = 1.2
@@ -60,7 +61,7 @@ export interface PricingCardProps {
   /** The earned accent — checkmarks, badge, CTA, recommended border + glow (default: theme `accent`). */
   accent?: string
   /** Frames before the card enters. */
-  delay?: number
+  delay?: TimeInput
   /** Card width in px. */
   width?: number
   /** Price font size in px (the large display number). */
@@ -106,7 +107,7 @@ export function PricingCard({
   cta = 'Get started',
   recommended = false,
   accent: accentProp,
-  delay = 0,
+  delay: delayIn = 0,
   width = 380,
   priceSize = 64,
   background: backgroundProp,
@@ -122,6 +123,8 @@ export function PricingCard({
 }: PricingCardProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const accent = accentProp ?? theme.accent
   const background = backgroundProp ?? theme.surface

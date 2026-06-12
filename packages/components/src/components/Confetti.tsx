@@ -21,6 +21,7 @@
 import { Group, Rect, interpolate, random, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { HOUSE_EASE } from '../easing.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface ConfettiProps {
   /** Seed for every per-piece random (angle, reach, opacity, size, colour) — the
@@ -36,9 +37,9 @@ export interface ConfettiProps {
   /** Bloom origin Y, as a fraction of canvas height (0 = top, 1 = bottom). */
   originY?: number
   /** Frames before the bloom begins. */
-  delay?: number
+  delay?: TimeInput
   /** Frames over which a mote drifts and fades out. */
-  duration?: number
+  duration?: TimeInput
   /** Drift spread, in degrees, around straight up. Wider = more fan-out. */
   spread?: number
   /** Gentle downward bias added over the drift (0 = pure rise; 1 = a soft settle). */
@@ -57,14 +58,17 @@ export function Confetti({
   colors: colorsProp,
   originX = 0.5,
   originY = 0.35,
-  delay = 0,
-  duration = 70,
+  delay: delayIn = 0,
+  duration: durationIn = 70,
   spread = 120,
   gravity = 1,
   pieceSize = 12,
 }: ConfettiProps) {
   const frame = useCurrentFrame()
   const { width, height, fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const duration = framesOf(durationIn, fps)
   const theme = useTheme()
   const colors = colorsProp ?? [
     theme.accent ?? '#e85494',

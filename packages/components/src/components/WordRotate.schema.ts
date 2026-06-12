@@ -4,11 +4,12 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const wordRotateSchema = z.object({
   phrases: z.array(z.string()).default(['fast', 'beautiful', 'restrained']).describe("Phrases cycled in place, in order. One is visible at a time."),
-  delay: z.number().int().default(0).describe("Frames before the first phrase begins to enter."),
-  holdDuration: z.number().int().default(30).describe("Frames each phrase holds at full opacity before the next arrives."),
+  delay: timeSchema.default(0).describe("Frames before the first phrase begins to enter."),
+  holdDuration: timeSchema.default(30).describe("Frames each phrase holds at full opacity before the next arrives."),
   transitionDuration: z.number().int().default(12).describe("Frames for a single phrase to fade in (and, separately, fade out)."),
   color: z.string().optional().describe("Text color. Defaults to theme `text`."),
   fontSize: z.number().default(96).describe("Font size in px. Phrases are usually large."),

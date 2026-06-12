@@ -43,6 +43,7 @@ import {
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 import { FadeIn } from './FadeIn.js'
 
 export interface EndCardProps {
@@ -51,7 +52,7 @@ export interface EndCardProps {
   /** Social handles or URLs displayed in a row beneath the CTA. */
   handles?: string[]
   /** Frames before the CTA starts. The whole card is sequenced relative to this. */
-  delay?: number
+  delay?: TimeInput
   /** Show the accent underline beneath the CTA (default `true`). */
   accent?: boolean
   /** CTA font size in px (default 96). */
@@ -103,7 +104,7 @@ const CTA_FROM_BLUR = 10
 export function EndCard({
   cta = 'Made with Onda',
   handles = ['@onda.video', 'onda.video/components'],
-  delay = 0,
+  delay: delayIn = 0,
   accent = true,
   ctaFontSize = 96,
   ctaFontWeight = 600,
@@ -117,6 +118,8 @@ export function EndCard({
 }: EndCardProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const handlesColor = handlesColorProp ?? theme.textMuted

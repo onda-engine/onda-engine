@@ -38,6 +38,8 @@ import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { glyphLayout, measureText, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
+import { staggeredSettle, useTimeScale } from '../timing.js'
 
 /** What a unit is: a single glyph, a whitespace-delimited word, or a `\n` line. */
 export type TextAnimatorUnit = 'glyph' | 'word' | 'line'
@@ -74,12 +76,20 @@ export interface TextAnimatorProps {
   units?: TextAnimatorUnit
   /** Channels to animate per unit (default `{ opacity: [0, 1], y: [24, 0] }`). */
   animate?: TextAnimate
-  /** Frames between consecutive units entering (default `STAGGER` = 5). */
-  stagger?: number
-  /** Frames each unit takes to settle (default `DURATION.base`). */
-  durationInFrames?: number
-  /** Frames before the FIRST unit starts (default 0). */
-  delay?: number
+  /** Time between consecutive units entering (default `STAGGER` = 5 frames). */
+  stagger?: TimeInput
+  /** Time each unit takes to settle (default `DURATION.base`). */
+  durationInFrames?: TimeInput
+  /** Time before the FIRST unit starts (default 0). */
+  delay?: TimeInput
+  /** Compress the whole timing envelope (delay, stagger, durations) so the
+   *  entrance settles at least `hold` before the end of the enclosing clip
+   *  (`useVideoConfig().durationInFrames`, Sequence-scoped). Opt-in. */
+  fitToClip?: boolean
+  /** Hard cap on the settle time (frames or '0.5s'). Wins over `fitToClip`. */
+  maxSettle?: TimeInput
+  /** Breathing room before the cut for `fitToClip` (default 6 frames). */
+  hold?: TimeInput
   /** Stagger order across units (default `'forward'`). */
   direction?: TextAnimatorDirection
   /** Physical settle spring; pass `false` to use `ease` instead (default `SPRING_SMOOTH`). */
@@ -141,9 +151,12 @@ export function TextAnimator({
   text = 'Animate',
   units = 'glyph',
   animate,
-  stagger = STAGGER,
-  durationInFrames = DURATION.base,
-  delay = 0,
+  stagger: staggerIn = STAGGER,
+  durationInFrames: durationIn = DURATION.base,
+  delay: delayIn = 0,
+  fitToClip,
+  maxSettle,
+  hold,
   direction = 'forward',
   spring: springConfig = SPRING_SMOOTH,
   ease = HOUSE_EASE,
@@ -239,6 +252,18 @@ export function TextAnimator({
   })
 
   const n = placed.length
+
+  // Timing: parse the TimeInput props, then compress the envelope when the
+  // last unit wouldn't settle inside the clip.
+  const staggerBase = framesOf(staggerIn, fps, STAGGER)
+  const durationBase = framesOf(durationIn, fps, DURATION.base)
+  const delayBase = framesOf(delayIn, fps)
+  const naturalSettle = staggeredSettle(n, staggerBase, durationBase, delayBase)
+  const timeScale = useTimeScale(naturalSettle, { fitToClip, maxSettle, hold })
+  const stagger = staggerBase * timeScale
+  const durationInFrames = Math.max(1, durationBase * timeScale)
+  const delay = delayBase * timeScale
+
   // Anchor the block on the shared placement contract (block CENTER at the
   // resolved point; corner regions sit flush on the safe margin). The default
   // `'center'` reproduces the historical canvas-centering exactly.

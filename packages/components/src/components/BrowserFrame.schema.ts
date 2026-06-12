@@ -4,11 +4,12 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const browserFrameSchema = z.object({
   url: z.string().default('onda.video').describe("URL shown in the address pill (and as the placeholder when empty)."),
   src: z.string().optional().describe("Image to show inside the frame when no children are passed; scaled to fill the content width."),
-  delay: z.number().int().default(0).describe("Frames before the entrance."),
+  delay: timeSchema.default(0).describe("Frames before the entrance."),
   animate: z.boolean().default(true).describe("Scale-and-fade the frame in on the house spring."),
   width: z.number().default(1280).describe("Frame (and content) width in px."),
   height: z.number().default(720).describe("Content height in px (excludes the chrome bar)."),

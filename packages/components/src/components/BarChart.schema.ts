@@ -4,13 +4,14 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const barChartSchema = z.object({
   data: z.any().default([{ label: 'Remotion', value: 92 }, { label: 'After Effects', value: 64 }, { label: 'Lottie', value: 38 }]).describe("Bars to render as { label, value } objects. Order is preserved \u2014 top to bottom."),
   max: z.number().default(100).describe("Value mapped to a full-width bar. Bars cap at 100% of the track."),
-  delay: z.number().int().default(0).describe("Frames before the first bar starts."),
-  duration: z.number().int().optional().describe("Per-bar grow duration in frames. Bars want more time than text (default slow)."),
-  stagger: z.number().int().optional().describe("Frames between consecutive bars (canonical STAGGER = 4)."),
+  delay: timeSchema.default(0).describe("Frames before the first bar starts."),
+  duration: timeSchema.optional().describe("Per-bar grow duration in frames. Bars want more time than text (default slow)."),
+  stagger: timeSchema.optional().describe("Frames between consecutive bars (canonical STAGGER = 4)."),
   barHeight: z.number().default(32).describe("Bar (and track) height in px."),
   gap: z.number().default(16).describe("Pixel gap between rows."),
   labelWidth: z.number().default(220).describe("Pixels reserved for the label column (left of the track)."),

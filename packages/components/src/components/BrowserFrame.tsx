@@ -46,6 +46,7 @@ import type { ReactNode } from 'react'
 import { entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
+import type { TimeInput } from '../time.js'
 
 // Card geometry (matches ondajs: the chrome bar's 16/22px padding, 18px dots with
 // a 10px gap, a 40px-tall pill).
@@ -78,7 +79,7 @@ export interface BrowserFrameProps {
    *  fill the content width (see approximations). */
   src?: string
   /** Frames before the entrance. */
-  delay?: number
+  delay?: TimeInput
   /** Scale-and-fade the frame in on the house spring. */
   animate?: boolean
   /** Frame (and content) width in px. */

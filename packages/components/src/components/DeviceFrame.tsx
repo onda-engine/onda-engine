@@ -36,6 +36,7 @@ import type { ReactNode } from 'react'
 import { entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
+import type { TimeInput } from '../time.js'
 
 /** ondajs palette tokens (resolved from CSS vars there; literal hex here).
  *  These are the fallbacks behind the theme tokens:
@@ -63,7 +64,7 @@ export interface DeviceFrameProps {
    *  `"DEMO_IMAGE"` token in demos). Sized via the engine, not `object-fit`. */
   src?: string
   /** Frames before the entrance begins. */
-  delay?: number
+  delay?: TimeInput
   /** Scale-and-fade the device in on the house spring. */
   animate?: boolean
   /** Device width in px (height is derived from the device aspect). */

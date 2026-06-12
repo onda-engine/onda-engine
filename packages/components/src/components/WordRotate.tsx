@@ -36,6 +36,7 @@ import { HOUSE_EASE } from '../easing.js'
 import { SPRING_SMOOTH } from '../motion.js'
 import { measureText, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
 
@@ -43,10 +44,10 @@ export interface WordRotateProps {
   /** Phrases cycled in place, in order. One is visible at a time. */
   phrases?: string[]
   /** Frames before the first phrase begins to enter (default `0`). */
-  delay?: number
+  delay?: TimeInput
   /** Frames each phrase holds at full opacity before the next arrives
    *  (default `30`). */
-  holdDuration?: number
+  holdDuration?: TimeInput
   /** Frames for a single phrase to fade in (and, separately, fade out)
    *  (default `12`). */
   transitionDuration?: number
@@ -71,8 +72,8 @@ export interface WordRotateProps {
 
 export function WordRotate({
   phrases = ['fast', 'beautiful', 'restrained'],
-  delay = 0,
-  holdDuration = 30,
+  delay: delayIn = 0,
+  holdDuration: holdDurationIn = 30,
   transitionDuration = 12,
   color: colorProp,
   fontSize = 96,
@@ -85,6 +86,9 @@ export function WordRotate({
 }: WordRotateProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const holdDuration = framesOf(holdDurationIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily

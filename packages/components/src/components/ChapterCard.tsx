@@ -41,6 +41,7 @@ import { entryFadeRise } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 import { FadeIn } from './FadeIn.js'
 
 export interface ChapterCardProps {
@@ -49,7 +50,7 @@ export interface ChapterCardProps {
   /** Numbered index above the chapter. String so leading zeros (`"01"`) read as intended. */
   number?: string
   /** Frames before the number starts fading in. The whole card sequences off this. */
-  delay?: number
+  delay?: TimeInput
   /** When `true`, the number takes `numberColor` (the rose) and an underline punctuates the title. */
   accent?: boolean
   /** Number color when `accent` is `true` (the Onda rose) (default: theme `accent`). */
@@ -101,7 +102,7 @@ const TITLE_TRAVEL = 16
 export function ChapterCard({
   chapter,
   number = '01',
-  delay = 0,
+  delay: delayIn = 0,
   accent = true,
   numberColor: numberColorProp,
   color: colorProp,
@@ -117,6 +118,8 @@ export function ChapterCard({
 }: ChapterCardProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const numberColor = numberColorProp ?? theme.accent
   const color = colorProp ?? theme.text
