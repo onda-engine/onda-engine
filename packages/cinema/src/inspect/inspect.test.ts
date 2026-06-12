@@ -76,6 +76,8 @@ describe('inspect — field-failure fixtures', () => {
     expect(hit?.message).toMatch(/settles at .* on screen for/)
     // SlotMachineRoll carries the fitToClip clamp — the mechanical fix.
     expect(hit?.fix).toEqual({ prop: 'fitToClip', suggested: true })
+    // The reel's `charset` glyph pool is NOT rendered prose — never measured.
+    expect(report.violations.filter((v) => v.check === 'layout.overflow')).toEqual([])
   })
 
   it('flags two focal entries entering at the same `at`', () => {
