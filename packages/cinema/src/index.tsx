@@ -82,6 +82,8 @@ export {
   toFrames,
   totalFrames,
 } from './timing.js'
+// The inspector — quality metrics (`inspect`) over the same payload.
+export * from './inspect/index.js'
 
 const DUR = Components.DURATION
 const num = (v: unknown, d: number): number => (typeof v === 'number' && Number.isFinite(v) ? v : d)
