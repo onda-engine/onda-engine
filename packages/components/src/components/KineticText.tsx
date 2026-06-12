@@ -17,9 +17,10 @@
 
 import { Group, Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useFittedFontSize } from '../bounds.js'
+import { LINE_RATIO, layoutGlyphLine, lineStartX, lineTopY } from '../glyph-line.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
-import { glyphLayout, useTextMetricsReady } from '../text-metrics.js'
+import { useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { staggeredSettle, useTimeScale } from '../timing.js'
@@ -206,18 +207,11 @@ function KineticWave({
   // Opt-in auto-fit (same contract as TextAnimator).
   const fontSize = useFittedFontSize(text, fontSizeProp, { ...measureOpts, fit, maxWidth })
 
-  // Kerning-accurate resting positions (see TextAnimator for the rationale).
-  const clusters = glyphLayout(text, fontSize, measureOpts)
-  const bytes = new TextEncoder().encode(text)
-  const decoder = new TextDecoder()
-  const placed: { ch: string; x: number; glyphIndex: number }[] = []
-  for (const g of clusters) {
-    const ch = decoder.decode(bytes.subarray(g.start, g.end))
-    if (ch.trim().length === 0) continue // space: advance only
-    placed.push({ ch, x: g.x, glyphIndex: placed.length })
-  }
-  const last = clusters[clusters.length - 1]
-  const lineWidth = last ? last.x + last.advance : 0
+  // Kerning-accurate resting positions via the SHARED glyph-line primitive
+  // (matches TextAnimator exactly — one layout path for the whole family).
+  const laid = layoutGlyphLine(text, fontSize, measureOpts)
+  const placed = laid.rendered
+  const lineWidth = laid.width
 
   // Timing: parse + clip-fit (same contract as TextAnimator).
   const staggerBase = framesOf(staggerIn, fps, STAGGER)
@@ -230,15 +224,14 @@ function KineticWave({
   const delay = delayBase * timeScale
 
   // Shared placement contract (matches TextAnimator's anchoring exactly).
-  const resolved = usePlacement(placement, { width: lineWidth, height: fontSize * 1.2 })
+  const resolved = usePlacement(placement, { width: lineWidth, height: fontSize * LINE_RATIO })
   const anchorX = Math.round(resolved.x)
-  const startX =
-    align === 'center' ? anchorX - lineWidth / 2 : align === 'right' ? anchorX - lineWidth : anchorX
-  const baseY = Math.round(resolved.y - fontSize * 0.6)
+  const startX = lineStartX(align, anchorX, lineWidth)
+  const baseY = lineTopY(resolved.y, fontSize)
 
   return (
     <Group>
-      {placed.map(({ ch, x, glyphIndex: i }) => {
+      {placed.map(({ ch, x, renderIndex: i }) => {
         const progress = spring({
           frame: Math.max(0, frame - delay - staggerFrames(i, stagger)),
           fps,

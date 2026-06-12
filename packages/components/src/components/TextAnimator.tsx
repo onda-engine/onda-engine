@@ -34,9 +34,10 @@ import {
 } from '@onda/react'
 import { useFittedFontSize } from '../bounds.js'
 import { HOUSE_EASE } from '../easing.js'
+import { LINE_RATIO, layoutGlyphLine, lineStartX, lineTopY } from '../glyph-line.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
-import { glyphLayout, measureText, useTextMetricsReady } from '../text-metrics.js'
+import { measureText, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { staggeredSettle, useTimeScale } from '../timing.js'
@@ -196,23 +197,19 @@ export function TextAnimator({
     }
   }
   const fontSize = useFittedFontSize(widest, fontSizeProp, { ...measureOpts, fit, maxWidth })
-  const lineHeight = fontSize * 1.2 // engine default (Metrics line height)
+  const lineHeight = fontSize * LINE_RATIO // engine default (Metrics line height)
 
-  // Build absolutely-placed units, one pass per line. glyphLayout byte offsets are
-  // UTF-8; JS string indices are UTF-16, so decode each line's bytes by range.
-  const decoder = new TextDecoder()
+  // Build absolutely-placed units, one pass per line, on the SHARED glyph-line
+  // primitive (one kerning-accurate layout per line; spaces advance only).
   const placed: PlacedUnit[] = []
   const lineWidths: number[] = []
   lines.forEach((line, lineIndex) => {
-    const clusters = glyphLayout(line, fontSize, measureOpts)
-    const lineBytes = new TextEncoder().encode(line)
-    const sliceCluster = (s: number, e: number) => decoder.decode(lineBytes.subarray(s, e))
-    const lastCluster = clusters[clusters.length - 1]
-    lineWidths[lineIndex] = lastCluster ? lastCluster.x + lastCluster.advance : 0
+    const laid = layoutGlyphLine(line, fontSize, measureOpts)
+    lineWidths[lineIndex] = laid.width
 
     if (units === 'line') {
       if (line.trim().length > 0) {
-        placed.push({ content: line, lineX: 0, lineIndex, width: lineWidths[lineIndex] })
+        placed.push({ content: line, lineX: 0, lineIndex, width: laid.width })
       }
       return
     }
@@ -229,25 +226,22 @@ export function TextAnimator({
         endX = 0
         chars = []
       }
-      for (const g of clusters) {
-        const ch = sliceCluster(g.start, g.end)
-        if (ch.trim().length === 0) {
+      for (const cell of laid.cells) {
+        if (cell.space) {
           flush() // whitespace ends a word
           continue
         }
-        if (startX === null) startX = g.x
-        endX = g.x + g.advance
-        chars.push(ch)
+        if (startX === null) startX = cell.x
+        endX = cell.x + cell.width
+        chars.push(cell.ch)
       }
       flush()
       return
     }
 
-    // glyph
-    for (const g of clusters) {
-      const ch = sliceCluster(g.start, g.end)
-      if (ch.trim().length === 0) continue // space advances, emits no node
-      placed.push({ content: ch, lineX: g.x, lineIndex, width: g.advance })
+    // glyph — the rendered (non-space) cells, verbatim.
+    for (const cell of laid.rendered) {
+      placed.push({ content: cell.ch, lineX: cell.x, lineIndex, width: cell.width })
     }
   })
 
@@ -268,18 +262,15 @@ export function TextAnimator({
   // resolved point; corner regions sit flush on the safe margin). The default
   // `'center'` reproduces the historical canvas-centering exactly.
   const blockWidth = lineWidths.length > 0 ? Math.max(...lineWidths) : 0
-  const blockHeight = (lines.length - 1) * lineHeight + fontSize * 1.2
+  const blockHeight = (lines.length - 1) * lineHeight + fontSize * LINE_RATIO
   const resolved = usePlacement(placement, { width: blockWidth, height: blockHeight })
   const anchorX = Math.round(resolved.x)
-  const startXOf = (lineIndex: number) => {
-    const lw = lineWidths[lineIndex] ?? 0
-    return align === 'center' ? anchorX - lw / 2 : align === 'right' ? anchorX - lw : anchorX
-  }
+  const startXOf = (lineIndex: number) => lineStartX(align, anchorX, lineWidths[lineIndex] ?? 0)
   // Center the whole block vertically about the anchor; one line reduces to
   // KineticText's baseline.
   const blockOffset = ((lines.length - 1) * lineHeight) / 2
   const baseYOf = (lineIndex: number) =>
-    Math.round(resolved.y - fontSize * 0.6) + lineIndex * lineHeight - blockOffset
+    lineTopY(resolved.y, fontSize) + lineIndex * lineHeight - blockOffset
 
   return (
     <Group>

@@ -39,8 +39,9 @@
 import { Text, random, useCurrentFrame, useVideoConfig } from '@onda/react'
 import type { TextRunInput } from '@onda/react'
 import { useFittedFontSize } from '../bounds.js'
+import { LINE_RATIO, layoutGlyphLine } from '../glyph-line.js'
 import { type Placement, usePlacement } from '../placement.js'
-import { useTextMetrics } from '../text-metrics.js'
+import { useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { staggeredSettle, useTimeScale } from '../timing.js'
@@ -182,16 +183,17 @@ export function MatrixDecode({
   // and to measure width for `align` anchoring.
   const plain = runs.map((run) => run.text).join('')
 
-  // Real shaped line width (the engine measures it — proportional, exact; falls
-  // back to a glyph-count estimate until the wasm engine warms in the browser).
-  const measured = useTextMetrics(plain, fontSize, { fontFamily, fontWeight })
+  // Real shaped line width via the SHARED glyph-line primitive (kerning-exact;
+  // glyph-count estimate until the wasm engine warms in the browser).
+  useTextMetricsReady()
+  const measured = layoutGlyphLine(plain, fontSize, { fontFamily, fontWeight })
 
   // Absolute placement so the (potentially width-varying) line never triggers a
   // Flex reflow. The shared placement contract anchors the line's MEASURED
   // center (corner regions sit flush on the safe margin); legacy `x`/`y` px and
   // the `align`-anchored default keep their exact pre-placement behavior.
   const estWidth = measured.width
-  const resolved = usePlacement(placement, { width: estWidth, height: fontSize * 1.2 })
+  const resolved = usePlacement(placement, { width: estWidth, height: fontSize * LINE_RATIO })
   let px: number
   if (x !== undefined) {
     px = x
