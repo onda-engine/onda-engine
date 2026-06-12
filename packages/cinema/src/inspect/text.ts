@@ -80,6 +80,11 @@ function propValue(entry: ResolvedEntry, meta: PropMeta | undefined, name: strin
  *  canvas fraction, not a px cap) — excluded from single-line overflow math. */
 export const WRAPPING_COMPONENTS = new Set(['Captions'])
 
+/** `text`-role props that are NOT rendered prose: `charset` is the glyph POOL
+ *  a reel spins through (SlotMachineRoll / MatrixDecode), never laid out as a
+ *  line — measuring or "reading" it is a false positive. */
+const NON_READABLE_TEXT_PROPS = new Set(['charset'])
+
 /** The size prop paired with a text prop: `titleSize` for `title`, else the
  *  manifest's single `fontSize`-role prop, else none. */
 function sizePropFor(m: ManifestEntry, textProp: string): PropMeta | undefined {
@@ -116,7 +121,7 @@ export function textBlocks(entry: ResolvedEntry, theme: InspectTheme): TextBlock
   if (!m) return []
   const blocks: TextBlock[] = []
   for (const p of m.props) {
-    if (p.role !== 'text') continue
+    if (p.role !== 'text' || NON_READABLE_TEXT_PROPS.has(p.name)) continue
     const value = propValue(entry, p, p.name)
     if (typeof value !== 'string' || value.trim() === '') continue
 

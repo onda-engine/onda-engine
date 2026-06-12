@@ -34,6 +34,7 @@ export const checkOverflow: Check = (ctx) => {
     if (WRAPPING_COMPONENTS.has(entry.component)) continue // wraps, never one long line
     const blocks = textBlocks(entry, theme)
     for (const b of blocks) {
+      if (b.content.includes('\n')) continue // multi-line content stacks, not one line
       const measureOpts = {
         fontFamily: b.fontFamily,
         fontWeight: b.fontWeight,
