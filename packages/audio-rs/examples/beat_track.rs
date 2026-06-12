@@ -19,8 +19,16 @@ fn main() {
             start: t,
             duration: 0.30,
             gain: 0.95,
-            source: Source::Osc { wave: Wave::Sine, freq: 52.0, detune: 0.0, harmonics: 0 },
-            env: Envelope::ExpDecay { attack: 0.002, tau: 0.10 },
+            source: Source::Osc {
+                wave: Wave::Sine,
+                freq: 52.0,
+                detune: 0.0,
+                harmonics: 0,
+            },
+            env: Envelope::ExpDecay {
+                attack: 0.002,
+                tau: 0.10,
+            },
             filter: None,
             tremolo: None,
             seed: 0,
@@ -31,8 +39,15 @@ fn main() {
             duration: 0.02,
             gain: 0.4,
             source: Source::Noise,
-            env: Envelope::ExpDecay { attack: 0.0005, tau: 0.006 },
-            filter: Some(Filter { kind: FilterKind::Highpass, cutoff: 2500.0, q: 0.7 }),
+            env: Envelope::ExpDecay {
+                attack: 0.0005,
+                tau: 0.006,
+            },
+            filter: Some(Filter {
+                kind: FilterKind::Highpass,
+                cutoff: 2500.0,
+                q: 0.7,
+            }),
             tremolo: None,
             seed: i as u32,
         });
@@ -41,9 +56,23 @@ fn main() {
             start: t,
             duration: beat * 0.92,
             gain: 0.5,
-            source: Source::Osc { wave: Wave::Saw, freq: 55.0, detune: 0.006, harmonics: 0 },
-            env: Envelope::Adsr { a: 0.005, d: 0.1, s: 0.5, r: 0.1 },
-            filter: Some(Filter { kind: FilterKind::Lowpass, cutoff: 420.0, q: 1.2 }),
+            source: Source::Osc {
+                wave: Wave::Saw,
+                freq: 55.0,
+                detune: 0.006,
+                harmonics: 0,
+            },
+            env: Envelope::Adsr {
+                a: 0.005,
+                d: 0.1,
+                s: 0.5,
+                r: 0.1,
+            },
+            filter: Some(Filter {
+                kind: FilterKind::Lowpass,
+                cutoff: 420.0,
+                q: 1.2,
+            }),
             tremolo: None,
             seed: 0,
         });
@@ -53,8 +82,15 @@ fn main() {
             duration: 0.08,
             gain: 0.26,
             source: Source::Noise,
-            env: Envelope::ExpDecay { attack: 0.001, tau: 0.03 },
-            filter: Some(Filter { kind: FilterKind::Highpass, cutoff: 8000.0, q: 0.7 }),
+            env: Envelope::ExpDecay {
+                attack: 0.001,
+                tau: 0.03,
+            },
+            filter: Some(Filter {
+                kind: FilterKind::Highpass,
+                cutoff: 8000.0,
+                q: 0.7,
+            }),
             tremolo: None,
             seed: (i + 100) as u32,
         });
@@ -73,8 +109,15 @@ fn main() {
         env: Envelope::Points {
             points: vec![[0.0, 0.0], [0.6, 1.0], [secs - 0.5, 1.0], [secs, 0.0]],
         },
-        filter: Some(Filter { kind: FilterKind::Lowpass, cutoff: 1200.0, q: 0.8 }),
-        tremolo: Some(Tremolo { rate: 0.5, depth: 0.1 }),
+        filter: Some(Filter {
+            kind: FilterKind::Lowpass,
+            cutoff: 1200.0,
+            q: 0.8,
+        }),
+        tremolo: Some(Tremolo {
+            rate: 0.5,
+            depth: 0.1,
+        }),
         seed: 0,
     });
 
@@ -82,11 +125,19 @@ fn main() {
         duration: secs,
         sample_rate: 44_100,
         voices: v,
-        reverb: Some(Reverb { room: 0.5, wet: 0.12 }),
+        reverb: Some(Reverb {
+            room: 0.5,
+            wet: 0.12,
+        }),
         normalize: 0.9,
     };
     let buf = synthesize(&g);
-    let out = std::env::args().nth(1).expect("usage: beat_track <out.wav>");
+    let out = std::env::args()
+        .nth(1)
+        .expect("usage: beat_track <out.wav>");
     write_wav(&buf, &out).expect("write wav");
-    println!("beat track: {} voices, {secs:.1}s @ {bpm} BPM -> {out}", g.voices.len());
+    println!(
+        "beat track: {} voices, {secs:.1}s @ {bpm} BPM -> {out}",
+        g.voices.len()
+    );
 }
