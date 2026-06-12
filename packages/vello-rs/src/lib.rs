@@ -38,6 +38,25 @@ pub struct Frame {
     pub pixels: Vec<u8>,
 }
 
+/// Maximum nesting of NON-`Clip` blend layers (blend modes, the matte/effect
+/// composite wrappers, per-image opacity) the walk will encode before
+/// flattening a subtree to a texture instead of pushing another layer.
+///
+/// Why 3: vello 0.3's fine rasterizer keeps `BLEND_STACK_SPLIT = 4` blend-stack
+/// levels per tile in registers and SPILLS deeper levels to a fixed scratch
+/// buffer of `1 << 20` u32 — only 4096 tile-levels for the whole frame
+/// (`vello_encoding` `BufferSizes::blend_spill`). One full-HD frame is ~8160
+/// tiles, so a single canvas-covering layer at depth 5 overflows the budget;
+/// vello 0.3 then sets `bump.failed` in the coarse stage and SILENTLY corrupts
+/// the frame — affected tiles render black and everything composited after
+/// them (later siblings included) vanishes. No error surfaces. Capping our own
+/// nesting at 3 leaves the 4th register slot for the one transient leaf layer
+/// (`draw_peniko_image`'s opacity layer), so the encoder never relies on the
+/// spill path at all. `Mix::Clip` layers are exempt: coarse elides them in
+/// fully-covered tiles, so they only consume stack in partial-coverage (edge)
+/// tiles — a perimeter's worth, far inside the budget.
+const MAX_BLEND_NEST: u32 = 3;
+
 /// A reusable Vello-backed renderer (device + Vello renderer + fonts).
 pub struct VelloRenderer {
     device: wgpu::Device,
@@ -269,8 +288,10 @@ impl VelloRenderer {
                     matte_idx: 0,
                     suppress_matte: false,
                     suppress_lightwrap: false,
+                    blend_depth: 0,
                 },
                 node,
+                1.0,
             );
             match built {
                 Some((texture, tw, th, x0, y0)) => {
@@ -352,6 +373,7 @@ impl VelloRenderer {
                     matte_idx: 0,
                     suppress_matte: false,
                     suppress_lightwrap: false,
+                    blend_depth: 0,
                 },
                 node,
             );
@@ -421,6 +443,7 @@ impl VelloRenderer {
                         matte_idx: 0,
                         suppress_matte: false,
                         suppress_lightwrap: false,
+                        blend_depth: 0,
                     },
                     node,
                     matte,
@@ -510,6 +533,7 @@ impl VelloRenderer {
                 matte_idx: 0,
                 suppress_matte: false,
                 suppress_lightwrap: false,
+                blend_depth: 0,
             },
             &scene.root,
             Affine::IDENTITY,
@@ -631,6 +655,12 @@ struct Ctx<'a> {
     /// or backdrop-prefix capture): a nested light-wrap node draws un-wrapped
     /// instead of recursing into another screen-space capture.
     suppress_lightwrap: bool,
+    /// How many non-`Clip` blend layers the walk currently has OPEN on the scene
+    /// being built. At [`MAX_BLEND_NEST`] the native path flattens the subtree to
+    /// a texture instead of pushing deeper (see the const for the vello 0.3
+    /// blend-spill budget this guards). Reset to 0 inside every capture into a
+    /// fresh `VelloScene` (a fresh scene starts with an empty layer stack).
+    blend_depth: u32,
 }
 
 /// A pre-rendered effect node's result (computed by the async effect pre-pass on
@@ -753,12 +783,11 @@ fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, pa
 
             let blended = node.blend != BlendMode::Normal;
             if blended {
-                vscene.push_layer(
-                    blend_mix(node.blend),
-                    1.0,
-                    Affine::IDENTITY,
-                    &Rect::new(-1.0e7, -1.0e7, 1.0e7, 1.0e7),
-                );
+                // Bounded to the subtree's paint (see `blend_layer_rect`): an
+                // unbounded blend layer puts every tile of the frame on vello's
+                // blend stack and overflows its fixed spill budget when nested.
+                let rect = blend_layer_rect(ctx, node, affine);
+                vscene.push_layer(blend_mix(node.blend), 1.0, Affine::IDENTITY, &rect);
             }
             let clipped = node.clip.is_some();
             if let Some(clip) = &node.clip {
@@ -869,12 +898,11 @@ fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, pa
         if !matches!(how, EffectDraw::Degrade) {
             let blended = node.blend != BlendMode::Normal;
             if blended {
-                vscene.push_layer(
-                    blend_mix(node.blend),
-                    1.0,
-                    Affine::IDENTITY,
-                    &Rect::new(-1.0e7, -1.0e7, 1.0e7, 1.0e7),
-                );
+                // Bounded to the subtree's paint (see `blend_layer_rect`): an
+                // unbounded blend layer puts every tile of the frame on vello's
+                // blend stack and overflows its fixed spill budget when nested.
+                let rect = blend_layer_rect(ctx, node, affine);
+                vscene.push_layer(blend_mix(node.blend), 1.0, Affine::IDENTITY, &rect);
             }
             let clipped = node.clip.is_some();
             if let Some(clip) = &node.clip {
@@ -903,16 +931,32 @@ fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, pa
     }
 
     // A blend mode composites this node's whole subtree against the backdrop
-    // (CSS mix-blend-mode). Push a canvas-covering blend layer around everything,
-    // like clip; the subtree draws into it and composites with the chosen mode.
+    // (CSS mix-blend-mode). Push a blend layer bounded to the subtree's paint
+    // around everything, like clip; the subtree draws into it and composites
+    // with the chosen mode.
     let blended = node.blend != BlendMode::Normal;
+    // vello 0.3 blend-stack guard (native): nesting non-`Clip` blend layers past
+    // the fine rasterizer's register split forces a per-tile spill whose fixed
+    // budget silently corrupts the frame when exceeded — affected tiles go black
+    // and LATER SIBLINGS drawn into them vanish (see [`MAX_BLEND_NEST`]). At the
+    // cap, flatten this subtree to a texture (the precomp/isolate machinery) and
+    // composite it under ONE blend layer instead of nesting deeper. Native only:
+    // the WebGPU preview's effect cache is prepared without depth context, so it
+    // keeps the plain path (export stays the source of truth, as for the other
+    // GPU-budget degrades).
+    if blended
+        && !ctx.web
+        && ctx.blend_depth >= MAX_BLEND_NEST
+        && render_flattened_blend(vscene, ctx, node, affine, opacity)
+    {
+        return;
+    }
+    // (A failed capture — unmeasurable or over the texture cap — falls through
+    // to the layered path: correct nesting, at the spill budget's mercy.)
     if blended {
-        vscene.push_layer(
-            blend_mix(node.blend),
-            1.0,
-            Affine::IDENTITY,
-            &Rect::new(-1.0e7, -1.0e7, 1.0e7, 1.0e7),
-        );
+        let rect = blend_layer_rect(ctx, node, affine);
+        vscene.push_layer(blend_mix(node.blend), 1.0, Affine::IDENTITY, &rect);
+        ctx.blend_depth += 1;
     }
 
     // A clip on this node bounds its own drawing *and* its subtree to the clip
@@ -1048,22 +1092,14 @@ fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, pa
     }
     if blended {
         vscene.pop_layer();
+        ctx.blend_depth -= 1;
     }
 }
 
-/// Render a node's subtree to an offscreen texture in **local space**, run its
-/// effect chain (currently Gaussian blur), and composite the result back into
-/// `vscene` at `affine`/`opacity` via the normal `draw_image_data` path.
-///
-/// "Local space" means the subtree is rendered with this node's own transform and
-/// opacity neutralized (identity affine, full opacity, effects cleared) into a
-/// texture sized to the subtree's local bounds grown by the blur margin (`3σ`).
-/// The texture's top-left maps to local `(x0, y0)`, so we draw it at
-/// `affine * translate(x0, y0)` and the blurred pixels land exactly where the
-/// sharp subtree would have, just softened and spread by the margin.
-fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u32, u32, f64, f64)> {
-    // Total blur margin = the largest σ in the chain × 3 (the kernel's reach),
-    // so blurred edges aren't clipped by the texture border.
+/// The pixel SPREAD of a node's effect chain beyond its subtree bounds: the
+/// largest σ in the chain × 3 (the kernel's reach), so blurred/bloomed/shifted
+/// edges aren't clipped by a texture border or a bounding blend layer.
+fn effect_spread_margin(node: &Node) -> f64 {
     let max_sigma = node
         .effects
         .iter()
@@ -1098,7 +1134,33 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
             Effect::LightWrap { .. } => 0.0,
         })
         .fold(0.0_f32, f32::max);
-    let margin = (3.0 * max_sigma).ceil().max(0.0) as f64;
+    (3.0 * max_sigma).ceil().max(0.0) as f64
+}
+
+/// Render a node's subtree to an offscreen texture in **local space**, run its
+/// effect chain (currently Gaussian blur), and composite the result back into
+/// `vscene` at `affine`/`opacity` via the normal `draw_image_data` path.
+///
+/// "Local space" means the subtree is rendered with this node's own transform
+/// neutralized (identity affine, effects cleared) into a texture sized to the
+/// subtree's local bounds grown by the blur margin (`3σ`). The texture's
+/// top-left maps to local `(x0, y0)`, so we draw it at
+/// `affine * translate(x0, y0)` and the blurred pixels land exactly where the
+/// sharp subtree would have, just softened and spread by the margin.
+///
+/// `fold_opacity` is the parent opacity the capture renders UNDER. The effect
+/// path passes `1.0` (full-strength pixels in, opacity applied once at
+/// composite-back — a blur of a faded group must not double-fade). The
+/// blend-depth flatten path passes the node's cumulative opacity instead, so
+/// each element keeps its individual per-draw alpha exactly like the
+/// un-flattened walk would, and the composite then draws at alpha 1.0 without
+/// spending another blend-stack level.
+fn build_effect_texture(
+    ctx: &mut Ctx,
+    node: &Node,
+    fold_opacity: f32,
+) -> Option<(wgpu::Texture, u32, u32, f64, f64)> {
+    let margin = effect_spread_margin(node);
 
     // Local-space bounds of the subtree (this node's own drawing + descendants),
     // grown by the margin. Empty/degenerate → nothing to do.
@@ -1142,17 +1204,21 @@ fn build_effect_texture(ctx: &mut Ctx, node: &Node) -> Option<(wgpu::Texture, u3
     // recursing into machinery that doesn't fit this local-space capture.
     let saved_sb = ctx.suppress_backdrop;
     let saved_sm = ctx.suppress_matte;
+    let saved_bd = ctx.blend_depth;
     ctx.suppress_backdrop = true;
     ctx.suppress_matte = true;
+    // A fresh `VelloScene` starts with an empty layer stack.
+    ctx.blend_depth = 0;
     build(
         &mut sub,
         ctx,
         &local_root,
         Affine::translate((-x0, -y0)),
-        1.0,
+        fold_opacity,
     );
     ctx.suppress_backdrop = saved_sb;
     ctx.suppress_matte = saved_sm;
+    ctx.blend_depth = saved_bd;
 
     let mut texture = render_vscene_to_texture(ctx.device, ctx.queue, ctx.renderer, &sub, tw, th);
 
@@ -1366,13 +1432,29 @@ fn render_effects_subtree(
     affine: Affine,
     opacity: f32,
 ) {
-    let Some((texture, tw, th, x0, y0)) = build_effect_texture(ctx, node) else {
+    let Some((texture, tw, th, x0, y0)) = build_effect_texture(ctx, node, 1.0) else {
         return;
     };
-    // GPU-RESIDENT composite (no readback): draw a placeholder image at the node's
-    // place/opacity, then override it with the effect's GPU texture — Vello GPU→GPU-
-    // copies the result into its atlas at render time instead of us reading it back to
-    // the CPU and re-uploading it. The override is cleared after the frame renders.
+    composite_gpu_texture(vscene, ctx, texture, tw, th, affine, x0, y0, opacity);
+}
+
+/// GPU-RESIDENT composite (no readback): draw a placeholder image at the node's
+/// place/opacity, then override it with the effect's GPU texture — Vello GPU→GPU-
+/// copies the result into its atlas at render time instead of us reading it back to
+/// the CPU and re-uploading it. The override is cleared after the frame renders.
+/// Shared by the native effect path and the blend-depth flatten path.
+#[allow(clippy::too_many_arguments)]
+fn composite_gpu_texture(
+    vscene: &mut VelloScene,
+    ctx: &mut Ctx,
+    texture: wgpu::Texture,
+    tw: u32,
+    th: u32,
+    affine: Affine,
+    x0: f64,
+    y0: f64,
+    opacity: f32,
+) {
     let placeholder = effect_placeholder(tw, th);
     let place = affine * Affine::translate((x0, y0));
     draw_peniko_image(vscene, &placeholder, place, opacity);
@@ -1386,6 +1468,39 @@ fn render_effects_subtree(
         }),
     );
     ctx.effect_overrides.push(placeholder);
+}
+
+/// FLATTEN a deeply blend-nested subtree (the [`MAX_BLEND_NEST`] guard): render
+/// it to a texture with the cumulative `opacity` folded into every draw — the
+/// same per-draw alpha the un-flattened walk would have produced — and composite
+/// the result under ONE bounded blend layer (plus the node's clip), resetting
+/// vello's per-tile blend-stack depth instead of pushing past the spill budget.
+/// Returns `false` when the subtree can't be captured (unmeasurable or larger
+/// than the texture cap); the caller then falls back to the plain layered path.
+fn render_flattened_blend(
+    vscene: &mut VelloScene,
+    ctx: &mut Ctx,
+    node: &Node,
+    affine: Affine,
+    opacity: f32,
+) -> bool {
+    let Some((texture, tw, th, x0, y0)) = build_effect_texture(ctx, node, opacity) else {
+        return false;
+    };
+    let rect = blend_layer_rect(ctx, node, affine);
+    vscene.push_layer(blend_mix(node.blend), 1.0, Affine::IDENTITY, &rect);
+    let clipped = node.clip.is_some();
+    if let Some(clip) = &node.clip {
+        vscene.push_layer(Mix::Clip, 1.0, affine, &shape_path(clip));
+    }
+    // Opacity is already folded into the captured pixels — composite at full
+    // alpha so no further blend-stack level is spent.
+    composite_gpu_texture(vscene, ctx, texture, tw, th, affine, x0, y0, 1.0);
+    if clipped {
+        vscene.pop_layer();
+    }
+    vscene.pop_layer();
+    true
 }
 
 /// Composite a pre-rendered effect image (straight-alpha RGBA) at `affine`/
@@ -1570,11 +1685,14 @@ fn capture_prefix(ctx: &mut Ctx, node: &Node) -> Option<wgpu::Texture> {
     let saved_sb = ctx.suppress_backdrop;
     let saved_sm = ctx.suppress_matte;
     let saved_slw = ctx.suppress_lightwrap;
+    let saved_bd = ctx.blend_depth;
     ctx.backdrop_stop = Some(node as *const Node);
     ctx.backdrop_done = false;
     ctx.suppress_backdrop = true;
     ctx.suppress_matte = true;
     ctx.suppress_lightwrap = true;
+    // A fresh `VelloScene` starts with an empty layer stack.
+    ctx.blend_depth = 0;
     let root = ctx.root;
     let mut prefix = VelloScene::new();
     build(&mut prefix, ctx, root, Affine::IDENTITY, 1.0);
@@ -1583,6 +1701,7 @@ fn capture_prefix(ctx: &mut Ctx, node: &Node) -> Option<wgpu::Texture> {
     ctx.suppress_backdrop = saved_sb;
     ctx.suppress_matte = saved_sm;
     ctx.suppress_lightwrap = saved_slw;
+    ctx.blend_depth = saved_bd;
     Some(render_vscene_to_texture(
         ctx.device,
         ctx.queue,
@@ -1676,14 +1795,18 @@ fn build_lightwrap(
     let saved_slw = ctx.suppress_lightwrap;
     let saved_sb = ctx.suppress_backdrop;
     let saved_sm = ctx.suppress_matte;
+    let saved_bd = ctx.blend_depth;
     ctx.suppress_lightwrap = true;
     ctx.suppress_backdrop = true;
     ctx.suppress_matte = true;
+    // A fresh `VelloScene` starts with an empty layer stack.
+    ctx.blend_depth = 0;
     let mut fg_scene = VelloScene::new();
     build(&mut fg_scene, ctx, &fg_root, affine, 1.0);
     ctx.suppress_lightwrap = saved_slw;
     ctx.suppress_backdrop = saved_sb;
     ctx.suppress_matte = saved_sm;
+    ctx.blend_depth = saved_bd;
     let fg = render_vscene_to_texture(ctx.device, ctx.queue, ctx.renderer, &fg_scene, w, h);
 
     // Backdrop: everything painted behind this node (full-canvas, screen-aligned).
@@ -1857,8 +1980,11 @@ fn build_matte_texture(
     // Suppress nested backdrop/matte resolution inside both captures.
     let saved_sb = ctx.suppress_backdrop;
     let saved_sm = ctx.suppress_matte;
+    let saved_bd = ctx.blend_depth;
     ctx.suppress_backdrop = true;
     ctx.suppress_matte = true;
+    // Fresh `VelloScene`s below start with empty layer stacks.
+    ctx.blend_depth = 0;
 
     // CONTENT: node's children at identity, transform/opacity/effects/blend/clip/
     // matte neutralized so the recursion terminates — like the effect capture's
@@ -1902,6 +2028,7 @@ fn build_matte_texture(
 
     ctx.suppress_backdrop = saved_sb;
     ctx.suppress_matte = saved_sm;
+    ctx.blend_depth = saved_bd;
 
     // Alpha-combine on the GPU: content.rgb, content.a × the matte's coverage.
     let mode = match matte.mode {
@@ -1947,6 +2074,36 @@ fn render_matte_subtree(
         x0,
         y0,
     );
+}
+
+/// The screen-space rect a blend layer around `node`'s subtree must cover: the
+/// measured subtree bounds grown by the effect chain's spread margin, taken
+/// through `affine`, padded one tile for the bounds measurement's soft edges
+/// (text approximations, shadow falloff).
+///
+/// This replaces the old "infinite" `±1e7` blend rect. A blend layer's shape is
+/// also its coverage: vello encodes the layer into every tile the shape touches,
+/// and each non-`Clip` layer consumes one per-tile blend-stack level. With an
+/// unbounded rect EVERY blend layer covered EVERY tile of the frame, so nesting
+/// a few (5+ on vello 0.3 — see [`MAX_BLEND_NEST`]) overflowed the fixed blend-
+/// spill budget and silently wiped the affected tiles — including content drawn
+/// AFTER the layer was popped (the "clipped/blended group occludes its later
+/// siblings" bug). Bounding the layer to what the subtree can actually paint is
+/// visually a no-op (outside its paint the foreground is transparent, and
+/// transparent-over-backdrop composites as identity for every mix mode) while
+/// keeping unrelated tiles off the blend stack entirely.
+fn blend_layer_rect(ctx: &mut Ctx, node: &Node, affine: Affine) -> Rect {
+    match subtree_local_bounds(ctx.fonts, node) {
+        Some(b) => {
+            let m = effect_spread_margin(node);
+            affine
+                .transform_rect_bbox(b.inflate(m, m))
+                .inflate(16.0, 16.0)
+        }
+        // Nothing measurable draws in this subtree — an empty layer is correct
+        // (and keeps the push/pop encoding balanced).
+        None => Rect::ZERO,
+    }
 }
 
 /// Axis-aligned bounds of a node's subtree in the node's **own local space**
