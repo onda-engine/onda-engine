@@ -216,6 +216,18 @@ function parseFinish(f: NonNullable<CompositionProps['finish']>): Finish {
     // Inject the current frame as the seed so grain *lives* (varies per frame).
     out.grain_seed = activeFrameState?.frame ?? 0
   }
+  // A 3D color LUT — only if well-formed (size ≥ 2 and `table` holds exactly
+  // size³ RGB triples). A malformed cube is dropped at the boundary so the
+  // renderer never trilinear-samples out of bounds.
+  if (
+    f.lut &&
+    typeof f.lut.size === 'number' &&
+    f.lut.size >= 2 &&
+    Array.isArray(f.lut.table) &&
+    f.lut.table.length === f.lut.size ** 3 * 3
+  ) {
+    out.lut = { size: f.lut.size, table: f.lut.table }
+  }
   return out
 }
 
