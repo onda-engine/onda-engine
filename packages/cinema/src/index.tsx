@@ -30,11 +30,13 @@ import {
   dipToColor,
   expandMorph,
   fade,
+  filmBurn,
   flip,
   glassWipe,
   gridPixelate,
   iris,
   linearTiming,
+  lumaWipe,
   morph,
   none,
   push,
@@ -346,6 +348,8 @@ const TRANSITIONS: Record<string, (o?: TransOpts) => TransitionPresentation> = {
   'type-mask': (o) => typeMask(o as never),
   'zoom-blur': (o) => zoomBlur(o as never),
   'whip-pan': (o) => whipPan(o as never),
+  'film-burn': (o) => filmBurn(o as never),
+  'luma-wipe': () => lumaWipe(),
 }
 const presentationFor = (type: string, options?: TransOpts): TransitionPresentation =>
   (TRANSITIONS[type] ?? crossFade)(options)
