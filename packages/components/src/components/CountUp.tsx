@@ -14,20 +14,33 @@
 //!    dependent. Toggle with `useGrouping`.
 
 import { Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { useFittedFontSize } from '../bounds.js'
 import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH, SPRING_SNAPPY } from '../motion.js'
+import { type Placement, usePlacement } from '../placement.js'
+import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
+import { useTimeScale } from '../timing.js'
 
 export interface CountUpProps {
   /** Starting value (default `0`). */
   from?: number
   /** Ending value (default `100`). */
   to?: number
-  /** Frames before the count starts (default `0`). */
-  delay?: number
-  /** Frames to count from `from` to `to`. Numbers want more time than text
-   *  (default `DURATION.slow` = 24). */
-  durationInFrames?: number
+  /** Time before the count starts (default `0`) — frames or '0.5s'. */
+  delay?: TimeInput
+  /** Time to count from `from` to `to`. Numbers want more time than text
+   *  (default `DURATION.slow` = 24 frames). */
+  durationInFrames?: TimeInput
+  /** Compress the whole timing envelope (delay, stagger, durations) so the
+   *  entrance settles at least `hold` before the end of the enclosing clip
+   *  (`useVideoConfig().durationInFrames`, Sequence-scoped). Opt-in. */
+  fitToClip?: boolean
+  /** Hard cap on the settle time (frames or '0.5s'). Wins over `fitToClip`. */
+  maxSettle?: TimeInput
+  /** Breathing room before the cut for `fitToClip` (default 6 frames). */
+  hold?: TimeInput
   /** Fraction digits to render (default `0`). */
   decimals?: number
   /** Insert en-US thousands separators (default `true`). */
@@ -40,6 +53,13 @@ export interface CountUpProps {
   color?: string
   /** Font size in px. Counters are usually large (default `120`). */
   fontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
+   *  measured line cannot exceed the frame minus the safe margins. Default
+   *  `'none'` (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the line; combines with `fit` (the smaller
+   *  cap wins). */
+  maxWidth?: number
   /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (default `600`). */
@@ -47,8 +67,16 @@ export interface CountUpProps {
   /** Use the snappier spring (`SPRING_SNAPPY`) for the count (default `false`,
    *  i.e. `SPRING_SMOOTH` — matches ondajs). */
   snappy?: boolean
-  /** Pixel translate for placement. */
+  /** Where the counter sits: a region keyword (`'center'`, `'lower-third'`, …)
+   *  or normalized `{x,y}` (0–1, anchored at the FINAL value's measured
+   *  center, so the line never slides as it counts). The shared placement
+   *  contract. Omitted → the legacy origin-relative `x`/`y` translate. */
+  placement?: Placement
+  /** @deprecated Legacy — pixel translate from the local origin. Prefer
+   *  `placement`. */
   x?: number
+  /** @deprecated Legacy — pixel translate from the local origin. Prefer
+   *  `placement`. */
   y?: number
 }
 
@@ -77,17 +105,23 @@ function formatNumber(value: number, decimals: number, useGrouping: boolean): st
 export function CountUp({
   from = 0,
   to = 100,
-  delay = 0,
-  durationInFrames = DURATION.slow,
+  delay: delayIn = 0,
+  durationInFrames: durationIn = DURATION.slow,
+  fitToClip,
+  maxSettle,
+  hold,
   decimals = 0,
   useGrouping = true,
   prefix = '',
   suffix = '',
   color: colorProp,
-  fontSize = 120,
+  fontSize: fontSizeProp = 120,
+  fit,
+  maxWidth,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   snappy = false,
+  placement,
   x = 0,
   y = 0,
 }: CountUpProps) {
@@ -96,6 +130,22 @@ export function CountUp({
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
+
+  // Timing: parse + clip-fit (the count compresses to land inside the clip).
+  const delayBase = framesOf(delayIn, fps)
+  const durationBase = framesOf(durationIn, fps, DURATION.slow)
+  const timeScale = useTimeScale(delayBase + durationBase, { fitToClip, maxSettle, hold })
+  const delay = delayBase * timeScale
+  const durationInFrames = Math.max(1, durationBase * timeScale)
+
+  // Opt-in auto-fit, measured on the FINAL value (the widest the line gets).
+  const finalText = `${prefix}${formatNumber(to, decimals, useGrouping)}${suffix}`
+  const fontSize = useFittedFontSize(finalText, fontSizeProp, {
+    fontFamily,
+    fontWeight,
+    fit,
+    maxWidth,
+  })
 
   // Opacity rides the shared house entrance so the fade-in and the counting
   // curve settle together rather than racing each other.
@@ -125,10 +175,18 @@ export function CountUp({
 
   const formatted = formatNumber(value, decimals, useGrouping)
 
+  // Shared placement contract, anchored on the FINAL value's measured width so
+  // the line never slides sideways as digits count up. Without `placement` the
+  // legacy origin-relative `x`/`y` translate applies unchanged.
+  const measured = useTextMetrics(finalText, fontSize, { fontFamily, fontWeight })
+  const resolved = usePlacement(placement, { width: measured.width, height: fontSize * 1.2 })
+  const px = placement !== undefined ? Math.round(resolved.originX) : x
+  const py = placement !== undefined ? Math.round(resolved.y - fontSize * 0.6) : y
+
   return (
     <Text
-      x={x}
-      y={y}
+      x={px}
+      y={py}
       opacity={opacity}
       color={color}
       fontSize={fontSize}

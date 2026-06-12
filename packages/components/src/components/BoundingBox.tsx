@@ -48,6 +48,7 @@ import { HOUSE_EASE } from '../easing.js'
 import { DURATION, SPRING_SMOOTH, staggerFrames } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** Engine line-box height as a multiple of font size (matches typography crate). */
 const LINE_RATIO = 1.2
@@ -66,7 +67,7 @@ export interface BoundingBoxProps {
   /** Outline / tick / tag color — the earned Onda rose by default (default: theme `accent`). */
   color?: string
   /** Frames before the outline starts revealing. */
-  delay?: number
+  delay?: TimeInput
   /** Frames to reveal the full outline (default `DURATION.slow` = 28). */
   drawDuration?: number
   /** Outline stroke width in px. */
@@ -89,7 +90,7 @@ export function BoundingBox({
   height = 0.4,
   label = '',
   color: colorProp,
-  delay = 0,
+  delay: delayIn = 0,
   drawDuration = DURATION.slow,
   strokeWidth = 3,
   cornerRadius = 0,
@@ -99,6 +100,8 @@ export function BoundingBox({
 }: BoundingBoxProps) {
   const frame = useCurrentFrame()
   const { fps, width: canvasW, height: canvasH } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.accent
   const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily

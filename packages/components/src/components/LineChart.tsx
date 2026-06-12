@@ -40,14 +40,15 @@ import {
 } from '@onda/react'
 import { useSceneProgress } from '../hooks.js'
 import { useTheme } from '../theme.js'
+import type { TimeInput } from '../time.js'
 
 export interface LineChartProps {
   /** The series values, left to right. */
   data?: number[]
   /** Frames before the line starts drawing. */
-  delay?: number
+  delay?: TimeInput
   /** Frames for the line to fully draw on. */
-  duration?: number
+  duration?: TimeInput
   /** Line + dot color — the earned accent (default: theme `accent`). */
   color?: string
   /** Stroke width in px. */

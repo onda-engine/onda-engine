@@ -4,10 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const rgbGlitchSchema = z.object({
   text: z.string().default('GLITCH').describe("The text to glitch."),
-  delay: z.number().int().default(0).describe("Frames before the effect starts."),
+  delay: timeSchema.default(0).describe("Frames before the effect starts."),
   baseSplit: z.number().default(2).describe("Constant baseline channel split in px (the always-on chromatic edge)."),
   intensity: z.number().default(10).describe("Peak extra split in px during a glitch burst."),
   glitchPeriod: z.number().int().default(48).describe("Frames between glitch bursts."),
@@ -24,6 +25,7 @@ export const rgbGlitchSchema = z.object({
   align: z.enum(['left', 'center', 'right']).default('center').describe("Line alignment relative to the placement point."),
   x: z.number().optional().describe("Absolute x of the alignment anchor (defaults to canvas horizontal center)."),
   y: z.number().optional().describe("Absolute y (top-ish) of the line (defaults to vertical center)."),
+  variant: z.number().int().optional().describe("Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take."),
 })
 
 export type RgbGlitchSchemaProps = z.infer<typeof rgbGlitchSchema>

@@ -36,9 +36,12 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from '@onda/react'
+import { useFittedFontSize } from '../bounds.js'
 import { entryFadeRise } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { type Placement, PlacementShift } from '../placement.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 import { FadeIn } from './FadeIn.js'
 
 export interface ChapterCardProps {
@@ -47,7 +50,7 @@ export interface ChapterCardProps {
   /** Numbered index above the chapter. String so leading zeros (`"01"`) read as intended. */
   number?: string
   /** Frames before the number starts fading in. The whole card sequences off this. */
-  delay?: number
+  delay?: TimeInput
   /** When `true`, the number takes `numberColor` (the rose) and an underline punctuates the title. */
   accent?: boolean
   /** Number color when `accent` is `true` (the Onda rose) (default: theme `accent`). */
@@ -62,10 +65,21 @@ export interface ChapterCardProps {
   numberFontWeight?: number
   /** Chapter title font size in px — the focal element. */
   titleFontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the TITLE size DOWN (never up) so the
+   *  title line cannot exceed the frame minus the safe margins. Default
+   *  `'none'` (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the title line; combines with `fit` (the
+   *  smaller cap wins). */
+  maxWidth?: number
   /** Title font weight. */
   titleFontWeight?: number
   /** Onda display font, applied to both number and title for tonal consistency (default: theme `headingFamily ?? fontFamily`). */
   fontFamily?: string
+  /** Where the card sits: a region keyword (`'center'`, `'lower-third'`, ...) or
+   *  normalized `{x,y}` (0-1, card center). The shared placement contract;
+   *  default `'center'` (the historical self-centering). */
+  placement?: Placement
 }
 
 // Beat offsets — all derived from `delay` so the card is one composed sequence.
@@ -88,24 +102,37 @@ const TITLE_TRAVEL = 16
 export function ChapterCard({
   chapter,
   number = '01',
-  delay = 0,
+  delay: delayIn = 0,
   accent = true,
   numberColor: numberColorProp,
   color: colorProp,
   subtitleColor: subtitleColorProp,
   numberFontSize = 32,
   numberFontWeight = 600,
-  titleFontSize = 96,
+  titleFontSize: titleFontSizeProp = 96,
+  fit,
+  maxWidth,
   titleFontWeight = 600,
   fontFamily: fontFamilyProp,
+  placement,
 }: ChapterCardProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const numberColor = numberColorProp ?? theme.accent
   const color = colorProp ?? theme.text
   const subtitleColor = subtitleColorProp ?? theme.textMuted
   const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
+
+  // Opt-in auto-fit on the chapter title (the focal line).
+  const titleFontSize = useFittedFontSize(chapter, titleFontSizeProp, {
+    fontFamily,
+    fontWeight: titleFontWeight,
+    fit,
+    maxWidth,
+  })
 
   // Title rise — the focal beat. `entryFadeRise` is the spring rise + fade that
   // stands in for the ondajs `BlurReveal` (sans the unsupported blur).
@@ -149,59 +176,63 @@ export function ChapterCard({
   const gap = Math.round(numberFontSize * 0.75)
 
   return (
-    <AbsoluteFill justify="center" align="center">
-      <Flex direction="column" align="center" gap={gap}>
-        {/* Numbered eyebrow — pure fade so the title owns the rise. Rose when
+    // The flex column self-centers; PlacementShift moves the centered stack by
+    // the center->placement delta (no-op for the default 'center').
+    <PlacementShift placement={placement}>
+      <AbsoluteFill justify="center" align="center">
+        <Flex direction="column" align="center" gap={gap}>
+          {/* Numbered eyebrow — pure fade so the title owns the rise. Rose when
             accent is on; otherwise the dim metadata color. */}
-        <FadeIn delay={delay} durationInFrames={DURATION.base}>
-          <Text
-            fontSize={numberFontSize}
-            color={accent ? numberColor : subtitleColor}
-            fontFamily={fontFamily}
-            fontWeight={numberFontWeight}
-          >
-            {number}
-          </Text>
-        </FadeIn>
+          <FadeIn delay={delay} durationInFrames={DURATION.base}>
+            <Text
+              fontSize={numberFontSize}
+              color={accent ? numberColor : subtitleColor}
+              fontFamily={fontFamily}
+              fontWeight={numberFontWeight}
+            >
+              {number}
+            </Text>
+          </FadeIn>
 
-        {/* Chapter title — focal element. A fixed-size transparent spacer Rect
+          {/* Chapter title — focal element. A fixed-size transparent spacer Rect
             reserves the row (text box + rise travel), so the rising text never
             grows the Group's bounding box and the column stays put. The text is
             laid out ABSOLUTELY inside the row (centered horizontally) and the
             inner Group carries the motion rise. */}
-        <Group>
-          <Rect width={titleBoxWidth} height={titleRowHeight} fill="#00000000" />
-          <Group y={title.y} opacity={title.opacity}>
-            <Text
-              fontSize={titleFontSize}
-              color={color}
-              fontFamily={fontFamily}
-              fontWeight={titleFontWeight}
-            >
-              {chapter}
-            </Text>
+          <Group>
+            <Rect width={titleBoxWidth} height={titleRowHeight} fill="#00000000" />
+            <Group y={title.y} opacity={title.opacity}>
+              <Text
+                fontSize={titleFontSize}
+                color={color}
+                fontFamily={fontFamily}
+                fontWeight={titleFontWeight}
+              >
+                {chapter}
+              </Text>
+            </Group>
           </Group>
-        </Group>
 
-        {/* Accent underline — only when accent is on, so the rose stays earned.
+          {/* Accent underline — only when accent is on, so the rose stays earned.
             Rule drawn absolutely inside a fixed-height row (centered) so its
             per-frame width never reflows the column. */}
-        {accent ? (
-          <Group>
-            <Rect width={fullRuleWidth} height={ruleRowHeight} fill="#00000000" />
-            {ruleWidth > 0 ? (
-              <Rect
-                x={(fullRuleWidth - ruleWidth) / 2}
-                y={(ruleRowHeight - ruleThickness) / 2}
-                width={ruleWidth}
-                height={ruleThickness}
-                cornerRadius={ruleRadius}
-                fill={numberColor}
-              />
-            ) : null}
-          </Group>
-        ) : null}
-      </Flex>
-    </AbsoluteFill>
+          {accent ? (
+            <Group>
+              <Rect width={fullRuleWidth} height={ruleRowHeight} fill="#00000000" />
+              {ruleWidth > 0 ? (
+                <Rect
+                  x={(fullRuleWidth - ruleWidth) / 2}
+                  y={(ruleRowHeight - ruleThickness) / 2}
+                  width={ruleWidth}
+                  height={ruleThickness}
+                  cornerRadius={ruleRadius}
+                  fill={numberColor}
+                />
+              ) : null}
+            </Group>
+          ) : null}
+        </Flex>
+      </AbsoluteFill>
+    </PlacementShift>
   )
 }

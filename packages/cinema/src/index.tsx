@@ -183,14 +183,32 @@ const PLACEMENT_COORDS: Record<string, [number, number]> = {
   'lower-third': [0.5, 0.72],
 }
 
-// Components that consume `placement` THEMSELVES (anchoring their own assembly to
-// a canvas corner) — the bridge must NOT also shift them, or placement applies
-// twice and they fly off-canvas.
-// Components that anchor their OWN assembly to a canvas position via their `placement`
-// prop (top/bottom/center, a corner, …). The bridge must NOT also apply placementOffset
-// for these, or `placement` is applied TWICE (e.g. BlurReveal `placement:"bottom"` got
-// shifted a half-canvas down by the bridge AND anchored bottom by itself → off-screen).
-const SELF_ANCHORING = new Set(['LowerThird', 'Callout', 'BlurReveal', 'Captions'])
+// Components that consume `placement` THEMSELVES (the shared placement contract
+// in @onda/components, or their own legacy anchoring) — the bridge must NOT also
+// shift them, or placement applies twice and they fly off-canvas. Every
+// component migrated onto `usePlacement`/`PlacementShift` belongs here.
+const SELF_ANCHORING = new Set([
+  'LowerThird',
+  'Callout',
+  'BlurReveal',
+  'Button',
+  'Captions',
+  'ChapterCard',
+  'CountUp',
+  'EndCard',
+  'InputField',
+  'KineticText',
+  'MaskReveal',
+  'MatrixDecode',
+  'PricingCard',
+  'QuoteCard',
+  'SlotMachineRoll',
+  'StatCard',
+  'Terminal',
+  'TextAnimator',
+  'TitleCard',
+  'Typewriter',
+])
 
 /** Centre→anchor pixel offset for an entry's `placement` prop (string slug or
  *  `{x,y}` fractions). Returns `[0,0]` for centre / unknown. */
@@ -654,9 +672,7 @@ interface MorphTransform {
 }
 
 function entryTransform(entry: Entry, w: number, h: number): MorphTransform {
-  const [px, py] = SELF_ANCHORING.has(entry.component)
-    ? [0, 0]
-    : placementOffset(entry.props, w, h)
+  const [px, py] = SELF_ANCHORING.has(entry.component) ? [0, 0] : placementOffset(entry.props, w, h)
   const s = entry.props?.scale
   return { x: px, y: py, scale: typeof s === 'number' && Number.isFinite(s) ? s : 1 }
 }
@@ -714,10 +730,7 @@ function morphEntriesAtHead(scene: Scene, fps: number, overlap: number): Map<str
 
 /** A morphing element above the spine: B's element wrapped in a Group that tweens
  *  translate + scale from A's placement to B's over the overlap (smoothstep). */
-function MorphLayer({
-  pair,
-  registry,
-}: { pair: MorphPair; registry: Registry }): ReactElement {
+function MorphLayer({ pair, registry }: { pair: MorphPair; registry: Registry }): ReactElement {
   const frame = useCurrentFrame()
   const { width, height } = useVideoConfig()
   const n = pair.overlapFrames

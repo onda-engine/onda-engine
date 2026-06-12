@@ -52,9 +52,15 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
+  variantSeed,
 } from '@onda/react'
+import { fitMaxWidth } from '../bounds.js'
+import { layoutGlyphLine } from '../glyph-line.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
+import { type Placement, usePlacement } from '../placement.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
+import { staggeredSettle, useTimeScale } from '../timing.js'
 
 /** Estimated cell advance as a fraction of font size — the per-character column
  *  width. Tuned for a monospace/display stack (matches the spirit of `Marquee`'s
@@ -66,85 +72,145 @@ const CELL_W = 0.7
 export interface SlotMachineRollProps {
   /** The text that rolls into place. Best on short strings (years, counts). */
   text?: string
-  /** Frames before rolling starts. */
-  delay?: number
-  /** Frames between successive characters starting their roll (default the house
-   *  `STAGGER` = 5 — a settled, orchestrated wave left-to-right). */
-  charDelay?: number
-  /** Frames for each character's reel to settle (default `DURATION.slower` = 34 —
-   *  a slow, hard-decelerating odometer drop, not a constant-velocity spin). */
-  durationInFrames?: number
+  /** Time before rolling starts — frames or '0.5s'. */
+  delay?: TimeInput
+  /** Time between successive characters starting their roll (default the house
+   *  `STAGGER` = 5 frames — a settled, orchestrated wave left-to-right). */
+  charDelay?: TimeInput
+  /** Time for each character's reel to settle (default `DURATION.slower` = 34
+   *  frames — a slow, hard-decelerating odometer drop, not a constant-velocity
+   *  spin). */
+  durationInFrames?: TimeInput
+  /** Compress the whole timing envelope (delay, stagger, durations) so the
+   *  entrance settles at least `hold` before the end of the enclosing clip
+   *  (`useVideoConfig().durationInFrames`, Sequence-scoped). Opt-in. */
+  fitToClip?: boolean
+  /** Hard cap on the settle time (frames or '0.5s'). Wins over `fitToClip`. */
+  maxSettle?: TimeInput
+  /** Breathing room before the cut for `fitToClip` (default 6 frames). */
+  hold?: TimeInput
   /** How many filler glyphs spin past before the target lands. */
   reelLength?: number
   /** Seed for the (deterministic) filler glyphs. */
   seed?: number
+  /** Integer "take" selector: derives a new deterministic seed from (seed,
+   *  variant), so alternates never require hand-edited magic seeds. 0/omitted
+   *  = the default take (identical to today's output). */
+  variant?: number
   /** Glyph pool the reel spins through. */
   charset?: string
   /** Text color (default: theme `text`). */
   color?: string
   /** Font size in px (default 140). The cell height equals this. */
   fontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
+   *  line cannot exceed the frame minus the safe margins. Default `'none'`
+   *  (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the line; combines with `fit` (the smaller
+   *  cap wins). */
+  maxWidth?: number
   /** Monospace/display stack keeps reels column-aligned (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (default 600). */
   fontWeight?: number
   /** Italic glyphs. */
   italic?: boolean
-  /** Horizontal anchoring of the whole block (default `'center'`). */
+  /** Horizontal anchoring of the whole block (default `'center'`). Only applies
+   *  to the legacy `x` anchor — `placement` always anchors the block's center. */
   align?: 'left' | 'center' | 'right'
-  /** Absolute x of the block's anchor. Defaults to the canvas horizontal center
-   *  (respecting `align`). */
+  /** Where the row sits: a region keyword (`'center'`, `'lower-third'`,
+   *  `'top-left'`, …) or normalized `{x,y}` (0–1, block center). The shared
+   *  placement contract; default `'center'`. */
+  placement?: Placement
+  /** @deprecated Legacy alias — absolute x of the block's anchor in px
+   *  (respecting `align`). Prefer `placement`. */
   x?: number
-  /** Absolute y of the block's top. Defaults to vertically centering the row. */
+  /** @deprecated Legacy alias — absolute y of the block's top in px. Prefer
+   *  `placement`. */
   y?: number
 }
 
 export function SlotMachineRoll({
   text = '2026',
-  delay = 0,
-  charDelay = STAGGER,
-  durationInFrames = DURATION.slower,
+  delay: delayIn = 0,
+  charDelay: charDelayIn = STAGGER,
+  durationInFrames: durationIn = DURATION.slower,
+  fitToClip,
+  maxSettle,
+  hold,
   reelLength = 12,
-  seed = 7,
+  seed: seedProp = 7,
+  variant,
   charset = '0123456789',
   color: colorProp,
-  fontSize = 140,
+  fontSize: fontSizeProp = 140,
+  fit,
+  maxWidth,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
   align = 'center',
+  placement,
   x,
   y,
 }: SlotMachineRollProps) {
+  // The variant knob derives an alternate deterministic seed (identity at 0).
+  const seed = variantSeed(seedProp, variant)
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
 
-  const cell = fontSize
   const chars = [...text]
+
+  // Timing: parse the TimeInput props, then compress the WHOLE envelope when
+  // the entrance (incl. the glow payoff) wouldn't land inside the clip.
+  const delayBase = framesOf(delayIn, fps)
+  const charDelayBase = framesOf(charDelayIn, fps, STAGGER)
+  const durationBase = framesOf(durationIn, fps, DURATION.slower)
+  const naturalSettle =
+    staggeredSettle(chars.length, charDelayBase, durationBase, delayBase) + (DURATION.base - 8)
+  const timeScale = useTimeScale(naturalSettle, { fitToClip, maxSettle, hold })
+  const delay = delayBase * timeScale
+  const charDelay = charDelayBase * timeScale
+  const durationInFrames = Math.max(1, durationBase * timeScale)
+
+  // Opt-in auto-fit: the row's estimated width is proportional to the font
+  // size (fixed cell advances), so the cap resolves in closed form.
+  const unitsW = chars.reduce((sum, ch) => sum + (ch === ' ' ? CELL_W * 0.65 : CELL_W), 0)
+  const cap = fitMaxWidth({ fit, maxWidth }, width)
+  const fontSize =
+    cap !== undefined && unitsW > 0 && fontSizeProp * unitsW > cap
+      ? Math.max(1, cap / unitsW)
+      : fontSizeProp
+
+  const cell = fontSize
 
   // Per-character cell advance. Spaces are a narrower gap (matches ondajs's
   // `cell * 0.4`); everything else gets a full estimated cell.
   const advance = (ch: string): number => (ch === ' ' ? cell * CELL_W * 0.65 : cell * CELL_W)
 
-  // Lay out columns left-to-right at running-sum x offsets within the block.
-  let cursor = 0
-  const placed = chars.map((ch, i) => {
-    const localX = cursor
-    cursor += advance(ch)
-    return { ch, i, localX }
-  })
-  const totalWidth = cursor
+  // Lay out columns on the SHARED glyph-line primitive — fixed cell advances
+  // (column-locked reels), so the family shares ONE layout/alignment path.
+  const laid = layoutGlyphLine(text, fontSize, { cellAdvance: advance })
+  const totalWidth = laid.width
 
-  // Anchor the block. `align` decides which edge `x` pins; default centers it on
-  // the canvas. `y` defaults to vertically centering the single row of cells.
-  const defaultCenterX = width / 2
-  const anchorX = x ?? defaultCenterX
+  // Anchor the block on the shared placement contract (block CENTER at the
+  // resolved point; corner regions sit flush on the safe margin). Legacy px
+  // `x`/`y` win per-axis when given: `align` decides which edge `x` pins, `y`
+  // pins the block's top — exactly the pre-placement behavior.
+  const resolved = usePlacement(placement, { width: totalWidth, height: cell })
   const originX =
-    align === 'left' ? anchorX : align === 'right' ? anchorX - totalWidth : anchorX - totalWidth / 2
-  const originY = y ?? Math.round(height / 2 - cell / 2)
+    x !== undefined
+      ? align === 'left'
+        ? x
+        : align === 'right'
+          ? x - totalWidth
+          : x - totalWidth / 2
+      : resolved.originX
+  const originY = y ?? Math.round(resolved.originY)
 
   const local = frame - delay
 
@@ -152,7 +218,7 @@ export function SlotMachineRoll({
   // as the reels settle — the only color in the piece (the digits stay near-white).
   // It eases in on the house spring once the LAST column has nominally landed, so
   // the bloom reads as the payoff of the roll, not a competing entrance.
-  const lastStart = staggerFrames(Math.max(0, placed.length - 1), charDelay)
+  const lastStart = staggerFrames(Math.max(0, laid.cells.length - 1), charDelay)
   const glowP = spring({
     frame: local - lastStart - durationInFrames + 8,
     fps,
@@ -179,9 +245,9 @@ export function SlotMachineRoll({
         opacity={glowOpacity}
         shadow={{ color: theme.accent, blur: cell * 0.7, offsetY: 0 }}
       />
-      {placed.map(({ ch, i, localX }) => {
+      {laid.cells.map(({ ch, index: i, x: localX, space }) => {
         // Spaces occupy advance but render nothing — no reel, no window.
-        if (ch === ' ') return null
+        if (space) return null
 
         // Build this column's reel: `reelLength` deterministic fillers from the
         // charset, then the target glyph the reel lands on. Each filler gets a

@@ -29,15 +29,16 @@
 //!
 //! letter-spacing (ondajs `-0.02em`) has no scene-graph equivalent and is dropped.
 
-import { Group, Text, random, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Text, random, useCurrentFrame, useVideoConfig, variantSeed } from '@onda/react'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface RgbGlitchProps {
   /** The text to glitch. */
   text?: string
   /** Frames before the effect starts. */
-  delay?: number
+  delay?: TimeInput
   /** Constant baseline channel split in px (the always-on chromatic edge). */
   baseSplit?: number
   /** Peak extra split in px during a glitch burst. */
@@ -48,6 +49,10 @@ export interface RgbGlitchProps {
   glitchDuration?: number
   /** Seed for the (deterministic) burst jitter. */
   seed?: number
+  /** Integer "take" selector: derives a new deterministic seed from (seed,
+   *  variant), so alternates never require hand-edited magic seeds. 0/omitted
+   *  = the default take (identical to today's output). */
+  variant?: number
   /** Base (center) text color (default: theme `text`). */
   color?: string
   /** Red-channel copy color (default: theme `accent`). */
@@ -75,12 +80,13 @@ export interface RgbGlitchProps {
 
 export function RgbGlitch({
   text = 'GLITCH',
-  delay = 0,
+  delay: delayIn = 0,
   baseSplit = 2,
   intensity = 10,
   glitchPeriod = 48,
   glitchDuration = 8,
-  seed = 7,
+  seed: seedProp = 7,
+  variant,
   color: colorProp,
   redColor: redColorProp,
   cyanColor: cyanColorProp,
@@ -93,8 +99,12 @@ export function RgbGlitch({
   x,
   y,
 }: RgbGlitchProps) {
+  // The variant knob derives an alternate deterministic seed (identity at 0).
+  const seed = variantSeed(seedProp, variant)
   const frame = useCurrentFrame()
-  const { width, height } = useVideoConfig()
+  const { width, height, fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const redColor = redColorProp ?? theme.accent

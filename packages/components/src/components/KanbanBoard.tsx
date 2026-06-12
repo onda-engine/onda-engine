@@ -28,6 +28,7 @@ import {
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** A single Kanban column: a header, an optional accent, and its ticket cards. */
 export interface KanbanColumn {
@@ -48,9 +49,9 @@ export interface KanbanBoardProps {
   /** Gap between columns (and between cards within a column) in px. */
   gap?: number
   /** Frames before the first card enters. */
-  delay?: number
+  delay?: TimeInput
   /** Frames between successive cards rising in (house stagger = 4). */
-  stagger?: number
+  stagger?: TimeInput
   /** Base column-header font size in px. */
   fontSize?: number
   /** Loaded font family for headers and ticket labels (default: theme `fontFamily`). */
@@ -91,8 +92,8 @@ export function KanbanBoard({
   columns = DEFAULT_COLUMNS,
   width = 1040,
   gap = 20,
-  delay = 0,
-  stagger = STAGGER,
+  delay: delayIn = 0,
+  stagger: staggerIn = STAGGER,
   fontSize = 22,
   fontFamily: fontFamilyProp,
   accent: accentProp,
@@ -105,6 +106,9 @@ export function KanbanBoard({
 }: KanbanBoardProps) {
   const frame = useCurrentFrame()
   const { fps, width: canvasW, height: canvasH } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const stagger = framesOf(staggerIn, fps)
   const theme = useTheme()
   const fontFamily = fontFamilyProp ?? theme.fontFamily
   const accent = accentProp ?? theme.accent

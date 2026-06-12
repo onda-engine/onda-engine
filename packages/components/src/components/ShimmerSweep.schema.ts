@@ -4,13 +4,14 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const shimmerSweepSchema = z.object({
   text: z.string().default('Onda').describe("The single line of text to sweep light across."),
-  delay: z.number().int().default(0).describe("Frames before the sweep starts."),
-  duration: z.number().int().optional().describe("Frames for one sweep pass (default DURATION.slower = 30)."),
+  delay: timeSchema.default(0).describe("Frames before the sweep starts."),
+  duration: timeSchema.optional().describe("Frames for one sweep pass (default DURATION.slower = 30)."),
   loop: z.boolean().default(false).describe("Loop the sweep instead of a single pass."),
-  interval: z.number().int().default(60).describe("Frames between sweeps when looping."),
+  interval: timeSchema.default(60).describe("Frames between sweeps when looping."),
   color: z.string().optional().describe("Base (dim) text color so the bright band reads as a highlight (default: theme textMuted)."),
   shimmerColor: z.string().optional().describe("The sweeping highlight color (default: theme text)."),
   angle: z.number().default(110).describe("Sweep angle in degrees (approximated by tilting the gradient band)."),

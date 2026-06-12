@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const nodeGraphSchema = z.object({
   hubLabel: z.string().default('AI').describe("Label inside the central hub node \u2014 a single character or short word."),
@@ -11,7 +12,7 @@ export const nodeGraphSchema = z.object({
   accent: z.string().optional().describe("The earned accent \u2014 hub fill tint, the connection lines, and the glow (default: theme accent)."),
   ellipse: z.number().default(0.92).describe("Vertical squash of every orbit (1 = circular, <1 = elliptical)."),
   seed: z.number().default(7).describe("Seed for the deterministic fly-in directions and connection-pulse phases."),
-  delay: z.number().int().default(0).describe("Frames before the constellation begins assembling."),
+  delay: timeSchema.default(0).describe("Frames before the constellation begins assembling."),
   glow: z.boolean().default(true).describe("Show the soft accent glow behind the hub."),
   hubDiameter: z.number().default(120).describe("Hub node diameter in px."),
   hubFontSize: z.number().default(34).describe("Hub label size in px."),
@@ -23,6 +24,7 @@ export const nodeGraphSchema = z.object({
   fontFamily: z.string().optional().describe("Display font for every label (default: theme fontFamily)."),
   centerX: z.number().default(0.5).describe("Horizontal center of the constellation as a 0\u20131 fraction of canvas width."),
   centerY: z.number().default(0.5).describe("Vertical center of the constellation as a 0\u20131 fraction of canvas height."),
+  variant: z.number().int().optional().describe("Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take."),
 })
 
 export type NodeGraphSchemaProps = z.infer<typeof nodeGraphSchema>

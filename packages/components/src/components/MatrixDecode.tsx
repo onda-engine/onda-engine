@@ -36,24 +36,41 @@
 //!    concatenated text in the node's base `color`, so there the scramble accent
 //!    is lost. GPU is the primary path.
 
-import { Text, random, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Text, random, useCurrentFrame, useVideoConfig, variantSeed } from '@onda/react'
 import type { TextRunInput } from '@onda/react'
-import { useTextMetrics } from '../text-metrics.js'
+import { useFittedFontSize } from '../bounds.js'
+import { LINE_RATIO, layoutGlyphLine } from '../glyph-line.js'
+import { type Placement, usePlacement } from '../placement.js'
+import { useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
+import { staggeredSettle, useTimeScale } from '../timing.js'
 
 export interface MatrixDecodeProps {
   /** The text that decodes into place. */
   text?: string
-  /** Frames before decoding starts. */
-  delay?: number
-  /** Frames between successive characters settling (left-to-right). */
-  charDelay?: number
-  /** Frames each character scrambles before it settles (min 1). */
-  scrambleDuration?: number
-  /** Frames between glyph swaps while scrambling. Lower = faster flicker (min 1). */
-  scrambleSpeed?: number
+  /** Time before decoding starts — frames or '0.5s'. */
+  delay?: TimeInput
+  /** Time between successive characters settling (left-to-right). */
+  charDelay?: TimeInput
+  /** Time each character scrambles before it settles (min 1 frame). */
+  scrambleDuration?: TimeInput
+  /** Time between glyph swaps while scrambling. Lower = faster flicker (min 1 frame). */
+  scrambleSpeed?: TimeInput
+  /** Compress the whole timing envelope (delay, stagger, durations) so the
+   *  entrance settles at least `hold` before the end of the enclosing clip
+   *  (`useVideoConfig().durationInFrames`, Sequence-scoped). Opt-in. */
+  fitToClip?: boolean
+  /** Hard cap on the settle time (frames or '0.5s'). Wins over `fitToClip`. */
+  maxSettle?: TimeInput
+  /** Breathing room before the cut for `fitToClip` (default 6 frames). */
+  hold?: TimeInput
   /** Seed for the (deterministic) glyph picks. */
   seed?: number
+  /** Integer "take" selector: derives a new deterministic seed from (seed,
+   *  variant), so alternates never require hand-edited magic seeds. 0/omitted
+   *  = the default take (identical to today's output). */
+  variant?: number
   /** Glyph pool drawn from while scrambling. */
   charset?: string
   /** Settled text color (default: theme `text`). */
@@ -62,53 +79,91 @@ export interface MatrixDecodeProps {
   scrambleColor?: string
   /** Font size in px (default 120). */
   fontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
+   *  measured line cannot exceed the frame minus the safe margins. Default
+   *  `'none'` (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the line; combines with `fit` (the smaller
+   *  cap wins). */
+  maxWidth?: number
   /** Monospace stack keeps the advance steady as glyphs flicker (default: theme `monoFamily`). */
   fontFamily?: string
   /** Font weight (default 600). */
   fontWeight?: number
   /** Italic text. */
   italic?: boolean
-  /** Horizontal anchoring of the single line (approximate — see file notes). */
+  /** Horizontal anchoring of the single line (approximate — see file notes).
+   *  Only applies to the legacy default/`x` anchoring — `placement` anchors the
+   *  line's measured center. */
   align?: 'left' | 'center' | 'right'
-  /** Absolute x of the line. Defaults to the canvas center (per `align`). */
+  /** Where the line sits: a region keyword (`'center'`, `'lower-third'`, …) or
+   *  normalized `{x,y}` (0–1, line center). The shared placement contract;
+   *  default `'center'`. */
+  placement?: Placement
+  /** @deprecated Legacy alias — absolute x of the line's left edge in px.
+   *  Prefer `placement`. */
   x?: number
-  /** Absolute y (top-ish) of the line. Defaults to vertical center. */
+  /** @deprecated Legacy alias — absolute y (top-ish) of the line in px. Prefer
+   *  `placement`. */
   y?: number
 }
 
 export function MatrixDecode({
   text = 'ONDA',
-  delay = 0,
-  charDelay = 3,
-  scrambleDuration = 18,
-  scrambleSpeed = 2,
-  seed = 7,
+  delay: delayIn = 0,
+  charDelay: charDelayIn = 3,
+  scrambleDuration: scrambleDurationIn = 18,
+  scrambleSpeed: scrambleSpeedIn = 2,
+  fitToClip,
+  maxSettle,
+  hold,
+  seed: seedProp = 7,
+  variant,
   charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+=<>/',
   color: colorProp,
   scrambleColor: scrambleColorProp,
-  fontSize = 120,
+  fontSize: fontSizeProp = 120,
+  fit,
+  maxWidth,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
   align = 'center',
+  placement,
   x,
   y,
 }: MatrixDecodeProps) {
+  // The variant knob derives an alternate deterministic seed (identity at 0).
+  const seed = variantSeed(seedProp, variant)
   const frame = useCurrentFrame()
-  const { width, height } = useVideoConfig()
+  const { width, height, fps } = useVideoConfig()
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const scrambleColor = scrambleColorProp ?? theme.accent
   const fontFamily = fontFamilyProp ?? theme.monoFamily
 
-  const local = frame - delay
-  // Guard against degenerate props (the schema clamps these to >= 1).
-  const scrambleFrames = Math.max(1, scrambleDuration)
-  const swapEvery = Math.max(1, scrambleSpeed)
-  const stepDelay = Math.max(0, charDelay)
-  const pool = charset.length > 0 ? charset : ' '
+  // Opt-in auto-fit, measured on the TARGET text (the settled line). A wider
+  // scramble glyph can exceed it by a glyph-width transiently; the settled
+  // line cannot.
+  const fontSize = useFittedFontSize(text, fontSizeProp, { fontFamily, fontWeight, fit, maxWidth })
 
   const chars = [...text]
+
+  // Timing: parse the TimeInput props, then compress the envelope when the
+  // decode wouldn't settle inside the clip. Guard degenerate values (the
+  // schema clamps these to >= 1).
+  const delayBase = framesOf(delayIn, fps)
+  const stepBase = Math.max(0, framesOf(charDelayIn, fps, 3))
+  const scrambleBase = Math.max(1, framesOf(scrambleDurationIn, fps, 18))
+  const naturalSettle = staggeredSettle(chars.length, stepBase, scrambleBase, delayBase)
+  const timeScale = useTimeScale(naturalSettle, { fitToClip, maxSettle, hold })
+  const delay = delayBase * timeScale
+  const stepDelay = stepBase * timeScale
+  const scrambleFrames = Math.max(1, scrambleBase * timeScale)
+  const swapEvery = Math.max(1, framesOf(scrambleSpeedIn, fps, 2))
+  const pool = charset.length > 0 ? charset : ' '
+
+  const local = frame - delay
 
   // Build a per-char run: settled chars get `color`, scrambling chars get a
   // deterministic glyph in `scrambleColor`. Spaces pass through untouched so the
@@ -135,16 +190,22 @@ export function MatrixDecode({
   // and to measure width for `align` anchoring.
   const plain = runs.map((run) => run.text).join('')
 
-  // Real shaped line width (the engine measures it — proportional, exact; falls
-  // back to a glyph-count estimate until the wasm engine warms in the browser).
-  const measured = useTextMetrics(plain, fontSize, { fontFamily, fontWeight })
+  // Real shaped line width via the SHARED glyph-line primitive (kerning-exact;
+  // glyph-count estimate until the wasm engine warms in the browser).
+  useTextMetricsReady()
+  const measured = layoutGlyphLine(plain, fontSize, { fontFamily, fontWeight })
 
   // Absolute placement so the (potentially width-varying) line never triggers a
-  // Flex reflow. Use the measured line width to anchor non-left alignments.
+  // Flex reflow. The shared placement contract anchors the line's MEASURED
+  // center (corner regions sit flush on the safe margin); legacy `x`/`y` px and
+  // the `align`-anchored default keep their exact pre-placement behavior.
   const estWidth = measured.width
+  const resolved = usePlacement(placement, { width: estWidth, height: fontSize * LINE_RATIO })
   let px: number
   if (x !== undefined) {
     px = x
+  } else if (placement !== undefined) {
+    px = Math.round(resolved.originX)
   } else if (align === 'left') {
     px = Math.round(width * 0.08)
   } else if (align === 'right') {
@@ -152,7 +213,11 @@ export function MatrixDecode({
   } else {
     px = Math.round((width - estWidth) / 2)
   }
-  const py = y ?? Math.round(height / 2 - fontSize * 0.6)
+  const py =
+    y ??
+    (placement !== undefined
+      ? Math.round(resolved.originY)
+      : Math.round(height / 2 - fontSize * 0.6))
 
   return (
     <Text

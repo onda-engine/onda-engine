@@ -43,14 +43,20 @@ import {
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { useTheme } from '../theme.js'
 import { FadeIn } from './FadeIn.js'
+import { type Placement, PlacementShift } from '../placement.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface EndCardProps {
   /** Hero CTA / headline line. */
   cta?: string
   /** Social handles or URLs displayed in a row beneath the CTA. */
   handles?: string[]
-  /** Frames before the CTA starts. The whole card is sequenced relative to this. */
-  delay?: number
+  /** Time before the CTA starts (frames, or '0.5s'/'500ms'/'12f'). The whole card is sequenced relative to this. */
+  delay?: TimeInput
+  /** Where the card sits: a region keyword (`'center'`, `'lower-third'`, ...) or
+   *  normalized `{x,y}` (0-1, card center). The shared placement contract;
+   *  default `'center'` (the historical self-centering). */
+  placement?: Placement
   /** Show the accent underline beneath the CTA (default `true`). */
   accent?: boolean
   /** CTA font size in px (default 96). */
@@ -96,7 +102,8 @@ const CTA_FROM_BLUR = 10
 export function EndCard({
   cta = 'Made with Onda',
   handles = ['@onda.video', 'onda.video/components'],
-  delay = 0,
+  delay: delayIn = 0,
+  placement,
   accent = true,
   ctaFontSize = 96,
   ctaFontWeight = 600,
@@ -109,6 +116,8 @@ export function EndCard({
 }: EndCardProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const handlesColor = handlesColorProp ?? theme.textMuted
@@ -169,9 +178,12 @@ export function EndCard({
   const ruleRowHeight = ruleY + LINE_THICKNESS
 
   return (
-    <AbsoluteFill justify="center" align="center">
-      <Flex direction="column" align="center" gap={stackGap}>
-        {/* CTA — the headline reveals soft→sharp (opacity + blur ramp). When
+    // The flex column self-centers; PlacementShift moves the centered stack by
+    // the center->placement delta (no-op for the default 'center').
+    <PlacementShift placement={placement}>
+      <AbsoluteFill justify="center" align="center">
+        <Flex direction="column" align="center" gap={stackGap}>
+          {/* CTA — the headline reveals soft→sharp (opacity + blur ramp). When
             accent is on, the accent rule then draws beneath it (two-phase, the
             `Underline` motion); the rule is laid out inline here so its FULL
             width tracks the WHOLE title (every word) at the engine's per-glyph
@@ -179,10 +191,37 @@ export function EndCard({
             estimated title box) keeps the animated rule width from reflowing the
             centered column. When accent is off, the same blur-ramp CTA reveals
             without the rule. */}
-        {accent ? (
-          <Flex direction="column" align="center">
-            {/* CTA text resolves soft→sharp: opacity + real blur ramp on one
+          {accent ? (
+            <Flex direction="column" align="center">
+              {/* CTA text resolves soft→sharp: opacity + real blur ramp on one
                 group (origin pinned, no translate, so the column never shifts). */}
+              <Group opacity={ctaOpacity} blur={ctaBlur}>
+                <Text
+                  fontSize={ctaFontSize}
+                  color={color}
+                  fontFamily={ctaFontFamily}
+                  fontWeight={ctaFontWeight}
+                >
+                  {cta}
+                </Text>
+              </Group>
+              <Group>
+                <Rect width={fullRuleWidth} height={ruleRowHeight} fill="#00000000" />
+                {ruleWidth > 0 ? (
+                  <Rect
+                    x={(fullRuleWidth - ruleWidth) / 2}
+                    y={ruleY}
+                    width={ruleWidth}
+                    height={LINE_THICKNESS}
+                    cornerRadius={ruleRadius}
+                    fill={accentColor}
+                  />
+                ) : null}
+              </Group>
+            </Flex>
+          ) : (
+            // No accent rule, but the CTA still resolves soft→sharp: same
+            // opacity + blur ramp on the house entry spring (no rule beneath).
             <Group opacity={ctaOpacity} blur={ctaBlur}>
               <Text
                 fontSize={ctaFontSize}
@@ -193,61 +232,35 @@ export function EndCard({
                 {cta}
               </Text>
             </Group>
-            <Group>
-              <Rect width={fullRuleWidth} height={ruleRowHeight} fill="#00000000" />
-              {ruleWidth > 0 ? (
-                <Rect
-                  x={(fullRuleWidth - ruleWidth) / 2}
-                  y={ruleY}
-                  width={ruleWidth}
-                  height={LINE_THICKNESS}
-                  cornerRadius={ruleRadius}
-                  fill={accentColor}
-                />
-              ) : null}
-            </Group>
-          </Flex>
-        ) : (
-          // No accent rule, but the CTA still resolves soft→sharp: same
-          // opacity + blur ramp on the house entry spring (no rule beneath).
-          <Group opacity={ctaOpacity} blur={ctaBlur}>
-            <Text
-              fontSize={ctaFontSize}
-              color={color}
-              fontFamily={ctaFontFamily}
-              fontWeight={ctaFontWeight}
-            >
-              {cta}
-            </Text>
-          </Group>
-        )}
+          )}
 
-        {/* Handles row — staggered, faint, the closing beat. Rendered as a
+          {/* Handles row — staggered, faint, the closing beat. Rendered as a
             horizontal strip so URLs / handles read as a single line of metadata,
             not a stack. Each handle is one beat on the canonical 4-frame stagger
             (reproducing ondajs's StaggerGroup). Opacity-only, so the row's
             measured size is stable and the cascade never reflows it. */}
-        {handles.length > 0 ? (
-          <Flex direction="row" align="center" gap={handlesGap}>
-            {handles.map((handle, i) => (
-              <FadeIn
-                key={`${i}-${handle}`}
-                delay={delay + HANDLES_OFFSET + staggerFrames(i, STAGGER)}
-                durationInFrames={DURATION.base}
-              >
-                <Text
-                  fontSize={handlesFontSize}
-                  color={handlesColor}
-                  fontFamily={handlesFontFamily}
-                  fontWeight={handlesFontWeight}
+          {handles.length > 0 ? (
+            <Flex direction="row" align="center" gap={handlesGap}>
+              {handles.map((handle, i) => (
+                <FadeIn
+                  key={`${i}-${handle}`}
+                  delay={delay + HANDLES_OFFSET + staggerFrames(i, STAGGER)}
+                  durationInFrames={DURATION.base}
                 >
-                  {handle}
-                </Text>
-              </FadeIn>
-            ))}
-          </Flex>
-        ) : null}
-      </Flex>
-    </AbsoluteFill>
+                  <Text
+                    fontSize={handlesFontSize}
+                    color={handlesColor}
+                    fontFamily={handlesFontFamily}
+                    fontWeight={handlesFontWeight}
+                  >
+                    {handle}
+                  </Text>
+                </FadeIn>
+              ))}
+            </Flex>
+          ) : null}
+        </Flex>
+      </AbsoluteFill>
+    </PlacementShift>
   )
 }

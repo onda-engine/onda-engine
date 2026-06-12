@@ -17,6 +17,7 @@ import { Group, Rect, Video, clipRect, useCurrentFrame, useVideoConfig } from '@
 import { entryFade, exitFade } from '../choreography.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface VideoClipProps {
   /** URL or path to the video. The current frame is decoded per composition
@@ -38,7 +39,7 @@ export interface VideoClipProps {
    *  affects `onda export`. See {@link VideoProps.previewFallback}. */
   previewFallback?: 'skip' | 'element'
   /** Frames the clip waits before its fade-in begins (default 0). */
-  delay?: number
+  delay?: TimeInput
   /** Frames the fade-in takes (default `DURATION.base` = 18). `0` = hard cut in. */
   fadeIn?: number
   /** Frames the fade-out takes (default `DURATION.base` = 18). `0` = hard cut out. */
@@ -46,7 +47,7 @@ export interface VideoClipProps {
   /** Visible hold of the clip in frames, used to time the fade-out (the fade-out
    *  lands on the last `fadeOut` frames). When omitted, the clip never fades out —
    *  mirrors ondajs skipping the fade-out when `endAt` is unset. */
-  durationInFrames?: number
+  durationInFrames?: TimeInput
   /** How the poster fits its box. `'cover'` crops to fill (default); `'contain'`
    *  letterboxes against black. */
   fit?: 'cover' | 'contain'
@@ -74,10 +75,10 @@ export function VideoClip({
   endAt,
   loop,
   previewFallback,
-  delay = 0,
+  delay: delayIn = 0,
   fadeIn = DURATION.base,
   fadeOut = DURATION.base,
-  durationInFrames,
+  durationInFrames: durationInFramesIn,
   fit = 'cover',
   width,
   height,
@@ -89,6 +90,11 @@ export function VideoClip({
 }: VideoClipProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  // `undefined` keeps its meaning (never fade out) — only parse when given.
+  const durationInFrames =
+    durationInFramesIn === undefined ? undefined : framesOf(durationInFramesIn, fps)
   const theme = useTheme()
   const borderRadius = borderRadiusProp ?? theme.radius
   const backgroundColor = backgroundColorProp ?? theme.background

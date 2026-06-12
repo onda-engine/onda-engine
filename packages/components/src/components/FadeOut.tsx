@@ -5,12 +5,13 @@ import { Group, useCurrentFrame } from '@onda/react'
 import type { ReactNode } from 'react'
 import { exitFade } from '../choreography.js'
 import { DURATION } from '../motion.js'
+import type { TimeInput } from '../time.js'
 
 export interface FadeOutProps {
   /** Frame at which the exit begins. */
-  delay?: number
+  delay?: TimeInput
   /** Frames the fade-out takes (default `DURATION.fast` = 10 — exits are quick). */
-  durationInFrames?: number
+  durationInFrames?: TimeInput
   children?: ReactNode
 }
 

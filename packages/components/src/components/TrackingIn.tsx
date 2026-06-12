@@ -24,14 +24,15 @@ import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import type { TimeInput } from '../time.js'
 
 export interface TrackingInProps {
   /** The text to settle in. */
   text?: string
   /** Frames before the entrance starts. */
-  delay?: number
+  delay?: TimeInput
   /** Frames until the text settles (default `DURATION.slow` = 24). */
-  durationInFrames?: number
+  durationInFrames?: TimeInput
   /** Text color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `text`). */
   color?: string
   /** Starting letter-spacing in em — the text begins spread wide and contracts. */

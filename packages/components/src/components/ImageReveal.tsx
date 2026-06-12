@@ -29,6 +29,7 @@ import { Group, Image, clipRect, useCurrentFrame, useVideoConfig } from '@onda/r
 import { entryFade, entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
+import type { TimeInput } from '../time.js'
 
 /** Which entrance fingerprint the image uses. `'blur'` is the ondajs default —
  *  a real soft→sharp focus pull via the engine's `Image.blur` gaussian. */
@@ -49,9 +50,9 @@ export interface ImageRevealProps {
   /** How the image fits its box (default `'cover'`). */
   fit?: ImageRevealFit
   /** Frames to fully reveal (default `DURATION.base` = 18). */
-  durationInFrames?: number
+  durationInFrames?: TimeInput
   /** Frames before the reveal starts. */
-  delay?: number
+  delay?: TimeInput
   /** Box top-left X in px (default 0). */
   x?: number
   /** Box top-left Y in px (default 0). */

@@ -1,5 +1,6 @@
 //! The agent-grade linter: the fix-it feedback an MCP agent self-corrects against.
 
+import { COMPONENT_FIDELITY } from '@onda/components'
 import { describe, expect, it } from 'vitest'
 import { validateComposition } from './index.js'
 import type { CompositionPayload, Entry } from './types.js'
@@ -19,8 +20,16 @@ describe('validateComposition — agent linter', () => {
     expect(e?.message).toMatch(/did you mean "TitleCard"/)
   })
 
-  it('warns an apes_remotion component renders an approximation', () => {
-    const d = validateComposition(comp([entry({ component: 'GrainOverlay' })]))
+  // The catalog currently has zero components in these states (everything was
+  // upgraded to first_class) — pick one dynamically and skip when none exists,
+  // so the linter branches stay covered if a component is ever reclassified.
+  const byFidelity = (f: string) =>
+    Object.entries(COMPONENT_FIDELITY).find(([, v]) => v.fidelity === f)?.[0]
+  const apes = byFidelity('apes_remotion')
+  const degraded = byFidelity('degraded')
+
+  it.skipIf(!apes)('warns an apes_remotion component renders an approximation', () => {
+    const d = validateComposition(comp([entry({ component: apes as string })]))
     expect(d.some((x) => x.level === 'warning' && /imitates a browser-only/.test(x.message))).toBe(
       true,
     )
@@ -31,10 +40,10 @@ describe('validateComposition — agent linter', () => {
     expect(d.some((x) => x.level === 'warning' && /needs the GPU/.test(x.message))).toBe(true)
   })
 
-  it('infos a degraded component (with its needed feature)', () => {
-    const d = validateComposition(comp([entry({ component: 'GradientShift' })]))
+  it.skipIf(!degraded)('infos a degraded component (with its needed feature)', () => {
+    const d = validateComposition(comp([entry({ component: degraded as string })]))
     expect(
-      d.some((x) => x.level === 'info' && /approximation until.*"gradients"/.test(x.message)),
+      d.some((x) => x.level === 'info' && /renders an approximation until/.test(x.message)),
     ).toBe(true)
   })
 

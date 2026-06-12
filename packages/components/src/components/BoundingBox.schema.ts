@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const boundingBoxSchema = z.object({
   x: z.number().default(0.3).describe("Box left edge as a 0..1 fraction of the composition width."),
@@ -12,7 +13,7 @@ export const boundingBoxSchema = z.object({
   height: z.number().default(0.4).describe("Box height as a 0..1 fraction of the composition height."),
   label: z.string().default('').describe("Optional label tag pinned to the box's top-left corner; empty string hides it."),
   color: z.string().optional().describe("Outline, tick, and tag color; defaults to the theme accent."),
-  delay: z.number().default(0).describe("Frames before the outline starts revealing."),
+  delay: timeSchema.default(0).describe("Frames before the outline starts revealing."),
   drawDuration: z.number().optional().describe("Frames to reveal the full outline (default 28)."),
   strokeWidth: z.number().default(3).describe("Outline stroke width in px."),
   cornerRadius: z.number().default(0).describe("Corner rounding for the outline rectangle in px (sharp by default)."),

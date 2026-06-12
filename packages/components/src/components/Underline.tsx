@@ -25,18 +25,19 @@ import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface UnderlineProps {
   /** Text to reveal. Pass `""` to draw the rule alone. */
   text?: string
   /** Frames before the text starts revealing. */
-  delay?: number
+  delay?: TimeInput
   /** Text reveal duration in frames (default `DURATION.base` = 18). */
-  duration?: number
+  duration?: TimeInput
   /** Frames to wait after the text lands before the rule starts drawing. */
-  lineDelay?: number
+  lineDelay?: TimeInput
   /** Rule draw duration. Fast on purpose — emphatic (default `DURATION.fast`). */
-  lineDuration?: number
+  lineDuration?: TimeInput
   /** Text color (default: theme `text`). */
   color?: string
   /** Rule color (default: theme `accent`). */
@@ -61,10 +62,10 @@ const LINE_RATIO = 1.2
 
 export function Underline({
   text = 'underline this',
-  delay = 0,
-  duration = DURATION.base,
-  lineDelay = 8,
-  lineDuration = DURATION.fast,
+  delay: delayIn = 0,
+  duration: durationIn = DURATION.base,
+  lineDelay: lineDelayIn = 8,
+  lineDuration: lineDurationIn = DURATION.fast,
   color: colorProp,
   accentColor: accentColorProp,
   lineThickness = 3,
@@ -76,6 +77,11 @@ export function Underline({
 }: UnderlineProps) {
   const frame = useCurrentFrame()
   const { fps, width: canvasWidth, height: canvasHeight } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const duration = framesOf(durationIn, fps)
+  const lineDelay = framesOf(lineDelayIn, fps)
+  const lineDuration = framesOf(lineDurationIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const accentColor = accentColorProp ?? theme.accent

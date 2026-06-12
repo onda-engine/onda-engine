@@ -4,11 +4,12 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const logoStingSchema = z.object({
   d: z.string().default('M 50 60 Q 100 20 150 60 T 250 60').describe("SVG path `d` for the logo mark, in viewBox coordinate space."),
   title: z.string().default('Onda').describe("The brand / product title beneath the mark."),
-  delay: z.number().default(0).describe("Frames before the sting starts."),
+  delay: timeSchema.default(0).describe("Frames before the sting starts."),
   accent: z.boolean().default(true).describe("Draw the accent rule beneath the title (the single earned-color moment)."),
   viewBox: z.string().default('0 0 300 120').describe("SVG viewBox \"minX minY width height\" \u2014 must match the space of `d`."),
   pathWidth: z.number().default(400).describe("Rendered width of the mark in px."),

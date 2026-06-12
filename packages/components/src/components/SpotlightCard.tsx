@@ -38,6 +38,7 @@ import { Group, Rect, Text, clipRect, useCurrentFrame, useVideoConfig } from '@o
 import { useSpringValue } from '../hooks.js'
 import { DURATION, staggerFrames } from '../motion.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 import { FadeIn } from './FadeIn.js'
 import { Spotlight } from './Spotlight.js'
 
@@ -53,7 +54,7 @@ export interface SpotlightCardProps {
    *  single-line; pass a short string). */
   body?: string
   /** Frames before the card enters. */
-  delay?: number
+  delay?: TimeInput
   /** The drifting spotlight color — the earned accent (default: theme `accent`). */
   glowColor?: string
   /** Card width in px. */
@@ -92,7 +93,7 @@ export function SpotlightCard({
   eyebrow = 'FEATURE',
   title = 'Motion identity',
   body = 'One consistent feel across every component.',
-  delay = 0,
+  delay: delayIn = 0,
   glowColor: glowColorProp,
   width = 560,
   height,
@@ -111,7 +112,9 @@ export function SpotlightCard({
   cornerRadius: cornerRadiusProp,
 }: SpotlightCardProps) {
   const frame = useCurrentFrame()
-  const { width: compWidth, height: compHeight } = useVideoConfig()
+  const { width: compWidth, height: compHeight, fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const glowColor = glowColorProp ?? theme.accent
   const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily

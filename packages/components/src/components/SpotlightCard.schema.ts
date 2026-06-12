@@ -4,12 +4,13 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const spotlightCardSchema = z.object({
   eyebrow: z.string().default('FEATURE').describe("Small uppercase kicker above the title; empty hides it."),
   title: z.string().default('Motion identity').describe("Card headline rendered in the display font."),
   body: z.string().default('One consistent feel across every component.').describe("Supporting body copy; empty hides it; single line."),
-  delay: z.number().default(0).describe("Frames before the card enters."),
+  delay: timeSchema.default(0).describe("Frames before the card enters."),
   glowColor: z.string().optional().describe("The drifting spotlight color \u2014 the earned accent (default: theme accent)."),
   width: z.number().default(560).describe("Card width in px."),
   height: z.number().optional().describe("Card height in px; if omitted, sized from content plus padding."),

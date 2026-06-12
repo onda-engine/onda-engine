@@ -33,8 +33,10 @@
 import { Group, Path, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFade, entryFadeRise, entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'
+import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** Default bubble surface. The theme `surface` (~`#121217`) sits barely above
  *  the canvas (`#0a0d17`), so a speech bubble drawn with it vanishes. A callout
@@ -59,20 +61,26 @@ export type CalloutDirection = 'top' | 'bottom' | 'left' | 'right'
 export interface CalloutProps {
   /** Bubble label. Single line — no auto-wrap. */
   label?: string
-  /** Bubble-center X as a 0..1 fraction of canvas width (default 0.5 = center). */
+  /** Where the bubble sits: a region keyword (`'center'`, `'lower-third'`, …)
+   *  or normalized `{x,y}` (0–1, bubble center). The shared placement contract;
+   *  default `'center'`. */
+  placement?: Placement
+  /** @deprecated Legacy alias for `placement={{ x }}` — bubble-center X as a
+   *  0..1 fraction of canvas width. */
   x?: number
-  /** Bubble-center Y as a 0..1 fraction of canvas height (default 0.5 = center). */
+  /** @deprecated Legacy alias for `placement={{ y }}` — bubble-center Y as a
+   *  0..1 fraction of canvas height. */
   y?: number
   /** Side the pointer triangle sticks out from (default `'bottom'`). */
   direction?: CalloutDirection
   /** Frames before the bubble starts revealing. */
-  delay?: number
+  delay?: TimeInput
   /** Bubble scale-and-fade reveal duration in frames (default `DURATION.base`). */
-  duration?: number
+  duration?: TimeInput
   /** Frames after the bubble starts before the pointer eases in (default 6). */
-  lineDelay?: number
+  lineDelay?: TimeInput
   /** Pointer reveal duration in frames (default `DURATION.base`). */
-  lineDuration?: number
+  lineDuration?: TimeInput
   /** Label color (default: theme `text`). */
   color?: string
   /** Bubble background fill (default: an elevated translucent-white surface that
@@ -104,13 +112,14 @@ export interface CalloutProps {
 
 export function Callout({
   label = 'Look here',
-  x = 0.5,
-  y = 0.5,
+  placement,
+  x,
+  y,
   direction = 'bottom',
-  delay = 0,
-  duration = DURATION.base,
-  lineDelay = 6,
-  lineDuration = DURATION.base,
+  delay: delayIn = 0,
+  duration: durationIn = DURATION.base,
+  lineDelay: lineDelayIn = 6,
+  lineDuration: lineDurationIn = DURATION.base,
   color: colorProp,
   bgColor: bgColorProp,
   borderColor: borderColorProp,
@@ -126,7 +135,12 @@ export function Callout({
   width,
 }: CalloutProps) {
   const frame = useCurrentFrame()
-  const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const duration = framesOf(durationIn, fps)
+  const lineDelay = framesOf(lineDelayIn, fps)
+  const lineDuration = framesOf(lineDurationIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.text
   // Default to an elevated surface/border (not the near-black theme tokens) so
@@ -141,10 +155,21 @@ export function Callout({
   // engine warms in the browser, or if `width` is passed.
   const measured = useTextMetrics(label, fontSize, { fontFamily, fontWeight })
 
-  // Bubble center in pixels. x/y are 0..1 canvas fractions (ondajs semantics),
-  // so the default 0.5/0.5 centers the bubble regardless of resolution.
-  const centerX = x * compWidth
-  const centerY = y * compHeight
+  // Bubble box, sized to the measured text extent unless `width` is given.
+  const textWidth = measured.width
+  const bubbleW = width ?? Math.round(textWidth + paddingX * 2)
+  // Engine line box height ≈ fontSize * 1.2; add vertical padding.
+  const bubbleH = Math.round(fontSize * 1.2 + paddingY * 2)
+
+  // Bubble center via the shared placement contract. Legacy fractional `x`/`y`
+  // were already bubble-center anchored (ondajs semantics), so they alias 1:1;
+  // the default is centered, exactly as before.
+  const resolved = usePlacement(placement ?? { x: x ?? 0.5, y: y ?? 0.5 }, {
+    width: bubbleW,
+    height: bubbleH,
+  })
+  const centerX = resolved.x
+  const centerY = resolved.y
 
   // Bubble reveal — entryScale (0.9 → 1) for the transform, entryFade for the
   // matching opacity. Both on SPRING_SMOOTH so fade and scale stay locked.
@@ -160,12 +185,6 @@ export function Callout({
     durationInFrames: lineDuration,
     travelPx: 6,
   })
-
-  // Bubble box, sized to the measured text extent unless `width` is given.
-  const textWidth = measured.width
-  const bubbleW = width ?? Math.round(textWidth + paddingX * 2)
-  // Engine line box height ≈ fontSize * 1.2; add vertical padding.
-  const bubbleH = Math.round(fontSize * 1.2 + paddingY * 2)
 
   // Half-extents — everything is drawn relative to the bubble CENTER so the
   // scale (which pivots on the scaling group's local origin) grows about center.

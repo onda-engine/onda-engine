@@ -4,10 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const fadeInSchema = z.object({
-  delay: z.number().default(0).describe("Frames to wait before starting the fade."),
-  durationInFrames: z.number().optional().describe("Frames the fade takes to settle (default DURATION.base = 18)."),
+  delay: timeSchema.default(0).describe("Frames to wait before starting the fade."),
+  durationInFrames: timeSchema.optional().describe("Frames the fade takes to settle (default DURATION.base = 18)."),
 })
 
 export type FadeInSchemaProps = z.infer<typeof fadeInSchema>
