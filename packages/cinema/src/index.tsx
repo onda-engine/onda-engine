@@ -891,6 +891,26 @@ function isValidTimeSpec(v: TimeSpec): boolean {
   return numOk(s)
 }
 
+// Entry props the BRIDGE itself consumes (every component), beyond what a
+// component's own schema declares: `placement` is read by `placementOffset`,
+// `scale` by the magic-move `entryTransform`.
+const BRIDGE_PROPS = ['placement', 'scale']
+
+/** The prop names known for `component` — its manifest props + Zod-schema keys
+ *  + the bridge's Studio-name aliases + the bridge-consumed props — or `null`
+ *  when the component isn't catalogued (then no unknown-prop check runs). */
+function knownPropsFor(component: string): Set<string> | null {
+  const m = Components.manifestEntry(component)
+  if (!m) return null
+  const known = new Set<string>(m.props.map((p) => p.name))
+  // The Zod object's shape, in case the schema carries keys the PropMeta lags.
+  const shape = (m.schema as unknown as { shape?: Record<string, unknown> }).shape
+  if (shape && typeof shape === 'object') for (const k of Object.keys(shape)) known.add(k)
+  for (const src of Object.keys(PROP_ALIASES[component] ?? {})) known.add(src)
+  for (const k of BRIDGE_PROPS) known.add(k)
+  return known
+}
+
 /**
  * Check a payload before rendering — the tight feedback loop an agent (ONDA
  * Studio's MCP) self-corrects against. Flags structural issues, unknown
@@ -898,6 +918,11 @@ function isValidTimeSpec(v: TimeSpec): boolean {
  * timing, and — from the fidelity contract — components that are GPU-only,
  * degraded, or imitate a browser feature, so the agent picks engine-native
  * components and avoids surprises. Returns `[]` when the composition is clean.
+ *
+ * Unknown-props policy: WARN, don't strip. An unknown prop on a known
+ * component yields a `warning` diagnostic and the prop is PRESERVED through
+ * `buildComposition` (the component ignores what it doesn't know) — never
+ * silently dropped. Unknown COMPONENTS stay errors (with a did-you-mean).
  */
 export function validateComposition(
   payload: CompositionPayload,
@@ -943,6 +968,7 @@ export function validateComposition(
       for?: TimeSpec
       animate?: EntryAnimation[]
       role?: string
+      props?: Record<string, unknown>
     },
     path: string,
     timed: boolean,
@@ -980,6 +1006,20 @@ export function validateComposition(
           path: `${path}.component`,
           message: `"${e.component}" needs the GPU (Vello) backend — it won't render correctly on the CPU reference (e.g. a CPU-verified or no-GPU export).`,
         })
+      // Unknown props: warn, don't strip — the prop rides through to the
+      // component (which ignores what it doesn't know), and the agent learns
+      // the name it probably misspelled.
+      const known = knownPropsFor(e.component)
+      if (known && e.props) {
+        for (const k of Object.keys(e.props)) {
+          if (!known.has(k))
+            diags.push({
+              level: 'warning',
+              path: `${path}.props.${k}`,
+              message: `unknown prop "${k}" on ${e.component} — passed through (the component ignores props it doesn't declare)`,
+            })
+        }
+      }
     }
     // Entries are timed (at/for required); layer entries may omit them.
     checkTime(e.at, `${path}.at`, timed)
