@@ -52,6 +52,7 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
+  variantSeed,
 } from '@onda/react'
 import { fitMaxWidth } from '../bounds.js'
 import { layoutGlyphLine } from '../glyph-line.js'
@@ -92,6 +93,10 @@ export interface SlotMachineRollProps {
   reelLength?: number
   /** Seed for the (deterministic) filler glyphs. */
   seed?: number
+  /** Integer "take" selector: derives a new deterministic seed from (seed,
+   *  variant), so alternates never require hand-edited magic seeds. 0/omitted
+   *  = the default take (identical to today's output). */
+  variant?: number
   /** Glyph pool the reel spins through. */
   charset?: string
   /** Text color (default: theme `text`). */
@@ -135,7 +140,8 @@ export function SlotMachineRoll({
   maxSettle,
   hold,
   reelLength = 12,
-  seed = 7,
+  seed: seedProp = 7,
+  variant,
   charset = '0123456789',
   color: colorProp,
   fontSize: fontSizeProp = 140,
@@ -149,6 +155,8 @@ export function SlotMachineRoll({
   x,
   y,
 }: SlotMachineRollProps) {
+  // The variant knob derives an alternate deterministic seed (identity at 0).
+  const seed = variantSeed(seedProp, variant)
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
   const theme = useTheme()

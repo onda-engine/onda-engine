@@ -15,6 +15,7 @@ export const cameraShakeSchema = z.object({
   decay: z.boolean().default(true).describe("Linearly decay intensity and rotation to 0 over duration so the camera settles to rest by the end."),
   x: z.number().default(0).describe("Rest x offset of the wrapper in px relative to center; the shake jitters around this."),
   y: z.number().default(0).describe("Rest y offset of the wrapper in px relative to center; the shake jitters around this."),
+  variant: z.number().int().optional().describe("Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take."),
 })
 
 export type CameraShakeSchemaProps = z.infer<typeof cameraShakeSchema>

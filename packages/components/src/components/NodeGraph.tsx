@@ -41,6 +41,7 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
+  variantSeed,
 } from '@onda/react'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION, SPRING_SMOOTH, staggerFrames } from '../motion.js'
@@ -74,6 +75,10 @@ export interface NodeGraphProps {
   ellipse?: number
   /** Seed for the deterministic fly-in directions and connection-pulse phases. */
   seed?: number
+  /** Integer "take" selector: derives a new deterministic seed from (seed,
+   *  variant), so alternates never require hand-edited magic seeds. 0/omitted
+   *  = the default take (identical to today's output). */
+  variant?: number
   /** Frames before the constellation begins assembling. */
   delay?: TimeInput
   /** Show the soft accent glow behind the hub. */
@@ -148,7 +153,8 @@ export function NodeGraph({
   satellites = DEFAULT_SATELLITES,
   accent: accentProp,
   ellipse = 0.92,
-  seed = 7,
+  seed: seedProp = 7,
+  variant,
   delay: delayIn = 0,
   glow = true,
   hubDiameter = 120,
@@ -162,6 +168,8 @@ export function NodeGraph({
   centerX = 0.5,
   centerY = 0.5,
 }: NodeGraphProps) {
+  // The variant knob derives an alternate deterministic seed (identity at 0).
+  const seed = variantSeed(seedProp, variant)
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
   // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').

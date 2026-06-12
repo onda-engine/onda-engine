@@ -18,7 +18,15 @@
 //! so it reads as ambient celebratory light, and renders identically on the CPU
 //! reference and the Vello/GPU backend (no GPU-only tumble).
 
-import { Group, Rect, interpolate, random, useCurrentFrame, useVideoConfig } from '@onda/react'
+import {
+  Group,
+  Rect,
+  interpolate,
+  random,
+  useCurrentFrame,
+  useVideoConfig,
+  variantSeed,
+} from '@onda/react'
 import { HOUSE_EASE } from '../easing.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
@@ -27,6 +35,10 @@ export interface ConfettiProps {
   /** Seed for every per-piece random (angle, reach, opacity, size, colour) — the
    *  same seed always produces the same bloom (§1). */
   seed?: number
+  /** Integer "take" selector: derives a new deterministic seed from (seed,
+   *  variant), so alternates never require hand-edited magic seeds. 0/omitted
+   *  = the default take (identical to today's output). */
+  variant?: number
   /** Number of motes. ~80 reads full without thrashing the render. */
   count?: number
   /** Palette motes are picked from. Defaults to the theme accent plus a soft
@@ -53,7 +65,8 @@ export interface ConfettiProps {
 const DEFAULT_COLORS = ['#e85494', '#f2b8cf', '#f2f2f4', '#8e8e98']
 
 export function Confetti({
-  seed = 7,
+  seed: seedProp = 7,
+  variant,
   count = 80,
   colors: colorsProp,
   originX = 0.5,
@@ -64,6 +77,8 @@ export function Confetti({
   gravity = 1,
   pieceSize = 12,
 }: ConfettiProps) {
+  // The variant knob derives an alternate deterministic seed (identity at 0).
+  const seed = variantSeed(seedProp, variant)
   const frame = useCurrentFrame()
   const { width, height, fps } = useVideoConfig()
   // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').

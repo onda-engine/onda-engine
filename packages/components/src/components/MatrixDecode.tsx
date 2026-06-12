@@ -36,7 +36,7 @@
 //!    concatenated text in the node's base `color`, so there the scramble accent
 //!    is lost. GPU is the primary path.
 
-import { Text, random, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Text, random, useCurrentFrame, useVideoConfig, variantSeed } from '@onda/react'
 import type { TextRunInput } from '@onda/react'
 import { useFittedFontSize } from '../bounds.js'
 import { LINE_RATIO, layoutGlyphLine } from '../glyph-line.js'
@@ -67,6 +67,10 @@ export interface MatrixDecodeProps {
   hold?: TimeInput
   /** Seed for the (deterministic) glyph picks. */
   seed?: number
+  /** Integer "take" selector: derives a new deterministic seed from (seed,
+   *  variant), so alternates never require hand-edited magic seeds. 0/omitted
+   *  = the default take (identical to today's output). */
+  variant?: number
   /** Glyph pool drawn from while scrambling. */
   charset?: string
   /** Settled text color (default: theme `text`). */
@@ -113,7 +117,8 @@ export function MatrixDecode({
   fitToClip,
   maxSettle,
   hold,
-  seed = 7,
+  seed: seedProp = 7,
+  variant,
   charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+=<>/',
   color: colorProp,
   scrambleColor: scrambleColorProp,
@@ -128,6 +133,8 @@ export function MatrixDecode({
   x,
   y,
 }: MatrixDecodeProps) {
+  // The variant knob derives an alternate deterministic seed (identity at 0).
+  const seed = variantSeed(seedProp, variant)
   const frame = useCurrentFrame()
   const { width, height, fps } = useVideoConfig()
   const theme = useTheme()

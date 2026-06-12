@@ -24,6 +24,7 @@ export const nodeGraphSchema = z.object({
   fontFamily: z.string().optional().describe("Display font for every label (default: theme fontFamily)."),
   centerX: z.number().default(0.5).describe("Horizontal center of the constellation as a 0\u20131 fraction of canvas width."),
   centerY: z.number().default(0.5).describe("Vertical center of the constellation as a 0\u20131 fraction of canvas height."),
+  variant: z.number().int().optional().describe("Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take."),
 })
 
 export type NodeGraphSchemaProps = z.infer<typeof nodeGraphSchema>

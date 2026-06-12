@@ -20,6 +20,7 @@ export const audioVisualizerSchema = z.object({
   seed: z.any().default(1).describe("Deterministic seed (number or string) for the procedural spectrum."),
   delay: timeSchema.default(0).describe("Frames before the visualizer fades/grows in."),
   durationInFrames: timeSchema.optional().describe("Frames for the entrance grow-in."),
+  variant: z.number().int().optional().describe("Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take."),
 })
 
 export type AudioVisualizerSchemaProps = z.infer<typeof audioVisualizerSchema>
