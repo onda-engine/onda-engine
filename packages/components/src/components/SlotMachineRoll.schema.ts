@@ -23,6 +23,8 @@ export const slotMachineRollSchema = z.object({
   x: z.number().optional().describe("Absolute x of the block's anchor. Defaults to the canvas horizontal center (respecting align)."),
   y: z.number().optional().describe("Absolute y of the block's top. Defaults to vertically centering the row."),
   placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
+  fit: z.enum(['none', 'frame']).optional().describe("Opt-in auto-fit: 'frame' scales the font size DOWN (never up) so the line cannot exceed the frame minus the safe margins. Default 'none'."),
+  maxWidth: z.number().optional().describe("Explicit width cap in px for the line; combines with fit (the smaller cap wins)."),
 })
 
 export type SlotMachineRollSchemaProps = z.infer<typeof slotMachineRollSchema>

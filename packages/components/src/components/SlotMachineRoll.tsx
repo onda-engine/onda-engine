@@ -53,6 +53,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from '@onda/react'
+import { fitMaxWidth } from '../bounds.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTheme } from '../theme.js'
@@ -85,6 +86,13 @@ export interface SlotMachineRollProps {
   color?: string
   /** Font size in px (default 140). The cell height equals this. */
   fontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
+   *  line cannot exceed the frame minus the safe margins. Default `'none'`
+   *  (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the line; combines with `fit` (the smaller
+   *  cap wins). */
+  maxWidth?: number
   /** Monospace/display stack keeps reels column-aligned (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (default 600). */
@@ -115,7 +123,9 @@ export function SlotMachineRoll({
   seed = 7,
   charset = '0123456789',
   color: colorProp,
-  fontSize = 140,
+  fontSize: fontSizeProp = 140,
+  fit,
+  maxWidth,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
@@ -130,8 +140,18 @@ export function SlotMachineRoll({
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
 
-  const cell = fontSize
   const chars = [...text]
+
+  // Opt-in auto-fit: the row's estimated width is proportional to the font
+  // size (fixed cell advances), so the cap resolves in closed form.
+  const unitsW = chars.reduce((sum, ch) => sum + (ch === ' ' ? CELL_W * 0.65 : CELL_W), 0)
+  const cap = fitMaxWidth({ fit, maxWidth }, width)
+  const fontSize =
+    cap !== undefined && unitsW > 0 && fontSizeProp * unitsW > cap
+      ? Math.max(1, cap / unitsW)
+      : fontSizeProp
+
+  const cell = fontSize
 
   // Per-character cell advance. Spaces are a narrower gap (matches ondajs's
   // `cell * 0.4`); everything else gets a full estimated cell.

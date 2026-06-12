@@ -61,6 +61,16 @@ export {
   type PropMeta,
 } from './manifest.js'
 
+// Layout queries + single-line auto-fit (keep type on the frame)
+export {
+  type FitOpts,
+  fitFontSize,
+  fitMaxWidth,
+  type ResolvedBounds,
+  useFittedFontSize,
+  useResolvedBounds,
+} from './bounds.js'
+
 // Placement — the ONE placement contract every placeable component speaks
 // (region keywords or normalized {x,y}, element-center anchored).
 export {

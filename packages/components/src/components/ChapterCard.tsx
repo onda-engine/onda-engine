@@ -36,6 +36,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from '@onda/react'
+import { useFittedFontSize } from '../bounds.js'
 import { entryFadeRise } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
@@ -63,6 +64,13 @@ export interface ChapterCardProps {
   numberFontWeight?: number
   /** Chapter title font size in px — the focal element. */
   titleFontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the TITLE size DOWN (never up) so the
+   *  title line cannot exceed the frame minus the safe margins. Default
+   *  `'none'` (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the title line; combines with `fit` (the
+   *  smaller cap wins). */
+  maxWidth?: number
   /** Title font weight. */
   titleFontWeight?: number
   /** Onda display font, applied to both number and title for tonal consistency (default: theme `headingFamily ?? fontFamily`). */
@@ -100,7 +108,9 @@ export function ChapterCard({
   subtitleColor: subtitleColorProp,
   numberFontSize = 32,
   numberFontWeight = 600,
-  titleFontSize = 96,
+  titleFontSize: titleFontSizeProp = 96,
+  fit,
+  maxWidth,
   titleFontWeight = 600,
   fontFamily: fontFamilyProp,
   placement,
@@ -112,6 +122,14 @@ export function ChapterCard({
   const color = colorProp ?? theme.text
   const subtitleColor = subtitleColorProp ?? theme.textMuted
   const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
+
+  // Opt-in auto-fit on the chapter title (the focal line).
+  const titleFontSize = useFittedFontSize(chapter, titleFontSizeProp, {
+    fontFamily,
+    fontWeight: titleFontWeight,
+    fit,
+    maxWidth,
+  })
 
   // Title rise — the focal beat. `entryFadeRise` is the spring rise + fade that
   // stands in for the ondajs `BlurReveal` (sans the unsupported blur).

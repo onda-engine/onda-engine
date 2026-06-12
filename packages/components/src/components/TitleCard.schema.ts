@@ -16,6 +16,8 @@ export const titleCardSchema = z.object({
   fontFamily: z.string().optional().describe("Loaded font family (defaults to theme heading family, else body family)."),
   delay: z.number().default(0).describe("Frame the title begins fading in; the subtitle follows by one stagger step."),
   placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
+  fit: z.enum(['none', 'frame']).optional().describe("Opt-in auto-fit: 'frame' scales the font size DOWN (never up) so the line cannot exceed the frame minus the safe margins. Default 'none'."),
+  maxWidth: z.number().optional().describe("Explicit width cap in px for the line; combines with fit (the smaller cap wins)."),
 })
 
 export type TitleCardSchemaProps = z.infer<typeof titleCardSchema>

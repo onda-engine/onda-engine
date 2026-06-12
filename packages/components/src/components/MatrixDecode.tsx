@@ -38,6 +38,7 @@
 
 import { Text, random, useCurrentFrame, useVideoConfig } from '@onda/react'
 import type { TextRunInput } from '@onda/react'
+import { useFittedFontSize } from '../bounds.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
@@ -63,6 +64,13 @@ export interface MatrixDecodeProps {
   scrambleColor?: string
   /** Font size in px (default 120). */
   fontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
+   *  measured line cannot exceed the frame minus the safe margins. Default
+   *  `'none'` (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the line; combines with `fit` (the smaller
+   *  cap wins). */
+  maxWidth?: number
   /** Monospace stack keeps the advance steady as glyphs flicker (default: theme `monoFamily`). */
   fontFamily?: string
   /** Font weight (default 600). */
@@ -95,7 +103,9 @@ export function MatrixDecode({
   charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+=<>/',
   color: colorProp,
   scrambleColor: scrambleColorProp,
-  fontSize = 120,
+  fontSize: fontSizeProp = 120,
+  fit,
+  maxWidth,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
@@ -110,6 +120,11 @@ export function MatrixDecode({
   const color = colorProp ?? theme.text
   const scrambleColor = scrambleColorProp ?? theme.accent
   const fontFamily = fontFamilyProp ?? theme.monoFamily
+
+  // Opt-in auto-fit, measured on the TARGET text (the settled line). A wider
+  // scramble glyph can exceed it by a glyph-width transiently; the settled
+  // line cannot.
+  const fontSize = useFittedFontSize(text, fontSizeProp, { fontFamily, fontWeight, fit, maxWidth })
 
   const local = frame - delay
   // Guard against degenerate props (the schema clamps these to >= 1).

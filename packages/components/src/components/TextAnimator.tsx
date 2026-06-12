@@ -32,10 +32,11 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from '@onda/react'
+import { useFittedFontSize } from '../bounds.js'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
-import { glyphLayout, useTextMetricsReady } from '../text-metrics.js'
+import { glyphLayout, measureText, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
 /** What a unit is: a single glyph, a whitespace-delimited word, or a `\n` line. */
@@ -87,6 +88,13 @@ export interface TextAnimatorProps {
   ease?: (t: number) => number
   /** Font size in px (default 96). */
   fontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
+   *  line cannot exceed the frame minus the safe margins. Default `'none'`
+   *  (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the line; combines with `fit` (the smaller
+   *  cap wins). */
+  maxWidth?: number
   /** Resting text color (default theme `text`). */
   color?: string
   /** Loaded font family (default theme `fontFamily`). */
@@ -139,7 +147,9 @@ export function TextAnimator({
   direction = 'forward',
   spring: springConfig = SPRING_SMOOTH,
   ease = HOUSE_EASE,
-  fontSize = 96,
+  fontSize: fontSizeProp = 96,
+  fit,
+  maxWidth,
   color: colorProp,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
@@ -157,11 +167,26 @@ export function TextAnimator({
   // `glyphLayout` is the sync, kerning-accurate read used per line below.
   useTextMetricsReady()
   const measureOpts = { fontFamily, fontWeight }
+
+  // Opt-in auto-fit against the WIDEST line (measured at the requested size);
+  // every line then lays out at the fitted size.
+  const lines = text.split('\n')
+  let widest = lines[0] ?? ''
+  if (lines.length > 1) {
+    let widestW = -1
+    for (const line of lines) {
+      const w = measureText(line, fontSizeProp, measureOpts).width
+      if (w > widestW) {
+        widestW = w
+        widest = line
+      }
+    }
+  }
+  const fontSize = useFittedFontSize(widest, fontSizeProp, { ...measureOpts, fit, maxWidth })
   const lineHeight = fontSize * 1.2 // engine default (Metrics line height)
 
   // Build absolutely-placed units, one pass per line. glyphLayout byte offsets are
   // UTF-8; JS string indices are UTF-16, so decode each line's bytes by range.
-  const lines = text.split('\n')
   const decoder = new TextDecoder()
   const placed: PlacedUnit[] = []
   const lineWidths: number[] = []

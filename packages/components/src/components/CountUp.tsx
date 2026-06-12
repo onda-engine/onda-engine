@@ -14,6 +14,7 @@
 //!    dependent. Toggle with `useGrouping`.
 
 import { Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { useFittedFontSize } from '../bounds.js'
 import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH, SPRING_SNAPPY } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
@@ -42,6 +43,13 @@ export interface CountUpProps {
   color?: string
   /** Font size in px. Counters are usually large (default `120`). */
   fontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
+   *  measured line cannot exceed the frame minus the safe margins. Default
+   *  `'none'` (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the line; combines with `fit` (the smaller
+   *  cap wins). */
+  maxWidth?: number
   /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (default `600`). */
@@ -94,7 +102,9 @@ export function CountUp({
   prefix = '',
   suffix = '',
   color: colorProp,
-  fontSize = 120,
+  fontSize: fontSizeProp = 120,
+  fit,
+  maxWidth,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   snappy = false,
@@ -107,6 +117,15 @@ export function CountUp({
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
+
+  // Opt-in auto-fit, measured on the FINAL value (the widest the line gets).
+  const finalText = `${prefix}${formatNumber(to, decimals, useGrouping)}${suffix}`
+  const fontSize = useFittedFontSize(finalText, fontSizeProp, {
+    fontFamily,
+    fontWeight,
+    fit,
+    maxWidth,
+  })
 
   // Opacity rides the shared house entrance so the fade-in and the counting
   // curve settle together rather than racing each other.
@@ -139,7 +158,6 @@ export function CountUp({
   // Shared placement contract, anchored on the FINAL value's measured width so
   // the line never slides sideways as digits count up. Without `placement` the
   // legacy origin-relative `x`/`y` translate applies unchanged.
-  const finalText = `${prefix}${formatNumber(to, decimals, useGrouping)}${suffix}`
   const measured = useTextMetrics(finalText, fontSize, { fontFamily, fontWeight })
   const resolved = usePlacement(placement, { width: measured.width, height: fontSize * 1.2 })
   const px = placement !== undefined ? Math.round(resolved.originX) : x
