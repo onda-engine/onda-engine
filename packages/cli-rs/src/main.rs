@@ -1878,7 +1878,7 @@ fn render_stream(
     extra_fonts: &[Vec<u8>],
     mut write: impl FnMut(&Framebuffer) -> Result<()>,
 ) -> Result<&'static str> {
-    let comp = raw_scenes[0].composition;
+    let comp = &raw_scenes[0].composition;
     // Adaptive chunk: target ~1 GiB of raw frames in flight, whatever the
     // resolution (1080p ≈ 128 frames, 4K ≈ 32), so memory stays flat + bounded.
     let frame_bytes = (comp.width as usize) * (comp.height as usize) * 4;
@@ -1961,7 +1961,7 @@ fn stream_encode_mp4(
     encoder: EncoderChoice,
     audio_wav: Option<&Path>,
 ) -> Result<(&'static str, Encoder)> {
-    let comp = raw_scenes[0].composition;
+    let comp = &raw_scenes[0].composition;
     let attempt = |enc: Encoder| -> Result<&'static str> {
         use std::io::Write;
         let mut child = ffmpeg_mp4_cmd(comp.width, comp.height, fps, out, audio_wav, enc)

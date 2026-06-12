@@ -2251,11 +2251,15 @@ struct O {
     exposure: f32, halation: f32, has_bloom: u32, pad: u32,
     w: u32, h: u32, contrast: f32, saturation: f32,
     temperature: f32, vignette: f32, grain: f32, grain_seed: f32,
+    has_lut: u32, lut_size: u32, pad1: u32, pad2: u32,
 };
 @group(0) @binding(0) var base: texture_2d<f32>;
 @group(0) @binding(1) var halo: texture_2d<f32>;
 @group(0) @binding(2) var dst: texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(3) var<uniform> o: O;
+// The display-space 3D color LUT + a LINEAR sampler — the hardware trilinear lookup.
+@group(0) @binding(4) var lut_tex: texture_3d<f32>;
+@group(0) @binding(5) var lut_samp: sampler;
 fn linear_to_srgb(c: vec3<f32>) -> vec3<f32> {
     let cc = clamp(c, vec3<f32>(0.0), vec3<f32>(1.0));
     let lo = cc * 12.92;
@@ -2303,7 +2307,16 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         let lum = dot(g, LUMA);
         g = max(g + n * o.grain * (4.0 * lum * (1.0 - lum)), vec3<f32>(0.0));
     }
-    let rgb = linear_to_srgb(aces(g));
+    var rgb = linear_to_srgb(aces(g));
+    // 3D LUT: the FINAL display-space remap (after ACES → sRGB). The LUT stores its
+    // value for grid node i at texel center (i+0.5)/N; an input c in [0,1] maps to the
+    // node coordinate c*(N-1), so the sample coordinate is (c*(N-1)+0.5)/N — this lands
+    // the linear sampler's trilinear blend exactly between the 8 neighboring entries.
+    if (o.has_lut == 1u) {
+        let n = f32(o.lut_size);
+        let uvw = (clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0)) * (n - 1.0) + 0.5) / n;
+        rgb = textureSampleLevel(lut_tex, lut_samp, uvw, 0.0).rgb;
+    }
     let a = clamp(bcol.a + halo_a, 0.0, 1.0);
     textureStore(dst, p, vec4<f32>(rgb, a));
 }
@@ -2312,7 +2325,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 /// Parameters for one [`LinearFinish`] run — the resolved `Composition::finish`.
 /// `bloom` is `(sigma, threshold, intensity)` or `None`; the grade/vignette/grain
 /// fields default to no-ops (`contrast`/`saturation` = 1, the rest 0).
-pub struct FinishParams {
+pub struct FinishParams<'a> {
     pub exposure: f32,
     pub halation: f32,
     pub bloom: Option<(f32, f32, f32)>,
@@ -2322,6 +2335,11 @@ pub struct FinishParams {
     pub vignette: f32,
     pub grain: f32,
     pub grain_seed: f32,
+    /// A display-space 3D color LUT applied as the FINAL step (after ACES → sRGB):
+    /// `(size, table)` where `table` is `size³` RGB triples (red fastest, then green,
+    /// then blue), 0..1. `None` → no LUT (identity). Uploaded as a 3D texture sampled
+    /// trilinearly in the output WGSL. Mirrors the CPU `lut_framebuffer` math.
+    pub lut: Option<(u32, &'a [f32])>,
 }
 
 /// The composition-level cinematic finish chain (see the module comment above):
@@ -2368,6 +2386,24 @@ impl LinearFinish {
                 has_dynamic_offset: false,
                 min_binding_size: None,
             },
+            count: None,
+        };
+        // A FILTERABLE 3D texture (the color LUT) + a linear sampler — the only place
+        // the finish samples with hardware interpolation (trilinear LUT lookup).
+        let tex3d = |binding: u32| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::COMPUTE,
+            ty: wgpu::BindingType::Texture {
+                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                view_dimension: wgpu::TextureViewDimension::D3,
+                multisampled: false,
+            },
+            count: None,
+        };
+        let sampler = |binding: u32| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::COMPUTE,
+            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
             count: None,
         };
         let f16 = wgpu::TextureFormat::Rgba16Float;
@@ -2418,6 +2454,8 @@ impl LinearFinish {
                 tex(1),
                 storage(2, wgpu::TextureFormat::Rgba8Unorm),
                 uniform(3),
+                tex3d(4),
+                sampler(5),
             ],
         );
         LinearFinish {
@@ -2588,7 +2626,86 @@ impl LinearFinish {
         });
         // No bloom → bind `lin` as a stand-in for the unused halo sampler (has_bloom=0).
         let halo_view = halo.as_ref().map(view).unwrap_or_else(|| view(&lin));
-        let mut op = Vec::with_capacity(48);
+
+        // The display-space 3D LUT, uploaded as a `size³` Rgba8Unorm texture (RGB
+        // padded to RGBA; values 0..1 fit 8-bit and Rgba8Unorm is FILTERABLE on every
+        // backend, including Dawn/WebGPU — no float-filterable feature needed). When
+        // absent, a 1³ texture stands in (has_lut=0) so the bind group always has a
+        // valid 3D texture + sampler — the same "bind a stand-in, gate with a flag"
+        // pattern as the unused halo above. The sampler is LINEAR, so the hardware does
+        // the trilinear interpolation the CPU `lut_framebuffer` does by hand.
+        let lut = params.lut.filter(|(s, t)| {
+            let s = *s as usize;
+            s >= 2 && t.len() == s * s * s * 3
+        });
+        let lut_size = lut.map(|(s, _)| s).unwrap_or(1);
+        let lut_tex = {
+            // Pad the RGB triples to RGBA8 texels (alpha = 255). For the identity
+            // stand-in (no LUT) a single mid-grey texel is fine — it's never sampled.
+            let to_u8 = |c: f32| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
+            let texels: Vec<u8> = match lut {
+                Some((_, table)) => {
+                    let mut bytes = Vec::with_capacity(table.len() / 3 * 4);
+                    for rgb in table.chunks_exact(3) {
+                        bytes.extend_from_slice(&[
+                            to_u8(rgb[0]),
+                            to_u8(rgb[1]),
+                            to_u8(rgb[2]),
+                            255,
+                        ]);
+                    }
+                    bytes
+                }
+                None => vec![128, 128, 128, 255],
+            };
+            let tex = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("onda-finish-lut"),
+                size: wgpu::Extent3d {
+                    width: lut_size,
+                    height: lut_size,
+                    depth_or_array_layers: lut_size,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D3,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+            queue.write_texture(
+                wgpu::ImageCopyTexture {
+                    texture: &tex,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &texels,
+                wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(lut_size * 4), // 4 channels × 1 byte (u8)
+                    rows_per_image: Some(lut_size),
+                },
+                wgpu::Extent3d {
+                    width: lut_size,
+                    height: lut_size,
+                    depth_or_array_layers: lut_size,
+                },
+            );
+            tex
+        };
+        let lut_view = lut_tex.create_view(&wgpu::TextureViewDescriptor::default());
+        let lut_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("onda-finish-lut-sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
+        let mut op = Vec::with_capacity(64);
         op.extend_from_slice(&params.exposure.to_le_bytes());
         op.extend_from_slice(&params.halation.to_le_bytes());
         op.extend_from_slice(&(bloom.is_some() as u32).to_le_bytes());
@@ -2601,6 +2718,10 @@ impl LinearFinish {
         op.extend_from_slice(&params.vignette.to_le_bytes());
         op.extend_from_slice(&params.grain.to_le_bytes());
         op.extend_from_slice(&params.grain_seed.to_le_bytes());
+        op.extend_from_slice(&(lut.is_some() as u32).to_le_bytes());
+        op.extend_from_slice(&lut_size.to_le_bytes());
+        op.extend_from_slice(&0u32.to_le_bytes());
+        op.extend_from_slice(&0u32.to_le_bytes());
         let buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("onda-finish-output-params"),
             size: op.len() as u64,
@@ -2627,6 +2748,14 @@ impl LinearFinish {
                 wgpu::BindGroupEntry {
                     binding: 3,
                     resource: buf.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::TextureView(&lut_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Sampler(&lut_sampler),
                 },
             ],
         });

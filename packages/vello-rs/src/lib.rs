@@ -546,7 +546,7 @@ impl VelloRenderer {
         // one ACES tone-map back to sRGB. The HDR survives (float intermediates), so the
         // film look lands comp-wide, with or without any per-node effect. A pure
         // texture→texture compute chain, so it runs identically on native and the web.
-        let texture = if let Some(finish) = scene.composition.finish {
+        let texture = if let Some(finish) = &scene.composition.finish {
             let params = FinishParams {
                 exposure: finish.exposure,
                 halation: finish.halation,
@@ -557,6 +557,8 @@ impl VelloRenderer {
                 vignette: finish.vignette,
                 grain: finish.grain,
                 grain_seed: finish.grain_seed,
+                // Display-space 3D LUT (applied after ACES → sRGB in the output WGSL).
+                lut: finish.lut.as_ref().map(|l| (l.size, l.table.as_slice())),
             };
             let lf = self
                 .linearfinish_pipeline

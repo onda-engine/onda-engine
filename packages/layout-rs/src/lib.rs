@@ -30,7 +30,7 @@ use taffy::style::{
 /// uses, so measurement matches drawing).
 pub fn layout(scene: &Scene, measure_text: &dyn Fn(&Text) -> Size) -> Scene {
     Scene {
-        composition: scene.composition,
+        composition: scene.composition.clone(),
         root: resolve(&scene.root, measure_text).0,
     }
 }

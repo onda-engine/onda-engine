@@ -23,7 +23,11 @@ pub struct NodeId(pub u64);
 
 /// Resolution and timing metadata for a render. Mirrors Remotion's
 /// `<Composition>`.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+///
+/// Not `Copy`: a [`Finish`] may carry an owned [`Lut`] table (`Vec<f32>`), so
+/// `Composition` is `Clone` only. Field reads (`width`, `fps`, …) go through a
+/// borrow; clone the whole struct only when building a derived [`Scene`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Composition {
     pub width: u32,
     pub height: u32,
@@ -92,7 +96,9 @@ impl Composition {
 /// [`Composition::finish`]. The chain order: bloom + halation → exposure → grade
 /// (temperature/contrast/saturation) → vignette → grain → ACES. Every field defaults
 /// to a no-op, so `finish: { bloom }` behaves exactly as bloom-only.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+///
+/// Not `Copy`: an optional [`Lut`] carries an owned table (`Vec<f32>`); `Clone` only.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Finish {
     /// Linear exposure multiplier applied before the tone-map (1.0 = neutral; >1
     /// lifts mids/highlights into the ACES shoulder for a brighter filmic roll-off).
@@ -124,6 +130,15 @@ pub struct Finish {
     /// *lives* (varies per frame) instead of sitting static like dirt on the lens.
     #[serde(default)]
     pub grain_seed: f32,
+    /// A cinematic 3D color LUT (`.cube`-style lookup table) applied as the FINAL
+    /// step of the finish chain, in DISPLAY space (after the grade, the ACES tone-map
+    /// and the sRGB encode), as a trilinear lookup. The industry-standard "instant
+    /// film look" — a whole color science baked into one remap. `None` is no LUT (an
+    /// identity remap). Applies whether or not [`Composition::linear`] is on; honored
+    /// by Vello (GPU 3D texture) AND the CPU reference (trilinear in software), so the
+    /// preview is never blind to it. See [`Lut`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lut: Option<Lut>,
 }
 
 impl Finish {
@@ -144,8 +159,24 @@ impl Default for Finish {
             vignette: 0.0,
             grain: 0.0,
             grain_seed: 0.0,
+            lut: None,
         }
     }
+}
+
+/// A cinematic 3D color LUT — a cube of `size³` RGB samples that remap an input
+/// color to an output color (the industry-standard ".cube" lookup table). The
+/// `table` holds `size³` RGB triples in 0..1, **row-major with RED varying fastest,
+/// then green, then blue**: the entry for grid cell `(r, g, b)` (each `0..size`)
+/// is at `((b * size + g) * size + r) * 3`. Sampled with TRILINEAR interpolation
+/// in DISPLAY space at the very end of the finish chain. An identity LUT (each grid
+/// node maps to its own normalized coordinate) is a visual no-op.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Lut {
+    /// Grid resolution per axis (e.g. 17, 33, 64). The cube holds `size³` entries.
+    pub size: u32,
+    /// `size³` RGB triples (3 floats each) in 0..1, red-fastest then green then blue.
+    pub table: Vec<f32>,
 }
 
 /// Linear-HDR bloom parameters for a [`Finish`].

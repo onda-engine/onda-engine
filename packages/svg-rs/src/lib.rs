@@ -86,7 +86,7 @@ pub fn import_svg_file(path: impl AsRef<FsPath>) -> Result<ImportedSvg, SvgError
 /// renderer.
 pub fn expand_svg(scene: &Scene, base_dir: &FsPath) -> Result<Scene, SvgError> {
     Ok(Scene {
-        composition: scene.composition,
+        composition: scene.composition.clone(),
         root: expand_node(&scene.root, base_dir)?,
     })
 }

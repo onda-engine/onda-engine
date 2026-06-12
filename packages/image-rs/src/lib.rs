@@ -62,7 +62,7 @@ pub fn load_images_cached(
     cache: &mut HashMap<String, Option<ImageData>>,
 ) -> Result<Scene, ImageError> {
     Ok(Scene {
-        composition: scene.composition,
+        composition: scene.composition.clone(),
         root: load_node(&scene.root, base_dir, cache)?,
     })
 }
