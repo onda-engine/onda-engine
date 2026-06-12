@@ -24,7 +24,10 @@ export interface SequenceProps {
 }
 
 /** Shift children in time: inside, the frame is `outerFrame - from`, and the
- *  children render only while `0 <= localFrame < durationInFrames`. */
+ *  children render only while `0 <= localFrame < durationInFrames`. When a
+ *  `durationInFrames` is given, children's `useVideoConfig().durationInFrames`
+ *  reflects the SEQUENCE's length (Remotion semantics) — so a component can ask
+ *  "how long is my clip?" and fit its entrance to it. */
 export function Sequence({
   from = 0,
   durationInFrames,
@@ -35,7 +38,11 @@ export function Sequence({
   const local = ctx.frame - from
   const visible = local >= 0 && (durationInFrames === undefined || local < durationInFrames)
   if (!visible) return null
-  return createElement(FrameContext.Provider, { value: { ...ctx, frame: local } }, children)
+  const value =
+    durationInFrames === undefined
+      ? { ...ctx, frame: local }
+      : { ...ctx, frame: local, durationInFrames }
+  return createElement(FrameContext.Provider, { value }, children)
 }
 
 export interface LoopProps {

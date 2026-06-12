@@ -5,12 +5,13 @@ import { Group, useCurrentFrame, useVideoConfig } from '@onda/react'
 import type { ReactNode } from 'react'
 import { entryFade } from '../choreography.js'
 import { DURATION } from '../motion.js'
+import type { TimeInput } from '../time.js'
 
 export interface FadeInProps {
   /** Frames to wait before starting. */
-  delay?: number
+  delay?: TimeInput
   /** Frames the fade takes to settle (default `DURATION.base` = 18). */
-  durationInFrames?: number
+  durationInFrames?: TimeInput
   children?: ReactNode
 }
 

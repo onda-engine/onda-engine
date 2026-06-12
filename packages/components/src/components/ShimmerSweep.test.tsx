@@ -12,9 +12,9 @@ function scene(node: React.ReactNode, frame: number): Scene {
 }
 // ShimmerSweep root <Group> → [ base Text, matte'd shine <Group> ].
 const shineGroup = (s: Scene): SceneNode =>
-  ((s.root.children?.[0] as SceneNode).children?.[1] as SceneNode)
+  (s.root.children?.[0] as SceneNode).children?.[1] as SceneNode
 const baseText = (s: Scene): SceneNode =>
-  ((s.root.children?.[0] as SceneNode).children?.[0] as SceneNode)
+  (s.root.children?.[0] as SceneNode).children?.[0] as SceneNode
 
 describe('ShimmerSweep — shine masked to glyphs, not a box', () => {
   it('masks the shine with a TEXT alpha matte (not a rectangular clip)', () => {

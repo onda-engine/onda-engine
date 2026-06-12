@@ -17,6 +17,7 @@
 import { interpolate, spring } from '@onda/react'
 import { HOUSE_EASE } from './easing.js'
 import { DURATION, OVERSHOOT, SPRING_SMOOTH } from './motion.js'
+import { type TimeInput, framesOf } from './time.js'
 
 /** Numeric motion for a scene node. Spread the relevant fields onto a `<Group>`:
  *  `x`/`y` (px translate), `scaleX`/`scaleY` (1 = identity), `opacity` (0..1). */
@@ -35,8 +36,10 @@ const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
 export type PatternInput = {
   frame: number
   fps: number
-  delay?: number
-  durationInFrames?: number
+  /** Frames (number) or a time string ('0.5s', '500ms', '12f'). */
+  delay?: TimeInput
+  /** Frames (number) or a time string ('0.5s', '500ms', '12f'). */
+  durationInFrames?: TimeInput
   travelPx?: number
 }
 
@@ -45,9 +48,11 @@ export type PatternInput = {
 export const entryFade = ({
   frame,
   fps,
-  delay = 0,
-  durationInFrames = DURATION.base,
+  delay: delayIn,
+  durationInFrames: durationIn,
 }: Omit<PatternInput, 'travelPx'>): Motion => {
+  const delay = framesOf(delayIn, fps, 0)
+  const durationInFrames = framesOf(durationIn, fps, DURATION.base)
   const progress = spring({ frame: frame - delay, fps, config: SPRING_SMOOTH, durationInFrames })
   const opacity = interpolate(progress, [0, 1], [0, 1], CLAMP)
   return { ...REST, opacity }
@@ -59,14 +64,16 @@ export const entryFade = ({
 export const entrySlide = ({
   frame,
   fps,
-  delay = 0,
-  durationInFrames = DURATION.base,
+  delay: delayIn,
+  durationInFrames: durationIn,
   direction,
   distance = 12,
 }: Omit<PatternInput, 'travelPx'> & {
   direction: 'up' | 'down' | 'left' | 'right'
   distance?: number
 }): Motion => {
+  const delay = framesOf(delayIn, fps, 0)
+  const durationInFrames = framesOf(durationIn, fps, DURATION.base)
   const progress = spring({ frame: frame - delay, fps, config: SPRING_SMOOTH, durationInFrames })
   const opacity = interpolate(progress, [0, 1], [0, 1], CLAMP)
   // Positive offset at progress 0 for 'up'/'left' (starts below / right of rest).
@@ -90,10 +97,12 @@ export const entrySlide = ({
 export const entryScale = ({
   frame,
   fps,
-  delay = 0,
-  durationInFrames = DURATION.base,
+  delay: delayIn,
+  durationInFrames: durationIn,
   from = 0.9,
 }: Omit<PatternInput, 'travelPx'> & { from?: number }): Motion => {
+  const delay = framesOf(delayIn, fps, 0)
+  const durationInFrames = framesOf(durationIn, fps, DURATION.base)
   const progress = spring({ frame: frame - delay, fps, config: SPRING_SMOOTH, durationInFrames })
   const opacity = interpolate(progress, [0, 1], [0, 1], CLAMP)
   const scale = interpolate(progress, [0, 1], [from, 1], CLAMP)
@@ -105,10 +114,12 @@ export const entryScale = ({
 export const entryFadeRise = ({
   frame,
   fps,
-  delay = 0,
-  durationInFrames = DURATION.base,
+  delay: delayIn,
+  durationInFrames: durationIn,
   travelPx = 12,
 }: PatternInput): Motion => {
+  const delay = framesOf(delayIn, fps, 0)
+  const durationInFrames = framesOf(durationIn, fps, DURATION.base)
   const progress = spring({ frame: frame - delay, fps, config: SPRING_SMOOTH, durationInFrames })
   const opacity = interpolate(progress, [0, 1], [0, 1], CLAMP)
   const y = interpolate(progress, [0, 1], [travelPx, 0], CLAMP)
@@ -119,9 +130,12 @@ export const entryFadeRise = ({
  *  counterpart to {@link entryFade}. */
 export const exitFade = ({
   frame,
-  delay = 0,
-  durationInFrames = DURATION.fast,
+  fps,
+  delay: delayIn,
+  durationInFrames: durationIn,
 }: Omit<PatternInput, 'travelPx' | 'fps'> & { fps?: number }): Motion => {
+  const delay = framesOf(delayIn, fps ?? 30, 0)
+  const durationInFrames = framesOf(durationIn, fps ?? 30, DURATION.fast)
   const progress = interpolate(frame - delay, [0, durationInFrames], [0, 1], {
     ...CLAMP,
     easing: HOUSE_EASE,
@@ -133,10 +147,13 @@ export const exitFade = ({
  *  {@link HOUSE_EASE}. Exits are ~30% faster than entries. */
 export const exitFadeFall = ({
   frame,
-  delay = 0,
-  durationInFrames = DURATION.fast,
+  fps,
+  delay: delayIn,
+  durationInFrames: durationIn,
   travelPx = 8,
 }: Omit<PatternInput, 'fps'> & { fps?: number }): Motion => {
+  const delay = framesOf(delayIn, fps ?? 30, 0)
+  const durationInFrames = framesOf(durationIn, fps ?? 30, DURATION.fast)
   const progress = interpolate(frame - delay, [0, durationInFrames], [0, 1], {
     ...CLAMP,
     easing: HOUSE_EASE,
@@ -148,8 +165,9 @@ export const exitFadeFall = ({
  *  `direction` names where the element LEAVES toward. On {@link HOUSE_EASE}. */
 export const exitSlide = ({
   frame,
-  delay = 0,
-  durationInFrames = DURATION.fast,
+  fps,
+  delay: delayIn,
+  durationInFrames: durationIn,
   direction,
   distance = 12,
 }: Omit<PatternInput, 'travelPx' | 'fps'> & {
@@ -157,6 +175,8 @@ export const exitSlide = ({
   direction: 'up' | 'down' | 'left' | 'right'
   distance?: number
 }): Motion => {
+  const delay = framesOf(delayIn, fps ?? 30, 0)
+  const durationInFrames = framesOf(durationIn, fps ?? 30, DURATION.fast)
   const progress = interpolate(frame - delay, [0, durationInFrames], [0, 1], {
     ...CLAMP,
     easing: HOUSE_EASE,
@@ -176,10 +196,13 @@ export const exitSlide = ({
  *  to `to` (default 0.9) while fading, on {@link HOUSE_EASE}. */
 export const exitScale = ({
   frame,
-  delay = 0,
-  durationInFrames = DURATION.fast,
+  fps,
+  delay: delayIn,
+  durationInFrames: durationIn,
   to = 0.9,
 }: Omit<PatternInput, 'travelPx' | 'fps'> & { fps?: number; to?: number }): Motion => {
+  const delay = framesOf(delayIn, fps ?? 30, 0)
+  const durationInFrames = framesOf(durationIn, fps ?? 30, DURATION.fast)
   const progress = interpolate(frame - delay, [0, durationInFrames], [0, 1], {
     ...CLAMP,
     easing: HOUSE_EASE,
@@ -195,10 +218,12 @@ export const exitScale = ({
 export const heroReveal = ({
   frame,
   fps,
-  delay = 0,
-  durationInFrames = DURATION.slow,
+  delay: delayIn,
+  durationInFrames: durationIn,
   travelPx = 16,
 }: PatternInput): Motion => {
+  const delay = framesOf(delayIn, fps, 0)
+  const durationInFrames = framesOf(durationIn, fps, DURATION.slow)
   const local = frame - delay
   const rise = spring({ frame: local, fps, config: SPRING_SMOOTH, durationInFrames })
   const opacity = interpolate(rise, [0, 1], [0, 1], CLAMP)
@@ -221,12 +246,15 @@ export const heroReveal = ({
  *  apply to the old and new values (both rendered, layered, so it stays put). */
 export const stateSwap = ({
   frame,
-  delay = 0,
-  durationInFrames = DURATION.fast,
+  fps,
+  delay: delayIn,
+  durationInFrames: durationIn,
 }: Omit<PatternInput, 'travelPx' | 'fps'> & { fps?: number }): {
   outOpacity: number
   inOpacity: number
 } => {
+  const delay = framesOf(delayIn, fps ?? 30, 0)
+  const durationInFrames = framesOf(durationIn, fps ?? 30, DURATION.fast)
   const local = frame - delay
   const half = durationInFrames / 2
   const outOpacity = interpolate(local, [0, half], [1, 0], { ...CLAMP, easing: HOUSE_EASE })

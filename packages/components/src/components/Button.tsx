@@ -34,7 +34,9 @@ import { Group, Rect, Text, interpolate, useCurrentFrame, useVideoConfig } from 
 import { entryFadeRise } from '../choreography.js'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION } from '../motion.js'
+import { type Placement, usePlacement } from '../placement.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** Mean glyph advance as a fraction of the font size — a rough display-sans
  *  heuristic, used only to center the label (the engine measures the real text
@@ -84,21 +86,26 @@ export interface ButtonProps {
   fontFamily?: string
   /** Label font weight (display default 600). */
   fontWeight?: number
-  /** Horizontal center as a 0–1 fraction of canvas width (default 0.5 — centered,
-   *  mirroring the ondajs `placement` default). */
+  /** Where the button sits: a region keyword (`'center'`, `'lower-third'`, …)
+   *  or normalized `{x,y}` (0–1, button center). The shared placement contract;
+   *  default `'center'`. */
+  placement?: Placement
+  /** @deprecated Legacy alias for `placement={{ x }}` — horizontal center as a
+   *  0–1 fraction of canvas width. */
   centerX?: number
-  /** Vertical center as a 0–1 fraction of canvas height (default 0.5). */
+  /** @deprecated Legacy alias for `placement={{ y }}` — vertical center as a
+   *  0–1 fraction of canvas height. */
   centerY?: number
   /** Play the entrance (fade + rise on the house spring). */
   entrance?: boolean
   /** Frames before the entrance begins. */
-  delay?: number
+  delay?: TimeInput
   /** Entrance duration in frames (default `DURATION.base` = 18). */
-  durationInFrames?: number
+  durationInFrames?: TimeInput
   /** Play the click-dip press animation. */
   press?: boolean
   /** Frame the press dip lands on (relative to the local timeline). */
-  pressFrame?: number
+  pressFrame?: TimeInput
 }
 
 export function Button({
@@ -113,16 +120,21 @@ export function Button({
   fontSize = 24,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
-  centerX = 0.5,
-  centerY = 0.5,
+  placement,
+  centerX,
+  centerY,
   entrance = true,
-  delay = 0,
-  durationInFrames = DURATION.base,
+  delay: delayIn = 0,
+  durationInFrames: durationInFramesIn = DURATION.base,
   press = true,
-  pressFrame = 30,
+  pressFrame: pressFrameIn = 30,
 }: ButtonProps) {
   const frame = useCurrentFrame()
-  const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const durationInFrames = framesOf(durationInFramesIn, fps)
+  const pressFrame = framesOf(pressFrameIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.accent
   const textColor = textColorProp ?? theme.text
@@ -171,10 +183,15 @@ export function Button({
 
   const labelColor = isPrimary ? textColor : color
 
-  // Canvas placement of the button's center (the local origin of the assembly).
-  // Defaults to centered, matching ondajs's default `placement`.
-  const originX = centerX * compWidth
-  const originY = centerY * compHeight
+  // Canvas placement of the button's center (the local origin of the assembly)
+  // via the shared placement contract. Defaults to centered, matching ondajs's
+  // default `placement`; legacy `centerX`/`centerY` fractions alias 1:1.
+  const resolved = usePlacement(placement ?? { x: centerX ?? 0.5, y: centerY ?? 0.5 }, {
+    width,
+    height,
+  })
+  const originX = resolved.x
+  const originY = resolved.y
 
   return (
     // Canvas positioning: place the assembly's local origin at the canvas point.

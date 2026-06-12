@@ -9,10 +9,11 @@ import { Group, useCurrentFrame, useVideoConfig } from '@onda/react'
 import type { ReactNode } from 'react'
 import { entrySlide } from '../choreography.js'
 import { DURATION } from '../motion.js'
+import type { TimeInput } from '../time.js'
 
 export interface SlideInProps {
-  delay?: number
-  durationInFrames?: number
+  delay?: TimeInput
+  durationInFrames?: TimeInput
   /** Settling direction (default `'up'`). */
   direction?: 'up' | 'down' | 'left' | 'right'
   /** Travel distance in px (12–24 Onda envelope; default 12). */

@@ -37,8 +37,10 @@ import {
 } from '@onda/react'
 import { entryFade, entryFadeRise } from '../choreography.js'
 import { DURATION, staggerFrames } from '../motion.js'
+import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** Engine line-box height as a multiple of font size (matches typography crate). */
 const LINE_RATIO = 1.2
@@ -59,7 +61,7 @@ export interface PricingCardProps {
   /** The earned accent — checkmarks, badge, CTA, recommended border + glow (default: theme `accent`). */
   accent?: string
   /** Frames before the card enters. */
-  delay?: number
+  delay?: TimeInput
   /** Card width in px. */
   width?: number
   /** Price font size in px (the large display number). */
@@ -78,9 +80,15 @@ export interface PricingCardProps {
   fontFamily?: string
   /** Body font for tier / features / CTA (default: theme `fontFamily`). */
   bodyFontFamily?: string
-  /** Local-space x of the card's top-left. Omit to center on the composition. */
+  /** Where the card sits: a region keyword (`'center'`, `'lower-third'`, …) or
+   *  normalized `{x,y}` (0–1, card center). The shared placement contract;
+   *  default `'center'`. */
+  placement?: Placement
+  /** @deprecated Legacy alias — x of the card's top-left in px. Prefer
+   *  `placement`. */
   x?: number
-  /** Local-space y of the card's top-left. Omit to center on the composition. */
+  /** @deprecated Legacy alias — y of the card's top-left in px. Prefer
+   *  `placement`. */
   y?: number
 }
 
@@ -99,7 +107,7 @@ export function PricingCard({
   cta = 'Get started',
   recommended = false,
   accent: accentProp,
-  delay = 0,
+  delay: delayIn = 0,
   width = 380,
   priceSize = 64,
   background: backgroundProp,
@@ -109,11 +117,14 @@ export function PricingCard({
   faintColor: faintColorProp,
   fontFamily: fontFamilyProp,
   bodyFontFamily: bodyFontFamilyProp,
+  placement,
   x,
   y,
 }: PricingCardProps) {
   const frame = useCurrentFrame()
-  const { fps, width: cw, height: ch } = useVideoConfig()
+  const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const accent = accentProp ?? theme.accent
   const background = backgroundProp ?? theme.surface
@@ -162,10 +173,13 @@ export function PricingCard({
   const liftY = recommended ? -16 : 0
   const liftScale = recommended ? 1.04 : 1
 
-  // Center the fixed-size card on the composition unless an explicit x/y is given.
-  // (No layout container: per-frame feature fades never trigger a reflow.)
-  const originX = x ?? Math.round((cw - width) / 2)
-  const originY = y ?? Math.round((ch - cardHeight) / 2)
+  // Anchor the fixed-size card on the shared placement contract (card CENTER at
+  // the resolved point; corner regions sit flush on the safe margin). Legacy px
+  // `x`/`y` (top-left) win per-axis; the default is centered, as before. (No
+  // layout container: per-frame feature fades never trigger a reflow.)
+  const resolved = usePlacement(placement, { width, height: cardHeight })
+  const originX = x ?? Math.round(resolved.originX)
+  const originY = y ?? Math.round(resolved.originY)
 
   // Entrance — opacity + rise on the house spring (ondajs `useEntrance('rise')`).
   const enter = entryFadeRise({ frame, fps, delay })

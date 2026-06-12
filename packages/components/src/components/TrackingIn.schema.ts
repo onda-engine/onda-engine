@@ -4,11 +4,12 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const trackingInSchema = z.object({
   text: z.string().default('Onda').describe("The text to settle in."),
-  delay: z.number().int().default(0).describe("Frames before the entrance starts."),
-  durationInFrames: z.number().int().optional().describe("Frames until the text settles (default DURATION.slow = 24)."),
+  delay: timeSchema.default(0).describe("Frames before the entrance starts."),
+  durationInFrames: timeSchema.optional().describe("Frames until the text settles (default DURATION.slow = 24)."),
   color: z.string().optional().describe("Text color (hex #rrggbb / #rrggbbaa); defaults to theme text."),
   fromTracking: z.number().default(0.5).describe("Starting letter-spacing in em \u2014 the text begins spread wide and contracts."),
   tracking: z.number().default(-0.02).describe("Resting letter-spacing in em."),

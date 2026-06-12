@@ -25,6 +25,7 @@
 //!    always fills the composition, which is the original's default behavior.
 
 import { Group, Image, clipRect, interpolate, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** One drifting image layer. */
 export interface ParallaxLayer {
@@ -45,9 +46,9 @@ export interface ParallaxProps {
   /** Multiple layers, drawn back-to-front, each drifting at its own `speed`. */
   layers?: ParallaxLayer[]
   /** Frames before the drift starts. */
-  delay?: number
+  delay?: TimeInput
   /** Frames over which the drift completes (180f ≈ 6s @ 30fps — parallax wants time). */
-  duration?: number
+  duration?: TimeInput
   /** The edge the layers drift *toward* as time advances. */
   direction?: 'left' | 'right' | 'up' | 'down'
   /** Base drift in pixels across `duration` (per-layer scaled by `speed`). Keep
@@ -60,14 +61,17 @@ export interface ParallaxProps {
 export function Parallax({
   src,
   layers,
-  delay = 0,
-  duration = 180,
+  delay: delayIn = 0,
+  duration: durationIn = 180,
   direction = 'left',
   distance = 40,
   scale = 1.05,
 }: ParallaxProps) {
   const frame = useCurrentFrame()
-  const { width, height } = useVideoConfig()
+  const { width, height, fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const duration = framesOf(durationIn, fps)
 
   // Resolve the layer list. `layers` takes precedence; otherwise fall back to the
   // single `src` (the ondajs one-layer case). An empty/absent config renders

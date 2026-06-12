@@ -19,6 +19,21 @@ export {
 // House easing
 export { HOUSE_EASE } from './easing.js'
 
+// TimeInput — one duration grammar (frames or '0.5s'/'500ms'/'12f' strings)
+// for every delay/duration-typed prop.
+export { TIME_DESCRIPTION, type TimeInput, framesOf, timeSchema } from './time.js'
+
+// Clip-aware timing — settle-time registry ("does it land before the cut?")
+// + the fitToClip/maxSettle clamp.
+export {
+  COMPONENT_SETTLE,
+  type FitToClipOpts,
+  type SettleFn,
+  settleTime,
+  staggeredSettle,
+  useTimeScale,
+} from './timing.js'
+
 // Real text measurement (the engine's cosmic-text shaping) for components that
 // size to actual text; `preloadTextMetrics` warms it before a Node export.
 export {
@@ -36,6 +51,15 @@ export {
   useTextMetrics,
   useTextMetricsReady,
 } from './text-metrics.js'
+
+// Backend divergence — "what I see vs what ships", queryable per scene.
+export {
+  type Divergence,
+  type DivergenceOpts,
+  divergenceReport,
+  matchesExport,
+  type RenderBackend,
+} from './divergence.js'
 
 // Engine render-fidelity metadata — the capability signal for the agent contract.
 export {
@@ -60,6 +84,50 @@ export {
   manifestEntry,
   type PropMeta,
 } from './manifest.js'
+
+// Glyph line — the ONE per-glyph text-layout primitive the text family
+// (SlotMachineRoll / KineticText / TextAnimator / MatrixDecode) is built on.
+export {
+  type GlyphCell,
+  type GlyphLine,
+  type GlyphLineOpts,
+  LINE_RATIO,
+  layoutGlyphLine,
+  lineStartX,
+  lineTopY,
+} from './glyph-line.js'
+
+// Layout queries + single-line auto-fit (keep type on the frame)
+export {
+  type FitOpts,
+  fitFontSize,
+  fitMaxWidth,
+  type ResolvedBounds,
+  useFittedFontSize,
+  useResolvedBounds,
+} from './bounds.js'
+
+// Placement — the ONE placement contract every placeable component speaks
+// (region keywords or normalized {x,y}, element-center anchored).
+export {
+  type ElementSize,
+  type FrameSize,
+  isPlacement,
+  PLACEMENT_DESCRIPTION,
+  PLACEMENT_REGIONS,
+  type Placement,
+  type PlacementPoint,
+  type PlacementRegion,
+  type PlacedProps,
+  Placed,
+  PlacementShift,
+  type PlacementShiftProps,
+  placementSchema,
+  type ResolvedPlacement,
+  resolvePlacement,
+  SAFE_MARGIN,
+  usePlacement,
+} from './placement.js'
 
 // Theme (brand tokens — colors, fonts, logo) via React context
 export {

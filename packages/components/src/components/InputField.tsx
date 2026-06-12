@@ -26,7 +26,9 @@
 
 import { Flex, Group, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useTextReveal } from '../hooks.js'
+import { type Placement, usePlacement } from '../placement.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** Engine line-box height as a multiple of font size (typography crate). */
 const LINE_RATIO = 1.2
@@ -41,9 +43,9 @@ export interface InputFieldProps {
   /** Animate `value` typing itself in character-by-character (`useTextReveal`). */
   typed?: boolean
   /** Frames before typing starts. */
-  delay?: number
+  delay?: TimeInput
   /** Frames to type the whole value (linear pacing). */
-  typeDuration?: number
+  typeDuration?: TimeInput
   /** Show the accent focus ring around the field once typing begins. */
   focusRing?: boolean
   /** Field width in px. Sized for a 1080p+ video canvas, not a screen UI. */
@@ -64,9 +66,15 @@ export interface InputFieldProps {
   borderColor?: string
   /** Field background fill (the "glass" surface) (default: theme `surface`). */
   fieldColor?: string
-  /** Horizontal center of the field as a 0–1 fraction of canvas width. */
+  /** Where the field sits: a region keyword (`'center'`, `'lower-third'`, …)
+   *  or normalized `{x,y}` (0–1, field center). The shared placement contract;
+   *  default `'center'`. */
+  placement?: Placement
+  /** @deprecated Legacy alias for `placement={{ x }}` — horizontal center of
+   *  the field as a 0–1 fraction of canvas width. */
   x?: number
-  /** Vertical center of the field as a 0–1 fraction of canvas height. */
+  /** @deprecated Legacy alias for `placement={{ y }}` — vertical center of the
+   *  field as a 0–1 fraction of canvas height. */
   y?: number
 }
 
@@ -75,8 +83,8 @@ export function InputField({
   placeholder = 'Enter your email',
   label = 'Email',
   typed = true,
-  delay = 0,
-  typeDuration = 36,
+  delay: delayIn = 0,
+  typeDuration: typeDurationIn = 36,
   focusRing = true,
   width = 640,
   fontSize = 36,
@@ -87,11 +95,15 @@ export function InputField({
   accentColor: accentColorProp,
   borderColor: borderColorProp,
   fieldColor: fieldColorProp,
-  x = 0.5,
-  y = 0.5,
+  placement,
+  x,
+  y,
 }: InputFieldProps) {
   const frame = useCurrentFrame()
-  const { width: compWidth, height: compHeight } = useVideoConfig()
+  const { width: compWidth, height: compHeight, fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const typeDuration = framesOf(typeDurationIn, fps)
   const theme = useTheme()
   const textColor = textColorProp ?? theme.text
   const placeholderColor = placeholderColorProp ?? theme.textMuted
@@ -136,11 +148,17 @@ export function InputField({
   const labelGap = Math.round(fontSize * 0.4)
   const labelBlock = hasLabel ? labelSize * LINE_RATIO + labelGap : 0
 
-  // Total assembly footprint, centered by an explicit top-left offset (the
-  // BarChart pattern) so the per-frame value-width changes never reflow a layout.
+  // Total assembly footprint, anchored by an explicit top-left offset (the
+  // BarChart pattern) so the per-frame value-width changes never reflow a
+  // layout. Legacy fractional `x`/`y` were already field-center anchored, so
+  // they alias 1:1 onto the shared placement contract.
   const totalHeight = labelBlock + fieldHeight
-  const originX = Math.round(x * compWidth - width / 2)
-  const originY = Math.round(y * compHeight - totalHeight / 2)
+  const resolved = usePlacement(placement ?? { x: x ?? 0.5, y: y ?? 0.5 }, {
+    width,
+    height: totalHeight,
+  })
+  const originX = Math.round(resolved.originX)
+  const originY = Math.round(resolved.originY)
 
   // Top of the (vertically centered) value line box inside the field.
   const textY = labelBlock + padY

@@ -16,9 +16,14 @@
 //!             ripple phase is the glyph index, so the wave travels the line.
 
 import { Group, Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { useFittedFontSize } from '../bounds.js'
+import { LINE_RATIO, layoutGlyphLine, lineStartX, lineTopY } from '../glyph-line.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
-import { glyphLayout, useTextMetricsReady } from '../text-metrics.js'
+import { type Placement, usePlacement } from '../placement.js'
+import { useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
+import { staggeredSettle, useTimeScale } from '../timing.js'
 import { type TextAnimate, TextAnimator } from './TextAnimator.js'
 
 /** The per-glyph entrance presets. */
@@ -29,14 +34,29 @@ export interface KineticTextProps {
   text?: string
   /** Font size in px (default 96). */
   fontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
+   *  line cannot exceed the frame minus the safe margins. Default `'none'`
+   *  (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the line; combines with `fit` (the smaller
+   *  cap wins). */
+  maxWidth?: number
   /** Per-glyph entrance flavor (default `'rise'`). */
   preset?: KineticTextPreset
-  /** Frames between consecutive glyphs entering (default `STAGGER` = 5). */
-  stagger?: number
-  /** Frames each glyph's entrance takes to settle (default `DURATION.base`). */
-  durationInFrames?: number
-  /** Frames before the FIRST glyph starts (default 0). */
-  delay?: number
+  /** Time between consecutive glyphs entering (default `STAGGER` = 5 frames). */
+  stagger?: TimeInput
+  /** Time each glyph's entrance takes to settle (default `DURATION.base`). */
+  durationInFrames?: TimeInput
+  /** Time before the FIRST glyph starts (default 0). */
+  delay?: TimeInput
+  /** Compress the whole timing envelope (delay, stagger, durations) so the
+   *  entrance settles at least `hold` before the end of the enclosing clip
+   *  (`useVideoConfig().durationInFrames`, Sequence-scoped). Opt-in. */
+  fitToClip?: boolean
+  /** Hard cap on the settle time (frames or '0.5s'). Wins over `fitToClip`. */
+  maxSettle?: TimeInput
+  /** Breathing room before the cut for `fitToClip` (default 6 frames). */
+  hold?: TimeInput
   /** Horizontal alignment of the line about its anchor (default `'center'`). */
   align?: 'left' | 'center' | 'right'
   /** Text color (default: theme `text`). */
@@ -45,6 +65,10 @@ export interface KineticTextProps {
   fontFamily?: string
   /** Font weight (display default 600). */
   fontWeight?: number
+  /** Where the line sits: a region keyword (`'center'`, `'lower-third'`, …) or
+   *  normalized `{x,y}` (0–1, line center). The shared placement contract;
+   *  default `'center'` (the historical centering). */
+  placement?: Placement
 }
 
 /** Starting rise distance in px for the `rise` preset (the house 24px envelope). */
@@ -70,14 +94,20 @@ const PRESET_ANIMATE: Record<Exclude<KineticTextPreset, 'wave'>, TextAnimate> = 
 export function KineticText({
   text = 'kinetic',
   fontSize = 96,
+  fit,
+  maxWidth,
   preset = 'rise',
   stagger = STAGGER,
   durationInFrames = DURATION.base,
   delay = 0,
+  fitToClip,
+  maxSettle,
+  hold,
   align = 'center',
   color,
   fontFamily,
   fontWeight = 600,
+  placement,
 }: KineticTextProps) {
   // KineticText is the engine's DISPLAY-statement component, so it follows the
   // theme's heading family by default (`headingFamily ?? fontFamily`) — set
@@ -94,13 +124,19 @@ export function KineticText({
       <KineticWave
         text={text}
         fontSize={fontSize}
+        fit={fit}
+        maxWidth={maxWidth}
         stagger={stagger}
         durationInFrames={durationInFrames}
         delay={delay}
+        fitToClip={fitToClip}
+        maxSettle={maxSettle}
+        hold={hold}
         align={align}
         color={color}
         fontFamily={resolvedFamily}
         fontWeight={fontWeight}
+        placement={placement}
       />
     )
   }
@@ -110,14 +146,20 @@ export function KineticText({
       text={text}
       units="glyph"
       animate={PRESET_ANIMATE[preset]}
+      fit={fit}
+      maxWidth={maxWidth}
       stagger={stagger}
       durationInFrames={durationInFrames}
       delay={delay}
+      fitToClip={fitToClip}
+      maxSettle={maxSettle}
+      hold={hold}
       align={align}
       fontSize={fontSize}
       color={color}
       fontFamily={resolvedFamily}
       fontWeight={fontWeight}
+      placement={placement}
     />
   )
 }
@@ -125,13 +167,19 @@ export function KineticText({
 interface KineticWaveProps {
   text: string
   fontSize: number
-  stagger: number
-  durationInFrames: number
-  delay: number
+  fit?: 'none' | 'frame'
+  maxWidth?: number
+  stagger: TimeInput
+  durationInFrames: TimeInput
+  delay: TimeInput
+  fitToClip?: boolean
+  maxSettle?: TimeInput
+  hold?: TimeInput
   align: 'left' | 'center' | 'right'
   color?: string
   fontFamily?: string
   fontWeight: number
+  placement?: Placement
 }
 
 /** The `wave` preset: a gentle decaying sine ripple across glyphs. Placement
@@ -139,17 +187,23 @@ interface KineticWaveProps {
  *  left-to-right about the canvas center) so only the motion differs. */
 function KineticWave({
   text,
-  fontSize,
-  stagger,
-  durationInFrames,
-  delay,
+  fontSize: fontSizeProp,
+  fit,
+  maxWidth,
+  stagger: staggerIn,
+  durationInFrames: durationIn,
+  delay: delayIn,
+  fitToClip,
+  maxSettle,
+  hold,
   align,
   color: colorProp,
   fontFamily: fontFamilyProp,
   fontWeight,
+  placement,
 }: KineticWaveProps) {
   const frame = useCurrentFrame()
-  const { fps, width, height } = useVideoConfig()
+  const { fps } = useVideoConfig()
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
@@ -157,27 +211,34 @@ function KineticWave({
   useTextMetricsReady()
   const measureOpts = { fontFamily, fontWeight }
 
-  // Kerning-accurate resting positions (see TextAnimator for the rationale).
-  const clusters = glyphLayout(text, fontSize, measureOpts)
-  const bytes = new TextEncoder().encode(text)
-  const decoder = new TextDecoder()
-  const placed: { ch: string; x: number; glyphIndex: number }[] = []
-  for (const g of clusters) {
-    const ch = decoder.decode(bytes.subarray(g.start, g.end))
-    if (ch.trim().length === 0) continue // space: advance only
-    placed.push({ ch, x: g.x, glyphIndex: placed.length })
-  }
-  const last = clusters[clusters.length - 1]
-  const lineWidth = last ? last.x + last.advance : 0
+  // Opt-in auto-fit (same contract as TextAnimator).
+  const fontSize = useFittedFontSize(text, fontSizeProp, { ...measureOpts, fit, maxWidth })
 
-  const anchorX = Math.round(width / 2)
-  const startX =
-    align === 'center' ? anchorX - lineWidth / 2 : align === 'right' ? anchorX - lineWidth : anchorX
-  const baseY = Math.round(height / 2 - fontSize * 0.6)
+  // Kerning-accurate resting positions via the SHARED glyph-line primitive
+  // (matches TextAnimator exactly — one layout path for the whole family).
+  const laid = layoutGlyphLine(text, fontSize, measureOpts)
+  const placed = laid.rendered
+  const lineWidth = laid.width
+
+  // Timing: parse + clip-fit (same contract as TextAnimator).
+  const staggerBase = framesOf(staggerIn, fps, STAGGER)
+  const durationBase = framesOf(durationIn, fps, DURATION.base)
+  const delayBase = framesOf(delayIn, fps)
+  const naturalSettle = staggeredSettle(placed.length, staggerBase, durationBase, delayBase)
+  const timeScale = useTimeScale(naturalSettle, { fitToClip, maxSettle, hold })
+  const stagger = staggerBase * timeScale
+  const durationInFrames = Math.max(1, durationBase * timeScale)
+  const delay = delayBase * timeScale
+
+  // Shared placement contract (matches TextAnimator's anchoring exactly).
+  const resolved = usePlacement(placement, { width: lineWidth, height: fontSize * LINE_RATIO })
+  const anchorX = Math.round(resolved.x)
+  const startX = lineStartX(align, anchorX, lineWidth)
+  const baseY = lineTopY(resolved.y, fontSize)
 
   return (
     <Group>
-      {placed.map(({ ch, x, glyphIndex: i }) => {
+      {placed.map(({ ch, x, renderIndex: i }) => {
         const progress = spring({
           frame: Math.max(0, frame - delay - staggerFrames(i, stagger)),
           fps,

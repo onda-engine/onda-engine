@@ -4,11 +4,12 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const timelineSchema = z.object({
   events: z.any().optional().describe("Anchor points down the timeline (each { label }). Order is preserved \u2014 top to bottom."),
-  delay: z.number().int().default(0).describe("Frames before the line begins to draw."),
-  lineDuration: z.number().int().optional().describe("Frames over which the vertical line reveals itself top-to-bottom."),
+  delay: timeSchema.default(0).describe("Frames before the line begins to draw."),
+  lineDuration: timeSchema.optional().describe("Frames over which the vertical line reveals itself top-to-bottom."),
   dotDelay: z.number().int().default(8).describe("Frames between the line completing and the first dot appearing."),
   dotStagger: z.number().int().optional().describe("Frames between consecutive dot entrances (canonical Onda stagger = 4)."),
   dotDuration: z.number().int().optional().describe("Per-dot entrance duration in frames."),

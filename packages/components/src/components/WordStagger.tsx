@@ -11,9 +11,10 @@
 //! flow; here a pure fade is the faithful, layout-safe equivalent. See
 //! `approximations` in the port notes.
 
-import { AbsoluteFill, Flex, Text } from '@onda/react'
-import { staggerFrames } from '../motion.js'
+import { AbsoluteFill, Flex, Text, useVideoConfig } from '@onda/react'
+import { STAGGER, staggerFrames } from '../motion.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 import { FadeIn } from './FadeIn.js'
 
 export interface WordStaggerProps {
@@ -32,9 +33,9 @@ export interface WordStaggerProps {
   /** Horizontal alignment of words within each line (default `'start'`). */
   justify?: 'start' | 'center' | 'end'
   /** Frames before the FIRST word starts (default 0). */
-  delay?: number
+  delay?: TimeInput
   /** Frames between consecutive words (default `STAGGER` = 4). */
-  stagger?: number
+  stagger?: TimeInput
 }
 
 export function WordStagger({
@@ -45,9 +46,13 @@ export function WordStagger({
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   justify = 'start',
-  delay = 0,
-  stagger,
+  delay: delayIn = 0,
+  stagger: staggerIn,
 }: WordStaggerProps) {
+  const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const stagger = framesOf(staggerIn, fps, STAGGER)
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily

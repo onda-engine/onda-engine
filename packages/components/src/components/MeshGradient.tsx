@@ -23,7 +23,15 @@
 //!    transparent-tail alpha compositing, so the soft mesh blend holds on the CPU
 //!    reference too.
 
-import { Group, Rect, radialGradient, random, useCurrentFrame, useVideoConfig } from '@onda/react'
+import {
+  Group,
+  Rect,
+  radialGradient,
+  random,
+  useCurrentFrame,
+  useVideoConfig,
+  variantSeed,
+} from '@onda/react'
 import { useTheme } from '../theme.js'
 
 /** Default palette — drifts over the near-black canvas (matches ondajs). */
@@ -41,6 +49,10 @@ export interface MeshGradientProps {
   speed?: number
   /** Seed for the blob phase/amplitude offsets (deterministic). */
   seed?: number
+  /** Integer "take" selector: derives a new deterministic seed from (seed,
+   *  variant), so alternates never require hand-edited magic seeds. 0/omitted
+   *  = the default take (identical to today's output). */
+  variant?: number
   /** Overall blob opacity over the canvas (0..1). */
   opacity?: number
 }
@@ -73,9 +85,12 @@ export function MeshGradient({
   colors: colorsProp,
   background: backgroundProp,
   speed = 1,
-  seed = 7,
+  seed: seedProp = 7,
+  variant,
   opacity = 0.5,
 }: MeshGradientProps) {
+  // The variant knob derives an alternate deterministic seed (identity at 0).
+  const seed = variantSeed(seedProp, variant)
   const frame = useCurrentFrame()
   const { width, height } = useVideoConfig()
   const theme = useTheme()

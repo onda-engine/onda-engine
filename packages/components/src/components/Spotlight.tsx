@@ -18,6 +18,7 @@ import { Rect, radialGradient, useVideoConfig } from '@onda/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
+import type { TimeInput } from '../time.js'
 
 export interface SpotlightProps {
   /** Horizontal center of the spotlight as a 0–1 fraction of canvas width. */
@@ -27,9 +28,9 @@ export interface SpotlightProps {
   /** Final radius as a percentage of the canvas's smaller dimension. */
   radius?: number
   /** Frames before the reveal starts. */
-  delay?: number
+  delay?: TimeInput
   /** Frames until the spotlight reaches its full radius. */
-  durationInFrames?: number
+  durationInFrames?: TimeInput
   /** Light color (default: theme `text`). Hex `#rrggbb` / `#rrggbbaa`. */
   color?: string
   /** Gradient softness — % of the radius given over to the fade-to-transparent

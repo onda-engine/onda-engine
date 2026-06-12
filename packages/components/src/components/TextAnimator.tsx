@@ -23,8 +23,8 @@
 //! measures against the default and may drift from the render.
 
 import {
-  type SpringConfig,
   Group,
+  type SpringConfig,
   Text,
   interpolate,
   interpolateColors,
@@ -32,10 +32,15 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from '@onda/react'
+import { useFittedFontSize } from '../bounds.js'
 import { HOUSE_EASE } from '../easing.js'
+import { LINE_RATIO, layoutGlyphLine, lineStartX, lineTopY } from '../glyph-line.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
-import { glyphLayout, useTextMetricsReady } from '../text-metrics.js'
+import { type Placement, usePlacement } from '../placement.js'
+import { measureText, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
+import { staggeredSettle, useTimeScale } from '../timing.js'
 
 /** What a unit is: a single glyph, a whitespace-delimited word, or a `\n` line. */
 export type TextAnimatorUnit = 'glyph' | 'word' | 'line'
@@ -72,12 +77,20 @@ export interface TextAnimatorProps {
   units?: TextAnimatorUnit
   /** Channels to animate per unit (default `{ opacity: [0, 1], y: [24, 0] }`). */
   animate?: TextAnimate
-  /** Frames between consecutive units entering (default `STAGGER` = 5). */
-  stagger?: number
-  /** Frames each unit takes to settle (default `DURATION.base`). */
-  durationInFrames?: number
-  /** Frames before the FIRST unit starts (default 0). */
-  delay?: number
+  /** Time between consecutive units entering (default `STAGGER` = 5 frames). */
+  stagger?: TimeInput
+  /** Time each unit takes to settle (default `DURATION.base`). */
+  durationInFrames?: TimeInput
+  /** Time before the FIRST unit starts (default 0). */
+  delay?: TimeInput
+  /** Compress the whole timing envelope (delay, stagger, durations) so the
+   *  entrance settles at least `hold` before the end of the enclosing clip
+   *  (`useVideoConfig().durationInFrames`, Sequence-scoped). Opt-in. */
+  fitToClip?: boolean
+  /** Hard cap on the settle time (frames or '0.5s'). Wins over `fitToClip`. */
+  maxSettle?: TimeInput
+  /** Breathing room before the cut for `fitToClip` (default 6 frames). */
+  hold?: TimeInput
   /** Stagger order across units (default `'forward'`). */
   direction?: TextAnimatorDirection
   /** Physical settle spring; pass `false` to use `ease` instead (default `SPRING_SMOOTH`). */
@@ -86,14 +99,25 @@ export interface TextAnimatorProps {
   ease?: (t: number) => number
   /** Font size in px (default 96). */
   fontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
+   *  line cannot exceed the frame minus the safe margins. Default `'none'`
+   *  (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the line; combines with `fit` (the smaller
+   *  cap wins). */
+  maxWidth?: number
   /** Resting text color (default theme `text`). */
   color?: string
   /** Loaded font family (default theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (display default 600). */
   fontWeight?: number
-  /** Horizontal alignment of each line about the canvas center (default `'center'`). */
+  /** Horizontal alignment of each line about the placement anchor (default `'center'`). */
   align?: 'left' | 'center' | 'right'
+  /** Where the text block sits: a region keyword (`'center'`, `'lower-third'`,
+   *  …) or normalized `{x,y}` (0–1, block center). The shared placement
+   *  contract; default `'center'` (the historical centering). */
+  placement?: Placement
 }
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
@@ -128,20 +152,26 @@ export function TextAnimator({
   text = 'Animate',
   units = 'glyph',
   animate,
-  stagger = STAGGER,
-  durationInFrames = DURATION.base,
-  delay = 0,
+  stagger: staggerIn = STAGGER,
+  durationInFrames: durationIn = DURATION.base,
+  delay: delayIn = 0,
+  fitToClip,
+  maxSettle,
+  hold,
   direction = 'forward',
   spring: springConfig = SPRING_SMOOTH,
   ease = HOUSE_EASE,
-  fontSize = 96,
+  fontSize: fontSizeProp = 96,
+  fit,
+  maxWidth,
   color: colorProp,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   align = 'center',
+  placement,
 }: TextAnimatorProps) {
   const frame = useCurrentFrame()
-  const { fps, width, height } = useVideoConfig()
+  const { fps } = useVideoConfig()
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
@@ -151,24 +181,35 @@ export function TextAnimator({
   // `glyphLayout` is the sync, kerning-accurate read used per line below.
   useTextMetricsReady()
   const measureOpts = { fontFamily, fontWeight }
-  const lineHeight = fontSize * 1.2 // engine default (Metrics line height)
 
-  // Build absolutely-placed units, one pass per line. glyphLayout byte offsets are
-  // UTF-8; JS string indices are UTF-16, so decode each line's bytes by range.
+  // Opt-in auto-fit against the WIDEST line (measured at the requested size);
+  // every line then lays out at the fitted size.
   const lines = text.split('\n')
-  const decoder = new TextDecoder()
+  let widest = lines[0] ?? ''
+  if (lines.length > 1) {
+    let widestW = -1
+    for (const line of lines) {
+      const w = measureText(line, fontSizeProp, measureOpts).width
+      if (w > widestW) {
+        widestW = w
+        widest = line
+      }
+    }
+  }
+  const fontSize = useFittedFontSize(widest, fontSizeProp, { ...measureOpts, fit, maxWidth })
+  const lineHeight = fontSize * LINE_RATIO // engine default (Metrics line height)
+
+  // Build absolutely-placed units, one pass per line, on the SHARED glyph-line
+  // primitive (one kerning-accurate layout per line; spaces advance only).
   const placed: PlacedUnit[] = []
   const lineWidths: number[] = []
   lines.forEach((line, lineIndex) => {
-    const clusters = glyphLayout(line, fontSize, measureOpts)
-    const lineBytes = new TextEncoder().encode(line)
-    const sliceCluster = (s: number, e: number) => decoder.decode(lineBytes.subarray(s, e))
-    const lastCluster = clusters[clusters.length - 1]
-    lineWidths[lineIndex] = lastCluster ? lastCluster.x + lastCluster.advance : 0
+    const laid = layoutGlyphLine(line, fontSize, measureOpts)
+    lineWidths[lineIndex] = laid.width
 
     if (units === 'line') {
       if (line.trim().length > 0) {
-        placed.push({ content: line, lineX: 0, lineIndex, width: lineWidths[lineIndex] })
+        placed.push({ content: line, lineX: 0, lineIndex, width: laid.width })
       }
       return
     }
@@ -185,38 +226,51 @@ export function TextAnimator({
         endX = 0
         chars = []
       }
-      for (const g of clusters) {
-        const ch = sliceCluster(g.start, g.end)
-        if (ch.trim().length === 0) {
+      for (const cell of laid.cells) {
+        if (cell.space) {
           flush() // whitespace ends a word
           continue
         }
-        if (startX === null) startX = g.x
-        endX = g.x + g.advance
-        chars.push(ch)
+        if (startX === null) startX = cell.x
+        endX = cell.x + cell.width
+        chars.push(cell.ch)
       }
       flush()
       return
     }
 
-    // glyph
-    for (const g of clusters) {
-      const ch = sliceCluster(g.start, g.end)
-      if (ch.trim().length === 0) continue // space advances, emits no node
-      placed.push({ content: ch, lineX: g.x, lineIndex, width: g.advance })
+    // glyph — the rendered (non-space) cells, verbatim.
+    for (const cell of laid.rendered) {
+      placed.push({ content: cell.ch, lineX: cell.x, lineIndex, width: cell.width })
     }
   })
 
   const n = placed.length
-  const anchorX = Math.round(width / 2)
-  const startXOf = (lineIndex: number) => {
-    const lw = lineWidths[lineIndex] ?? 0
-    return align === 'center' ? anchorX - lw / 2 : align === 'right' ? anchorX - lw : anchorX
-  }
-  // Center the whole block vertically; one line reduces to KineticText's baseline.
+
+  // Timing: parse the TimeInput props, then compress the envelope when the
+  // last unit wouldn't settle inside the clip.
+  const staggerBase = framesOf(staggerIn, fps, STAGGER)
+  const durationBase = framesOf(durationIn, fps, DURATION.base)
+  const delayBase = framesOf(delayIn, fps)
+  const naturalSettle = staggeredSettle(n, staggerBase, durationBase, delayBase)
+  const timeScale = useTimeScale(naturalSettle, { fitToClip, maxSettle, hold })
+  const stagger = staggerBase * timeScale
+  const durationInFrames = Math.max(1, durationBase * timeScale)
+  const delay = delayBase * timeScale
+
+  // Anchor the block on the shared placement contract (block CENTER at the
+  // resolved point; corner regions sit flush on the safe margin). The default
+  // `'center'` reproduces the historical canvas-centering exactly.
+  const blockWidth = lineWidths.length > 0 ? Math.max(...lineWidths) : 0
+  const blockHeight = (lines.length - 1) * lineHeight + fontSize * LINE_RATIO
+  const resolved = usePlacement(placement, { width: blockWidth, height: blockHeight })
+  const anchorX = Math.round(resolved.x)
+  const startXOf = (lineIndex: number) => lineStartX(align, anchorX, lineWidths[lineIndex] ?? 0)
+  // Center the whole block vertically about the anchor; one line reduces to
+  // KineticText's baseline.
   const blockOffset = ((lines.length - 1) * lineHeight) / 2
   const baseYOf = (lineIndex: number) =>
-    Math.round(height / 2 - fontSize * 0.6) + lineIndex * lineHeight - blockOffset
+    lineTopY(resolved.y, fontSize) + lineIndex * lineHeight - blockOffset
 
   return (
     <Group>
@@ -225,7 +279,15 @@ export function TextAnimator({
         const local = Math.max(0, frame - delay - staggerFrames(order, stagger))
         const progress = springConfig
           ? spring({ frame: local, fps, config: springConfig, durationInFrames })
-          : interpolate(frame, [delay + staggerFrames(order, stagger), delay + staggerFrames(order, stagger) + durationInFrames], [0, 1], { ...CLAMP, easing: ease })
+          : interpolate(
+              frame,
+              [
+                delay + staggerFrames(order, stagger),
+                delay + staggerFrames(order, stagger) + durationInFrames,
+              ],
+              [0, 1],
+              { ...CLAMP, easing: ease },
+            )
 
         const at = (p: Pair | undefined, fallback: number) =>
           p ? interpolate(progress, [0, 1], p, CLAMP) : fallback

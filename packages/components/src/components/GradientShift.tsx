@@ -23,6 +23,7 @@
 
 import { Rect, linearGradient, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface GradientShiftProps {
   /** Gradient start color (`#rrggbb` / `#rrggbbaa`). Default is the canvas tone
@@ -41,7 +42,7 @@ export interface GradientShiftProps {
   speed?: number
   /** Frames before the drift starts. While `frame < delay` the gradient sits at
    *  `angle`. Default `0`. */
-  delay?: number
+  delay?: TimeInput
 }
 
 export function GradientShift({
@@ -49,10 +50,12 @@ export function GradientShift({
   to: toProp,
   angle = 135,
   speed = 0.5,
-  delay = 0,
+  delay: delayIn = 0,
 }: GradientShiftProps) {
   const frame = useCurrentFrame()
-  const { width, height } = useVideoConfig()
+  const { width, height, fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const from = fromProp ?? theme.background
   const to = toProp ?? theme.surface

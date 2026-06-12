@@ -42,6 +42,7 @@ import {
 } from '@onda/react'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** The four built-in shape icons, matching ondajs (inside a 0–24 viewBox). */
 export type IconShape = 'check' | 'cross' | 'dot' | 'star'
@@ -95,9 +96,9 @@ export interface IconPopProps {
    *  the filled shapes (dot, star). */
   strokeWidth?: number
   /** Frames before the pop starts. */
-  delay?: number
+  delay?: TimeInput
   /** Frames the pop takes to settle (default `DURATION.base` = 18). */
-  durationInFrames?: number
+  durationInFrames?: TimeInput
   /** Overshoot amount — how far past 1.0 the scale peaks before settling, as a
    *  fraction (default 0.18 ≈ an 18% bump). 0 disables the overshoot. */
   overshoot?: number
@@ -125,14 +126,17 @@ export function IconPop({
   iconSize = 96,
   color: colorProp,
   strokeWidth = 3,
-  delay = 0,
-  durationInFrames = DURATION.base,
+  delay: delayIn = 0,
+  durationInFrames: durationInFramesIn = DURATION.base,
   overshoot = 0.18,
   x = 0,
   y = 0,
 }: IconPopProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const durationInFrames = framesOf(durationInFramesIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.accent
   const fontFamily = theme.fontFamily

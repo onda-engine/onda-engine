@@ -4,13 +4,13 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
+import { placementSchema } from '../placement.js'
 
 export const blurRevealSchema = z.object({
   text: z.string().default('Onda').describe('What to reveal. Rendered as a single-line Text node.'),
-  delay: z.number().int().default(0).describe('Frames before the reveal starts.'),
-  durationInFrames: z
-    .number()
-    .int()
+  delay: timeSchema.default(0).describe('Frames before the reveal starts.'),
+  durationInFrames: timeSchema
     .optional()
     .describe('Frames until the reveal fully settles (DURATION.base = 18).'),
   color: z
@@ -20,10 +20,11 @@ export const blurRevealSchema = z.object({
   fontSize: z.number().default(96).describe('Text size in px.'),
   fontFamily: z.string().optional().describe('Loaded font family; defaults to theme fontFamily.'),
   fontWeight: z.number().default(600).describe('Font weight (display default 600).'),
-  placement: z
-    .enum(['center', 'top', 'bottom'])
+  placement: placementSchema
     .default('center')
-    .describe('Vertical placement within the composition.'),
+    .describe(
+      "Where the reveal sits - the shared placement contract (region keyword or normalized {x,y}). Legacy 'top'/'bottom' keep their historical edge-flush meaning.",
+    ),
   travelPx: z.number().default(16).describe('Rise distance in px (small on purpose).'),
   fromBlur: z
     .number()
@@ -31,6 +32,8 @@ export const blurRevealSchema = z.object({
     .describe(
       'Starting blur in px (gaussian sigma) for the soft→sharp focus-pull; ramps to 0 as the reveal settles.',
     ),
+  fit: z.enum(['none', 'frame']).optional().describe("Opt-in auto-fit: 'frame' scales the font size DOWN (never up) so the line cannot exceed the frame minus the safe margins. Default 'none'."),
+  maxWidth: z.number().optional().describe("Explicit width cap in px for the line; combines with fit (the smaller cap wins)."),
 })
 
 export type BlurRevealSchemaProps = z.infer<typeof blurRevealSchema>

@@ -4,6 +4,18 @@
 //! so `Math.random()` is off-limits. These are pure functions of their inputs:
 //! `random(seed)` for uniform values and `noise2D/3D` for smooth, organic motion
 //! (jitter, drift, wobble). Same seed + coords always yield the same result.
+//!
+//! THE SEEDING MODEL (the convention every seeded component follows):
+//! - Every component with randomness takes a `seed` prop with a fixed default —
+//!   so an instance is deterministic out of the box and STABLE across renders,
+//!   previews and exports (same seed → same pixels, every machine).
+//! - Per-element streams derive from the seed by salting (`random(seed + i *
+//!   prime)` or `random(`${seed}-${i}-part`)`), never by consuming a stateful
+//!   generator — order of evaluation can't change the result.
+//! - Want a DIFFERENT take, not a different look? Pass `variant` (an integer):
+//!   {@link variantSeed} derives a new well-mixed seed from `(seed, variant)`,
+//!   so alternates never require hand-edited magic seeds. `variant: 0` (or
+//!   omitted) is the identity — existing renders are untouched.
 
 /** Hash a seed (number or string) to a 32-bit unsigned integer. */
 function hashSeed(seed: number | string): number {
@@ -19,6 +31,21 @@ function hashSeed(seed: number | string): number {
     h = Math.imul(h, 16777619) >>> 0
   }
   return h >>> 0
+}
+
+/** Derive a deterministic alternate seed from `(seed, variant)` — the cheap
+ *  "give me take #N" knob. `variant` 0/undefined returns `seed` UNCHANGED
+ *  (identity — existing compositions keep their exact pixels); any other
+ *  integer yields a well-mixed, stable new numeric seed. Pure. */
+export function variantSeed(seed: number, variant?: number): number
+export function variantSeed(seed: number | string, variant?: number): number | string
+export function variantSeed(seed: number | string, variant?: number): number | string {
+  if (!variant) return seed
+  // Mix the base seed's hash with the variant through the same avalanche the
+  // PRNG uses, so variant 1 and 2 are as unrelated as two arbitrary seeds.
+  let h = (hashSeed(seed) ^ Math.imul(variant | 0, 0x9e3779b9)) >>> 0
+  h = Math.imul(h ^ (h >>> 13), 3266489909) >>> 0
+  return (h ^ (h >>> 16)) >>> 0
 }
 
 /** A deterministic value in `[0, 1)` for `seed` (mulberry32, one step). */

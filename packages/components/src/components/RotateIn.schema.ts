@@ -4,10 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const rotateInSchema = z.object({
-  delay: z.number().int().default(0).describe("Frames to wait before starting."),
-  durationInFrames: z.number().int().optional().describe("Frames to settle to 0\u00b0 (default DURATION.base = 18)."),
+  delay: timeSchema.default(0).describe("Frames to wait before starting."),
+  durationInFrames: timeSchema.optional().describe("Frames to settle to 0\u00b0 (default DURATION.base = 18)."),
   fromDegrees: z.number().default(-8).describe("Starting angle in degrees (clockwise). Safe zone: [-12, +12]."),
 })
 

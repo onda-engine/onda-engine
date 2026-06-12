@@ -41,6 +41,7 @@ import { entryScale, entrySlide } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { measureText, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** One anchor on the timeline. */
 export interface TimelineEvent {
@@ -51,9 +52,9 @@ export interface TimelineProps {
   /** Anchor points down the timeline. Order is preserved — top to bottom. */
   events?: TimelineEvent[]
   /** Frames before the line begins to draw. */
-  delay?: number
+  delay?: TimeInput
   /** Frames over which the vertical line reveals itself top→bottom. */
-  lineDuration?: number
+  lineDuration?: TimeInput
   /** Frames between the line completing and the first dot appearing. */
   dotDelay?: number
   /** Frames between consecutive dot entrances (canonical Onda stagger = 4). */
@@ -89,8 +90,8 @@ const DEFAULT_EVENTS: TimelineEvent[] = [
 
 export function Timeline({
   events = DEFAULT_EVENTS,
-  delay = 0,
-  lineDuration = DURATION.slow,
+  delay: delayIn = 0,
+  lineDuration: lineDurationIn = DURATION.slow,
   dotDelay = 8,
   dotStagger = STAGGER,
   dotDuration = DURATION.base,
@@ -106,6 +107,9 @@ export function Timeline({
 }: TimelineProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const lineDuration = framesOf(lineDurationIn, fps)
   const theme = useTheme()
   const lineColor = lineColorProp ?? theme.border
   const dotColor = dotColorProp ?? theme.text

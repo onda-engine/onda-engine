@@ -13,8 +13,9 @@
 //! Rendered on the GPU (Vello): the overlay blend is a vector-backend feature, so
 //! grain is `gpu_only` (the CPU reference composites the noise src-over).
 
-import { Image, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Image, useCurrentFrame, useVideoConfig, variantSeed } from '@onda/react'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface GrainOverlayProps {
   /** Grain strength (peak luminance deviation). Capped at `0.15` to match the
@@ -29,11 +30,15 @@ export interface GrainOverlayProps {
   numOctaves?: number
   /** Deterministic variation — the same seed always produces the same grain. Default `0`. */
   seed?: number
+  /** Integer "take" selector: derives a new deterministic seed from (seed,
+   *  variant), so alternates never require hand-edited magic seeds. 0/omitted
+   *  = the default take (identical to today's output). */
+  variant?: number
   /** When `true`, the field re-seeds on a frame bucket so the grain shimmers. Off
    *  by default — ondajs grain is intentionally static set-dressing. */
   animate?: boolean
   /** Frames per re-seed bucket when `animate` is on. Lower = busier. Default `2`. */
-  animateEvery?: number
+  animateEvery?: TimeInput
   /** @deprecated The grain is now a continuous per-pixel field, not scattered
    *  dots — `count` no longer applies. Accepted for compat. */
   count?: number
@@ -51,11 +56,16 @@ export function GrainOverlay({
   opacity = 0.05,
   baseFrequency = 0.9,
   numOctaves = 1,
-  seed = 0,
+  seed: seedProp = 0,
+  variant,
   animate = false,
-  animateEvery = 2,
+  animateEvery: animateEveryIn = 2,
 }: GrainOverlayProps) {
-  const { width, height } = useVideoConfig()
+  // The variant knob derives an alternate deterministic seed (identity at 0).
+  const seed = variantSeed(seedProp, variant)
+  const { width, height, fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const animateEvery = framesOf(animateEveryIn, fps)
   const frame = useCurrentFrame()
   // Touch the theme so the hook order stays stable with the other components.
   useTheme()

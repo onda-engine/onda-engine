@@ -4,12 +4,13 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const progressStepsSchema = z.object({
   steps: z.array(z.string()).default(['Plan', 'Build', 'Render', 'Ship']).describe("Step labels, left to right."),
   current: z.number().int().default(2).describe("How many steps are complete \u2014 the fill animates to this index (0-based count)."),
-  delay: z.number().int().default(0).describe("Frames before the fill animates."),
-  duration: z.number().int().optional().describe("Frames for the fill to travel to `current`."),
+  delay: timeSchema.default(0).describe("Frames before the fill animates."),
+  duration: timeSchema.optional().describe("Frames for the fill to travel to `current`."),
   accentColor: z.string().optional().describe("Completed / active color \u2014 the earned accent (defaults to theme `accent`)."),
   dimColor: z.string().optional().describe("Pending color for dots and connector track (defaults to theme `border`)."),
   labelColor: z.string().optional().describe("Label color (defaults to theme `textMuted`)."),

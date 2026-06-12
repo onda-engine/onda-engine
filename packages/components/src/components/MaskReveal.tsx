@@ -26,10 +26,13 @@
 
 import { Group, Text, clipRect, useVideoConfig } from '@onda/react'
 import type { ReactNode } from 'react'
+import { fitFontSize, fitMaxWidth } from '../bounds.js'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import type { TimeInput } from '../time.js'
 
 /** Engine line-box height as a multiple of font size (matches the typography
  *  crate / the ratio `Underline` and `Highlight` use). */
@@ -46,9 +49,9 @@ export interface MaskRevealProps {
   /** What to reveal (single line). Ignored when `children` is supplied. */
   text?: string
   /** Frames before the reveal starts. */
-  delay?: number
+  delay?: TimeInput
   /** Frames for the mask to fully retreat. */
-  duration?: number
+  duration?: TimeInput
   /** The side the content appears to come IN from (mirrors `SlideIn`). The mask
    *  retreats toward this side. */
   direction?: 'left' | 'right' | 'top' | 'bottom'
@@ -56,6 +59,13 @@ export interface MaskRevealProps {
   color?: string
   /** Text size in px (default 96). */
   fontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
+   *  padded clip box cannot exceed the frame minus the safe margins. Default
+   *  `'none'` (the historical behavior). Text mode only. */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the padded clip box; combines with `fit`
+   *  (the smaller cap wins). Text mode only. */
+  maxWidth?: number
   /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `headingFamily ?? fontFamily`). */
   fontFamily?: string
   /** Font weight (display default 600). */
@@ -66,6 +76,10 @@ export interface MaskRevealProps {
   width?: number
   /** Clip-box height in px. Required for `children`; otherwise `fontSize × 1.2`. */
   height?: number
+  /** Where the clip box sits: a region keyword (`'center'`, `'lower-third'`, …)
+   *  or normalized `{x,y}` (0–1, box center). The shared placement contract;
+   *  default `'center'` (the historical behavior). */
+  placement?: Placement
   /** Arbitrary subtree to reveal instead of `text`. Supply `width`/`height`. */
   children?: ReactNode
 }
@@ -76,12 +90,15 @@ export function MaskReveal({
   duration = DURATION.base,
   direction = 'left',
   color: colorProp,
-  fontSize = 96,
+  fontSize: fontSizeProp = 96,
+  fit,
+  maxWidth,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
   width,
   height,
+  placement,
   children,
 }: MaskRevealProps) {
   // House spring (SPRING_SMOOTH, no overshoot), matching ondajs. `useSpringValue`
@@ -90,6 +107,17 @@ export function MaskReveal({
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
+
+  // Opt-in auto-fit (text mode): the cap applies to the PADDED clip box, so
+  // the text must fit cap minus the sweep padding.
+  const { width: frameW } = useVideoConfig()
+  const cap = fitMaxWidth({ fit, maxWidth }, frameW)
+  const textPad = width != null ? 0 : (BOX_PAD + AXIS_PAD) * 2
+  const fontSize =
+    cap !== undefined && children == null
+      ? fitFontSize(text, fontSizeProp, Math.max(1, cap - textPad), { fontFamily, fontWeight })
+      : fontSizeProp
+
   // Real shaped text width — the engine measures the glyphs (proportional, exact);
   // falls back to a glyph-count estimate until the wasm engine warms in the browser.
   const measured = useTextMetrics(text, fontSize, { fontFamily, fontWeight })
@@ -162,14 +190,15 @@ export function MaskReveal({
     }
   }
 
-  // Center the (origin-relative) clip box on the canvas — the assembly is laid
-  // out from its top-left, so without this it would sit in the corner (the
-  // Underline/BarChart pattern). A static centered origin avoids any per-frame
-  // reflow as the clip edge sweeps. Explicit children that overflow the estimated
-  // box still anchor to this centered top-left.
-  const { width: compWidth, height: compHeight } = useVideoConfig()
-  const originX = Math.round((compWidth - boxW) / 2)
-  const originY = Math.round((compHeight - boxH) / 2)
+  // Anchor the (origin-relative) clip box on the shared placement contract —
+  // the assembly is laid out from its top-left, so without this it would sit in
+  // the corner (the Underline/BarChart pattern). Default `'center'` is the
+  // historical centering; corner regions sit flush on the safe margin. A static
+  // origin avoids any per-frame reflow as the clip edge sweeps. Explicit
+  // children that overflow the estimated box still anchor to this top-left.
+  const resolved = usePlacement(placement, { width: boxW, height: boxH })
+  const originX = Math.round(resolved.originX)
+  const originY = Math.round(resolved.originY)
   return (
     <Group x={originX} y={originY}>
       {inner}

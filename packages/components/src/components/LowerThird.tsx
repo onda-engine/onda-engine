@@ -37,6 +37,7 @@ import { entryFade, entrySlide } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** Broadcast lower-third placement regions — the corners (or centered edge) a
  *  name bar lives in. The `*-center` variants center the block on the canvas
@@ -82,7 +83,7 @@ export interface LowerThirdProps {
    *  slide-in direction and flush alignment. */
   placement?: LowerThirdPlacement
   /** Frames before the name slides in. */
-  delay?: number
+  delay?: TimeInput
   /** Show the accent rule beneath the name (default `true`). */
   accent?: boolean
   /** Name color (default: theme `text`). */
@@ -109,7 +110,7 @@ export function LowerThird({
   name = 'Rodrigo',
   role = 'CEO, Onda',
   placement = 'bottom-left',
-  delay = 0,
+  delay: delayIn = 0,
   accent = true,
   color: colorProp,
   roleColor: roleColorProp,
@@ -123,6 +124,8 @@ export function LowerThird({
 }: LowerThirdProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const roleColor = roleColorProp ?? theme.textMuted

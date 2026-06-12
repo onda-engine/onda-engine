@@ -6,10 +6,11 @@ import { Group, useCurrentFrame } from '@onda/react'
 import type { ReactNode } from 'react'
 import { exitSlide } from '../choreography.js'
 import { DURATION } from '../motion.js'
+import type { TimeInput } from '../time.js'
 
 export interface SlideOutProps {
-  delay?: number
-  durationInFrames?: number
+  delay?: TimeInput
+  durationInFrames?: TimeInput
   /** Direction the element leaves toward (default `'down'`). */
   direction?: 'up' | 'down' | 'left' | 'right'
   distance?: number

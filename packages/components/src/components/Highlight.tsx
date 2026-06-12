@@ -27,6 +27,7 @@ import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** Engine line-box height as a multiple of font size (matches typography crate). */
 const LINE_RATIO = 1.2
@@ -35,13 +36,13 @@ export interface HighlightProps {
   /** Text to highlight. */
   text?: string
   /** Frames before the text starts revealing. */
-  delay?: number
+  delay?: TimeInput
   /** Text reveal duration in frames (default `DURATION.base` = 18). */
-  duration?: number
+  duration?: TimeInput
   /** Frames to wait after the text appears before the accent bar wipes in. */
-  lineDelay?: number
+  lineDelay?: TimeInput
   /** Accent-bar wipe duration. Fast on purpose — emphatic (default `DURATION.fast`). */
-  lineDuration?: number
+  lineDuration?: TimeInput
   /** Text color (default: theme `text`). */
   color?: string
   /** Accent (highlight) bar color (default: theme `accent`). */
@@ -64,10 +65,10 @@ export interface HighlightProps {
 
 export function Highlight({
   text = 'highlight this',
-  delay = 0,
-  duration = DURATION.base,
-  lineDelay = 8,
-  lineDuration = DURATION.fast,
+  delay: delayIn = 0,
+  duration: durationIn = DURATION.base,
+  lineDelay: lineDelayIn = 8,
+  lineDuration: lineDurationIn = DURATION.fast,
   color: colorProp,
   accentColor: accentColorProp,
   fontSize = 64,
@@ -80,6 +81,11 @@ export function Highlight({
 }: HighlightProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const duration = framesOf(durationIn, fps)
+  const lineDelay = framesOf(lineDelayIn, fps)
+  const lineDuration = framesOf(lineDurationIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const accentColor = accentColorProp ?? theme.accent

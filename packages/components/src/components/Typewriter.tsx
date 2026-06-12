@@ -20,19 +20,31 @@
 //! primary path, so this is an acceptable degradation.
 
 import { Text, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { useFittedFontSize } from '../bounds.js'
 import { useTextReveal } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
+import { useTimeScale } from '../timing.js'
 
 export interface TypewriterProps {
   /** What to type out. */
   text?: string
-  /** Frames before typing starts. */
-  delay?: number
-  /** Frames to type the full string. Linear pacing — chars-per-frame is
-   *  constant. Default `DURATION.slow` (24). */
-  durationInFrames?: number
+  /** Time before typing starts — frames or '0.5s'. */
+  delay?: TimeInput
+  /** Time to type the full string. Linear pacing — chars-per-frame is
+   *  constant. Default `DURATION.slow` (24 frames). */
+  durationInFrames?: TimeInput
+  /** Compress the whole timing envelope (delay, stagger, durations) so the
+   *  entrance settles at least `hold` before the end of the enclosing clip
+   *  (`useVideoConfig().durationInFrames`, Sequence-scoped). Opt-in. */
+  fitToClip?: boolean
+  /** Hard cap on the settle time (frames or '0.5s'). Wins over `fitToClip`. */
+  maxSettle?: TimeInput
+  /** Breathing room before the cut for `fitToClip` (default 6 frames). */
+  hold?: TimeInput
   /** Show a blinking cursor at the leading edge while typing. Default `true`. */
   cursor?: boolean
   /** Cursor color (default: theme `accent`). */
@@ -41,39 +53,67 @@ export interface TypewriterProps {
   color?: string
   /** Font size in px (default 64). */
   fontSize?: number
+  /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
+   *  measured line cannot exceed the frame minus the safe margins. Default
+   *  `'none'` (the historical behavior). */
+  fit?: 'none' | 'frame'
+  /** Explicit width cap in px for the line; combines with `fit` (the smaller
+   *  cap wins). */
+  maxWidth?: number
   /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
   fontFamily?: string
   /** Font weight (default 500 — reads more "terminal"). */
   fontWeight?: number
   /** Italic text. */
   italic?: boolean
-  /** Absolute x of the text's left edge. Defaults to a centered origin derived
-   *  from the measured full-text width. */
+  /** Where the line sits: a region keyword (`'center'`, `'lower-third'`, …) or
+   *  normalized `{x,y}` (0–1, anchored at the FULL line's measured center). The
+   *  shared placement contract; default `'center'`. */
+  placement?: Placement
+  /** @deprecated Legacy alias — absolute x of the text's left edge in px.
+   *  Prefer `placement`. */
   x?: number
-  /** Absolute y baseline-ish top of the text. Defaults to vertical center. */
+  /** @deprecated Legacy alias — absolute y (baseline-ish top) in px. Prefer
+   *  `placement`. */
   y?: number
 }
 
 export function Typewriter({
   text = 'motion graphics',
-  delay = 0,
-  durationInFrames = DURATION.slow,
+  delay: delayIn = 0,
+  durationInFrames: durationIn = DURATION.slow,
+  fitToClip,
+  maxSettle,
+  hold,
   cursor = true,
   cursorColor: cursorColorProp,
   color: colorProp,
-  fontSize = 64,
+  fontSize: fontSizeProp = 64,
+  fit,
+  maxWidth,
   fontFamily: fontFamilyProp,
   fontWeight = 500,
   italic = false,
+  placement,
   x,
   y,
 }: TypewriterProps) {
   const frame = useCurrentFrame()
-  const { width, height, fps } = useVideoConfig()
+  const { fps } = useVideoConfig()
   const theme = useTheme()
   const cursorColor = cursorColorProp ?? theme.accent
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
+
+  // Timing: parse + clip-fit (typing compresses to land inside the clip).
+  const delayBase = framesOf(delayIn, fps)
+  const durationBase = framesOf(durationIn, fps, DURATION.slow)
+  const timeScale = useTimeScale(delayBase + durationBase, { fitToClip, maxSettle, hold })
+  const delay = delayBase * timeScale
+  const durationInFrames = Math.max(1, durationBase * timeScale)
+
+  // Opt-in auto-fit: scale the size down so the FULL line fits the cap.
+  const fontSize = useFittedFontSize(text, fontSizeProp, { fontFamily, fontWeight, fit, maxWidth })
 
   // Real shaped width of the FULL string (proportional — exact); falls back to
   // a glyph-count estimate until the wasm engine warms in the browser.
@@ -92,13 +132,14 @@ export function Typewriter({
   const showCursor = cursor && !done && cursorVisible
 
   // Absolute placement so the growing string never triggers a Flex reflow.
-  // The centered left origin is derived from the MEASURED width of the FULL
-  // string. Centering on the full width — not the growing substring — keeps the
-  // origin rock-steady (the line would slide sideways otherwise) while the
-  // completed line reads centered on the canvas. The single line is vertically
-  // centered by offsetting the top by ~half the cap height.
-  const px = x ?? Math.round(width / 2 - measured.width / 2)
-  const py = y ?? Math.round(height / 2 - fontSize * 0.6)
+  // The anchor is derived from the MEASURED width of the FULL string via the
+  // shared placement contract. Anchoring on the full width — not the growing
+  // substring — keeps the origin rock-steady (the line would slide sideways
+  // otherwise) while the completed line reads placed as asked. Legacy px
+  // `x`/`y` win per-axis; the default `'center'` is the historical centering.
+  const resolved = usePlacement(placement, { width: measured.width, height: fontSize * 1.2 })
+  const px = x ?? Math.round(resolved.originX)
+  const py = y ?? Math.round(resolved.y - fontSize * 0.6)
 
   // Append the cursor as a separate styled run so the engine measures the text
   // and positions the "|" right after the last revealed glyph.

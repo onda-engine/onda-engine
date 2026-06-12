@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const splitScreenSchema = z.object({
   orientation: z.enum(['horizontal', 'vertical']).default('horizontal').describe("Pane axis: horizontal = side-by-side, vertical = stacked."),
@@ -11,7 +12,7 @@ export const splitScreenSchema = z.object({
   gap: z.number().default(0).describe("Gap between the two panes in px."),
   divider: z.boolean().default(true).describe("Draw a thin token divider in the gap between the panes."),
   animate: z.boolean().default(true).describe("Slide the two panes apart from the center seam on the house spring."),
-  delay: z.number().int().default(0).describe("Frames before the entrance."),
+  delay: timeSchema.default(0).describe("Frames before the entrance."),
   width: z.number().optional().describe("Overall width in px. Defaults to the full composition width."),
   height: z.number().optional().describe("Overall height in px. Defaults to the full composition height."),
   paneBackground: z.string().optional().describe("Pane background fill (default: lifted surface fill)."),

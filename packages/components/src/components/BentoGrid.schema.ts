@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const bentoGridSchema = z.object({
   items: z.any().optional().describe("The cells, laid out left-to-right, top-to-bottom; each has title, optional value/caption, colSpan, rowSpan, and accent. Spans drive the rhythm."),
@@ -12,8 +13,8 @@ export const bentoGridSchema = z.object({
   width: z.number().default(960).describe("Overall grid width in px."),
   rowHeight: z.number().optional().describe("Row-track height in px. Defaults to the column-track width (square cells)."),
   padding: z.number().default(34).describe("Inner padding of each cell in px."),
-  delay: z.number().int().default(0).describe("Frames before the first cell enters."),
-  stagger: z.number().int().optional().describe("Frames between successive cells rising in. House stagger is 4."),
+  delay: timeSchema.default(0).describe("Frames before the first cell enters."),
+  stagger: timeSchema.optional().describe("Frames between successive cells rising in. House stagger is 4."),
   fontSize: z.number().default(30).describe("Base title font size in px (value and caption sizes derive from it)."),
   color: z.string().optional().describe("Title color (defaults to theme text)."),
   captionColor: z.string().optional().describe("Caption color (defaults to theme textMuted)."),

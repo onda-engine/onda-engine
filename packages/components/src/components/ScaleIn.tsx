@@ -9,10 +9,11 @@ import { Group, useCurrentFrame, useVideoConfig } from '@onda/react'
 import type { ReactNode } from 'react'
 import { entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'
+import type { TimeInput } from '../time.js'
 
 export interface ScaleInProps {
-  delay?: number
-  durationInFrames?: number
+  delay?: TimeInput
+  durationInFrames?: TimeInput
   /** Starting scale (default 0.9; below ~0.85 reads as dramatic zoom). */
   from?: number
   children?: ReactNode
