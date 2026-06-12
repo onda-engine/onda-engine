@@ -58,6 +58,35 @@ export function transitionOverlapFrames(
   return Math.max(1, Math.min(requested, Math.floor(shorter / 3)))
 }
 
+/** A scene's resolved position on the composition timeline, in frames. */
+export interface ScenePlacement {
+  /** Absolute frame the scene starts (the start of its incoming overlap). */
+  start: number
+  /** Scene duration in frames. */
+  durationInFrames: number
+  /** Frames the scene's incoming transition overlaps the previous scene
+   *  (0 for the first scene / no transition). The transition window is
+   *  `[start, start + overlapIn)` in absolute frames. */
+  overlapIn: number
+}
+
+/** Resolve every scene's absolute start + duration — the SAME placement
+ *  `buildComposition`'s `<TransitionSeries>` computes (a scene starts where the
+ *  previous one ends MINUS its incoming transition overlap). Shared by the
+ *  renderer (magic-move planning) and the inspector so the two can't drift. */
+export function scenePlacements(scenes: Scene[], fps: number): ScenePlacement[] {
+  const out: ScenePlacement[] = []
+  let offset = 0
+  scenes.forEach((scene, i) => {
+    const overlapIn = i > 0 ? transitionOverlapFrames(scenes[i - 1], scene, fps) : 0
+    offset -= overlapIn
+    const durationInFrames = sceneDurationFrames(scene, fps)
+    out.push({ start: offset, durationInFrames, overlapIn })
+    offset += durationInFrames
+  })
+  return out
+}
+
 /** The composition's total length in frames (scene durations minus overlaps). */
 export function totalFrames(payload: CompositionPayload, fps: number): number {
   let total = 0

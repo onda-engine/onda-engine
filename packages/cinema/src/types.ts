@@ -64,11 +64,22 @@ export interface EntryClip {
   data?: string
 }
 
+/** An entry's attention weight — the contract the inspector's hierarchy,
+ *  collision, and density checks run on. Consumers (the Studio director)
+ *  ASSIGN roles; nothing infers them. */
+export type EntryRole = 'focal' | 'support' | 'ambient'
+
 /** One element on a track: a component placed at `at` for `for`, with optional motion. */
 export interface Entry {
   at: TimeSpec
   for: TimeSpec
   component: string
+  /** Attention weight: `'focal'` = the one thing the viewer should be reading /
+   *  watching right now (≤1 visible at a time; entrances must not collide),
+   *  `'support'` = secondary content, `'ambient'` = atmosphere (backgrounds,
+   *  grain, washes — exempt from density budgets). Drives the inspector's
+   *  hierarchy / collision / density checks. Absent = `'support'`. */
+  role?: EntryRole
   props?: Record<string, unknown>
   animate?: EntryAnimation[]
   /** Per-entry cinematic effects (bloom/grade/grain/blur/vignette/…). */
