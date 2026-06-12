@@ -42,8 +42,10 @@ import {
   typeMask,
   useCurrentFrame,
   useVideoConfig,
+  whipPan,
   wipe,
   zoom,
+  zoomBlur,
 } from '@onda/react'
 import { type ComponentType, type ReactElement, createElement } from 'react'
 import {
@@ -342,6 +344,8 @@ const TRANSITIONS: Record<string, (o?: TransOpts) => TransitionPresentation> = {
   'grid-pixelate': (o) => gridPixelate(o as never),
   morph: () => morph(),
   'type-mask': (o) => typeMask(o as never),
+  'zoom-blur': (o) => zoomBlur(o as never),
+  'whip-pan': (o) => whipPan(o as never),
 }
 const presentationFor = (type: string, options?: TransOpts): TransitionPresentation =>
   (TRANSITIONS[type] ?? crossFade)(options)

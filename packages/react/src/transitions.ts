@@ -347,6 +347,79 @@ export function blur({ maxBlur = 24 }: { maxBlur?: number } = {}): TransitionPre
   }
 }
 
+/** Motion-blur smear: render copies offset ALONG (dx,dy) — a directional swish,
+ *  unlike {@link blurStack}'s isotropic ring. Used by {@link whipPan}. */
+function directionalSmear(
+  children: ReactNode,
+  dx: number,
+  dy: number,
+  radius: number,
+): ReactElement {
+  if (radius <= 0.5) return createElement(Group, {}, children)
+  const N = 6
+  const op = 1 / N
+  return createElement(
+    Group,
+    {},
+    ...Array.from({ length: N }, (_, i) => {
+      const t = (i / (N - 1) - 0.5) * 2 // -1..1 along the axis
+      return createElement(
+        Group,
+        { key: i, x: dx * t * radius, y: dy * t * radius, opacity: op },
+        children,
+      )
+    }),
+  )
+}
+
+/** Zoom-blur / "smooth zoom" — the punch-in (or -out) with a motion-blur smear
+ *  heaviest mid-transition, snapping sharp at rest, with an opacity cross. The
+ *  most-used viral/social transition. `direction` 'in' rushes toward the viewer,
+ *  'out' pulls back. */
+export function zoomBlur({
+  direction = 'in',
+  scaleAmount = 0.35,
+  maxBlur = 28,
+}: {
+  direction?: 'in' | 'out'
+  scaleAmount?: number
+  maxBlur?: number
+} = {}): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    const s = scaleAmount
+    const dirSign = direction === 'in' ? 1 : -1
+    // Entering settles to 1 from an over/under-scale; exiting departs from 1.
+    const scale = entering ? 1 + dirSign * s * (1 - progress) : 1 + dirSign * s * progress
+    const sharp = entering ? progress : 1 - progress // 1 at rest
+    const opacity = entering ? progress : 1 - progress
+    return createElement(
+      Group,
+      { opacity },
+      scaleAbout(blurStack(children, (1 - sharp) * maxBlur), scale, scale, width / 2, height / 2),
+    )
+  }
+}
+
+/** Whip-pan — a fast directional swish with a motion-blur smear ALONG the pan
+ *  axis (the high-energy "camera whip" cut, best paired with a whoosh SFX).
+ *  `direction` is where the camera swings toward (left/right/up/down). */
+export function whipPan({
+  direction = 'left',
+  maxBlur = 40,
+}: { direction?: PushDirection; maxBlur?: number } = {}): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    const { x, y } = PUSH_VECTOR[direction]
+    const tx = (entering ? -x * (1 - progress) : x * progress) * width
+    const ty = (entering ? -y * (1 - progress) : y * progress) * height
+    const sharp = entering ? progress : 1 - progress
+    return createElement(
+      Group,
+      { x: tx, y: ty },
+      directionalSmear(children, x, y, (1 - sharp) * maxBlur),
+    )
+  }
+}
+
 /** Chromatic split: the scene tears into horizontally offset ghosts that spread
  *  at the midpoint and converge at rest (an RGB-fringe feel — the engine has no
  *  per-channel tint, so the copies are uncoloured). */
