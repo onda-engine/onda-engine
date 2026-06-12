@@ -54,6 +54,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { fitMaxWidth } from '../bounds.js'
+import { layoutGlyphLine } from '../glyph-line.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTheme } from '../theme.js'
@@ -183,14 +184,10 @@ export function SlotMachineRoll({
   // `cell * 0.4`); everything else gets a full estimated cell.
   const advance = (ch: string): number => (ch === ' ' ? cell * CELL_W * 0.65 : cell * CELL_W)
 
-  // Lay out columns left-to-right at running-sum x offsets within the block.
-  let cursor = 0
-  const placed = chars.map((ch, i) => {
-    const localX = cursor
-    cursor += advance(ch)
-    return { ch, i, localX }
-  })
-  const totalWidth = cursor
+  // Lay out columns on the SHARED glyph-line primitive — fixed cell advances
+  // (column-locked reels), so the family shares ONE layout/alignment path.
+  const laid = layoutGlyphLine(text, fontSize, { cellAdvance: advance })
+  const totalWidth = laid.width
 
   // Anchor the block on the shared placement contract (block CENTER at the
   // resolved point; corner regions sit flush on the safe margin). Legacy px
@@ -213,7 +210,7 @@ export function SlotMachineRoll({
   // as the reels settle — the only color in the piece (the digits stay near-white).
   // It eases in on the house spring once the LAST column has nominally landed, so
   // the bloom reads as the payoff of the roll, not a competing entrance.
-  const lastStart = staggerFrames(Math.max(0, placed.length - 1), charDelay)
+  const lastStart = staggerFrames(Math.max(0, laid.cells.length - 1), charDelay)
   const glowP = spring({
     frame: local - lastStart - durationInFrames + 8,
     fps,
@@ -240,9 +237,9 @@ export function SlotMachineRoll({
         opacity={glowOpacity}
         shadow={{ color: theme.accent, blur: cell * 0.7, offsetY: 0 }}
       />
-      {placed.map(({ ch, i, localX }) => {
+      {laid.cells.map(({ ch, index: i, x: localX, space }) => {
         // Spaces occupy advance but render nothing — no reel, no window.
-        if (ch === ' ') return null
+        if (space) return null
 
         // Build this column's reel: `reelLength` deterministic fillers from the
         // charset, then the target glyph the reel lands on. Each filler gets a

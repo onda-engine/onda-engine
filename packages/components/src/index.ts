@@ -76,6 +76,18 @@ export {
   type PropMeta,
 } from './manifest.js'
 
+// Glyph line — the ONE per-glyph text-layout primitive the text family
+// (SlotMachineRoll / KineticText / TextAnimator / MatrixDecode) is built on.
+export {
+  type GlyphCell,
+  type GlyphLine,
+  type GlyphLineOpts,
+  LINE_RATIO,
+  layoutGlyphLine,
+  lineStartX,
+  lineTopY,
+} from './glyph-line.js'
+
 // Layout queries + single-line auto-fit (keep type on the frame)
 export {
   type FitOpts,
