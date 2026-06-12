@@ -42,18 +42,28 @@ import { useFittedFontSize } from '../bounds.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
+import { staggeredSettle, useTimeScale } from '../timing.js'
 
 export interface MatrixDecodeProps {
   /** The text that decodes into place. */
   text?: string
-  /** Frames before decoding starts. */
-  delay?: number
-  /** Frames between successive characters settling (left-to-right). */
-  charDelay?: number
-  /** Frames each character scrambles before it settles (min 1). */
-  scrambleDuration?: number
-  /** Frames between glyph swaps while scrambling. Lower = faster flicker (min 1). */
-  scrambleSpeed?: number
+  /** Time before decoding starts — frames or '0.5s'. */
+  delay?: TimeInput
+  /** Time between successive characters settling (left-to-right). */
+  charDelay?: TimeInput
+  /** Time each character scrambles before it settles (min 1 frame). */
+  scrambleDuration?: TimeInput
+  /** Time between glyph swaps while scrambling. Lower = faster flicker (min 1 frame). */
+  scrambleSpeed?: TimeInput
+  /** Compress the whole timing envelope (delay, stagger, durations) so the
+   *  entrance settles at least `hold` before the end of the enclosing clip
+   *  (`useVideoConfig().durationInFrames`, Sequence-scoped). Opt-in. */
+  fitToClip?: boolean
+  /** Hard cap on the settle time (frames or '0.5s'). Wins over `fitToClip`. */
+  maxSettle?: TimeInput
+  /** Breathing room before the cut for `fitToClip` (default 6 frames). */
+  hold?: TimeInput
   /** Seed for the (deterministic) glyph picks. */
   seed?: number
   /** Glyph pool drawn from while scrambling. */
@@ -95,10 +105,13 @@ export interface MatrixDecodeProps {
 
 export function MatrixDecode({
   text = 'ONDA',
-  delay = 0,
-  charDelay = 3,
-  scrambleDuration = 18,
-  scrambleSpeed = 2,
+  delay: delayIn = 0,
+  charDelay: charDelayIn = 3,
+  scrambleDuration: scrambleDurationIn = 18,
+  scrambleSpeed: scrambleSpeedIn = 2,
+  fitToClip,
+  maxSettle,
+  hold,
   seed = 7,
   charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+=<>/',
   color: colorProp,
@@ -115,7 +128,7 @@ export function MatrixDecode({
   y,
 }: MatrixDecodeProps) {
   const frame = useCurrentFrame()
-  const { width, height } = useVideoConfig()
+  const { width, height, fps } = useVideoConfig()
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const scrambleColor = scrambleColorProp ?? theme.accent
@@ -126,14 +139,23 @@ export function MatrixDecode({
   // line cannot.
   const fontSize = useFittedFontSize(text, fontSizeProp, { fontFamily, fontWeight, fit, maxWidth })
 
-  const local = frame - delay
-  // Guard against degenerate props (the schema clamps these to >= 1).
-  const scrambleFrames = Math.max(1, scrambleDuration)
-  const swapEvery = Math.max(1, scrambleSpeed)
-  const stepDelay = Math.max(0, charDelay)
+  const chars = [...text]
+
+  // Timing: parse the TimeInput props, then compress the envelope when the
+  // decode wouldn't settle inside the clip. Guard degenerate values (the
+  // schema clamps these to >= 1).
+  const delayBase = framesOf(delayIn, fps)
+  const stepBase = Math.max(0, framesOf(charDelayIn, fps, 3))
+  const scrambleBase = Math.max(1, framesOf(scrambleDurationIn, fps, 18))
+  const naturalSettle = staggeredSettle(chars.length, stepBase, scrambleBase, delayBase)
+  const timeScale = useTimeScale(naturalSettle, { fitToClip, maxSettle, hold })
+  const delay = delayBase * timeScale
+  const stepDelay = stepBase * timeScale
+  const scrambleFrames = Math.max(1, scrambleBase * timeScale)
+  const swapEvery = Math.max(1, framesOf(scrambleSpeedIn, fps, 2))
   const pool = charset.length > 0 ? charset : ' '
 
-  const chars = [...text]
+  const local = frame - delay
 
   // Build a per-char run: settled chars get `color`, scrambling chars get a
   // deterministic glyph in `scrambleColor`. Spaces pass through untouched so the

@@ -10,25 +10,29 @@
 import { Group, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
 import type { ReactNode } from 'react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface RotateInProps {
   /** Frames to wait before starting. */
-  delay?: number
+  delay?: TimeInput
   /** Frames to settle to 0° (default `DURATION.base` = 18). */
-  durationInFrames?: number
+  durationInFrames?: TimeInput
   /** Starting angle in degrees (clockwise). Safe zone: `[-12, +12]`. Default -8. */
   fromDegrees?: number
   children?: ReactNode
 }
 
 export function RotateIn({
-  delay = 0,
-  durationInFrames = DURATION.base,
+  delay: delayIn = 0,
+  durationInFrames: durationInFramesIn = DURATION.base,
   fromDegrees = -8,
   children,
 }: RotateInProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const durationInFrames = framesOf(durationInFramesIn, fps)
 
   // One spring drives both the fade and the angle settle, so they read as a
   // single motion — mirrors the ondajs source (no overshoot, calm landing).

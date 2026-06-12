@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 import { placementSchema } from '../placement.js'
 
 export const kineticTextSchema = z.object({
@@ -16,17 +17,13 @@ export const kineticTextSchema = z.object({
     .enum(['rise', 'fade', 'scale', 'blur', 'wave'])
     .default('rise')
     .describe('Per-glyph entrance flavor.'),
-  stagger: z
-    .number()
-    .int()
+  stagger: timeSchema
     .default(5)
     .describe('Frames between consecutive glyphs entering (STAGGER = 5).'),
-  durationInFrames: z
-    .number()
-    .int()
+  durationInFrames: timeSchema
     .default(22)
     .describe("Frames each glyph's entrance takes to settle (DURATION.base = 22)."),
-  delay: z.number().int().default(0).describe('Frames before the first glyph starts.'),
+  delay: timeSchema.default(0).describe('Frames before the first glyph starts.'),
   align: z
     .enum(['left', 'center', 'right'])
     .default('center')
@@ -37,6 +34,9 @@ export const kineticTextSchema = z.object({
   placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
   fit: z.enum(['none', 'frame']).optional().describe("Opt-in auto-fit: 'frame' scales the font size DOWN (never up) so the line cannot exceed the frame minus the safe margins. Default 'none'."),
   maxWidth: z.number().optional().describe("Explicit width cap in px for the line; combines with fit (the smaller cap wins)."),
+  fitToClip: z.boolean().optional().describe("Compress the whole timing envelope (delay, stagger, durations) so the entrance settles at least hold before the end of the enclosing clip. Opt-in."),
+  maxSettle: timeSchema.optional().describe("Hard cap on the settle time (frames or '0.5s'). Wins over fitToClip."),
+  hold: timeSchema.optional().describe("Breathing room before the cut for fitToClip (default 6 frames)."),
 })
 
 export type KineticTextSchemaProps = z.infer<typeof kineticTextSchema>

@@ -4,12 +4,13 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 import { placementSchema } from '../placement.js'
 
 export const endCardSchema = z.object({
   cta: z.string().default('Made with Onda').describe("Hero CTA / headline line."),
   handles: z.array(z.string()).default(['@onda.video', 'onda.video/components']).describe("Social handles or URLs displayed in a row beneath the CTA."),
-  delay: z.number().int().default(0).describe("Frames before the CTA starts; the whole card is sequenced relative to this."),
+  delay: timeSchema.default(0).describe("Frames before the CTA starts; the whole card is sequenced relative to this."),
   accent: z.boolean().default(true).describe("Show the accent underline beneath the CTA."),
   ctaFontSize: z.number().default(96).describe("CTA font size in px."),
   ctaFontWeight: z.number().default(600).describe("Font weight for the CTA."),

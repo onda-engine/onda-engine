@@ -31,6 +31,7 @@ import { Group, Rect, clipRect, linearGradient, useCurrentFrame, useVideoConfig 
 import { entryFadeRise } from '../choreography.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** Default frames for one shimmer pass — a slow, settled sweep. Two `hold`
  *  beats (≈3.2s @30fps) so the highlight glides rather than races; a fast sweep
@@ -61,7 +62,7 @@ export interface SkeletonCardProps {
   /** Card border color (the 1px-equivalent stroke) (default: theme `border`). */
   borderColor?: string
   /** Frames before the card enters. */
-  delay?: number
+  delay?: TimeInput
   /** Card width in px. */
   width?: number
   /** Card height in px. `undefined` sizes the card to its content. */
@@ -80,7 +81,7 @@ export function SkeletonCard({
   barColor: barColorProp,
   cardColor: cardColorProp,
   borderColor: borderColorProp,
-  delay = 0,
+  delay: delayIn = 0,
   width = 480,
   height,
   barHeight = 18,
@@ -88,6 +89,8 @@ export function SkeletonCard({
 }: SkeletonCardProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   // Resting bar fill. The theme `surface` (`#121217`) sits barely above the
   // canvas `background` (`#0a0d17`), so raw surface bars vanish on a dark scene.

@@ -42,6 +42,7 @@ import { HOUSE_EASE } from '../easing.js'
 import { DURATION } from '../motion.js'
 import { measureText, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** Engine line-box height as a multiple of font size (typography crate). */
 const LINE_RATIO = 1.2
@@ -52,13 +53,13 @@ export interface ShimmerSweepProps {
   /** The single line of text to sweep light across. */
   text?: string
   /** Frames before the sweep starts. */
-  delay?: number
+  delay?: TimeInput
   /** Frames for one sweep pass (default `DURATION.slower` = 30). */
-  duration?: number
+  duration?: TimeInput
   /** Loop the sweep instead of a single pass. */
   loop?: boolean
   /** Frames between sweeps when looping. */
-  interval?: number
+  interval?: TimeInput
   /** Base (dim) text color so the bright band reads as a highlight (default: theme `textMuted`). */
   color?: string
   /** The sweeping highlight color (default: theme `text`). */
@@ -81,10 +82,10 @@ export interface ShimmerSweepProps {
 
 export function ShimmerSweep({
   text = 'Onda',
-  delay = 0,
-  duration = DURATION.slower,
+  delay: delayIn = 0,
+  duration: durationIn = DURATION.slower,
   loop = false,
-  interval = 60,
+  interval: intervalIn = 60,
   color: colorProp,
   shimmerColor: shimmerColorProp,
   angle = 110,
@@ -96,7 +97,11 @@ export function ShimmerSweep({
   y,
 }: ShimmerSweepProps) {
   const frame = useCurrentFrame()
-  const { width: canvasW, height: canvasH } = useVideoConfig()
+  const { width: canvasW, height: canvasH, fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const duration = framesOf(durationIn, fps)
+  const interval = framesOf(intervalIn, fps)
   const theme = useTheme()
   useTextMetricsReady()
   const color = colorProp ?? theme.textMuted

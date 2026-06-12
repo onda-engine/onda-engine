@@ -24,16 +24,17 @@
 //! `rotationIntensity` small — a fraction of a degree reads as a hand-held
 //! wobble; more reads as a tumble.
 
-import { AbsoluteFill, Group, random, useCurrentFrame } from '@onda/react'
+import { AbsoluteFill, Group, random, useCurrentFrame, useVideoConfig } from '@onda/react'
 import type { ReactNode } from 'react'
 import { DURATION } from '../motion.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface CameraShakeProps {
   /** Frames before the shake starts. Outside the window, offset is 0. */
-  delay?: number
+  delay?: TimeInput
   /** Frames the shake lasts. Before `delay` / after `delay + duration`, the
    *  offset is exactly 0 and content is still. */
-  duration?: number
+  duration?: TimeInput
   /** Maximum positional offset in px. Restrained by default — bump for impact
    *  moments. */
   intensity?: number
@@ -54,8 +55,8 @@ export interface CameraShakeProps {
 }
 
 export function CameraShake({
-  delay = 0,
-  duration = DURATION.slow,
+  delay: delayIn = 0,
+  duration: durationIn = DURATION.slow,
   intensity = 4,
   rotationIntensity = 0.6,
   seed = 0,
@@ -64,6 +65,10 @@ export function CameraShake({
   y = 0,
   children,
 }: CameraShakeProps) {
+  const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const duration = framesOf(durationIn, fps)
   const frame = useCurrentFrame()
   const local = frame - delay
 

@@ -15,6 +15,7 @@
 
 import { Image, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface GrainOverlayProps {
   /** Grain strength (peak luminance deviation). Capped at `0.15` to match the
@@ -33,7 +34,7 @@ export interface GrainOverlayProps {
    *  by default — ondajs grain is intentionally static set-dressing. */
   animate?: boolean
   /** Frames per re-seed bucket when `animate` is on. Lower = busier. Default `2`. */
-  animateEvery?: number
+  animateEvery?: TimeInput
   /** @deprecated The grain is now a continuous per-pixel field, not scattered
    *  dots — `count` no longer applies. Accepted for compat. */
   count?: number
@@ -53,9 +54,11 @@ export function GrainOverlay({
   numOctaves = 1,
   seed = 0,
   animate = false,
-  animateEvery = 2,
+  animateEvery: animateEveryIn = 2,
 }: GrainOverlayProps) {
-  const { width, height } = useVideoConfig()
+  const { width, height, fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const animateEvery = framesOf(animateEveryIn, fps)
   const frame = useCurrentFrame()
   // Touch the theme so the hook order stays stable with the other components.
   useTheme()

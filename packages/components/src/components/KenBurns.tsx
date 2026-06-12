@@ -22,6 +22,7 @@
 //! always fills the full composition (the ondajs default, `placement` omitted).
 
 import { Group, Image, clipRect, interpolate, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { type TimeInput, framesOf } from '../time.js'
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
 
@@ -29,9 +30,9 @@ export interface KenBurnsProps {
   /** Image source (resolved at render time by `onda render`). */
   src: string
   /** Frames before the drift starts. */
-  delay?: number
+  delay?: TimeInput
   /** Frames over which the zoom + pan completes. 150f ≈ 5s @ 30fps. */
-  duration?: number
+  duration?: TimeInput
   /** Starting scale (atop the cover fit). Default 1.0. */
   fromScale?: number
   /** Ending scale — keep the delta restrained (1.0 → 1.1). Default 1.1. */
@@ -48,8 +49,8 @@ export interface KenBurnsProps {
 
 export function KenBurns({
   src,
-  delay = 0,
-  duration = 150,
+  delay: delayIn = 0,
+  duration: durationIn = 150,
   fromScale = 1.0,
   toScale = 1.1,
   fromX = 0.5,
@@ -58,7 +59,10 @@ export function KenBurns({
   toY = 0.5,
 }: KenBurnsProps) {
   const frame = useCurrentFrame()
-  const { width: compWidth, height: compHeight } = useVideoConfig()
+  const { width: compWidth, height: compHeight, fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const duration = framesOf(durationIn, fps)
 
   // Linear progress 0 → 1 across [delay, delay + duration]. No spring, no easing
   // (see header) — the steady drift is the whole point. Guard duration ≥ 1.

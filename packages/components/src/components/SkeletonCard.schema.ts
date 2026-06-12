@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const skeletonCardSchema = z.object({
   lines: z.number().int().default(3).describe("Number of placeholder text bars below the (optional) thumbnail."),
@@ -13,7 +14,7 @@ export const skeletonCardSchema = z.object({
   barColor: z.string().optional().describe("Resting fill of the placeholder bars / thumbnail (default: theme surface)."),
   cardColor: z.string().optional().describe("Card (panel) background \u2014 the translucent glass fill (default: theme background)."),
   borderColor: z.string().optional().describe("Card border color (the 1px-equivalent stroke) (default: theme border)."),
-  delay: z.number().int().default(0).describe("Frames before the card enters."),
+  delay: timeSchema.default(0).describe("Frames before the card enters."),
   width: z.number().default(480).describe("Card width in px."),
   height: z.number().optional().describe("Card height in px. undefined sizes the card to its content."),
   barHeight: z.number().default(18).describe("Base bar height in px."),

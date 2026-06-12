@@ -43,6 +43,7 @@ import { useStaggeredEntrance, useTextReveal } from '../hooks.js'
 import { STAGGER } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface TerminalProps {
   /** The command that types itself out after the prompt. */
@@ -56,11 +57,11 @@ export interface TerminalProps {
   /** Show window chrome (dots + title bar). */
   chrome?: boolean
   /** Frames before typing starts. */
-  delay?: number
+  delay?: TimeInput
   /** Frames to type the whole command (linear cadence). */
-  typeSpeed?: number
+  typeSpeed?: TimeInput
   /** Frames after the command finishes before output begins. */
-  outputDelay?: number
+  outputDelay?: TimeInput
   /** Monospace font stack (default: theme `monoFamily`). */
   fontFamily?: string
   /** Font size in px. Sized for a 1080p+ video canvas, not a screen UI. */
@@ -109,9 +110,9 @@ export function Terminal({
   prompt = '$',
   title = 'zsh',
   chrome = true,
-  delay = 0,
-  typeSpeed = 30,
-  outputDelay = 8,
+  delay: delayIn = 0,
+  typeSpeed: typeSpeedIn = 30,
+  outputDelay: outputDelayIn = 8,
   fontFamily: fontFamilyProp,
   fontSize = 48,
   width = 1100,
@@ -126,6 +127,10 @@ export function Terminal({
 }: TerminalProps) {
   const frame = useCurrentFrame()
   const { width: compWidth, height: compHeight, fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const typeSpeed = framesOf(typeSpeedIn, fps)
+  const outputDelay = framesOf(outputDelayIn, fps)
   const theme = useTheme()
   const textColor = textColorProp ?? theme.text
   const promptColor = promptColorProp ?? theme.accent

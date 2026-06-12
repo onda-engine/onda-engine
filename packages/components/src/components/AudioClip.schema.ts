@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const audioClipSchema = z.object({
   src: z.string().default('https://www.w3schools.com/html/horse.mp3').describe("URL or path to the audio file. AAC-in-MP4 or WAV preferred."),
@@ -12,7 +13,7 @@ export const audioClipSchema = z.object({
   volume: z.number().default(1).describe("Amplitude volume 0..1."),
   gainDb: z.number().optional().describe("Advanced gain in dB. When set, wins over volume. Converted via 10 ** (dB / 20): 0 = unity, -6 \u2248 0.5, -20 \u2248 0.1."),
   fade: z.boolean().optional().describe("Apply an entry/exit volume envelope (default true). Accepted for API parity; not yet applied in preview."),
-  fadeDuration: z.number().int().optional().describe("Frames the fade-in / fade-out takes. Default 2 (~67ms @ 30fps)."),
+  fadeDuration: timeSchema.optional().describe("Frames the fade-in / fade-out takes. Default 2 (~67ms @ 30fps)."),
   loop: z.boolean().optional().describe("Loop the trimmed clip. Requires endAt. Not yet applied in preview."),
   muted: z.boolean().default(false).describe("Mute the clip."),
   playbackRate: z.number().optional().describe("Playback speed. Not yet applied in preview."),

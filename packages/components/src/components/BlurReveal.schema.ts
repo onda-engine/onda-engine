@@ -4,14 +4,13 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 import { placementSchema } from '../placement.js'
 
 export const blurRevealSchema = z.object({
   text: z.string().default('Onda').describe('What to reveal. Rendered as a single-line Text node.'),
-  delay: z.number().int().default(0).describe('Frames before the reveal starts.'),
-  durationInFrames: z
-    .number()
-    .int()
+  delay: timeSchema.default(0).describe('Frames before the reveal starts.'),
+  durationInFrames: timeSchema
     .optional()
     .describe('Frames until the reveal fully settles (DURATION.base = 18).'),
   color: z

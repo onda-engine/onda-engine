@@ -37,6 +37,7 @@ import {
 import { DURATION, SPRING_SMOOTH, STAGGER } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 import { FadeIn } from './FadeIn.js'
 import { WordStagger } from './WordStagger.js'
 
@@ -59,7 +60,7 @@ export interface QuoteCardProps {
   /** Attribution role / title. */
   role?: string
   /** Frames before the quote starts. */
-  delay?: number
+  delay?: TimeInput
   /** Show the accent divider between quote and attribution. */
   accent?: boolean
   /** Quote font size in px. */
@@ -94,7 +95,7 @@ export function QuoteCard({
   quote = 'Motion is the difference between art and craft.',
   author = 'Saul Bass',
   role = 'Graphic Designer',
-  delay = 0,
+  delay: delayIn = 0,
   accent = true,
   quoteFontSize = 56,
   quoteFontWeight = 600,
@@ -109,6 +110,8 @@ export function QuoteCard({
 }: QuoteCardProps) {
   const frame = useCurrentFrame()
   const { fps, width } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const authorColor = authorColorProp ?? theme.textMuted

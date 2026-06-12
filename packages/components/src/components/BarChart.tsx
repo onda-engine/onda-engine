@@ -23,6 +23,7 @@ import {
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** One bar: a label and its numeric value. */
 export interface BarChartDatum {
@@ -36,11 +37,11 @@ export interface BarChartProps {
   /** Value mapped to a full-width bar. Bars cap at 100% of the track. */
   max?: number
   /** Frames before the **first** bar starts. */
-  delay?: number
+  delay?: TimeInput
   /** Per-bar grow duration. Bars want more time than text (default `slow`). */
-  duration?: number
+  duration?: TimeInput
   /** Frames between consecutive bars (default canonical `STAGGER` = 4). */
-  stagger?: number
+  stagger?: TimeInput
   /** Bar (and track) height in px. */
   barHeight?: number
   /** Pixel gap between rows. */
@@ -86,9 +87,9 @@ const DEFAULT_DATA: BarChartDatum[] = [
 export function BarChart({
   data = DEFAULT_DATA,
   max = 100,
-  delay = 0,
-  duration = DURATION.slow,
-  stagger = STAGGER,
+  delay: delayIn = 0,
+  duration: durationIn = DURATION.slow,
+  stagger: staggerIn = STAGGER,
   barHeight = 32,
   gap = 16,
   labelWidth = 220,
@@ -108,6 +109,10 @@ export function BarChart({
 }: BarChartProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const duration = framesOf(durationIn, fps)
+  const stagger = framesOf(staggerIn, fps)
   // Colors/font default to the active theme; explicit props override.
   const theme = useTheme()
   const accentColor = accentColorProp ?? theme.accent

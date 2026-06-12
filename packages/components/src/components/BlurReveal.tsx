@@ -27,6 +27,7 @@ import { useFittedFontSize } from '../bounds.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface BlurRevealProps {
   /** What to reveal. Rendered as a single-line `<Text>` unless `children` is
@@ -36,10 +37,10 @@ export interface BlurRevealProps {
    *  given). Lets BlurReveal wrap any subtree, not just a string. */
   children?: ReactNode
   /** Frames before the reveal starts. */
-  delay?: number
+  delay?: TimeInput
   /** Frames until the reveal fully settles (default `DURATION.base` = 18). With
    *  `SPRING_SMOOTH` the visible motion settles in roughly this range. */
-  durationInFrames?: number
+  durationInFrames?: TimeInput
   /** Text color (hex `#rrggbb` / `#rrggbbaa`). Ignored when `children` is set.
    *  (default: theme `text`) */
   color?: string
@@ -73,8 +74,8 @@ const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
 export function BlurReveal({
   text = 'Onda',
   children,
-  delay = 0,
-  durationInFrames = DURATION.base,
+  delay: delayIn = 0,
+  durationInFrames: durationInFramesIn = DURATION.base,
   color: colorProp,
   fontSize: fontSizeProp = 96,
   fit,
@@ -87,6 +88,9 @@ export function BlurReveal({
 }: BlurRevealProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const durationInFrames = framesOf(durationInFramesIn, fps)
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily

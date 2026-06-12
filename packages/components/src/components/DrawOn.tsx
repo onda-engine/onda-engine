@@ -27,6 +27,7 @@ import { Group, Path, clipRect } from '@onda/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
+import type { TimeInput } from '../time.js'
 
 export interface DrawOnProps {
   /** SVG path `d` attribute (in the path's own coordinate space). The default is
@@ -37,9 +38,9 @@ export interface DrawOnProps {
   /** Stroke width in path coordinate units. */
   strokeWidth?: number
   /** Frames before the draw-on starts. */
-  delay?: number
+  delay?: TimeInput
   /** Frames to fully draw the path in (default `DURATION.slow` = 24). */
-  durationInFrames?: number
+  durationInFrames?: TimeInput
 }
 
 /** Parse the bounding box of an SVG path's `d` string from its coordinate pairs.

@@ -26,15 +26,25 @@ import { DURATION } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
+import { useTimeScale } from '../timing.js'
 
 export interface TypewriterProps {
   /** What to type out. */
   text?: string
-  /** Frames before typing starts. */
-  delay?: number
-  /** Frames to type the full string. Linear pacing — chars-per-frame is
-   *  constant. Default `DURATION.slow` (24). */
-  durationInFrames?: number
+  /** Time before typing starts — frames or '0.5s'. */
+  delay?: TimeInput
+  /** Time to type the full string. Linear pacing — chars-per-frame is
+   *  constant. Default `DURATION.slow` (24 frames). */
+  durationInFrames?: TimeInput
+  /** Compress the whole timing envelope (delay, stagger, durations) so the
+   *  entrance settles at least `hold` before the end of the enclosing clip
+   *  (`useVideoConfig().durationInFrames`, Sequence-scoped). Opt-in. */
+  fitToClip?: boolean
+  /** Hard cap on the settle time (frames or '0.5s'). Wins over `fitToClip`. */
+  maxSettle?: TimeInput
+  /** Breathing room before the cut for `fitToClip` (default 6 frames). */
+  hold?: TimeInput
   /** Show a blinking cursor at the leading edge while typing. Default `true`. */
   cursor?: boolean
   /** Cursor color (default: theme `accent`). */
@@ -70,8 +80,11 @@ export interface TypewriterProps {
 
 export function Typewriter({
   text = 'motion graphics',
-  delay = 0,
-  durationInFrames = DURATION.slow,
+  delay: delayIn = 0,
+  durationInFrames: durationIn = DURATION.slow,
+  fitToClip,
+  maxSettle,
+  hold,
   cursor = true,
   cursorColor: cursorColorProp,
   color: colorProp,
@@ -91,6 +104,13 @@ export function Typewriter({
   const cursorColor = cursorColorProp ?? theme.accent
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
+
+  // Timing: parse + clip-fit (typing compresses to land inside the clip).
+  const delayBase = framesOf(delayIn, fps)
+  const durationBase = framesOf(durationIn, fps, DURATION.slow)
+  const timeScale = useTimeScale(delayBase + durationBase, { fitToClip, maxSettle, hold })
+  const delay = delayBase * timeScale
+  const durationInFrames = Math.max(1, durationBase * timeScale)
 
   // Opt-in auto-fit: scale the size down so the FULL line fits the cap.
   const fontSize = useFittedFontSize(text, fontSizeProp, { fontFamily, fontWeight, fit, maxWidth })

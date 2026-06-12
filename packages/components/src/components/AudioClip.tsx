@@ -7,6 +7,7 @@
 //! `playbackRate` are accepted for API parity but not yet applied to playback.
 
 import { Audio, useVideoConfig } from '@onda/react'
+import type { TimeInput } from '../time.js'
 
 /** Time spec — seconds (number) or a string like `"0:04"`, `"30s"`, `"500ms"`, `"90f"`. */
 export type TimeSpec = string | number
@@ -37,7 +38,7 @@ export interface AudioClipProps {
    */
   fade?: boolean
   /** Frames the fade-in / fade-out takes. Default 2 (~67ms @ 30fps). */
-  fadeDuration?: number
+  fadeDuration?: TimeInput
   /** Loop the trimmed clip. Requires `endAt`. (Not yet applied in preview.) */
   loop?: boolean
   /** Mute the clip. */

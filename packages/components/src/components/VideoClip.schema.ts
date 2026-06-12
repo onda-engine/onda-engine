@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const videoClipSchema = z.object({
   src: z.string().describe("URL or path to the video, decoded per composition frame by the player or onda export."),
@@ -12,10 +13,10 @@ export const videoClipSchema = z.object({
   endAt: z.number().optional().describe("Seconds into the source to stop at (trims the tail); omit to play to the source's end."),
   loop: z.boolean().optional().describe("Loop the trimmed span [startAt, endAt) (requires endAt) while the clip is visible."),
   previewFallback: z.enum(['skip', 'element']).optional().describe("Preview-only handling of a source the player can't composite: 'skip' blanks it, 'element' overlays a plain video."),
-  delay: z.number().int().default(0).describe("Frames the clip waits before its fade-in begins."),
+  delay: timeSchema.default(0).describe("Frames the clip waits before its fade-in begins."),
   fadeIn: z.number().int().optional().describe("Frames the fade-in takes (0 = hard cut in)."),
   fadeOut: z.number().int().optional().describe("Frames the fade-out takes (0 = hard cut out)."),
-  durationInFrames: z.number().int().optional().describe("Visible hold of the clip in frames, used to time the fade-out; omit to skip the fade-out."),
+  durationInFrames: timeSchema.optional().describe("Visible hold of the clip in frames, used to time the fade-out; omit to skip the fade-out."),
   fit: z.enum(['cover', 'contain']).default('cover').describe("How the frame fits its box: 'cover' crops to fill, 'contain' letterboxes against black."),
   width: z.number().optional().describe("Box width in px the clip occupies (default = full composition width)."),
   height: z.number().optional().describe("Box height in px the clip occupies (default = full composition height)."),

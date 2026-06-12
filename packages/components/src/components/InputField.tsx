@@ -28,6 +28,7 @@ import { Flex, Group, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/
 import { useTextReveal } from '../hooks.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 /** Engine line-box height as a multiple of font size (typography crate). */
 const LINE_RATIO = 1.2
@@ -42,9 +43,9 @@ export interface InputFieldProps {
   /** Animate `value` typing itself in character-by-character (`useTextReveal`). */
   typed?: boolean
   /** Frames before typing starts. */
-  delay?: number
+  delay?: TimeInput
   /** Frames to type the whole value (linear pacing). */
-  typeDuration?: number
+  typeDuration?: TimeInput
   /** Show the accent focus ring around the field once typing begins. */
   focusRing?: boolean
   /** Field width in px. Sized for a 1080p+ video canvas, not a screen UI. */
@@ -82,8 +83,8 @@ export function InputField({
   placeholder = 'Enter your email',
   label = 'Email',
   typed = true,
-  delay = 0,
-  typeDuration = 36,
+  delay: delayIn = 0,
+  typeDuration: typeDurationIn = 36,
   focusRing = true,
   width = 640,
   fontSize = 36,
@@ -99,7 +100,10 @@ export function InputField({
   y,
 }: InputFieldProps) {
   const frame = useCurrentFrame()
-  const { width: compWidth, height: compHeight } = useVideoConfig()
+  const { width: compWidth, height: compHeight, fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
+  const typeDuration = framesOf(typeDurationIn, fps)
   const theme = useTheme()
   const textColor = textColorProp ?? theme.text
   const placeholderColor = placeholderColorProp ?? theme.textMuted

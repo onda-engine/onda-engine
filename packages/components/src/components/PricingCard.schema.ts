@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 import { placementSchema } from '../placement.js'
 
 export const pricingCardSchema = z.object({
@@ -14,7 +15,7 @@ export const pricingCardSchema = z.object({
   cta: z.string().default('Get started').describe("Call-to-action button label."),
   recommended: z.boolean().default(false).describe("Lifts + scales the card and shows an accent badge \u2014 the highlighted tier."),
   accent: z.string().optional().describe("The earned accent \u2014 checkmarks, badge, CTA, recommended border + glow (default: theme accent)."),
-  delay: z.number().default(0).describe("Frames before the card enters."),
+  delay: timeSchema.default(0).describe("Frames before the card enters."),
   width: z.number().default(380).describe("Card width in px."),
   priceSize: z.number().default(64).describe("Price font size in px (the large display number)."),
   background: z.string().optional().describe("Panel fill color (default: theme surface)."),

@@ -2,10 +2,11 @@
 //! accent bar. Stacked and centered by the engine's layout pass (taffy) via an
 //! `<AbsoluteFill>` + `<Flex>` column; each part fades in on a stagger.
 
-import { AbsoluteFill, Flex, Rect, Text } from '@onda/react'
+import { AbsoluteFill, Flex, Rect, Text, useVideoConfig } from '@onda/react'
 import { DURATION, staggerFrames } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 import { FadeIn } from './FadeIn.js'
 
 export interface StatCardProps {
@@ -28,7 +29,7 @@ export interface StatCardProps {
   accentColor?: string
   /** Loaded font family (default: theme body family). */
   fontFamily?: string
-  delay?: number
+  delay?: TimeInput
   /** Where the stat sits: a region keyword (`'center'`, `'lower-third'`, …) or
    *  normalized `{x,y}` (0–1, stat center). The shared placement contract;
    *  default `'center'` (the historical self-centering). */
@@ -45,9 +46,12 @@ export function StatCard({
   accent = true,
   accentColor,
   fontFamily,
-  delay = 0,
+  delay: delayIn = 0,
   placement,
 }: StatCardProps) {
+  const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const valueCol = valueColor ?? theme.text
   const labelCol = labelColor ?? theme.textMuted

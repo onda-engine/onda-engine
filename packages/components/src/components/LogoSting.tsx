@@ -33,6 +33,7 @@ import { Group, Path, Text, spring, useCurrentFrame, useVideoConfig } from '@ond
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { estimatePathLength } from '../path-length.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 import { ScaleIn } from './ScaleIn.js'
 import { Underline } from './Underline.js'
 
@@ -59,7 +60,7 @@ export interface LogoStingProps {
   /** The brand / product title beneath the mark. */
   title?: string
   /** Frames before the sting starts. */
-  delay?: number
+  delay?: TimeInput
   /** Draw the accent rule beneath the title (the single earned-color moment). */
   accent?: boolean
   /** SVG viewBox `"minX minY width height"` — must match the space of `d`. */
@@ -106,7 +107,7 @@ function parseViewBox(vb: string): [number, number, number, number] {
 export function LogoSting({
   d = 'M 50 60 Q 100 20 150 60 T 250 60',
   title = 'Onda',
-  delay = 0,
+  delay: delayIn = 0,
   accent = true,
   viewBox = '0 0 300 120',
   pathWidth = 400,
@@ -121,6 +122,8 @@ export function LogoSting({
 }: LogoStingProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const stroke = strokeProp ?? theme.text
   const accentColor = accentColorProp ?? theme.accent

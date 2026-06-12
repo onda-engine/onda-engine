@@ -6,11 +6,12 @@
 //! Colors and font default to the active {@link useTheme} (text / textMuted /
 //! heading family); pass explicit props to override.
 
-import { AbsoluteFill, Flex, Text } from '@onda/react'
+import { AbsoluteFill, Flex, Text, useVideoConfig } from '@onda/react'
 import { useFittedFontSize } from '../bounds.js'
 import { DURATION, staggerFrames } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 import { FadeIn } from './FadeIn.js'
 
 export interface TitleCardProps {
@@ -34,7 +35,7 @@ export interface TitleCardProps {
   /** Loaded font family (default: theme heading family, else body family). */
   fontFamily?: string
   /** Frame the title begins fading in (subtitle follows by one stagger step). */
-  delay?: number
+  delay?: TimeInput
   /** Where the card sits: a region keyword (`'center'`, `'lower-third'`, …) or
    *  normalized `{x,y}` (0–1, card center). The shared placement contract;
    *  default `'center'` (the historical self-centering). */
@@ -51,9 +52,12 @@ export function TitleCard({
   titleColor,
   subtitleColor,
   fontFamily,
-  delay = 0,
+  delay: delayIn = 0,
   placement,
 }: TitleCardProps) {
+  const { fps } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   const titleCol = titleColor ?? theme.text
   const subtitleCol = subtitleColor ?? theme.textMuted

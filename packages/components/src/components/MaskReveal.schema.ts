@@ -4,12 +4,13 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 import { placementSchema } from '../placement.js'
 
 export const maskRevealSchema = z.object({
   text: z.string().default('Onda').describe("The single line of text to reveal."),
-  delay: z.number().int().default(0).describe("Frames before the reveal starts."),
-  duration: z.number().int().optional().describe("Frames for the mask to fully retreat."),
+  delay: timeSchema.default(0).describe("Frames before the reveal starts."),
+  duration: timeSchema.optional().describe("Frames for the mask to fully retreat."),
   direction: z.enum(['left', 'right', 'top', 'bottom']).default('left').describe("The side the content appears to come in from; the mask retreats toward this side."),
   color: z.string().optional().describe("Text color as a hex string; defaults to the theme text color."),
   fontSize: z.number().default(96).describe("Text size in px."),

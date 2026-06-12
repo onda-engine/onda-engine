@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const wordStaggerSchema = z.object({
   text: z.string().default('motion that moves you').describe("The phrase; split on whitespace into one reveal per word."),
@@ -13,8 +14,8 @@ export const wordStaggerSchema = z.object({
   fontFamily: z.string().optional().describe("Loaded font family; defaults to theme font family."),
   fontWeight: z.number().default(600).describe("Font weight (display default)."),
   justify: z.enum(['start', 'center', 'end']).default('start').describe("Horizontal alignment of words within each line."),
-  delay: z.number().int().default(0).describe("Frames before the first word starts."),
-  stagger: z.number().int().optional().describe("Frames between consecutive words (defaults to STAGGER = 4)."),
+  delay: timeSchema.default(0).describe("Frames before the first word starts."),
+  stagger: timeSchema.optional().describe("Frames between consecutive words (defaults to STAGGER = 4)."),
 })
 
 export type WordStaggerSchemaProps = z.infer<typeof wordStaggerSchema>

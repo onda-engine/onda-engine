@@ -32,6 +32,7 @@ import { DURATION } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
+import type { TimeInput } from '../time.js'
 
 /** Engine line-box height as a multiple of font size (matches the typography
  *  crate / the ratio `Underline` and `Highlight` use). */
@@ -48,9 +49,9 @@ export interface MaskRevealProps {
   /** What to reveal (single line). Ignored when `children` is supplied. */
   text?: string
   /** Frames before the reveal starts. */
-  delay?: number
+  delay?: TimeInput
   /** Frames for the mask to fully retreat. */
-  duration?: number
+  duration?: TimeInput
   /** The side the content appears to come IN from (mirrors `SlideIn`). The mask
    *  retreats toward this side. */
   direction?: 'left' | 'right' | 'top' | 'bottom'

@@ -4,14 +4,15 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 import { placementSchema } from '../placement.js'
 
 export const matrixDecodeSchema = z.object({
   text: z.string().default('ONDA').describe("The text that decodes into place."),
-  delay: z.number().int().default(0).describe("Frames before decoding starts."),
-  charDelay: z.number().int().default(3).describe("Frames between successive characters settling (left-to-right)."),
-  scrambleDuration: z.number().int().default(18).describe("Frames each character scrambles before it settles (min 1)."),
-  scrambleSpeed: z.number().int().default(2).describe("Frames between glyph swaps while scrambling. Lower = faster flicker (min 1)."),
+  delay: timeSchema.default(0).describe("Frames before decoding starts."),
+  charDelay: timeSchema.default(3).describe("Frames between successive characters settling (left-to-right)."),
+  scrambleDuration: timeSchema.default(18).describe("Frames each character scrambles before it settles (min 1)."),
+  scrambleSpeed: timeSchema.default(2).describe("Frames between glyph swaps while scrambling. Lower = faster flicker (min 1)."),
   seed: z.number().int().default(7).describe("Seed for the deterministic glyph picks."),
   charset: z.string().default('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+=<>/').describe("Glyph pool drawn from while scrambling."),
   color: z.string().optional().describe("Settled text color (default: theme text)."),
@@ -26,6 +27,9 @@ export const matrixDecodeSchema = z.object({
   placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
   fit: z.enum(['none', 'frame']).optional().describe("Opt-in auto-fit: 'frame' scales the font size DOWN (never up) so the line cannot exceed the frame minus the safe margins. Default 'none'."),
   maxWidth: z.number().optional().describe("Explicit width cap in px for the line; combines with fit (the smaller cap wins)."),
+  fitToClip: z.boolean().optional().describe("Compress the whole timing envelope (delay, stagger, durations) so the entrance settles at least hold before the end of the enclosing clip. Opt-in."),
+  maxSettle: timeSchema.optional().describe("Hard cap on the settle time (frames or '0.5s'). Wins over fitToClip."),
+  hold: timeSchema.optional().describe("Breathing room before the cut for fitToClip (default 6 frames)."),
 })
 
 export type MatrixDecodeSchemaProps = z.infer<typeof matrixDecodeSchema>

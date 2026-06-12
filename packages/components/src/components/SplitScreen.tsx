@@ -40,6 +40,7 @@ import {
 import type { ReactNode } from 'react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export interface SplitScreenProps {
   /** Content for the left (or top) pane — any scene subtree. */
@@ -57,7 +58,7 @@ export interface SplitScreenProps {
   /** Slide the two panes apart from the center seam on the house spring. */
   animate?: boolean
   /** Frames before the entrance. */
-  delay?: number
+  delay?: TimeInput
   /** Overall width in px. Defaults to the full composition width. */
   width?: number
   /** Overall height in px. Defaults to the full composition height. */
@@ -92,7 +93,7 @@ export function SplitScreen({
   gap = 0,
   divider = true,
   animate = true,
-  delay = 0,
+  delay: delayIn = 0,
   width,
   height,
   paneBackground: paneBackgroundProp,
@@ -103,6 +104,8 @@ export function SplitScreen({
 }: SplitScreenProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
+  // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
+  const delay = framesOf(delayIn, fps)
   const theme = useTheme()
   // The house `surface`/`border` tokens are tuned to sit *on* a card; alone on
   // the bare canvas they're nearly invisible (surface ≈ background, and the

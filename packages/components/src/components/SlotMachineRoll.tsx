@@ -57,6 +57,8 @@ import { fitMaxWidth } from '../bounds.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
+import { staggeredSettle, useTimeScale } from '../timing.js'
 
 /** Estimated cell advance as a fraction of font size — the per-character column
  *  width. Tuned for a monospace/display stack (matches the spirit of `Marquee`'s
@@ -68,14 +70,23 @@ const CELL_W = 0.7
 export interface SlotMachineRollProps {
   /** The text that rolls into place. Best on short strings (years, counts). */
   text?: string
-  /** Frames before rolling starts. */
-  delay?: number
-  /** Frames between successive characters starting their roll (default the house
-   *  `STAGGER` = 5 — a settled, orchestrated wave left-to-right). */
-  charDelay?: number
-  /** Frames for each character's reel to settle (default `DURATION.slower` = 34 —
-   *  a slow, hard-decelerating odometer drop, not a constant-velocity spin). */
-  durationInFrames?: number
+  /** Time before rolling starts — frames or '0.5s'. */
+  delay?: TimeInput
+  /** Time between successive characters starting their roll (default the house
+   *  `STAGGER` = 5 frames — a settled, orchestrated wave left-to-right). */
+  charDelay?: TimeInput
+  /** Time for each character's reel to settle (default `DURATION.slower` = 34
+   *  frames — a slow, hard-decelerating odometer drop, not a constant-velocity
+   *  spin). */
+  durationInFrames?: TimeInput
+  /** Compress the whole timing envelope (delay, stagger, durations) so the
+   *  entrance settles at least `hold` before the end of the enclosing clip
+   *  (`useVideoConfig().durationInFrames`, Sequence-scoped). Opt-in. */
+  fitToClip?: boolean
+  /** Hard cap on the settle time (frames or '0.5s'). Wins over `fitToClip`. */
+  maxSettle?: TimeInput
+  /** Breathing room before the cut for `fitToClip` (default 6 frames). */
+  hold?: TimeInput
   /** How many filler glyphs spin past before the target lands. */
   reelLength?: number
   /** Seed for the (deterministic) filler glyphs. */
@@ -116,9 +127,12 @@ export interface SlotMachineRollProps {
 
 export function SlotMachineRoll({
   text = '2026',
-  delay = 0,
-  charDelay = STAGGER,
-  durationInFrames = DURATION.slower,
+  delay: delayIn = 0,
+  charDelay: charDelayIn = STAGGER,
+  durationInFrames: durationIn = DURATION.slower,
+  fitToClip,
+  maxSettle,
+  hold,
   reelLength = 12,
   seed = 7,
   charset = '0123456789',
@@ -141,6 +155,18 @@ export function SlotMachineRoll({
   const fontFamily = fontFamilyProp ?? theme.fontFamily
 
   const chars = [...text]
+
+  // Timing: parse the TimeInput props, then compress the WHOLE envelope when
+  // the entrance (incl. the glow payoff) wouldn't land inside the clip.
+  const delayBase = framesOf(delayIn, fps)
+  const charDelayBase = framesOf(charDelayIn, fps, STAGGER)
+  const durationBase = framesOf(durationIn, fps, DURATION.slower)
+  const naturalSettle =
+    staggeredSettle(chars.length, charDelayBase, durationBase, delayBase) + (DURATION.base - 8)
+  const timeScale = useTimeScale(naturalSettle, { fitToClip, maxSettle, hold })
+  const delay = delayBase * timeScale
+  const charDelay = charDelayBase * timeScale
+  const durationInFrames = Math.max(1, durationBase * timeScale)
 
   // Opt-in auto-fit: the row's estimated width is proportional to the font
   // size (fixed cell advances), so the cap resolves in closed form.

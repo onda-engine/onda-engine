@@ -19,6 +19,21 @@ export {
 // House easing
 export { HOUSE_EASE } from './easing.js'
 
+// TimeInput — one duration grammar (frames or '0.5s'/'500ms'/'12f' strings)
+// for every delay/duration-typed prop.
+export { TIME_DESCRIPTION, type TimeInput, framesOf, timeSchema } from './time.js'
+
+// Clip-aware timing — settle-time registry ("does it land before the cut?")
+// + the fitToClip/maxSettle clamp.
+export {
+  COMPONENT_SETTLE,
+  type FitToClipOpts,
+  type SettleFn,
+  settleTime,
+  staggeredSettle,
+  useTimeScale,
+} from './timing.js'
+
 // Real text measurement (the engine's cosmic-text shaping) for components that
 // size to actual text; `preloadTextMetrics` warms it before a Node export.
 export {

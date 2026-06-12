@@ -4,12 +4,13 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 import { placementSchema } from '../placement.js'
 
 export const chapterCardSchema = z.object({
   chapter: z.string().describe("The chapter heading \u2014 the focal text on the card."),
   number: z.string().default('01').describe("Numbered index above the chapter; a string so leading zeros (\"01\") read as intended."),
-  delay: z.number().int().default(0).describe("Frames before the number starts fading in; the whole card sequences off this."),
+  delay: timeSchema.default(0).describe("Frames before the number starts fading in; the whole card sequences off this."),
   accent: z.boolean().default(true).describe("When true, the number takes numberColor (the rose) and an underline punctuates the title."),
   numberColor: z.string().optional().describe("Number color when accent is true (the Onda rose); defaults to theme accent."),
   color: z.string().optional().describe("Chapter title color; defaults to theme text."),

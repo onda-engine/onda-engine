@@ -4,11 +4,12 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 
 export const lineChartSchema = z.object({
   data: z.array(z.number()).default([12, 18, 15, 24, 22, 31, 28, 38]).describe("The series values, left to right."),
-  delay: z.number().int().default(0).describe("Frames before the line starts drawing."),
-  duration: z.number().int().default(40).describe("Frames for the line to fully draw on."),
+  delay: timeSchema.default(0).describe("Frames before the line starts drawing."),
+  duration: timeSchema.default(40).describe("Frames for the line to fully draw on."),
   color: z.string().optional().describe("Line + dot color \u2014 the earned accent (defaults to theme accent)."),
   strokeWidth: z.number().default(4).describe("Stroke width in px."),
   width: z.number().default(900).describe("Chart width in px."),

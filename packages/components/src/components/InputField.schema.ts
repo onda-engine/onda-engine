@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { timeSchema } from '../time.js'
 import { placementSchema } from '../placement.js'
 
 export const inputFieldSchema = z.object({
@@ -11,8 +12,8 @@ export const inputFieldSchema = z.object({
   placeholder: z.string().default('Enter your email').describe("Placeholder shown while the field is empty, before any glyph is revealed."),
   label: z.string().default('Email').describe("Label above the field; an empty string hides it."),
   typed: z.boolean().default(true).describe("Animate `value` typing itself in character-by-character via useTextReveal."),
-  delay: z.number().int().default(0).describe("Frames before typing starts."),
-  typeDuration: z.number().int().default(36).describe("Frames to type the whole value, linear pacing."),
+  delay: timeSchema.default(0).describe("Frames before typing starts."),
+  typeDuration: timeSchema.default(36).describe("Frames to type the whole value, linear pacing."),
   focusRing: z.boolean().default(true).describe("Show the accent focus ring around the field once typing begins."),
   width: z.number().default(640).describe("Field width in px, sized for a 1080p+ video canvas, not a screen UI."),
   fontSize: z.number().default(36).describe("Text size in px."),
