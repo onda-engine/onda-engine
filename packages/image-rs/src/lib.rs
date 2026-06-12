@@ -2,10 +2,13 @@
 //!
 //! Mirrors `onda-svg`: a pre-pass over the scene graph, run once before frame
 //! evaluation. Each [`Image`] node's `src` — a file path (relative to
-//! `base_dir`) or a `data:` URI — is decoded to straight-alpha RGBA8 and
-//! attached as [`Image::data`], so renderers draw pixels without touching the
-//! filesystem. The scene-graph JSON is unchanged (it carries only `src`); the
-//! decoded buffer is shared via `Arc`, so per-frame scene clones stay cheap.
+//! `base_dir`) or a `data:` URI — is decoded to straight-alpha RGBA8,
+//! **right-sized to the node's display box** (a 12 MP photo shown at 400×300 is
+//! downscaled at decode, capped at `MAX_DECODE_EDGE` either way — see
+//! `downscale_for_display`), and attached as [`Image::data`], so renderers
+//! draw pixels without touching the filesystem. The scene-graph JSON is
+//! unchanged (it carries only `src`); the decoded buffer is shared via `Arc`,
+//! so per-frame scene clones stay cheap.
 //!
 //! `http(s)://` URLs are left unresolved (the offline pass doesn't fetch); a
 //! renderer simply skips an image whose pixels aren't attached.
@@ -16,7 +19,21 @@ use std::path::Path;
 use std::sync::Arc;
 
 use base64::Engine;
-use onda_scene::{ImageData, Node, NodeKind, Scene};
+use onda_scene::{ImageData, ImageFit, Node, NodeKind, Scene};
+
+/// Hard cap on a decoded image's longest edge, in pixels. The GPU backend packs
+/// every image a frame draws into ONE shared atlas texture no larger than
+/// 8192×8192 (Vello's `MAX_ATLAS_SIZE`); an image that doesn't fit is silently
+/// dropped — a 12-megapixel phone photo decoded at full resolution (~4000×3000)
+/// can single-handedly crowd that atlas out, which reads as "my image is a
+/// blank tile" in production. 4096 keeps even a box-less image to a quarter of
+/// the atlas and inside wgpu's default `max_texture_dimension_2d` (8192).
+const MAX_DECODE_EDGE: u32 = 4096;
+
+/// Quality headroom kept above the display box when downscaling: 2× the box
+/// covers retina output plus a moderate zoom-in (Ken Burns) without retaining
+/// the full source resolution.
+const DISPLAY_HEADROOM: f32 = 2.0;
 
 /// An error decoding one of a scene's images.
 #[derive(Debug)]
@@ -53,9 +70,12 @@ pub fn load_images(scene: &Scene, base_dir: &Path) -> Result<Scene, ImageError> 
 /// `src` referenced by every frame (e.g. a background plate) is decoded ONCE instead
 /// of per frame. Only stable sources (file paths / URLs) are cached; procedural
 /// `onda-noise:` grain and `data:` URIs are regenerated each call (they re-seed or
-/// differ per frame, and caching them would grow unboundedly). The per-node `blur`
-/// focus-pull is still applied per call on a clone of the cached SHARP decode, so the
-/// output is byte-identical to the uncached path.
+/// differ per frame, and caching them would grow unboundedly). Entries are keyed by
+/// `src` **plus the node's display-size bucket** (see `DecodeTarget`) — the decode
+/// is downscaled to what the node actually displays, so the same `src` shown at two
+/// sizes gets two entries and a large consumer is never served a small decode. The
+/// per-node `blur` focus-pull is still applied per call on a clone of the cached
+/// SHARP decode, so the output is byte-identical to the uncached path.
 pub fn load_images_cached(
     scene: &Scene,
     base_dir: &Path,
@@ -79,11 +99,12 @@ fn load_node(
 
     if let NodeKind::Image(image) = &node.kind {
         if image.data.is_none() {
-            if let Some(mut data) = decode_src_cached(&image.src, base_dir, cache)? {
+            let target = decode_target(image.width, image.height, image.fit);
+            if let Some(mut data) = decode_src_cached(&image.src, base_dir, cache, target)? {
                 // Optional gaussian "focus pull": blurring here (in the shared
                 // decode pass) keeps native/GPU/CPU byte-identical and needs no
-                // renderer support. Sigma is in source pixels; animating it
-                // frame-to-frame gives a soft→sharp entrance.
+                // renderer support. Sigma is in decoded-source pixels; animating
+                // it frame-to-frame gives a soft→sharp entrance.
                 if image.blur > 0.0 {
                     data = blur_image(data, image.blur);
                 }
@@ -103,7 +124,8 @@ fn load_node(
     // any still-unresolved video src is simply left for the renderer to skip.
     if let NodeKind::Video(video) = &node.kind {
         if video.data.is_none() && video.src.starts_with("data:") {
-            if let Some(data) = decode_src_cached(&video.src, base_dir, cache)? {
+            let target = decode_target(video.width, video.height, video.fit);
+            if let Some(data) = decode_src_cached(&video.src, base_dir, cache, target)? {
                 return Ok(Node {
                     kind: NodeKind::Video(video.clone().with_data(data)),
                     children,
@@ -119,44 +141,93 @@ fn load_node(
     })
 }
 
+/// The display-size constraint a decode may downscale to: the node's
+/// `width`×`height` box rounded UP to power-of-two buckets, plus whether the
+/// fit scales by the larger axis ratio (fill/cover — the cropped axis keeps
+/// full quality) or the smaller (contain). Bucketing keeps an *animated* box
+/// from forcing a fresh decode every frame (at most a handful of buckets per
+/// `src`), and the bucket is part of the cache key so the same `src` displayed
+/// at two sizes never serves the small decode to the big consumer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DecodeTarget {
+    bucket_w: u32,
+    bucket_h: u32,
+    contain: bool,
+}
+
+/// Bucket a node's display box into a [`DecodeTarget`]; `None` (no/degenerate
+/// box → intrinsic-size draw) means only the global [`MAX_DECODE_EDGE`] applies.
+fn decode_target(width: Option<f32>, height: Option<f32>, fit: ImageFit) -> Option<DecodeTarget> {
+    match (width, height) {
+        (Some(w), Some(h)) if w.is_finite() && h.is_finite() && w > 0.0 && h > 0.0 => {
+            Some(DecodeTarget {
+                bucket_w: (w.ceil() as u32).max(1).next_power_of_two(),
+                bucket_h: (h.ceil() as u32).max(1).next_power_of_two(),
+                contain: fit == ImageFit::Contain,
+            })
+        }
+        _ => None,
+    }
+}
+
+/// Cache key for a decode: the `src` plus the display bucket that shaped it.
+/// NUL separators can't appear in a path/URL `src`, so keys never collide.
+fn cache_key(src: &str, target: Option<DecodeTarget>) -> String {
+    match target {
+        Some(t) => {
+            let fit = if t.contain { "contain" } else { "cover" };
+            format!("{src}\0{}x{}\0{fit}", t.bucket_w, t.bucket_h)
+        }
+        None => src.to_string(),
+    }
+}
+
 /// [`decode_src`] with a cross-call cache for stable sources. The cached value is the
 /// SHARP decode (pre-blur); the caller applies any per-node blur to a clone, so the
 /// stored entry is reused untouched. `onda-noise:` (per-frame procedural) and `data:`
-/// (potentially distinct + large per frame) are never cached.
+/// (potentially distinct + large per frame) are never cached. Keyed by `src` + the
+/// display bucket (see [`cache_key`]).
 fn decode_src_cached(
     src: &str,
     base_dir: &Path,
     cache: &mut HashMap<String, Option<ImageData>>,
+    target: Option<DecodeTarget>,
 ) -> Result<Option<ImageData>, ImageError> {
     let cacheable = !src.starts_with("onda-noise:") && !src.starts_with("data:");
     if cacheable {
-        if let Some(hit) = cache.get(src) {
+        if let Some(hit) = cache.get(&cache_key(src, target)) {
             return Ok(hit.clone());
         }
     }
-    let decoded = decode_src(src, base_dir)?;
+    let decoded = decode_src(src, base_dir, target)?;
     if cacheable {
-        cache.insert(src.to_string(), decoded.clone());
+        cache.insert(cache_key(src, target), decoded.clone());
     }
     Ok(decoded)
 }
 
-/// Decode one `src` to pixels. Returns `Ok(None)` for sources the offline pass
+/// Decode one `src` to pixels, downscaled to the display `target` (see
+/// [`downscale_for_display`]). Returns `Ok(None)` for sources the offline pass
 /// can't resolve (e.g. remote URLs), which renderers then skip.
-fn decode_src(src: &str, base_dir: &Path) -> Result<Option<ImageData>, ImageError> {
+fn decode_src(
+    src: &str,
+    base_dir: &Path,
+    target: Option<DecodeTarget>,
+) -> Result<Option<ImageData>, ImageError> {
     if let Some(spec) = src.strip_prefix("onda-noise:") {
-        // Procedural film grain — generated, not decoded. Deterministic per
-        // (pixel, seed), so animating `seed` (e.g. by frame) gives moving grain.
-        // Works identically on native + wasm, so preview == export.
+        // Procedural film grain — generated, not decoded, at exactly the spec'd
+        // size (never resized). Deterministic per (pixel, seed), so animating
+        // `seed` (e.g. by frame) gives moving grain. Works identically on
+        // native + wasm, so preview == export.
         Ok(Some(generate_noise(spec)?))
     } else if let Some(rest) = src.strip_prefix("data:") {
-        Ok(Some(decode_data_uri(rest)?))
+        Ok(Some(downscale_for_display(decode_data_uri(rest)?, target)))
     } else if src.starts_with("http://") || src.starts_with("https://") {
         Ok(None)
     } else {
         let path = base_dir.join(src);
         match std::fs::read(&path) {
-            Ok(bytes) => Ok(Some(decode_bytes(&bytes)?)),
+            Ok(bytes) => Ok(Some(downscale_for_display(decode_bytes(&bytes)?, target))),
             // No filesystem in the browser, so a path `src` can't be loaded by the
             // offline pass — skip it (like a remote URL) instead of failing the
             // whole render. The Player resolves loadable images to `data:` URIs;
@@ -168,6 +239,56 @@ fn decode_src(src: &str, base_dir: &Path) -> Result<Option<ImageData>, ImageErro
             #[cfg(not(target_arch = "wasm32"))]
             Err(e) => Err(ImageError::Io(path.display().to_string(), e)),
         }
+    }
+}
+
+/// Downscale freshly decoded pixels to what the composition actually needs:
+/// at most [`DISPLAY_HEADROOM`]× the display box (when the node declares one),
+/// and never longer than [`MAX_DECODE_EDGE`] on the longest edge. Without this,
+/// a 12 MP phone photo is decoded — and uploaded — at full resolution, which
+/// overruns the GPU's shared image atlas and gets the image silently dropped
+/// (a blank tile). Aspect ratio is preserved; an image already small enough
+/// passes through UNTOUCHED (this never upscales), so icons/logos and existing
+/// golden frames are byte-identical. One-time CatmullRom resample at decode —
+/// quality over speed.
+fn downscale_for_display(data: ImageData, target: Option<DecodeTarget>) -> ImageData {
+    let (iw, ih) = (data.width, data.height);
+    if iw == 0 || ih == 0 {
+        return data;
+    }
+    // Fraction of the source resolution to keep: the global cap…
+    let mut keep = f64::from(MAX_DECODE_EDGE) / f64::from(iw.max(ih));
+    if let Some(t) = target {
+        // …tightened to HEADROOM× the factor the renderer will scale the image
+        // by to fit its box (cover/fill take the larger axis ratio so the
+        // CROPPED axis keeps full quality; contain takes the smaller). Decoding
+        // beyond that is pixels nobody ever sees.
+        let sx = f64::from(t.bucket_w) / f64::from(iw);
+        let sy = f64::from(t.bucket_h) / f64::from(ih);
+        let fit_scale = if t.contain { sx.min(sy) } else { sx.max(sy) };
+        keep = keep.min(fit_scale * f64::from(DISPLAY_HEADROOM));
+    }
+    if keep >= 1.0 {
+        return data;
+    }
+    let nw = ((f64::from(iw) * keep).round() as u32).clamp(1, iw);
+    let nh = ((f64::from(ih) * keep).round() as u32).clamp(1, ih);
+    if nw == iw && nh == ih {
+        return data;
+    }
+    // A degenerate buffer (wrong length) is returned as-is rather than panicking.
+    if data.rgba.len() != (iw as usize) * (ih as usize) * 4 {
+        return data;
+    }
+    // Freshly decoded → the Arc is unshared, so this reclaims the buffer
+    // without copying; a shared Arc (shouldn't happen here) clones.
+    let rgba = Arc::try_unwrap(data.rgba).unwrap_or_else(|arc| (*arc).clone());
+    let buf = image::RgbaImage::from_raw(iw, ih, rgba).expect("buffer length checked above");
+    let resized = image::imageops::resize(&buf, nw, nh, image::imageops::FilterType::CatmullRom);
+    ImageData {
+        width: nw,
+        height: nh,
+        rgba: Arc::new(resized.into_raw()),
     }
 }
 
@@ -388,6 +509,124 @@ mod tests {
             blurred.rgba[idx]
         );
         assert_eq!(blurred.rgba[idx + 3], 255, "alpha stays opaque");
+    }
+
+    /// Encode a `w`×`h` flat-color RGBA PNG (tiny file, fast decode) via the
+    /// `image` crate — the synthetic "12 MP phone photo" for the cap tests.
+    fn big_png_bytes(w: u32, h: u32, color: [u8; 4]) -> Vec<u8> {
+        let buf = image::RgbaImage::from_pixel(w, h, image::Rgba(color));
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgba8(buf)
+            .write_to(&mut bytes, image::ImageFormat::Png)
+            .unwrap();
+        bytes.into_inner()
+    }
+
+    fn data_uri(bytes: &[u8]) -> String {
+        let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+        format!("data:image/png;base64,{b64}")
+    }
+
+    #[test]
+    fn a_huge_image_in_a_small_box_is_decoded_to_the_display_bucket() {
+        // 6000×4000 source displayed at 400×300 (cover): box buckets to 512×512,
+        // cover scale = max(512/6000, 512/4000) = 0.128, ×2 headroom = 0.256 →
+        // decode 1536×1024 — far under both the source and the 4096 global cap.
+        let src = data_uri(&big_png_bytes(6000, 4000, [10, 200, 120, 255]));
+        let scene = Scene {
+            composition: Composition::new(800, 600, 30.0, 1),
+            root: Node::new(NodeKind::Image(onda_scene::Image::new(src).with_box(
+                400.0,
+                300.0,
+                ImageFit::Cover,
+            ))),
+        };
+        let loaded = load_images(&scene, Path::new("")).expect("decode");
+        let NodeKind::Image(img) = &loaded.root.kind else {
+            panic!("expected image node");
+        };
+        let data = img.data.as_ref().expect("pixels attached");
+        assert_eq!((data.width, data.height), (1536, 1024));
+        assert!(data.width.max(data.height) <= MAX_DECODE_EDGE);
+        // Aspect preserved (3:2) and content intact — not a blank buffer.
+        assert_eq!(data.rgba.len(), 1536 * 1024 * 4);
+        assert_eq!(&data.rgba[0..4], &[10, 200, 120, 255]);
+    }
+
+    #[test]
+    fn a_huge_image_without_a_box_is_capped_at_the_global_max_edge() {
+        // No display box → only the global cap applies: 6000×4000 → 4096×2731.
+        let src = data_uri(&big_png_bytes(6000, 4000, [200, 40, 40, 255]));
+        let scene = Scene {
+            composition: Composition::new(800, 600, 30.0, 1),
+            root: Node::image(src),
+        };
+        let loaded = load_images(&scene, Path::new("")).expect("decode");
+        let NodeKind::Image(img) = &loaded.root.kind else {
+            panic!("expected image node");
+        };
+        let data = img.data.as_ref().expect("pixels attached");
+        assert_eq!((data.width, data.height), (MAX_DECODE_EDGE, 2731));
+        assert_eq!(&data.rgba[0..4], &[200, 40, 40, 255]);
+    }
+
+    #[test]
+    fn small_images_are_never_resized() {
+        // Downscale only — a source already at/below what the box needs passes
+        // through byte-identical (keeps icons/logos sharp and goldens stable).
+        let src = data_uri(&big_png_bytes(100, 80, [1, 2, 3, 255]));
+        let scene = Scene {
+            composition: Composition::new(800, 600, 30.0, 1),
+            root: Node::new(NodeKind::Image(onda_scene::Image::new(src).with_box(
+                400.0,
+                300.0,
+                ImageFit::Contain,
+            ))),
+        };
+        let loaded = load_images(&scene, Path::new("")).expect("decode");
+        let NodeKind::Image(img) = &loaded.root.kind else {
+            panic!("expected image node");
+        };
+        let data = img.data.as_ref().expect("pixels attached");
+        assert_eq!((data.width, data.height), (100, 80));
+    }
+
+    #[test]
+    fn the_cache_never_serves_a_small_decode_to_a_big_consumer() {
+        // The SAME file src displayed small first, then box-less (full size):
+        // entries are keyed by src + display bucket, so the second consumer must
+        // get its own (bigger) decode, not the first node's small one.
+        let dir =
+            std::env::temp_dir().join(format!("onda-image-cache-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("plate.png");
+        std::fs::write(&path, big_png_bytes(1200, 800, [9, 9, 9, 255])).unwrap();
+
+        let small = Node::new(NodeKind::Image(
+            onda_scene::Image::new("plate.png").with_box(100.0, 75.0, ImageFit::Cover),
+        ));
+        let big = Node::image("plate.png");
+        let scene = Scene {
+            composition: Composition::new(800, 600, 30.0, 1),
+            root: Node::group().with_children([small, big]),
+        };
+        let mut cache = HashMap::new();
+        let loaded = load_images_cached(&scene, &dir, &mut cache).expect("decode");
+        std::fs::remove_dir_all(&dir).ok();
+
+        let dims = |node: &Node| -> (u32, u32) {
+            let NodeKind::Image(img) = &node.kind else {
+                panic!("expected image node");
+            };
+            let d = img.data.as_ref().expect("pixels attached");
+            (d.width, d.height)
+        };
+        // Small consumer: bucket 128×128, cover scale 0.16, ×2 → 384×256.
+        assert_eq!(dims(&loaded.root.children[0]), (384, 256));
+        // Big consumer: full intrinsic size (under the 4096 cap → untouched).
+        assert_eq!(dims(&loaded.root.children[1]), (1200, 800));
+        // And the cache holds one entry per display bucket.
+        assert_eq!(cache.len(), 2);
     }
 
     #[test]

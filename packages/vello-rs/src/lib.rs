@@ -468,6 +468,10 @@ impl VelloRenderer {
         let width = scene.composition.width.max(1);
         let height = scene.composition.height.max(1);
 
+        // Vello drops (not errors) images that don't fit its shared atlas —
+        // diagnose that to stderr up front so a blank tile is explainable.
+        warn_if_images_overflow_atlas(&scene.root);
+
         let mut vscene = VelloScene::new();
         // Placeholder images for native GPU-resident effect compositing — filled by
         // the walk (each keys an `override_image` to an effect's GPU texture), then
@@ -2065,6 +2069,103 @@ fn text_local_bounds(fonts: &mut FontContext, text: &Text) -> Option<Rect> {
         (max_x + max_size * 0.6) as f64,
         bottom as f64,
     ))
+}
+
+/// The edge of Vello's image atlas at its largest: every image a frame draws is
+/// packed into ONE shared atlas texture that Vello grows up to 8192×8192
+/// (`vello_encoding::image_cache::MAX_ATLAS_SIZE`) and no further — which is
+/// also wgpu's default `max_texture_dimension_2d`.
+const MAX_ATLAS_EDGE: u32 = 8192;
+
+/// Total pixel budget of that maximum atlas.
+const ATLAS_BUDGET_PX: u64 = (MAX_ATLAS_EDGE as u64) * (MAX_ATLAS_EDGE as u64);
+
+/// WARN, don't just drop: when an image can't be placed in the atlas, Vello
+/// zeroes its dimensions and renders NOTHING for it (see `vello_encoding`'s
+/// `resolve_pending_images` — "Set the xy field to None so this image isn't
+/// rendered"). In production that reads as "my photo is a blank tile" with zero
+/// diagnostics. The decode pass (onda-image) already right-sizes images to a
+/// 4096 longest edge, but pixels can also arrive pre-attached (e.g. the browser
+/// player's video frames) and MANY images can still overflow the shared atlas.
+/// We can't stop Vello from dropping, so we say so: scan the frame's Image and
+/// Video nodes and warn on stderr — once per `src` — when a single image can
+/// never fit, or when the frame's running total exceeds the atlas budget.
+/// A conservative heuristic (packing overhead means a frame *near* the budget
+/// may still drop images we didn't flag), but it turns a silent blank tile into
+/// a diagnosable log line.
+fn warn_if_images_overflow_atlas(root: &Node) {
+    let mut total_px: u64 = 0;
+    let mut stack = vec![root];
+    while let Some(node) = stack.pop() {
+        stack.extend(node.children.iter());
+        let (src, data) = match &node.kind {
+            NodeKind::Image(image) => (&image.src, image.data.as_ref()),
+            NodeKind::Video(video) => (&video.src, video.data.as_ref()),
+            _ => continue,
+        };
+        let Some(d) = data else { continue };
+        if d.width == 0 || d.height == 0 {
+            continue;
+        }
+        total_px = total_px.saturating_add(u64::from(d.width) * u64::from(d.height));
+        if d.width > MAX_ATLAS_EDGE || d.height > MAX_ATLAS_EDGE {
+            warn_once(
+                "oversized",
+                src,
+                format!(
+                    "[onda-vello] image '{}' is {}×{} px — larger than the GPU image atlas \
+                     ({MAX_ATLAS_EDGE}×{MAX_ATLAS_EDGE}); it will be DROPPED and render blank. \
+                     Downscale the source image.",
+                    short_src(src),
+                    d.width,
+                    d.height,
+                ),
+            );
+        } else if total_px > ATLAS_BUDGET_PX {
+            warn_once(
+                "budget",
+                src,
+                format!(
+                    "[onda-vello] this frame's images no longer fit the GPU image atlas at \
+                     '{}' ({}×{} px): ~{:.2} Mpx total > the {:.2} Mpx budget \
+                     ({MAX_ATLAS_EDGE}×{MAX_ATLAS_EDGE}); overflowing images render blank. \
+                     Use fewer or smaller images.",
+                    short_src(src),
+                    d.width,
+                    d.height,
+                    total_px as f64 / 1e6,
+                    ATLAS_BUDGET_PX as f64 / 1e6,
+                ),
+            );
+        }
+    }
+}
+
+/// Emit `msg` to stderr once per (kind, src) for the process — an export renders
+/// hundreds of frames and the same plate must not log hundreds of lines. Keys
+/// hold the SHORTENED src, so per-frame `data:` video frames dedupe (and the set
+/// stays bounded). On wasm32-unknown-unknown `eprintln!` is a silent no-op (the
+/// wasm preview degrades visibly anyway); native export logs are the audience.
+fn warn_once(kind: &str, src: &str, msg: String) {
+    use std::sync::{Mutex, OnceLock};
+    static WARNED: OnceLock<Mutex<std::collections::HashSet<String>>> = OnceLock::new();
+    let mut warned = WARNED
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if warned.insert(format!("{kind}\0{}", short_src(src))) {
+        eprintln!("{msg}");
+    }
+}
+
+/// A log-safe view of a `src`: `data:` URIs run to megabytes, so anything long
+/// is truncated (the prefix identifies the image well enough to act on).
+fn short_src(src: &str) -> &str {
+    let mut end = src.len().min(72);
+    while !src.is_char_boundary(end) {
+        end -= 1;
+    }
+    &src[..end]
 }
 
 /// Draw decoded RGBA pixels into the optional `box_width`×`box_height` box per
