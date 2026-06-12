@@ -27,7 +27,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.0.0"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.80"
 license = "MIT OR Apache-2.0"
@@ -37,19 +37,19 @@ authors = ["The ONDA Engine contributors"]
 
 # Shared dependency versions. Resolved/pinned at build time; bump in one place.
 [workspace.dependencies]
-onda-core = { path = "packages/core-rs", version = "0.0.0" }
-onda-scene = { path = "packages/scene-rs", version = "0.0.0" }
-onda-typography = { path = "packages/typography-rs", version = "0.0.0" }
-onda-renderer = { path = "packages/renderer-rs", version = "0.0.0" }
-onda-animation = { path = "packages/animation-rs", version = "0.0.0" }
-onda-vello = { path = "packages/vello-rs", version = "0.0.0" }
-onda-svg = { path = "packages/svg-rs", version = "0.0.0" }
-onda-image = { path = "packages/image-rs", version = "0.0.0" }
-onda-layout = { path = "packages/layout-rs", version = "0.0.0" }
+onda-core = { path = "packages/core-rs", version = "0.1.0" }
+onda-scene = { path = "packages/scene-rs", version = "0.1.0" }
+onda-typography = { path = "packages/typography-rs", version = "0.1.0" }
+onda-renderer = { path = "packages/renderer-rs", version = "0.1.0" }
+onda-animation = { path = "packages/animation-rs", version = "0.1.0" }
+onda-vello = { path = "packages/vello-rs", version = "0.1.0" }
+onda-svg = { path = "packages/svg-rs", version = "0.1.0" }
+onda-image = { path = "packages/image-rs", version = "0.1.0" }
+onda-layout = { path = "packages/layout-rs", version = "0.1.0" }
 # default-features off (no native-io / std::fs) so the wasm build is clean;
 # the native CLI opts back in with `features = ["native-io"]`.
-onda-audio = { path = "packages/audio-rs", version = "0.0.0", default-features = false }
-onda-video = { path = "packages/video-rs", version = "0.0.0" }
+onda-audio = { path = "packages/audio-rs", version = "0.1.0", default-features = false }
+onda-video = { path = "packages/video-rs", version = "0.1.0" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
