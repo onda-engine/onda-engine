@@ -18,6 +18,7 @@ import { Children, type ReactElement, type ReactNode, createElement, isValidElem
 import { clipEllipse, clipPath, clipRect } from './clip.js'
 import { Group, Rect } from './components.js'
 import { useCurrentFrame, useVideoConfig } from './frame.js'
+import { linearGradient, radialGradient } from './gradient.js'
 import { Sequence } from './sequence.js'
 import { type SpringConfig, spring } from './spring.js'
 
@@ -417,6 +418,63 @@ export function whipPan({
       { x: tx, y: ty },
       directionalSmear(children, x, y, (1 - sharp) * maxBlur),
     )
+  }
+}
+
+/** Film-burn / light-leak — the scenes crossfade while a warm leak blooms over the
+ *  cut, screen-blended and peaking at the midpoint (the cinematic-warmth flare).
+ *  The leak draws once (on the incoming layer); a dark gradient screen-blends to
+ *  ~nothing, so only the warm centre flares. */
+export function filmBurn({ color = '#ffb070' }: { color?: string } = {}): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    const sceneOpacity = entering ? progress : 1 - progress
+    const burn = Math.sin(Math.min(1, Math.max(0, progress)) * Math.PI) // 0 → 1 → 0
+    const scene = createElement(Group, { opacity: sceneOpacity }, children)
+    if (!entering) return scene
+    const leak = createElement(
+      Group,
+      { opacity: burn * 0.85, blendMode: 'screen' },
+      createElement(Rect, {
+        width,
+        height,
+        gradient: radialGradient([width * 0.72, height * 0.28], Math.max(width, height) * 0.95, [
+          { offset: 0, color },
+          { offset: 0.45, color: '#7a3a12' },
+          { offset: 1, color: '#000000' },
+        ]),
+      }),
+    )
+    return createElement(Group, null, scene, leak)
+  }
+}
+
+/** Luma-wipe — reveal the incoming scene through a soft LUMINANCE ramp that sweeps
+ *  across (a gradient matte; white reveals, black hides). The organic, edge-feathered
+ *  reveal Premiere/Resolve ship as a workhorse. */
+export function lumaWipe(): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    if (!entering) {
+      // The outgoing scene fades as the incoming reveals over it.
+      return createElement(Group, { opacity: Math.max(0, 1 - progress / 0.7) }, children)
+    }
+    const p = Math.min(1, Math.max(0, progress))
+    const feather = 0.22
+    const lead = p * (1 + feather)
+    const matte = createElement(Rect, {
+      width,
+      height,
+      gradient: linearGradient(
+        [0, 0],
+        [width, 0],
+        [
+          { offset: 0, color: '#ffffff' },
+          { offset: Math.max(0, Math.min(1, lead - feather)), color: '#ffffff' },
+          { offset: Math.max(0, Math.min(1, lead)), color: '#000000' },
+          { offset: 1, color: '#000000' },
+        ],
+      ),
+    })
+    return createElement(Group, { matte, matteMode: 'luminance' }, children)
   }
 }
 
