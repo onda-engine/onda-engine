@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { placementSchema } from '../placement.js'
 
 export const slotMachineRollSchema = z.object({
   text: z.string().default('2026').describe("The text that rolls into place. Best on short strings (years, counts)."),
@@ -21,6 +22,7 @@ export const slotMachineRollSchema = z.object({
   align: z.enum(['left', 'center', 'right']).default('center').describe("Horizontal anchoring of the whole block (default 'center')."),
   x: z.number().optional().describe("Absolute x of the block's anchor. Defaults to the canvas horizontal center (respecting align)."),
   y: z.number().optional().describe("Absolute y of the block's top. Defaults to vertically centering the row."),
+  placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
 })
 
 export type SlotMachineRollSchemaProps = z.infer<typeof slotMachineRollSchema>

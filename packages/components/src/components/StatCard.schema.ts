@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { placementSchema } from '../placement.js'
 
 export const statCardSchema = z.object({
   value: z.string().default("\u2014").describe("The headline metric, e.g. \"26.8 fps\" or \"100\u00d7\" (a number is stringified)."),
@@ -16,6 +17,7 @@ export const statCardSchema = z.object({
   accentColor: z.string().optional().describe("Accent rule color (default: theme accent); wins over a string passed to accent."),
   fontFamily: z.string().optional().describe("Loaded font family for both value and label (default: theme body family)."),
   delay: z.number().default(0).describe("Frames to delay before the staggered fade-in begins."),
+  placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
 })
 
 export type StatCardSchemaProps = z.infer<typeof statCardSchema>

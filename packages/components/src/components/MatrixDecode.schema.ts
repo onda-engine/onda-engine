@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { placementSchema } from '../placement.js'
 
 export const matrixDecodeSchema = z.object({
   text: z.string().default('ONDA').describe("The text that decodes into place."),
@@ -22,6 +23,7 @@ export const matrixDecodeSchema = z.object({
   align: z.enum(['left', 'center', 'right']).default('center').describe("Horizontal anchoring of the single line (approximate)."),
   x: z.number().optional().describe("Absolute x of the line. Defaults to the canvas center (per align)."),
   y: z.number().optional().describe("Absolute y (top-ish) of the line. Defaults to vertical center."),
+  placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
 })
 
 export type MatrixDecodeSchemaProps = z.infer<typeof matrixDecodeSchema>

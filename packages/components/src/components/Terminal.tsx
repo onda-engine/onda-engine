@@ -41,6 +41,7 @@ import {
 import type { TextRunInput } from '@onda/react'
 import { useStaggeredEntrance, useTextReveal } from '../hooks.js'
 import { STAGGER } from '../motion.js'
+import { type Placement, usePlacement } from '../placement.js'
 import { useTheme } from '../theme.js'
 
 export interface TerminalProps {
@@ -77,9 +78,15 @@ export interface TerminalProps {
   background?: string
   /** Window corner radius in px (default: theme `radius`). */
   cornerRadius?: number
-  /** Absolute x of the window's top-left. Defaults to horizontally centered. */
+  /** Where the window sits: a region keyword (`'center'`, `'lower-third'`, …)
+   *  or normalized `{x,y}` (0–1, window center). The shared placement contract;
+   *  default `'center'`. */
+  placement?: Placement
+  /** @deprecated Legacy alias — absolute x of the window's top-left in px.
+   *  Prefer `placement`. */
   x?: number
-  /** Absolute y of the window's top-left. Defaults to vertically centered. */
+  /** @deprecated Legacy alias — absolute y of the window's top-left in px.
+   *  Prefer `placement`. */
   y?: number
 }
 
@@ -113,6 +120,7 @@ export function Terminal({
   outputColor: outputColorProp,
   background: backgroundProp,
   cornerRadius: cornerRadiusProp,
+  placement,
   x,
   y,
 }: TerminalProps) {
@@ -166,10 +174,12 @@ export function Terminal({
   const windowHeight = titleBarHeight + bodyHeight
   const cornerRadius = cornerRadiusProp ?? theme.radius
 
-  // Center on the canvas unless an explicit position is given (the engine has no
-  // CSS placement). x/y are the window's top-left in composition space.
-  const winX = x ?? Math.round((compWidth - width) / 2)
-  const winY = y ?? Math.round((compHeight - windowHeight) / 2)
+  // Anchor on the shared placement contract (window CENTER at the resolved
+  // point; corner regions sit flush on the safe margin). Legacy px `x`/`y`
+  // (the window's top-left) win per-axis; the default is centered, as before.
+  const resolved = usePlacement(placement, { width, height: windowHeight })
+  const winX = x ?? Math.round(resolved.originX)
+  const winY = y ?? Math.round(resolved.originY)
 
   // Title-bar dots: three neutral-grey circles, matching ondajs's chrome dots
   // (it draws `--onda-border-lit, #26262E`; here a touch lighter so they read).

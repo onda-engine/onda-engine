@@ -38,6 +38,7 @@
 
 import { Text, random, useCurrentFrame, useVideoConfig } from '@onda/react'
 import type { TextRunInput } from '@onda/react'
+import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
@@ -68,11 +69,19 @@ export interface MatrixDecodeProps {
   fontWeight?: number
   /** Italic text. */
   italic?: boolean
-  /** Horizontal anchoring of the single line (approximate — see file notes). */
+  /** Horizontal anchoring of the single line (approximate — see file notes).
+   *  Only applies to the legacy default/`x` anchoring — `placement` anchors the
+   *  line's measured center. */
   align?: 'left' | 'center' | 'right'
-  /** Absolute x of the line. Defaults to the canvas center (per `align`). */
+  /** Where the line sits: a region keyword (`'center'`, `'lower-third'`, …) or
+   *  normalized `{x,y}` (0–1, line center). The shared placement contract;
+   *  default `'center'`. */
+  placement?: Placement
+  /** @deprecated Legacy alias — absolute x of the line's left edge in px.
+   *  Prefer `placement`. */
   x?: number
-  /** Absolute y (top-ish) of the line. Defaults to vertical center. */
+  /** @deprecated Legacy alias — absolute y (top-ish) of the line in px. Prefer
+   *  `placement`. */
   y?: number
 }
 
@@ -91,6 +100,7 @@ export function MatrixDecode({
   fontWeight = 600,
   italic = false,
   align = 'center',
+  placement,
   x,
   y,
 }: MatrixDecodeProps) {
@@ -140,11 +150,16 @@ export function MatrixDecode({
   const measured = useTextMetrics(plain, fontSize, { fontFamily, fontWeight })
 
   // Absolute placement so the (potentially width-varying) line never triggers a
-  // Flex reflow. Use the measured line width to anchor non-left alignments.
+  // Flex reflow. The shared placement contract anchors the line's MEASURED
+  // center (corner regions sit flush on the safe margin); legacy `x`/`y` px and
+  // the `align`-anchored default keep their exact pre-placement behavior.
   const estWidth = measured.width
+  const resolved = usePlacement(placement, { width: estWidth, height: fontSize * 1.2 })
   let px: number
   if (x !== undefined) {
     px = x
+  } else if (placement !== undefined) {
+    px = Math.round(resolved.originX)
   } else if (align === 'left') {
     px = Math.round(width * 0.08)
   } else if (align === 'right') {
@@ -152,7 +167,11 @@ export function MatrixDecode({
   } else {
     px = Math.round((width - estWidth) / 2)
   }
-  const py = y ?? Math.round(height / 2 - fontSize * 0.6)
+  const py =
+    y ??
+    (placement !== undefined
+      ? Math.round(resolved.originY)
+      : Math.round(height / 2 - fontSize * 0.6))
 
   return (
     <Text

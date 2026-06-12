@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { placementSchema } from '../placement.js'
 
 export const pricingCardSchema = z.object({
   tier: z.string().default('Pro').describe("Tier name above the price (e.g. 'Pro'). Rendered uppercase."),
@@ -25,6 +26,7 @@ export const pricingCardSchema = z.object({
   bodyFontFamily: z.string().optional().describe("Body font for tier / features / CTA (default: theme fontFamily)."),
   x: z.number().optional().describe("Local-space x of the card's top-left. Omit to center on the composition."),
   y: z.number().optional().describe("Local-space y of the card's top-left. Omit to center on the composition."),
+  placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
 })
 
 export type PricingCardSchemaProps = z.infer<typeof pricingCardSchema>

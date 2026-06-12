@@ -4,6 +4,7 @@
 
 import { AbsoluteFill, Flex, Rect, Text } from '@onda/react'
 import { DURATION, staggerFrames } from '../motion.js'
+import { type Placement, PlacementShift } from '../placement.js'
 import { useTheme } from '../theme.js'
 import { FadeIn } from './FadeIn.js'
 
@@ -28,11 +29,15 @@ export interface StatCardProps {
   /** Loaded font family (default: theme body family). */
   fontFamily?: string
   delay?: number
+  /** Where the stat sits: a region keyword (`'center'`, `'lower-third'`, …) or
+   *  normalized `{x,y}` (0–1, stat center). The shared placement contract;
+   *  default `'center'` (the historical self-centering). */
+  placement?: Placement
 }
 
 export function StatCard({
-  value = "—",
-  label = "",
+  value = '—',
+  label = '',
   valueSize = 180,
   labelSize = 34,
   valueColor,
@@ -41,6 +46,7 @@ export function StatCard({
   accentColor,
   fontFamily,
   delay = 0,
+  placement,
 }: StatCardProps) {
   const theme = useTheme()
   const valueCol = valueColor ?? theme.text
@@ -52,35 +58,39 @@ export function StatCard({
   const family = fontFamily ?? theme.fontFamily
 
   return (
-    <AbsoluteFill justify="center" align="center">
-      <Flex direction="column" align="center" gap={Math.round(labelSize * 0.7)}>
-        <FadeIn delay={delay} durationInFrames={DURATION.slow}>
-          <Text
-            fontSize={valueSize}
-            color={valueCol}
-            fontFamily={family}
-            fontWeight={700}
-            letterSpacing={Math.round(valueSize * -0.02)}
-          >
-            {String(value)}
-          </Text>
-        </FadeIn>
-        {showAccent ? (
-          <FadeIn delay={delay + staggerFrames(2)}>
-            <Rect
-              width={Math.round(valueSize * 0.6)}
-              height={6}
-              cornerRadius={3}
-              fill={accentCol}
-            />
+    // The flex column self-centers; PlacementShift moves the centered stack by
+    // the center→placement delta (no-op for the default 'center').
+    <PlacementShift placement={placement}>
+      <AbsoluteFill justify="center" align="center">
+        <Flex direction="column" align="center" gap={Math.round(labelSize * 0.7)}>
+          <FadeIn delay={delay} durationInFrames={DURATION.slow}>
+            <Text
+              fontSize={valueSize}
+              color={valueCol}
+              fontFamily={family}
+              fontWeight={700}
+              letterSpacing={Math.round(valueSize * -0.02)}
+            >
+              {String(value)}
+            </Text>
           </FadeIn>
-        ) : null}
-        <FadeIn delay={delay + staggerFrames(4)}>
-          <Text fontSize={labelSize} color={labelCol} fontFamily={family}>
-            {label}
-          </Text>
-        </FadeIn>
-      </Flex>
-    </AbsoluteFill>
+          {showAccent ? (
+            <FadeIn delay={delay + staggerFrames(2)}>
+              <Rect
+                width={Math.round(valueSize * 0.6)}
+                height={6}
+                cornerRadius={3}
+                fill={accentCol}
+              />
+            </FadeIn>
+          ) : null}
+          <FadeIn delay={delay + staggerFrames(4)}>
+            <Text fontSize={labelSize} color={labelCol} fontFamily={family}>
+              {label}
+            </Text>
+          </FadeIn>
+        </Flex>
+      </AbsoluteFill>
+    </PlacementShift>
   )
 }

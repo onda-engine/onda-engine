@@ -24,10 +24,11 @@
 //! origin-relative (like `SlideIn`/`Underline`): position it via a parent `x`/`y`
 //! or an `<AbsoluteFill>` rather than as a measured `<Flex>` child.
 
-import { Group, Text, clipRect, useVideoConfig } from '@onda/react'
+import { Group, Text, clipRect } from '@onda/react'
 import type { ReactNode } from 'react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
 
@@ -66,6 +67,10 @@ export interface MaskRevealProps {
   width?: number
   /** Clip-box height in px. Required for `children`; otherwise `fontSize × 1.2`. */
   height?: number
+  /** Where the clip box sits: a region keyword (`'center'`, `'lower-third'`, …)
+   *  or normalized `{x,y}` (0–1, box center). The shared placement contract;
+   *  default `'center'` (the historical behavior). */
+  placement?: Placement
   /** Arbitrary subtree to reveal instead of `text`. Supply `width`/`height`. */
   children?: ReactNode
 }
@@ -82,6 +87,7 @@ export function MaskReveal({
   italic = false,
   width,
   height,
+  placement,
   children,
 }: MaskRevealProps) {
   // House spring (SPRING_SMOOTH, no overshoot), matching ondajs. `useSpringValue`
@@ -162,14 +168,15 @@ export function MaskReveal({
     }
   }
 
-  // Center the (origin-relative) clip box on the canvas — the assembly is laid
-  // out from its top-left, so without this it would sit in the corner (the
-  // Underline/BarChart pattern). A static centered origin avoids any per-frame
-  // reflow as the clip edge sweeps. Explicit children that overflow the estimated
-  // box still anchor to this centered top-left.
-  const { width: compWidth, height: compHeight } = useVideoConfig()
-  const originX = Math.round((compWidth - boxW) / 2)
-  const originY = Math.round((compHeight - boxH) / 2)
+  // Anchor the (origin-relative) clip box on the shared placement contract —
+  // the assembly is laid out from its top-left, so without this it would sit in
+  // the corner (the Underline/BarChart pattern). Default `'center'` is the
+  // historical centering; corner regions sit flush on the safe margin. A static
+  // origin avoids any per-frame reflow as the clip edge sweeps. Explicit
+  // children that overflow the estimated box still anchor to this top-left.
+  const resolved = usePlacement(placement, { width: boxW, height: boxH })
+  const originX = Math.round(resolved.originX)
+  const originY = Math.round(resolved.originY)
   return (
     <Group x={originX} y={originY}>
       {inner}

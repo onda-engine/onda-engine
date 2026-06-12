@@ -16,7 +16,7 @@ export const captionsSchema = z.object({
   letterSpacing: z.string().optional().describe("CSS letter-spacing (e.g. '-0.02em' or '2px'); applied to the caption and folded into its measured width so centering stays exact."),
   lineHeight: z.number().optional().describe("Unitless line height; accepted for ondajs parity but not applied (the scene Text uses a fixed text box)."),
   align: z.enum(['left', 'center', 'right']).default('center').describe("Text alignment of the caption block within its line(s)."),
-  placement: z.enum(['center', 'top', 'bottom', 'upper-third', 'lower-third']).default('lower-third').describe("Vertical placement band of the caption block; defaults to the broadcast lower-third subtitle position."),
+  placement: z.union([z.enum(['center', 'top', 'bottom', 'upper-third', 'lower-third']), z.object({ x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional() })]).default('lower-third').describe("Vertical placement band of the caption block (defaults to the broadcast lower-third subtitle position), or a normalized {x,y} point (0-1, line center) per the shared placement contract."),
   maxWidth: z.number().default(0.8).describe("Max line width as a 0\u20131 fraction of canvas width; the block wraps within this safe band."),
 })
 

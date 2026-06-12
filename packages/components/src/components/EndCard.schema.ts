@@ -4,6 +4,7 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { placementSchema } from '../placement.js'
 
 export const endCardSchema = z.object({
   cta: z.string().default('Made with Onda').describe("Hero CTA / headline line."),
@@ -18,6 +19,7 @@ export const endCardSchema = z.object({
   handlesColor: z.string().optional().describe("Handles color, kept quiet (defaults to theme textMuted)."),
   accentColor: z.string().optional().describe("Underline color (defaults to theme accent)."),
   fontFamily: z.string().optional().describe("Loaded display font for both CTA and handles (defaults to theme fontFamily)."),
+  placement: placementSchema.optional().describe("Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'."),
 })
 
 export type EndCardSchemaProps = z.infer<typeof endCardSchema>
