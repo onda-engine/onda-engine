@@ -9,15 +9,20 @@ import * as Components from '@onda/components'
 import type { Motion, Theme } from '@onda/components'
 import {
   AbsoluteFill,
+  Camera,
   Composition,
   Group,
   Rect,
+  Scene3D,
   Sequence,
   Text,
   type TransitionPresentation,
   TransitionSeries,
   blur,
   chromaticAberration,
+  clipEllipse,
+  clipPath,
+  clipRect,
   clockWipe,
   crossFade,
   depthPush,
@@ -48,7 +53,19 @@ import {
   totalFrames,
   transitionOverlapFrames,
 } from './timing.js'
-import type { Brand, CompositionPayload, EntryAnimation, Scene, TimeSpec, Track } from './types.js'
+import type {
+  Brand,
+  CameraMove,
+  CompositionPayload,
+  EntryAnimation,
+  EntryClip,
+  EntryEffects,
+  EntryMatte,
+  Scene,
+  TimeSpec,
+  Track,
+  Transform3D,
+} from './types.js'
 
 export * from './types.js'
 export { timeSpecToSeconds, toFrames, totalFrames } from './timing.js'
@@ -302,30 +319,32 @@ function composeMotion(
 /** Scene transition slugs → engine presentations (defaults). Unknown slugs fall
  *  back to cross-fade. The effect transitions (blur/glass-wipe/chromatic/…) are
  *  approximated in the presentation layer — no engine filter pass needed. */
-const TRANSITIONS: Record<string, () => TransitionPresentation> = {
+type TransOpts = Record<string, unknown> | undefined
+const TRANSITIONS: Record<string, (o?: TransOpts) => TransitionPresentation> = {
   'cross-fade': () => crossFade(),
   fade: () => fade(),
-  slide: () => slide(),
-  wipe: () => wipe(),
+  slide: (o) => slide(o as never),
+  wipe: (o) => wipe(o as never),
   iris: () => iris(),
   flip: () => flip(),
   'clock-wipe': () => clockWipe(),
-  push: () => push(),
-  zoom: () => zoom(),
+  push: (o) => push(o as never),
+  zoom: (o) => zoom(o as never),
   'depth-push': () => depthPush(),
-  'dip-to-color': () => dipToColor(),
+  'dip-to-color': (o) => dipToColor(o as never),
   none: () => none(),
   // Effect transitions — approximated in the presentation layer (no engine blur).
   blur: () => blur(),
   'chromatic-aberration': () => chromaticAberration(),
   'device-pullback': () => devicePullback(),
   'expand-morph': () => expandMorph(),
-  'glass-wipe': () => glassWipe(),
-  'grid-pixelate': () => gridPixelate(),
+  'glass-wipe': (o) => glassWipe(o as never),
+  'grid-pixelate': (o) => gridPixelate(o as never),
   morph: () => morph(),
-  'type-mask': () => typeMask(),
+  'type-mask': (o) => typeMask(o as never),
 }
-const presentationFor = (type: string): TransitionPresentation => (TRANSITIONS[type] ?? crossFade)()
+const presentationFor = (type: string, options?: TransOpts): TransitionPresentation =>
+  (TRANSITIONS[type] ?? crossFade)(options)
 
 // ── Registry ────────────────────────────────────────────────────────────────
 
@@ -374,17 +393,56 @@ interface AnimatedProps {
   component: string
   props?: Record<string, unknown>
   animate?: EntryAnimation[]
+  effects?: EntryEffects
+  depth?: number
+  transform3d?: Transform3D
+  matte?: EntryMatte
+  clip?: EntryClip
   durationInFrames: number
   registry: Registry
 }
 
+/** Build the `matte`/`clip` node props for an entry: the matte stencil element
+ *  (built from the registry like a normal entry) + the clip region. */
+function matteClipProps(
+  matte: EntryMatte | undefined,
+  clip: EntryClip | undefined,
+  registry: Registry,
+  width: number,
+  height: number,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  if (matte) {
+    const Comp = registry[matte.component]
+    if (Comp) {
+      out.matte = createElement(Comp, adaptProps(matte.component, matte.props, width, height))
+      out.matteMode = matte.mode ?? 'alpha'
+    }
+  }
+  if (clip) {
+    out.clip =
+      clip.shape === 'ellipse'
+        ? clipEllipse(clip.width ?? width, clip.height ?? height)
+        : clip.shape === 'path' && clip.data
+          ? clipPath(clip.data)
+          : clipRect(clip.width ?? width, clip.height ?? height, clip.cornerRadius)
+  }
+  return out
+}
+
 /** A registry component wrapped in its composed choreography Motion (opacity +
  *  translate on the outer group; scale about the canvas centre, matching CSS
- *  transform-origin). */
+ *  transform-origin). Per-entry `effects` (bloom/grade/grain/…) + `depth` wrap
+ *  the component's own subtree as a `<Group>` carrying the engine effect props. */
 function AnimatedEntry({
   component,
   props,
   animate,
+  effects,
+  depth,
+  transform3d,
+  matte,
+  clip,
   durationInFrames,
   registry,
 }: AnimatedProps): ReactElement {
@@ -392,9 +450,42 @@ function AnimatedEntry({
   const { fps, width, height } = useVideoConfig()
   const m = composeMotion(animate, frame, fps, durationInFrames)
   const Comp = registry[component]
-  const child = Comp
+  const base = Comp
     ? createElement(Comp, adaptProps(component, props, width, height))
     : errorPlaceholder(component)
+  // Per-entry effects + 2.5D depth → a wrapping <Group> (the @onda engine reads
+  // these sugar props as scene-graph effects; rendered on Vello in export).
+  const fxChild =
+    effects || typeof depth === 'number'
+      ? createElement(
+          Group as ComponentType<Record<string, unknown>>,
+          { ...(effects ?? {}), ...(typeof depth === 'number' ? { depth } : {}) },
+          base,
+        )
+      : base
+  // Track matte (media-through-type) + clip region.
+  const matteChild =
+    matte || clip
+      ? createElement(
+          Group as ComponentType<Record<string, unknown>>,
+          matteClipProps(matte, clip, registry, width, height),
+          fxChild,
+        )
+      : fxChild
+  // AE-style 3D: wrap in a <Scene3D> (default camera) with the 3D layer carrying
+  // position3d / rotation3d / extrude. Inert (pixel-identical) until moved in z.
+  const child =
+    transform3d && Object.keys(transform3d).length > 0
+      ? createElement(
+          Scene3D as ComponentType<Record<string, unknown>>,
+          {},
+          createElement(
+            Group as ComponentType<Record<string, unknown>>,
+            { ...transform3d },
+            matteChild,
+          ),
+        )
+      : matteChild
   const cx = width / 2
   const cy = height / 2
   const [px, py] = SELF_ANCHORING.has(component) ? [0, 0] : placementOffset(props, width, height)
@@ -425,6 +516,11 @@ function EntrySlot({
       component: entry.component,
       props: entry.props,
       animate: entry.animate,
+      effects: entry.effects,
+      depth: entry.depth,
+      transform3d: entry.transform3d,
+      matte: entry.matte,
+      clip: entry.clip,
       durationInFrames: toFrames(entry.for, fps),
       registry,
     }),
@@ -439,6 +535,36 @@ function EntrySlot({
 // component fills the canvas via its own AbsoluteFill. (See buildComposition root
 // for the same fix — a full-frame bg Rect as a flex sibling otherwise eats all
 // the height and the content collapses to nothing → a blank frame.)
+/** A cinematic camera move over a scene — frames the content in an @onda
+ *  `<Camera>` eased from `move.from` → `move.to` over the scene duration. */
+function AnimatedCamera({
+  move,
+  durationInFrames,
+  children,
+}: { move: CameraMove; durationInFrames: number; children: ReactElement }): ReactElement {
+  const frame = useCurrentFrame()
+  const { width, height } = useVideoConfig()
+  const p = durationInFrames > 1 ? Math.min(1, Math.max(0, frame / (durationInFrames - 1))) : 1
+  const e = p * p * (3 - 2 * p) // smoothstep ease-in-out
+  const from = move.from ?? {}
+  const to = move.to ?? {}
+  const lerp = (a: number | undefined, b: number | undefined, d: number): number => {
+    const av = a ?? d
+    const bv = b ?? d
+    return av + (bv - av) * e
+  }
+  return createElement(
+    Camera,
+    {
+      focusX: lerp(from.x, to.x, 0.5) * width,
+      focusY: lerp(from.y, to.y, 0.5) * height,
+      zoom: lerp(from.zoom, to.zoom, 1),
+      rotate: lerp(from.rotate, to.rotate, 0),
+    },
+    children,
+  )
+}
+
 function SceneTracks({ scene, registry }: { scene: Scene; registry: Registry }): ReactElement {
   return createElement(
     Group,
@@ -484,7 +610,18 @@ export function buildComposition(
   payload: CompositionPayload,
   opts: BuildOptions = {},
 ): ReactElement {
-  const { width, height, fps, scenes, layers = [], brand } = payload
+  const {
+    width,
+    height,
+    fps,
+    scenes,
+    layers = [],
+    brand,
+    linear,
+    finish,
+    motionBlur,
+    dof,
+  } = payload
   const registry = opts.registry ?? defaultRegistry()
   const total = totalFrames(payload, fps)
 
@@ -494,7 +631,7 @@ export function buildComposition(
       seriesChildren.push(
         createElement(TransitionSeries.Transition, {
           key: `transition-${i}`,
-          presentation: presentationFor(scene.transition.type),
+          presentation: presentationFor(scene.transition.type, scene.transition.options),
           timing: linearTiming({
             durationInFrames: transitionOverlapFrames(scenes[i - 1], scene, fps),
           }),
@@ -505,7 +642,13 @@ export function buildComposition(
       createElement(
         TransitionSeries.Sequence,
         { key: scene.id, durationInFrames: sceneDurationFrames(scene, fps) },
-        createElement(SceneTracks, { scene, registry }),
+        scene.camera
+          ? createElement(AnimatedCamera, {
+              move: scene.camera,
+              durationInFrames: sceneDurationFrames(scene, fps),
+              children: createElement(SceneTracks, { scene, registry }),
+            })
+          : createElement(SceneTracks, { scene, registry }),
       ),
     )
   })
@@ -524,6 +667,11 @@ export function buildComposition(
               component: entry.component,
               props: entry.props,
               animate: entry.animate,
+              effects: entry.effects,
+              depth: entry.depth,
+              transform3d: entry.transform3d,
+              matte: entry.matte,
+              clip: entry.clip,
               durationInFrames: dur,
               registry,
             }),
@@ -546,7 +694,14 @@ export function buildComposition(
     ? createElement(Components.ThemeProvider, { theme: brandToTheme(brand) }, root)
     : root
 
-  return createElement(Composition, { width, height, fps, durationInFrames: total }, content)
+  // Composition-level cinematic finish/dof/motion-blur/linear ride on the root
+  // <Composition> — the @onda engine applies them after the comp rasterizes
+  // (finish + motionBlur are GPU/export-only).
+  return createElement(
+    Composition,
+    { width, height, fps, durationInFrames: total, linear, finish, motionBlur, dof },
+    content,
+  )
 }
 
 // ── Validation ──────────────────────────────────────────────────────────────
