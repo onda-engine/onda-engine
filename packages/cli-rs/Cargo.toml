@@ -33,7 +33,7 @@ onda-video = { workspace = true, optional = true }
 # Native subject segmentation (U²-Net via ONNX Runtime). Behind the `segment`
 # feature: it pulls in onnxruntime, which can't target wasm32, so it stays out
 # of the default + wasm builds.
-onda-segment = { path = "../segment-rs", version = "0.0.0", optional = true }
+onda-segment = { path = "../segment-rs", version = "0.1.0", optional = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
 

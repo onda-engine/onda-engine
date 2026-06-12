@@ -255,7 +255,13 @@ fn run(args: Vec<String>) -> Result<()> {
             Ok(())
         }
         "-V" | "--version" => {
-            println!("onda {}", env!("CARGO_PKG_VERSION"));
+            // e.g. `onda 0.1.0 (b671f5e 2026-06-12)` — SHA + date stamped by build.rs.
+            println!(
+                "onda {} ({} {})",
+                env!("CARGO_PKG_VERSION"),
+                env!("ONDA_GIT_SHA"),
+                env!("ONDA_BUILD_DATE")
+            );
             Ok(())
         }
         "render" => render_command(&args[1..]),

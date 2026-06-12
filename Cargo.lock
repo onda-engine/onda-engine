@@ -1446,7 +1446,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "onda-animation"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "onda-core",
  "onda-scene",
@@ -1456,7 +1456,7 @@ dependencies = [
 
 [[package]]
 name = "onda-audio"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "rustfft",
  "serde",
@@ -1466,7 +1466,7 @@ dependencies = [
 
 [[package]]
 name = "onda-bench"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "onda-core",
  "onda-renderer",
@@ -1476,7 +1476,7 @@ dependencies = [
 
 [[package]]
 name = "onda-cli"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "kurbo",
@@ -1497,7 +1497,7 @@ dependencies = [
 
 [[package]]
 name = "onda-core"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1505,7 +1505,7 @@ dependencies = [
 
 [[package]]
 name = "onda-image"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "base64",
  "image",
@@ -1515,7 +1515,7 @@ dependencies = [
 
 [[package]]
 name = "onda-layout"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "onda-core",
  "onda-scene",
@@ -1524,7 +1524,7 @@ dependencies = [
 
 [[package]]
 name = "onda-renderer"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "gif",
  "i_overlay",
@@ -1540,7 +1540,7 @@ dependencies = [
 
 [[package]]
 name = "onda-scene"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "onda-core",
  "serde",
@@ -1549,7 +1549,7 @@ dependencies = [
 
 [[package]]
 name = "onda-segment"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "image",
@@ -1559,7 +1559,7 @@ dependencies = [
 
 [[package]]
 name = "onda-svg"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "onda-core",
  "onda-scene",
@@ -1570,7 +1570,7 @@ dependencies = [
 
 [[package]]
 name = "onda-typography"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "cosmic-text",
  "onda-core",
@@ -1579,7 +1579,7 @@ dependencies = [
 
 [[package]]
 name = "onda-vello"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "bytemuck",
  "futures-intrusive",
@@ -1598,7 +1598,7 @@ dependencies = [
 
 [[package]]
 name = "onda-video"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "image",
  "onda-scene",
@@ -1606,7 +1606,7 @@ dependencies = [
 
 [[package]]
 name = "onda-wasm"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "onda-core",
@@ -1621,7 +1621,7 @@ dependencies = [
 
 [[package]]
 name = "onda-wasm-audio"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "onda-audio",
@@ -1630,7 +1630,7 @@ dependencies = [
 
 [[package]]
 name = "onda-wasm-vello"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "onda-core",
