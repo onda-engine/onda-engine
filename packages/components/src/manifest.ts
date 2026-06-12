@@ -398,6 +398,15 @@ const RAW: RawEntry[] = [
         default: 'DURATION.slow',
         description: 'Frames for the entrance grow-in. Accepts frames (number) or a time string (\'0.5s\', \'500ms\', \'12f\').',
       },
+      {
+        name: 'variant',
+        type: 'int',
+        role: 'integer',
+        themeable: false,
+        required: false,
+        description:
+          "Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take.",
+      },
     ],
     schema: audioVisualizerSchema,
   },
@@ -1743,6 +1752,15 @@ const RAW: RawEntry[] = [
         description:
           'Rest y offset of the wrapper in px relative to center; the shake jitters around this.',
       },
+      {
+        name: 'variant',
+        type: 'int',
+        role: 'integer',
+        themeable: false,
+        required: false,
+        description:
+          "Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take.",
+      },
     ],
     schema: cameraShakeSchema,
   },
@@ -2508,6 +2526,15 @@ const RAW: RawEntry[] = [
         required: false,
         default: '12',
         description: 'Base piece size in pixels \u2014 each piece varies around this.',
+      },
+      {
+        name: 'variant',
+        type: 'int',
+        role: 'integer',
+        themeable: false,
+        required: false,
+        description:
+          "Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take.",
       },
     ],
     schema: confettiSchema,
@@ -3520,6 +3547,15 @@ const RAW: RawEntry[] = [
         required: false,
         description:
           'Deprecated and ignored \u2014 grain is monochrome luminance noise (overlay-blended); accepted for compat only.',
+      },
+      {
+        name: 'variant',
+        type: 'int',
+        role: 'integer',
+        themeable: false,
+        required: false,
+        description:
+          "Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take.",
       },
     ],
     schema: grainOverlaySchema,
@@ -5400,6 +5436,15 @@ const RAW: RawEntry[] = [
         required: false,
         description: 'Breathing room before the cut for fitToClip (default 6 frames).',
       },
+      {
+        name: 'variant',
+        type: 'int',
+        role: 'integer',
+        themeable: false,
+        required: false,
+        description:
+          "Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take.",
+      },
     ],
     schema: matrixDecodeSchema,
   },
@@ -5466,6 +5511,15 @@ const RAW: RawEntry[] = [
         required: false,
         default: '0.5',
         description: 'Overall blob opacity over the canvas (0..1).',
+      },
+      {
+        name: 'variant',
+        type: 'int',
+        role: 'integer',
+        themeable: false,
+        required: false,
+        description:
+          "Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take.",
       },
     ],
     schema: meshGradientSchema,
@@ -5649,6 +5703,15 @@ const RAW: RawEntry[] = [
         default: '0.5',
         description:
           'Vertical center of the constellation as a 0\u20131 fraction of canvas height.',
+      },
+      {
+        name: 'variant',
+        type: 'int',
+        role: 'integer',
+        themeable: false,
+        required: false,
+        description:
+          "Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take.",
       },
     ],
     schema: nodeGraphSchema,
@@ -6796,6 +6859,15 @@ const RAW: RawEntry[] = [
         required: false,
         description: 'Absolute y (top-ish) of the line (defaults to vertical center).',
       },
+      {
+        name: 'variant',
+        type: 'int',
+        role: 'integer',
+        themeable: false,
+        required: false,
+        description:
+          "Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take.",
+      },
     ],
     schema: rgbGlitchSchema,
   },
@@ -7473,6 +7545,15 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         description: 'Breathing room before the cut for fitToClip (default 6 frames).',
+      },
+      {
+        name: 'variant',
+        type: 'int',
+        role: 'integer',
+        themeable: false,
+        required: false,
+        description:
+          "Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take.",
       },
     ],
     schema: slotMachineRollSchema,

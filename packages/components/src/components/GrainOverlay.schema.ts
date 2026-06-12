@@ -15,6 +15,7 @@ export const grainOverlaySchema = z.object({
   animateEvery: timeSchema.default(2).describe("Frames per re-seed bucket when animate is on; lower = busier shimmer."),
   count: z.number().optional().describe("Deprecated and ignored \u2014 grain is now a continuous per-pixel field, not scattered dots; accepted for compat only."),
   color: z.string().optional().describe("Deprecated and ignored \u2014 grain is monochrome luminance noise (overlay-blended); accepted for compat only."),
+  variant: z.number().int().optional().describe("Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take."),
 })
 
 export type GrainOverlaySchemaProps = z.infer<typeof grainOverlaySchema>

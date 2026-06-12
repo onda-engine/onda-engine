@@ -17,6 +17,7 @@ export const confettiSchema = z.object({
   spread: z.number().default(120).describe("Launch spread, in degrees, around straight up; wider = more fan-out."),
   gravity: z.number().default(1).describe("Downward acceleration; higher = pieces fall back faster."),
   pieceSize: z.number().default(12).describe("Base piece size in pixels \u2014 each piece varies around this."),
+  variant: z.number().int().optional().describe("Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take."),
 })
 
 export type ConfettiSchemaProps = z.infer<typeof confettiSchema>

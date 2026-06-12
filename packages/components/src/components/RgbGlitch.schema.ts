@@ -25,6 +25,7 @@ export const rgbGlitchSchema = z.object({
   align: z.enum(['left', 'center', 'right']).default('center').describe("Line alignment relative to the placement point."),
   x: z.number().optional().describe("Absolute x of the alignment anchor (defaults to canvas horizontal center)."),
   y: z.number().optional().describe("Absolute y (top-ish) of the line (defaults to vertical center)."),
+  variant: z.number().int().optional().describe("Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take."),
 })
 
 export type RgbGlitchSchemaProps = z.infer<typeof rgbGlitchSchema>

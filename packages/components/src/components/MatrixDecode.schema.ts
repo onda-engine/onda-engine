@@ -30,6 +30,7 @@ export const matrixDecodeSchema = z.object({
   fitToClip: z.boolean().optional().describe("Compress the whole timing envelope (delay, stagger, durations) so the entrance settles at least hold before the end of the enclosing clip. Opt-in."),
   maxSettle: timeSchema.optional().describe("Hard cap on the settle time (frames or '0.5s'). Wins over fitToClip."),
   hold: timeSchema.optional().describe("Breathing room before the cut for fitToClip (default 6 frames)."),
+  variant: z.number().int().optional().describe("Integer 'take' selector: derives a new deterministic seed from (seed, variant), so alternates never require hand-edited seeds. 0/omitted = the default take."),
 })
 
 export type MatrixDecodeSchemaProps = z.infer<typeof matrixDecodeSchema>

@@ -24,7 +24,14 @@
 //! `rotationIntensity` small — a fraction of a degree reads as a hand-held
 //! wobble; more reads as a tumble.
 
-import { AbsoluteFill, Group, random, useCurrentFrame, useVideoConfig } from '@onda/react'
+import {
+  AbsoluteFill,
+  Group,
+  random,
+  useCurrentFrame,
+  useVideoConfig,
+  variantSeed,
+} from '@onda/react'
 import type { ReactNode } from 'react'
 import { DURATION } from '../motion.js'
 import { type TimeInput, framesOf } from '../time.js'
@@ -43,6 +50,10 @@ export interface CameraShakeProps {
   rotationIntensity?: number
   /** PRNG seed — same seed always produces the same shake. */
   seed?: number
+  /** Integer "take" selector: derives a new deterministic seed from (seed,
+   *  variant), so alternates never require hand-edited magic seeds. 0/omitted
+   *  = the default take (identical to today's output). */
+  variant?: number
   /** Linearly decay intensity (and rotation) to 0 over `duration`, so the camera
    *  settles to rest by the end. Default `true`. */
   decay?: boolean
@@ -59,12 +70,15 @@ export function CameraShake({
   duration: durationIn = DURATION.slow,
   intensity = 4,
   rotationIntensity = 0.6,
-  seed = 0,
+  seed: seedProp = 0,
+  variant,
   decay = true,
   x = 0,
   y = 0,
   children,
 }: CameraShakeProps) {
+  // The variant knob derives an alternate deterministic seed (identity at 0).
+  const seed = variantSeed(seedProp, variant)
   const { fps } = useVideoConfig()
   // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
   const delay = framesOf(delayIn, fps)

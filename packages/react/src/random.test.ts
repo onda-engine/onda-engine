@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { noise2D, noise3D, random } from './index.js'
+import { noise2D, noise3D, random, variantSeed } from './index.js'
 
 describe('random', () => {
   it('is deterministic per seed and within [0, 1)', () => {
@@ -43,5 +43,21 @@ describe('noise', () => {
     const v = noise3D('s', 1.5, 2.5, 3.5)
     expect(v).toBeGreaterThanOrEqual(-1)
     expect(v).toBeLessThanOrEqual(1)
+  })
+})
+
+describe('variantSeed', () => {
+  it('is the identity for variant 0/undefined (existing renders untouched)', () => {
+    expect(variantSeed(7)).toBe(7)
+    expect(variantSeed(7, 0)).toBe(7)
+    expect(variantSeed('grain')).toBe('grain')
+  })
+  it('derives stable, distinct seeds per variant', () => {
+    const a = variantSeed(7, 1)
+    const b = variantSeed(7, 2)
+    expect(a).toBe(variantSeed(7, 1)) // stable
+    expect(a).not.toBe(b)
+    expect(a).not.toBe(7)
+    expect(random(a)).not.toBeCloseTo(random(b), 5)
   })
 })
