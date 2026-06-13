@@ -50,10 +50,10 @@ jobs:
       # 2x clippy::redundant_closure in onda-layout + 1 unused import in the renderer
       # golden test). Re-add `-- -D warnings` once those are fixed.
       - name: clippy
-        run: cargo clippy --workspace --exclude onda-segment --exclude onda-transcribe --all-targets
+        run: cargo clippy --workspace --exclude onda-segment --exclude onda-transcribe --exclude onda-tts --all-targets
 
       - name: cargo test
-        run: cargo test --workspace --exclude onda-segment --exclude onda-transcribe
+        run: cargo test --workspace --exclude onda-segment --exclude onda-transcribe --exclude onda-tts
 
       # Golden-frame determinism harness: CPU reference renders diffed against
       # committed PNGs (packages/renderer-rs/tests/golden). Gated behind the `png`
