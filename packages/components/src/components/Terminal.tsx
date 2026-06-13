@@ -180,11 +180,13 @@ export function Terminal({
   const cornerRadius = cornerRadiusProp ?? theme.radius
 
   // Anchor on the shared placement contract (window CENTER at the resolved
-  // point; corner regions sit flush on the safe margin). Legacy px `x`/`y`
-  // (the window's top-left) win per-axis; the default is centered, as before.
+  // point; corner regions sit flush on the safe margin). `placement` is
+  // authoritative when set; legacy px `x`/`y` only anchor in the pre-placement
+  // path (else a stray `x:0.5` reads as 0.5 px → top-left). Default: centered.
   const resolved = usePlacement(placement, { width, height: windowHeight })
-  const winX = x ?? Math.round(resolved.originX)
-  const winY = y ?? Math.round(resolved.originY)
+  const useLegacy = placement === undefined
+  const winX = useLegacy && x !== undefined ? x : Math.round(resolved.originX)
+  const winY = useLegacy && y !== undefined ? y : Math.round(resolved.originY)
 
   // Title-bar dots: three neutral-grey circles, matching ondajs's chrome dots
   // (it draws `--onda-border-lit, #26262E`; here a touch lighter so they read).

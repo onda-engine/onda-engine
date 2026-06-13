@@ -202,15 +202,20 @@ export function SlotMachineRoll({
   // `x`/`y` win per-axis when given: `align` decides which edge `x` pins, `y`
   // pins the block's top — exactly the pre-placement behavior.
   const resolved = usePlacement(placement, { width: totalWidth, height: cell })
+  // `placement` is authoritative when set; the legacy pixel `x`/`y` apply ONLY
+  // in the pre-placement path (no `placement`). Otherwise a stray `x`/`y` would
+  // silently override an explicit placement (a 0.5 meant as a fraction reads as
+  // 0.5 px → top-left).
+  const useLegacy = placement === undefined
   const originX =
-    x !== undefined
+    useLegacy && x !== undefined
       ? align === 'left'
         ? x
         : align === 'right'
           ? x - totalWidth
           : x - totalWidth / 2
       : resolved.originX
-  const originY = y ?? Math.round(resolved.originY)
+  const originY = useLegacy && y !== undefined ? y : Math.round(resolved.originY)
 
   const local = frame - delay
 

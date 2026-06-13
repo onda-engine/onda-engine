@@ -174,12 +174,14 @@ export function PricingCard({
   const liftScale = recommended ? 1.04 : 1
 
   // Anchor the fixed-size card on the shared placement contract (card CENTER at
-  // the resolved point; corner regions sit flush on the safe margin). Legacy px
-  // `x`/`y` (top-left) win per-axis; the default is centered, as before. (No
-  // layout container: per-frame feature fades never trigger a reflow.)
+  // the resolved point; corner regions sit flush on the safe margin).
+  // `placement` is authoritative when set; legacy px `x`/`y` only anchor in the
+  // pre-placement path (else a stray `x:0.5` reads as 0.5 px → top-left).
+  // Default: centered. (No layout container: per-frame feature fades never reflow.)
   const resolved = usePlacement(placement, { width, height: cardHeight })
-  const originX = x ?? Math.round(resolved.originX)
-  const originY = y ?? Math.round(resolved.originY)
+  const useLegacy = placement === undefined
+  const originX = useLegacy && x !== undefined ? x : Math.round(resolved.originX)
+  const originY = useLegacy && y !== undefined ? y : Math.round(resolved.originY)
 
   // Entrance — opacity + rise on the house spring (ondajs `useEntrance('rise')`).
   const enter = entryFadeRise({ frame, fps, delay })
