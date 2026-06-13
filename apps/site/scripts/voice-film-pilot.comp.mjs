@@ -1,3 +1,14 @@
+import { GrainOverlay, MeshGradient, Spotlight, Vignette } from '@onda/components'
+import {
+  AbsoluteFill,
+  Composition,
+  Group,
+  Rect,
+  Sequence,
+  Text,
+  interpolate,
+  useCurrentFrame,
+} from '@onda/react'
 // THE LONG NOTE — pilot (opening ~75s, Chapter 1 + into Chapter 2).
 // Soft dark gradient-field; words-on-screen as narration; cut to an implied breath
 // tempo (no audio). Built from techspecs/voice-film-the-long-note.md.
@@ -9,17 +20,6 @@
 //     --font apps/site/public/fonts/Spectral-Regular.ttf \
 //     --font apps/site/public/fonts/Spectral-Medium.ttf --out /tmp/long-note-pilot.mp4
 import { createElement as h } from 'react'
-import {
-  Composition,
-  Sequence,
-  AbsoluteFill,
-  Group,
-  Text,
-  Rect,
-  interpolate,
-  useCurrentFrame,
-} from '@onda/react'
-import { MeshGradient, GrainOverlay, Vignette, Spotlight } from '@onda/components'
 
 const FPS = 30
 // --- Palette (from the treatment) ---
@@ -65,7 +65,11 @@ function Line({
     h(
       Group,
       { y: y + drift, blur, opacity, scaleX: breath, scaleY: breath },
-      h(Text, { fontSize: size, color, fontFamily: family, fontWeight: 400, letterSpacing: ls }, text),
+      h(
+        Text,
+        { fontSize: size, color, fontFamily: family, fontWeight: 400, letterSpacing: ls },
+        text,
+      ),
     ),
   )
 }
@@ -83,20 +87,48 @@ function PilotBody({ width, height }) {
 
   const field = [
     h(Rect, { key: 'base', x: 0, y: 0, width, height, fill: BASE }),
-    h(MeshGradient, { key: 'cold', colors: COLD, background: BASE, speed: 0.15, opacity: 0.5, seed: 7 }),
-    h(Group, { key: 'warm', opacity: warm }, h(MeshGradient, { colors: WARM, background: BASE, speed: 0.12, opacity: 1, seed: 3 })),
+    h(MeshGradient, {
+      key: 'cold',
+      colors: COLD,
+      background: BASE,
+      speed: 0.15,
+      opacity: 0.5,
+      seed: 7,
+    }),
+    h(
+      Group,
+      { key: 'warm', opacity: warm },
+      h(MeshGradient, { colors: WARM, background: BASE, speed: 0.12, opacity: 1, seed: 3 }),
+    ),
   ]
 
   // Ch1 — "Before The Word" → into Ch2's first two lines (the pilot ends mid-Ch2).
   const lines = [
     place(h(Line, { text: 'Before your name.', size: 38, family: SERIF_L, ls: 1.2 }), 6, sec(7)),
-    place(h(Line, { text: "Before a single word you'd keep.", size: 38, family: SERIF_L, ls: 1.0 }), 12.5, sec(8)),
+    place(
+      h(Line, { text: "Before a single word you'd keep.", size: 38, family: SERIF_L, ls: 1.0 }),
+      12.5,
+      sec(8),
+    ),
     place(h(Line, { text: 'There was a sound you made', size: 46, family: SERIF }), 20.5, sec(8.5)),
     place(h(Line, { text: 'that meant only:', size: 46, family: SERIF, hold: 120 }), 29, sec(6)),
     place(h(Line, { text: 'here.', size: 72, family: SERIF_M, hold: 130 }), 35.5, sec(7.5)),
     place(h(Line, { text: "I'm here.", size: 72, family: SERIF_M, hold: 120 }), 43.5, sec(7)),
-    place(h(Line, { text: 'Then one day the sound had edges.', size: 50, family: SERIF }), 57.5, sec(8)),
-    place(h(Line, { text: 'A shape your mouth had been practicing in the dark.', size: 50, family: SERIF, hold: 150 }), 65.5, sec(9)),
+    place(
+      h(Line, { text: 'Then one day the sound had edges.', size: 50, family: SERIF }),
+      57.5,
+      sec(8),
+    ),
+    place(
+      h(Line, {
+        text: 'A shape your mouth had been practicing in the dark.',
+        size: 50,
+        family: SERIF,
+        hold: 150,
+      }),
+      65.5,
+      sec(9),
+    ),
   ]
 
   // The single reactive light: one soft amber bloom behind "here.", then it recedes.
@@ -113,7 +145,14 @@ function PilotBody({ width, height }) {
     ...lines,
     spotlight,
     h(Vignette, { key: 'vig', intensity: 0.62, innerRadius: 38, color: '#000000' }),
-    h(GrainOverlay, { key: 'grain', opacity: 0.06, baseFrequency: 0.9, numOctaves: 1, animate: true, animateEvery: 2 }),
+    h(GrainOverlay, {
+      key: 'grain',
+      opacity: 0.06,
+      baseFrequency: 0.9,
+      numOctaves: 1,
+      animate: true,
+      animateEvery: 2,
+    }),
   ]
 }
 

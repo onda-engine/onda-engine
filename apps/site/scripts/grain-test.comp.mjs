@@ -1,9 +1,9 @@
+import { Composition, Group, Rect, Text, linearGradient } from '@onda/react'
 // grain-test.comp.mjs — the grain pass on the banding-prone case: a smooth dark
 // vertical gradient (the "premium dark hero") + a title. OFF, 8-bit banding stripes
 // the gradient and the frame looks clean-digital; ON, grain dithers the banding and
 // gives the frame a photographed texture. Toggle with GRAIN=off.
 import { createElement as h } from 'react'
-import { Composition, Group, Rect, Text, linearGradient } from '@onda/react'
 
 const ON = process.env.GRAIN !== 'off'
 

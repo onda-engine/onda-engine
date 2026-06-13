@@ -1,7 +1,7 @@
+import { Composition, Path, Rect, morphPath } from '@onda/react'
 // morph-strip.comp.mjs — a single-frame strip of morphPath stages (the magic move):
 // a circle continuously morphing into a 4-point star, sampled at 5 t-values.
 import { createElement as h } from 'react'
-import { Composition, Path, Rect, morphPath } from '@onda/react'
 
 const W = 1280
 const H = 720

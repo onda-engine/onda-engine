@@ -7,8 +7,10 @@ import { z } from 'zod'
 import { timeSchema } from '../time.js'
 
 export const fadeOutSchema = z.object({
-  delay: timeSchema.default(0).describe("Frame at which the exit (fade-out) begins."),
-  durationInFrames: timeSchema.optional().describe("Frames the fade-out takes (default DURATION.fast = 10 \u2014 exits are quick)."),
+  delay: timeSchema.default(0).describe('Frame at which the exit (fade-out) begins.'),
+  durationInFrames: timeSchema
+    .optional()
+    .describe('Frames the fade-out takes (default DURATION.fast = 10 \u2014 exits are quick).'),
 })
 
 export type FadeOutSchemaProps = z.infer<typeof fadeOutSchema>

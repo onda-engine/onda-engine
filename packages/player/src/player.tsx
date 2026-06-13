@@ -769,7 +769,6 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
         {videoOverlays.length > 0 && (
           <div ref={videoOverlayRef} style={styles.videoOverlay} aria-hidden="true">
             {videoOverlays.map((o) => (
-              // biome-ignore lint/a11y/useMediaCaption: decorative preview surrogate, not content
               <video
                 key={o.key}
                 src={o.src}

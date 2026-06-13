@@ -1,8 +1,4 @@
-// mask-images.comp.mjs — the two IMAGE-based reveals that read clearly: a photo
-// revealed THROUGH type (track matte), and text BEHIND a person (a cutout layered
-// over the type). Real assets, native render. PERSON/PERSON_W/PERSON_H overridable
-// via env so an auto-segmented cutout can be swapped in.
-import { createElement as h } from 'react'
+import { MaskReveal } from '@onda/components'
 import {
   Composition,
   Easing,
@@ -15,7 +11,11 @@ import {
   linearGradient,
   useCurrentFrame,
 } from '@onda/react'
-import { MaskReveal } from '@onda/components'
+// mask-images.comp.mjs — the two IMAGE-based reveals that read clearly: a photo
+// revealed THROUGH type (track matte), and text BEHIND a person (a cutout layered
+// over the type). Real assets, native render. PERSON/PERSON_W/PERSON_H overridable
+// via env so an auto-segmented cutout can be swapped in.
+import { createElement as h } from 'react'
 
 const A = '/Users/rodrigosilva/.claude/jobs/0e96360d/tmp/assets'
 const FJORD = `${A}/scenic2.jpg`
@@ -95,7 +95,14 @@ function BehindPerson({ width, height }) {
     { y: rise, opacity: o },
     h(
       Text,
-      { x: width / 2 - 330, y: height / 2 - 60, fontSize: 210, fontWeight: 900, color: INK, letterSpacing: 4 },
+      {
+        x: width / 2 - 330,
+        y: height / 2 - 60,
+        fontSize: 210,
+        fontWeight: 900,
+        color: INK,
+        letterSpacing: 4,
+      },
       'BEHIND',
     ),
   )
@@ -124,7 +131,14 @@ export default function maskRevealImages({ fps, width, height }) {
     seq(
       0,
       INTRO,
-      h(MaskReveal, { text: 'REVEAL · WITH IMAGES', direction: 'left', fontSize: 72, duration: 32, color: INK, fontWeight: 800 }),
+      h(MaskReveal, {
+        text: 'REVEAL · WITH IMAGES',
+        direction: 'left',
+        fontSize: 72,
+        duration: 32,
+        color: INK,
+        fontWeight: 800,
+      }),
     ),
     seq(
       INTRO,

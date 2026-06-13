@@ -1,9 +1,9 @@
+import { Composition, Path, Rect, fbmGradient } from '@onda/react'
 // lightwrap-test.comp.mjs — a synthetic proof for the LightWrap effect: a bright,
 // colorful fBm backdrop with a dark subject cut-out over it. With light-wrap ON the
 // subject's edges pick up the background light (reads "shot in"); OFF it's a flat
 // dark silhouette pasted on top. Toggle with LW=off in the environment.
 import { createElement as h } from 'react'
-import { Composition, Path, Rect, fbmGradient } from '@onda/react'
 
 const ON = process.env.LW !== 'off'
 const R = 300 // subject radius

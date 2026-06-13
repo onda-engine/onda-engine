@@ -7,7 +7,7 @@
 //!
 //! Backend caveat: like `<Path>`, this renders on the Vello/GPU backend; the CPU
 //! reference degrades (no path fills).
-import { Group, interpolate, morphPath, Path, useCurrentFrame } from '@onda/react'
+import { Group, Path, interpolate, morphPath, useCurrentFrame } from '@onda/react'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
 

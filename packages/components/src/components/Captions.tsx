@@ -228,7 +228,6 @@ export function Captions({
         const isCurrent = i === currentWord
         return (
           <Text
-            // biome-ignore lint/suspicious/noArrayIndexKey: words are positional within a fixed line
             key={i}
             x={left - lineWidth / 2}
             y={-lineHeight / 2 + ty}

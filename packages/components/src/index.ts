@@ -226,7 +226,11 @@ export {
 export { LineChart, type LineChartProps } from './components/LineChart.js'
 export { LogoReveal, type LogoRevealPreset, type LogoRevealProps } from './components/LogoReveal.js'
 export { LogoSting, type LogoStingProps } from './components/LogoSting.js'
-export { LookbookShot, type LookbookLayout, type LookbookShotProps } from './components/LookbookShot.js'
+export {
+  LookbookShot,
+  type LookbookLayout,
+  type LookbookShotProps,
+} from './components/LookbookShot.js'
 export { LowerThird, type LowerThirdProps } from './components/LowerThird.js'
 export { Marquee, type MarqueeProps } from './components/Marquee.js'
 export { MaskReveal, type MaskRevealProps } from './components/MaskReveal.js'

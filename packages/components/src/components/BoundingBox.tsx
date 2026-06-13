@@ -213,7 +213,6 @@ export function BoundingBox({
         if (tickDraw <= 0.001) return null
         return (
           <Path
-            // biome-ignore lint/suspicious/noArrayIndexKey: fixed 4-corner list, order is stable
             key={i}
             d={corner.d}
             stroke={color}
