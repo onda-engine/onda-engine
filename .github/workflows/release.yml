@@ -17,8 +17,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  studio-bundle:
-    name: Studio bundle (x86_64 linux)
+  embed-kit:
+    name: Embed kit (x86_64 linux)
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -60,13 +60,13 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # bun bundles the studio vendor entry inside build-studio-bundle.sh.
+      # bun bundles the vendor entry inside build-embed-kit.sh.
       - uses: oven-sh/setup-bun@v2
 
       - name: pnpm install
         run: pnpm install --frozen-lockfile
 
-      # build-studio-bundle.sh requires packages/wasm/pkg/onda_wasm_bg.wasm to exist,
+      # build-embed-kit.sh requires packages/wasm/pkg/onda_wasm_bg.wasm to exist,
       # and pkg/ is gitignored — mint it the same way the repo does (the package's
       # own cargo + wasm-bindgen build script). @onda/wasm-audio is built too: the
       # bun-bundled vendor entry resolves it through @onda/components.
@@ -76,7 +76,7 @@ jobs:
           pnpm --filter @onda/wasm-audio build
 
       - name: Build studio bundle
-        run: bash scripts/build-studio-bundle.sh --out dist/studio-bundle
+        run: bash scripts/build-embed-kit.sh --out dist/embed-kit
 
       # The script's output contract — fail loudly if any piece is missing.
       - name: Verify bundle contents
@@ -84,13 +84,13 @@ jobs:
           set -euo pipefail
           missing=0
           for f in onda synth_json beats_json onda-engine.js onda-engine.d.ts onda_wasm_bg.wasm manifest.json; do
-            if [ ! -e "dist/studio-bundle/$f" ]; then
+            if [ ! -e "dist/embed-kit/$f" ]; then
               echo "::error::bundle is missing $f"
               missing=1
             fi
           done
           [ "$missing" -eq 0 ]
-          ls -la dist/studio-bundle/
+          ls -la dist/embed-kit/
 
       # Gate the release on the JUST-BUILT binary rendering through Vello on
       # lavapipe — the exact substrate production runs on. Same smoke as ci.yml
@@ -100,7 +100,7 @@ jobs:
           set -euo pipefail
           vulkaninfo --summary || true
           out=/tmp/onda-release-smoke.png
-          ./dist/studio-bundle/onda render examples/hello-onda.json "$out" --backend vello
+          ./dist/embed-kit/onda render examples/hello-onda.json "$out" --backend vello
           test -f "$out" || { echo "::error::smoke render produced no file"; exit 1; }
           bytes=$(wc -c < "$out")
           if [ "$bytes" -le 1024 ]; then
@@ -117,8 +117,8 @@ jobs:
       - name: Package tarball
         run: |
           set -euo pipefail
-          tarball="onda-studio-bundle-${GITHUB_REF_NAME}-x86_64-linux.tar.gz"
-          tar -czf "$tarball" -C dist studio-bundle
+          tarball="onda-embed-kit-${GITHUB_REF_NAME}-x86_64-linux.tar.gz"
+          tar -czf "$tarball" -C dist embed-kit
           ls -la "$tarball"
           echo "TARBALL=$tarball" >> "$GITHUB_ENV"
 

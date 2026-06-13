@@ -66,6 +66,6 @@ refs/
 # built preview app (regenerated)
 apps/preview/dist/
 
-# Studio vendor bundle output (scripts/build-studio-bundle.sh). Covered by the
+# Embed-kit / vendor bundle output (scripts/build-embed-kit.sh). Covered by the
 # unanchored `dist` rule above; explicit so the contract is visible.
-/dist/studio-bundle/
+/dist/embed-kit/
