@@ -61,7 +61,9 @@ if [[ "$SKIP_BINARY" -eq 0 ]]; then
   # `segment` bakes U²-Net subject segmentation (text-behind-subject, auto-
   # reframe) into the binary — onnxruntime statically linked (~+24MB). The
   # model itself (~176MB) downloads once at first use to ~/.onda/models/.
-  cargo build --release -p onda-cli --features segment
+  # `video` enables native A-roll decode for export (onda-video shells to the
+  # ffmpeg CLI; near-zero binary cost). Without it, Video nodes render nothing.
+  cargo build --release -p onda-cli --features segment,video
   cargo build --release -p onda-audio --example synth_json --example beats_json
   cp target/release/onda "$OUT/onda"
   cp target/release/examples/synth_json "$OUT/synth_json"
