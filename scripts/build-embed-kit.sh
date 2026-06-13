@@ -6,9 +6,9 @@
 # (no more .bak files, no more stale d.ts).
 #
 # Usage:
-#   scripts/build-studio-bundle.sh [--out <dir>] [--skip-binary]
+#   scripts/build-embed-kit.sh [--out <dir>] [--skip-binary]
 #
-#   --out <dir>     Output directory (default: dist/studio-bundle/)
+#   --out <dir>     Output directory (default: dist/embed-kit/)
 #   --skip-binary   Skip the cargo --release builds (JS/d.ts/wasm/manifest only)
 #
 # Requires: pnpm, bun; cargo + rustc unless --skip-binary; git (optional —
@@ -21,7 +21,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 # ── Args ─────────────────────────────────────────────────────────────────────
-OUT="dist/studio-bundle"
+OUT="dist/embed-kit"
 SKIP_BINARY=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -94,7 +94,7 @@ if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then DIRTY=true; else DIRTY
 
 cat > "$OUT/manifest.json" <<EOF
 {
-  "name": "onda-studio-bundle",
+  "name": "onda-embed-kit",
   "version": "$VERSION",
   "gitSha": "$GIT_SHA",
   "builtAt": "$BUILT_AT",
