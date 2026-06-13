@@ -135,11 +135,13 @@ export function Typewriter({
   // The anchor is derived from the MEASURED width of the FULL string via the
   // shared placement contract. Anchoring on the full width — not the growing
   // substring — keeps the origin rock-steady (the line would slide sideways
-  // otherwise) while the completed line reads placed as asked. Legacy px
-  // `x`/`y` win per-axis; the default `'center'` is the historical centering.
+  // otherwise) while the completed line reads placed as asked. `placement` is
+  // authoritative when set; legacy px `x`/`y` only anchor in the pre-placement
+  // path (else a stray `x:0.5` reads as 0.5 px → top-left). Default: centered.
   const resolved = usePlacement(placement, { width: measured.width, height: fontSize * 1.2 })
-  const px = x ?? Math.round(resolved.originX)
-  const py = y ?? Math.round(resolved.y - fontSize * 0.6)
+  const useLegacy = placement === undefined
+  const px = useLegacy && x !== undefined ? x : Math.round(resolved.originX)
+  const py = useLegacy && y !== undefined ? y : Math.round(resolved.y - fontSize * 0.6)
 
   // Append the cursor as a separate styled run so the engine measures the text
   // and positions the "|" right after the last revealed glyph.

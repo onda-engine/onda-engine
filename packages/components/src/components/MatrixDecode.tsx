@@ -201,11 +201,14 @@ export function MatrixDecode({
   // the `align`-anchored default keep their exact pre-placement behavior.
   const estWidth = measured.width
   const resolved = usePlacement(placement, { width: estWidth, height: fontSize * LINE_RATIO })
+  // `placement` is authoritative when set; legacy pixel `x`/`y` only anchor in
+  // the pre-placement path, so a stray `x`/`y` can't override an explicit
+  // placement (a 0.5 meant as a fraction reads as 0.5 px → top-left).
   let px: number
-  if (x !== undefined) {
-    px = x
-  } else if (placement !== undefined) {
+  if (placement !== undefined) {
     px = Math.round(resolved.originX)
+  } else if (x !== undefined) {
+    px = x
   } else if (align === 'left') {
     px = Math.round(width * 0.08)
   } else if (align === 'right') {
@@ -214,10 +217,9 @@ export function MatrixDecode({
     px = Math.round((width - estWidth) / 2)
   }
   const py =
-    y ??
-    (placement !== undefined
+    placement !== undefined
       ? Math.round(resolved.originY)
-      : Math.round(height / 2 - fontSize * 0.6))
+      : (y ?? Math.round(height / 2 - fontSize * 0.6))
 
   return (
     <Text
