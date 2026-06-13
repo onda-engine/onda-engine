@@ -15,9 +15,6 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # Pin the Vulkan loader to lavapipe for the smoke render (see ci.yml).
-  VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
-  VK_DRIVER_FILES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
 
 jobs:
   studio-bundle:
@@ -31,6 +28,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools ffmpeg
+          # Discover lavapipe's ICD (path varies by distro; a hardcoded one breaks
+          # the loader). See ci.yml render-smoke for the rationale.
+          icd=$(find /usr/share/vulkan /etc/vulkan /usr/lib -name 'lvp_icd*.json' 2>/dev/null | head -1 || true)
+          if [ -z "$icd" ]; then
+            echo "::error::lavapipe ICD not found after install"; ls -laR /usr/share/vulkan/icd.d || true; exit 1
+          fi
+          echo "lavapipe ICD: $icd"
+          echo "VK_ICD_FILENAMES=$icd" >> "$GITHUB_ENV"
+          echo "VK_DRIVER_FILES=$icd" >> "$GITHUB_ENV"
 
       - name: Install Rust (stable + wasm32-unknown-unknown)
         uses: dtolnay/rust-toolchain@stable
