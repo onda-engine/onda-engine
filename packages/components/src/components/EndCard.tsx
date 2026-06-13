@@ -41,10 +41,10 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
-import { useTheme } from '../theme.js'
-import { FadeIn } from './FadeIn.js'
 import { type Placement, PlacementShift } from '../placement.js'
+import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
+import { FadeIn } from './FadeIn.js'
 
 export interface EndCardProps {
   /** Hero CTA / headline line. */

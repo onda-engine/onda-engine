@@ -69,6 +69,7 @@ import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { preloadTextMetrics } from '@onda/components'
 import {
   Composition,
   Easing,
@@ -83,7 +84,6 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from '@onda/react'
-import { preloadTextMetrics } from '@onda/components'
 import { createElement as h } from 'react'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -95,7 +95,7 @@ function parseArgs(argv) {
   const opts = {
     demo: false,
     comp: null,
-    out: null,  // resolved later: depends on mode
+    out: null, // resolved later: depends on mode
     fps: 30,
     duration: 60,
     width: 1280,
@@ -108,8 +108,8 @@ function parseArgs(argv) {
     motionBlur: 1,
     shutter: 0.5,
     // Iteration: --frames N:M renders a sub-range; --frame N renders one frame to PNG
-    framesRange: null,  // { start: number, end: number } | null
-    singleFrame: null,  // number | null
+    framesRange: null, // { start: number, end: number } | null
+    singleFrame: null, // number | null
   }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
@@ -172,7 +172,8 @@ function parseArgs(argv) {
       case '--frame': {
         // --frame N  renders a single frame to PNG
         const val = next()
-        if (!/^\d+$/.test(val)) throw new Error(`--frame expects an integer frame number, got '${val}'`)
+        if (!/^\d+$/.test(val))
+          throw new Error(`--frame expects an integer frame number, got '${val}'`)
         opts.singleFrame = Number(val)
         break
       }
@@ -361,9 +362,19 @@ async function main() {
     }
     run(
       'cargo',
-      ['run', '--release', '-p', 'onda-cli', '--', 'render', scenePath, opts.out,
-       '--backend', opts.backend,
-       ...opts.fonts.flatMap((f) => ['--font', path.resolve(process.cwd(), f)])],
+      [
+        'run',
+        '--release',
+        '-p',
+        'onda-cli',
+        '--',
+        'render',
+        scenePath,
+        opts.out,
+        '--backend',
+        opts.backend,
+        ...opts.fonts.flatMap((f) => ['--font', path.resolve(process.cwd(), f)]),
+      ],
       REPO_ROOT,
     )
     const { size } = statSync(opts.out)
@@ -412,9 +423,16 @@ async function main() {
   run(
     'cargo',
     [
-      'run', '--release', '-p', 'onda-cli', '--',
-      'export-frames', framesPath, opts.out,
-      '--backend', opts.backend,
+      'run',
+      '--release',
+      '-p',
+      'onda-cli',
+      '--',
+      'export-frames',
+      framesPath,
+      opts.out,
+      '--backend',
+      opts.backend,
       ...opts.fonts.flatMap((f) => ['--font', path.resolve(process.cwd(), f)]),
       ...(opts.motionBlur > 1 ? ['--motion-blur', String(opts.motionBlur)] : []),
     ],

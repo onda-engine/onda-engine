@@ -22,9 +22,15 @@ export const productWallSchema = z.object({
     .describe('Row-track height in px (defaults to the column-track width ≈ square tiles).'),
   delay: z.number().int().default(0).describe('Frames before the first tile enters.'),
   stagger: z.number().int().default(4).describe('Frames between successive tiles rising in.'),
-  borderColor: z.string().optional().describe('Tile hairline border color (defaults to theme border).'),
+  borderColor: z
+    .string()
+    .optional()
+    .describe('Tile hairline border color (defaults to theme border).'),
   borderWidth: z.number().default(0).describe('Tile hairline border width in px (0 = no border).'),
-  scrim: z.number().default(0).describe('Dark veil over every tile, 0..1, to unify a mixed set (0 = off).'),
+  scrim: z
+    .number()
+    .default(0)
+    .describe('Dark veil over every tile, 0..1, to unify a mixed set (0 = off).'),
   cameraFrom: z.number().default(1.06).describe('Camera scale at the start of the move.'),
   cameraTo: z.number().default(1.18).describe('Camera scale at the end (keep the delta gentle).'),
   cameraDriftX: z.number().default(-44).describe('Horizontal camera drift in px across the move.'),

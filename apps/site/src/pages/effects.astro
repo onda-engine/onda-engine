@@ -1,9 +1,9 @@
 ---
+import BeatSyncPlayer from '../components/BeatSyncPlayer.tsx'
 // The ONDA effects showcase — the render-to-texture node effects (blur, bloom,
 // grade, goo), each played live by the engine (Vello/WebGPU, CPU fallback).
 // Standalone page (not a Starlight doc) so the player can use a full-width layout.
 import EffectsGallery from '../components/EffectsGallery.tsx'
-import BeatSyncPlayer from '../components/BeatSyncPlayer.tsx'
 const REPO = 'https://github.com/degueba/onda-engine'
 
 // Cinematic finishing — the export/native premium moves whose before/after is a
@@ -96,7 +96,7 @@ const punch = beatPulse(frame, b?.beats ?? [], 9)
     {
       title: 'Light-wrap',
       blurb:
-        'A cut-out subject dropped onto a background fools no one — the edges are too clean. Light-wrap is the fix every compositor reaches for: the blurred background light bleeds a few pixels onto the subject\'s silhouette, in linear light, so it reads as SHOT IN the scene rather than pasted on top. Left, a hard dark cut-out on a vivid plate; right, the same shape with the surrounding colour drawn onto its inner edge. The #1 tell for landing AI-generated or stock media inside a composition.',
+        "A cut-out subject dropped onto a background fools no one — the edges are too clean. Light-wrap is the fix every compositor reaches for: the blurred background light bleeds a few pixels onto the subject's silhouette, in linear light, so it reads as SHOT IN the scene rather than pasted on top. Left, a hard dark cut-out on a vivid plate; right, the same shape with the surrounding colour drawn onto its inner edge. The #1 tell for landing AI-generated or stock media inside a composition.",
       snippet: '<Image src="subject.png" lightWrap={{ sigma: 30, strength: 1 }} />',
       before: { src: '/effects/lightwrap-before.png', label: 'pasted on' },
       after: { src: '/effects/lightwrap-after.png', label: 'light-wrap' },

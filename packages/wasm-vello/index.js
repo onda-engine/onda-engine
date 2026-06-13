@@ -18,13 +18,12 @@ if (
   const original = proto.requestDevice
   proto.requestDevice = function requestDevice(descriptor) {
     if (
-      descriptor &&
-      descriptor.requiredLimits &&
+      descriptor?.requiredLimits &&
       'maxInterStageShaderComponents' in descriptor.requiredLimits
     ) {
       const limits = { ...descriptor.requiredLimits }
-      delete limits.maxInterStageShaderComponents
-      descriptor = { ...descriptor, requiredLimits: limits }
+      limits.maxInterStageShaderComponents = undefined
+      return original.call(this, { ...descriptor, requiredLimits: limits })
     }
     return original.call(this, descriptor)
   }

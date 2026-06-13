@@ -7,9 +7,14 @@ import { z } from 'zod'
 import { timeSchema } from '../time.js'
 
 export const scaleInSchema = z.object({
-  delay: timeSchema.default(0).describe("Frames to wait before the animation starts."),
-  durationInFrames: timeSchema.optional().describe("Number of frames over which the entrance settles."),
-  from: z.number().default(0.9).describe("Starting scale that animates to 1 (below ~0.85 reads as a dramatic zoom)."),
+  delay: timeSchema.default(0).describe('Frames to wait before the animation starts.'),
+  durationInFrames: timeSchema
+    .optional()
+    .describe('Number of frames over which the entrance settles.'),
+  from: z
+    .number()
+    .default(0.9)
+    .describe('Starting scale that animates to 1 (below ~0.85 reads as a dramatic zoom).'),
 })
 
 export type ScaleInSchemaProps = z.infer<typeof scaleInSchema>

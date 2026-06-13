@@ -109,7 +109,12 @@ export function SiteReveal({
   const cy = H / 2 + offsetY
 
   // Entrance: house scale-fade about the card center.
-  const enter = spring({ frame: Math.max(0, frame - delay), fps, config: SPRING_SMOOTH, durationInFrames: DURATION.base })
+  const enter = spring({
+    frame: Math.max(0, frame - delay),
+    fps,
+    config: SPRING_SMOOTH,
+    durationInFrames: DURATION.base,
+  })
   const opacity = interpolate(enter, [0, 1], [0, 1], CLAMP)
   const scale = interpolate(enter, [0, 1], [0.965, 1], CLAMP)
 
@@ -117,7 +122,9 @@ export function SiteReveal({
   // typing), then the scroll waits until the URL is finished — the "navigate to
   // the site, then browse it" beat.
   const typeStart = delay + 14
-  const typeP = typeUrl ? interpolate(frame - typeStart, [0, typeDurationInFrames], [0, 1], CLAMP) : 1
+  const typeP = typeUrl
+    ? interpolate(frame - typeStart, [0, typeDurationInFrames], [0, 1], CLAMP)
+    : 1
   const typedUrl = url.slice(0, Math.round(url.length * typeP))
   const typing = typeUrl && frame >= typeStart && frame < typeStart + typeDurationInFrames
   const cursorOn = typing && Math.floor((frame - typeStart) / 6) % 2 === 0
@@ -157,15 +164,48 @@ export function SiteReveal({
         shadow={{ color: shadowColor, blur: 60, offsetX: 0, offsetY: 26 }}
       />
       {/* Chrome bar. */}
-      <Rect x={bodyX} y={bodyY} width={cardW} height={CHROME_H} cornerRadius={cardRadius} fill={barColor} />
+      <Rect
+        x={bodyX}
+        y={bodyY}
+        width={cardW}
+        height={CHROME_H}
+        cornerRadius={cardRadius}
+        fill={barColor}
+      />
       {/* square off the bar's bottom corners so only the top is rounded */}
-      <Rect x={bodyX} y={bodyY + CHROME_H - cardRadius} width={cardW} height={cardRadius} fill={barColor} />
+      <Rect
+        x={bodyX}
+        y={bodyY + CHROME_H - cardRadius}
+        width={cardW}
+        height={cardRadius}
+        fill={barColor}
+      />
       {[0, 1, 2].map((i) => (
-        <Ellipse key={i} x={bodyX + 26 + i * (DOT + DOT_GAP)} y={dotY} width={DOT} height={DOT} fill={border} />
+        <Ellipse
+          key={i}
+          x={bodyX + 26 + i * (DOT + DOT_GAP)}
+          y={dotY}
+          width={DOT}
+          height={DOT}
+          fill={border}
+        />
       ))}
       {/* Address pill (centered). */}
-      <Rect x={pillX} y={pillY} width={pillW} height={pillH} cornerRadius={pillH / 2} fill={surface} stroke={border} strokeWidth={1} />
-      <Group x={pillX + 18} y={pillY + Math.round((pillH - 20) / 2)} clip={clipRect(pillW - 36, 22)}>
+      <Rect
+        x={pillX}
+        y={pillY}
+        width={pillW}
+        height={pillH}
+        cornerRadius={pillH / 2}
+        fill={surface}
+        stroke={border}
+        strokeWidth={1}
+      />
+      <Group
+        x={pillX + 18}
+        y={pillY + Math.round((pillH - 20) / 2)}
+        clip={clipRect(pillW - 36, 22)}
+      >
         <Text fontSize={20} color={dim}>
           {urlText}
         </Text>

@@ -3,8 +3,16 @@
 // Background = original scaled up + soft blur (the subject-shaped hole stays
 // hidden behind the cutout at these amplitudes — no inpainting needed).
 import { writeFileSync } from 'node:fs'
+import {
+  Composition,
+  Group,
+  Image,
+  Text,
+  interpolate,
+  renderFramesJSON,
+  useCurrentFrame,
+} from '@onda/react'
 import { createElement as h } from 'react'
-import { Composition, Group, Image, Text, interpolate, renderFramesJSON, useCurrentFrame } from '@onda/react'
 
 const W = 768
 const H = 1376
@@ -33,16 +41,40 @@ function Scene() {
   return h(
     Group,
     null,
-    h(Group, { scaleX: bg, scaleY: bg, originX: cx, originY: cy }, h(Image, { src: PHOTO, x: 0, y: 0, width: W, height: H, fit: 'cover', blur: 2.2 })),
+    h(
+      Group,
+      { scaleX: bg, scaleY: bg, originX: cx, originY: cy },
+      h(Image, { src: PHOTO, x: 0, y: 0, width: W, height: H, fit: 'cover', blur: 2.2 }),
+    ),
     h(
       Group,
       { scaleX: mid, scaleY: mid, originX: cx, originY: cy, opacity: midOpacity },
-      h(Text, { x: 24, y: 78, fontSize: 186, fontFamily: 'Didot', fontWeight: 700, letterSpacing: 0, color: '#ee3d8f' }, 'VOGUE'),
+      h(
+        Text,
+        {
+          x: 24,
+          y: 78,
+          fontSize: 186,
+          fontFamily: 'Didot',
+          fontWeight: 700,
+          letterSpacing: 0,
+          color: '#ee3d8f',
+        },
+        'VOGUE',
+      ),
     ),
-    h(Group, { scaleX: fg, scaleY: fg, originX: cx, originY: cy }, h(Image, { src: CUTOUT, x: 0, y: 0, width: W, height: H, fit: 'cover' })),
+    h(
+      Group,
+      { scaleX: fg, scaleY: fg, originX: cx, originY: cy },
+      h(Image, { src: CUTOUT, x: 0, y: 0, width: W, height: H, fit: 'cover' }),
+    ),
   )
 }
 
-const comp = h(Composition, { width: W, height: H, fps: FPS, durationInFrames: DUR }, h(Scene, null))
+const comp = h(
+  Composition,
+  { width: W, height: H, fps: FPS, durationInFrames: DUR },
+  h(Scene, null),
+)
 writeFileSync('/tmp/parallax-frames.json', renderFramesJSON(comp))
 console.log('frames → /tmp/parallax-frames.json')

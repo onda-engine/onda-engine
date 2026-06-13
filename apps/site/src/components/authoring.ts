@@ -20,7 +20,10 @@ export const AUTHORING = {
   },
   timing: {
     spec: "TimeSpec = seconds (number) OR a string: '2s', '500ms', '0:02' (m:ss), '90f' (frames).",
-    examples: { at: '0 or "0.7s"', for: '"4s" or 4 (a bare number = seconds; use "120f" for frames)' },
+    examples: {
+      at: '0 or "0.7s"',
+      for: '"4s" or 4 (a bare number = seconds; use "120f" for frames)',
+    },
     note: 'A raw NUMBER is SECONDS, not frames (toFrames: 2 → 2s). Use "90f" for an explicit frame count.',
     recipes: [
       'Overlap a scene exit with the next entry ~0.4–0.6s for a soft cut.',

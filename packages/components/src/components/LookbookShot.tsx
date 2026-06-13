@@ -127,21 +127,22 @@ export function LookbookShot({
   // portrait, leaving the lower frame empty. Landscape math is unchanged
   // (matW = matH * 0.806 ≡ the old W*0.32 with matH = W*0.32*1.24).
   const portrait = centered && H > W
-  const matH = centered
-    ? Math.round(portrait ? H * 0.44 : W * 0.32 * 1.24)
-    : Math.round(H * 0.9)
+  const matH = centered ? Math.round(portrait ? H * 0.44 : W * 0.32 * 1.24) : Math.round(H * 0.9)
   const matW = centered ? Math.round(matH * 0.806) : Math.round(matH * 0.76)
   const matX = centered
     ? Math.round((W - matW) / 2)
     : layout === 'spread-right'
       ? W - matW - margin
       : margin
-  const matY = centered
-    ? Math.round(portrait ? H * 0.17 : H * 0.075)
-    : Math.round((H - matH) / 2)
+  const matY = centered ? Math.round(portrait ? H * 0.17 : H * 0.075) : Math.round((H - matH) / 2)
 
   // ── Card motion: entrance settle + a slow "breath" scale (one unit, no clip).
-  const enter = spring({ frame: Math.max(0, frame - delay), fps, config: SPRING_SMOOTH, durationInFrames: DURATION.base })
+  const enter = spring({
+    frame: Math.max(0, frame - delay),
+    fps,
+    config: SPRING_SMOOTH,
+    durationInFrames: DURATION.base,
+  })
   const enterOpacity = interpolate(enter, [0, 1], [0, 1], CLAMP)
   const enterY = interpolate(enter, [0, 1], [20, 0], CLAMP)
   const life = interpolate(frame - delay, [0, lifeDurationInFrames], [1, 1.03], CLAMP)
@@ -160,7 +161,11 @@ export function LookbookShot({
   const nameMetrics = useTextMetrics(name, baseName, { fontFamily: nameFont, fontWeight: 500 })
   // Measure WITH the same letter-spacing the eyebrow renders with (4px) — else the
   // shaped width is ~4·(n-1)px too small and the centered eyebrow drifts right.
-  const eyebrowMetrics = useTextMetrics(eyebrow, eyebrowSize, { fontFamily: bodyFont, fontWeight: 600, letterSpacing: 4 })
+  const eyebrowMetrics = useTextMetrics(eyebrow, eyebrowSize, {
+    fontFamily: bodyFont,
+    fontWeight: 600,
+    letterSpacing: 4,
+  })
 
   if (centered) {
     const labelTop = matY + matH + Math.round(H * 0.05)
@@ -173,19 +178,49 @@ export function LookbookShot({
         <Group x={cx} y={cy}>
           <Group scaleX={cardScale} scaleY={cardScale}>
             <Group x={-cx} y={-cy} opacity={enterOpacity}>
-              <Rect x={matX} y={matY} width={matW} height={matH} cornerRadius={2} fill={mat} shadow={{ color: shadowColor, blur: 50, offsetX: 0, offsetY: 22 }} />
-              <Image src={src} x={matX + pad} y={matY + pad} width={matW - pad * 2} height={matH - pad * 2} fit="cover" />
+              <Rect
+                x={matX}
+                y={matY}
+                width={matW}
+                height={matH}
+                cornerRadius={2}
+                fill={mat}
+                shadow={{ color: shadowColor, blur: 50, offsetX: 0, offsetY: 22 }}
+              />
+              <Image
+                src={src}
+                x={matX + pad}
+                y={matY + pad}
+                width={matW - pad * 2}
+                height={matH - pad * 2}
+                fit="cover"
+              />
             </Group>
           </Group>
         </Group>
         <Group y={nm.y} opacity={nm.opacity}>
-          <Text x={nameX} y={labelTop} fontSize={baseName} color={color} fontFamily={nameFont} fontWeight={500}>
+          <Text
+            x={nameX}
+            y={labelTop}
+            fontSize={baseName}
+            color={color}
+            fontFamily={nameFont}
+            fontWeight={500}
+          >
             {name}
           </Text>
         </Group>
         {eyebrow ? (
           <Group y={eb.y} opacity={eb.opacity}>
-            <Text x={eyebrowX} y={labelTop + Math.round(baseName * 1.25)} fontSize={eyebrowSize} color={accent} fontFamily={bodyFont} fontWeight={600} letterSpacing={4}>
+            <Text
+              x={eyebrowX}
+              y={labelTop + Math.round(baseName * 1.25)}
+              fontSize={eyebrowSize}
+              color={accent}
+              fontFamily={bodyFont}
+              fontWeight={600}
+              letterSpacing={4}
+            >
               {eyebrow}
             </Text>
           </Group>
@@ -214,8 +249,23 @@ export function LookbookShot({
       <Group x={cx} y={cy}>
         <Group scaleX={cardScale} scaleY={cardScale}>
           <Group x={-cx} y={-cy} opacity={enterOpacity}>
-            <Rect x={matX} y={matY} width={matW} height={matH} cornerRadius={2} fill={mat} shadow={{ color: shadowColor, blur: 50, offsetX: 0, offsetY: 22 }} />
-            <Image src={src} x={matX + pad} y={matY + pad} width={matW - pad * 2} height={matH - pad * 2} fit="cover" />
+            <Rect
+              x={matX}
+              y={matY}
+              width={matW}
+              height={matH}
+              cornerRadius={2}
+              fill={mat}
+              shadow={{ color: shadowColor, blur: 50, offsetX: 0, offsetY: 22 }}
+            />
+            <Image
+              src={src}
+              x={matX + pad}
+              y={matY + pad}
+              width={matW - pad * 2}
+              height={matH - pad * 2}
+              fit="cover"
+            />
           </Group>
         </Group>
       </Group>
@@ -223,7 +273,15 @@ export function LookbookShot({
       <Group y={enterY}>
         {eyebrow ? (
           <Group y={eb.y} opacity={eb.opacity}>
-            <Text x={typeX} y={startY} fontSize={eyebrowSize} color={accent} fontFamily={bodyFont} fontWeight={600} letterSpacing={4}>
+            <Text
+              x={typeX}
+              y={startY}
+              fontSize={eyebrowSize}
+              color={accent}
+              fontFamily={bodyFont}
+              fontWeight={600}
+              letterSpacing={4}
+            >
               {eyebrow}
             </Text>
           </Group>
@@ -232,26 +290,40 @@ export function LookbookShot({
           const ln = at(1 + i)
           return (
             <Group key={`${i}-${line}`} y={ln.y} opacity={ln.opacity}>
-              <Text x={typeX} y={startY + eyebrowH + i * nameLineH} fontSize={baseName} color={color} fontFamily={nameFont} fontWeight={500}>
+              <Text
+                x={typeX}
+                y={startY + eyebrowH + i * nameLineH}
+                fontSize={baseName}
+                color={color}
+                fontFamily={nameFont}
+                fontWeight={500}
+              >
                 {line}
               </Text>
             </Group>
           )
         })}
-        {detail ? (
-          (() => {
-            const dl = at(1 + nameLines.length)
-            const ruleY = startY + eyebrowH + nameLines.length * nameLineH + ruleGap
-            return (
-              <Group y={dl.y} opacity={dl.opacity}>
-                <Rect x={typeX + 2} y={ruleY} width={70} height={2} fill={accent} />
-                <Text x={typeX} y={ruleY + detailGap} fontSize={detailSize} color={detailColor} fontFamily={bodyFont} fontWeight={400}>
-                  {detail}
-                </Text>
-              </Group>
-            )
-          })()
-        ) : null}
+        {detail
+          ? (() => {
+              const dl = at(1 + nameLines.length)
+              const ruleY = startY + eyebrowH + nameLines.length * nameLineH + ruleGap
+              return (
+                <Group y={dl.y} opacity={dl.opacity}>
+                  <Rect x={typeX + 2} y={ruleY} width={70} height={2} fill={accent} />
+                  <Text
+                    x={typeX}
+                    y={ruleY + detailGap}
+                    fontSize={detailSize}
+                    color={detailColor}
+                    fontFamily={bodyFont}
+                    fontWeight={400}
+                  >
+                    {detail}
+                  </Text>
+                </Group>
+              )
+            })()
+          : null}
       </Group>
     </Group>
   )

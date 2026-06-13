@@ -1,10 +1,4 @@
-// mask-reveal-demo.comp.mjs — four text MASK / REVEAL techniques in one video,
-// the moves motion designers reach for (clip wipe, mask-up, track matte, animated
-// clip). Pure @onda/react + @onda/components — proof the engine does this today.
-//
-//   node apps/site/scripts/render-comp.mjs --comp apps/site/scripts/mask-reveal-demo.comp.mjs \
-//        --out /tmp/onda-mask-reveal.mp4 --width 1280 --height 720 --fps 30 --backend vello --no-build
-import { createElement as h } from 'react'
+import { MaskReveal } from '@onda/components'
 import {
   Composition,
   Easing,
@@ -17,7 +11,13 @@ import {
   linearGradient,
   useCurrentFrame,
 } from '@onda/react'
-import { MaskReveal } from '@onda/components'
+// mask-reveal-demo.comp.mjs — four text MASK / REVEAL techniques in one video,
+// the moves motion designers reach for (clip wipe, mask-up, track matte, animated
+// clip). Pure @onda/react + @onda/components — proof the engine does this today.
+//
+//   node apps/site/scripts/render-comp.mjs --comp apps/site/scripts/mask-reveal-demo.comp.mjs \
+//        --out /tmp/onda-mask-reveal.mp4 --width 1280 --height 720 --fps 30 --backend vello --no-build
+import { createElement as h } from 'react'
 
 const ACCENT = '#6ea8ff'
 const INK = '#f4f1ec'
@@ -47,18 +47,17 @@ function Label({ n, text }) {
     Group,
     { opacity: o },
     h(Text, { x: 84, y: 96, fontSize: 34, fontWeight: 800, color: ACCENT }, String(n)),
-    h(
-      Text,
-      { x: 124, y: 96, fontSize: 26, fontWeight: 600, color: DIM, letterSpacing: 1 },
-      text,
-    ),
+    h(Text, { x: 124, y: 96, fontSize: 26, fontWeight: 600, color: DIM, letterSpacing: 1 }, text),
   )
 }
 
 // Intro subtitle under the masked title.
 function Subtitle({ width, height }) {
   const f = useCurrentFrame()
-  const o = interpolate(f, [22, 40], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+  const o = interpolate(f, [22, 40], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  })
   return h(
     Group,
     { opacity: o },
@@ -126,7 +125,8 @@ function LineReveal({ width, height }) {
   const oy = Math.round((height - boxH) / 2)
   const txt = h(Text, { x: 0, y: 40, fontSize: 150, fontWeight: 800, color: INK }, 'DRAW')
   const clipped = h(Group, { clip: clipRect(w, boxH) }, txt)
-  const line = p < 0.995 ? h(Rect, { x: w - 3, y: -8, width: 6, height: boxH + 16, fill: ACCENT }) : null
+  const line =
+    p < 0.995 ? h(Rect, { x: w - 3, y: -8, width: 6, height: boxH + 16, fill: ACCENT }) : null
   return h(Group, { x: ox, y: oy }, clipped, line)
 }
 
@@ -134,8 +134,7 @@ export default function maskRevealDemo({ fps, width, height }) {
   const INTRO = 55
   const SEG = 95
   const TOTAL = INTRO + SEG * 4
-  const seq = (from, dur, ...kids) =>
-    h(Sequence, { from, durationInFrames: dur }, ...kids)
+  const seq = (from, dur, ...kids) => h(Sequence, { from, durationInFrames: dur }, ...kids)
 
   return h(
     Composition,
@@ -160,14 +159,28 @@ export default function maskRevealDemo({ fps, width, height }) {
       INTRO,
       SEG,
       h(Label, { n: 1, text: 'MASK REVEAL · hard-edge clip wipe' }),
-      h(MaskReveal, { text: 'REVEAL', direction: 'left', fontSize: 158, duration: 40, color: INK, fontWeight: 800 }),
+      h(MaskReveal, {
+        text: 'REVEAL',
+        direction: 'left',
+        fontSize: 158,
+        duration: 40,
+        color: INK,
+        fontWeight: 800,
+      }),
     ),
     // 2 — mask up (rise from behind the mask)
     seq(
       INTRO + SEG,
       SEG,
       h(Label, { n: 2, text: 'MASK UP · text rises from behind the mask' }),
-      h(MaskReveal, { text: 'RISING', direction: 'bottom', fontSize: 158, duration: 42, color: INK, fontWeight: 800 }),
+      h(MaskReveal, {
+        text: 'RISING',
+        direction: 'bottom',
+        fontSize: 158,
+        duration: 42,
+        color: INK,
+        fontWeight: 800,
+      }),
     ),
     // 3 — track matte (image through type)
     seq(

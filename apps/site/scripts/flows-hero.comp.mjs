@@ -1,17 +1,17 @@
-// FLOWS AGENT — replication, shot 1 (the title on the warm cloud gradient).
-// Matching ElevenLabs' opening frame (refs/flows-agent.mp4 @ ~1.5s). The cloud
-// gradient is ONDA's fBm gradient; grain is the Effect::Grain pass; type is the
-// bundled IBM Plex Sans (clean neutral grotesque, close to their brand sans).
-import { createElement as h } from 'react'
 import {
-  Composition,
   AbsoluteFill,
+  Composition,
   Group,
   Rect,
   Text,
   fbmGradient,
   useCurrentFrame,
 } from '@onda/react'
+// FLOWS AGENT — replication, shot 1 (the title on the warm cloud gradient).
+// Matching ElevenLabs' opening frame (refs/flows-agent.mp4 @ ~1.5s). The cloud
+// gradient is ONDA's fBm gradient; grain is the Effect::Grain pass; type is the
+// bundled IBM Plex Sans (clean neutral grotesque, close to their brand sans).
+import { createElement as h } from 'react'
 
 const FPS = 30
 // Warm billowing cloud stops sampled from the reference (coral → orange → peach → cream).

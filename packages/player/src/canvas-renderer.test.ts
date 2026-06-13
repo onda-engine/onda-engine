@@ -156,9 +156,7 @@ describe('drawScene', () => {
       },
     }
     const ctx = stubContext()
-    expect(() =>
-      drawScene(ctx as unknown as CanvasRenderingContext2D, scene),
-    ).not.toThrow()
+    expect(() => drawScene(ctx as unknown as CanvasRenderingContext2D, scene)).not.toThrow()
     const saves = ctx.calls.filter((c) => c === 'save()').length
     const restores = ctx.calls.filter((c) => c === 'restore()').length
     expect(saves).toBe(restores)

@@ -1,3 +1,5 @@
+import { GrainOverlay, KineticText, MeshGradient, Vignette } from '@onda/components'
+import { Camera, Composition, Group, Path, Rect, interpolate, useCurrentFrame } from '@onda/react'
 // VOICE — kinetic test (the re-direction: motion, glow, camera, continuity).
 // The voice as a living luminous waveform-spectrum that never stops flowing, a
 // camera pushing through it, kinetic type rising out of the flow. ~16s.
@@ -6,16 +8,6 @@
 //     --width 1920 --height 1080 --fps 30 --duration 480 \
 //     --font apps/site/public/fonts/Spectral-Medium.ttf --out /tmp/voice-kinetic.mp4
 import { createElement as h } from 'react'
-import {
-  Composition,
-  Camera,
-  Group,
-  Rect,
-  Path,
-  interpolate,
-  useCurrentFrame,
-} from '@onda/react'
-import { MeshGradient, GrainOverlay, Vignette, KineticText } from '@onda/components'
 
 const FPS = 30
 const BASE = '#06060B'
@@ -101,11 +93,7 @@ function World({ width, height }) {
   const zoom = interpolate(frame, [0, 480], [1.0, 1.16], CLAMP)
   const driftX = width / 2 + 60 * Math.sin(frame / 90)
   const driftY = height / 2 + 26 * Math.sin(frame / 130 + 1)
-  return h(
-    Camera,
-    { focusX: driftX, focusY: driftY, zoom },
-    h(Voice, { width, height }),
-  )
+  return h(Camera, { focusX: driftX, focusY: driftY, zoom }, h(Voice, { width, height }))
 }
 
 function KineticBody({ width, height }) {
@@ -126,7 +114,13 @@ function KineticBody({ width, height }) {
     ...field,
     h(World, { key: 'world', width, height }),
     h(Vignette, { key: 'vig', intensity: 0.55, innerRadius: 42, color: '#000000' }),
-    h(GrainOverlay, { key: 'grain', opacity: 0.05, baseFrequency: 0.9, animate: true, animateEvery: 2 }),
+    h(GrainOverlay, {
+      key: 'grain',
+      opacity: 0.05,
+      baseFrequency: 0.9,
+      animate: true,
+      animateEvery: 2,
+    }),
   ]
 }
 
