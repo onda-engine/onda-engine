@@ -25,8 +25,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { type AudioClip, collectAudioClips } from './audio.js'
 import { PreviewAudio } from './audio-engine.js'
+import { type AudioClip, collectAudioClips } from './audio.js'
 import { type FrameDrawer, drawScene } from './canvas-renderer.js'
 import { type RenderEngine, engineDrawer } from './engine-drawer.js'
 import { applyResolvedImages, collectImageUrls, resolveImageUrl } from './images.js'
@@ -336,23 +336,20 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   // are dropped, which is correct for smooth playback.
   const pendingPaintRef = useRef<{ width: number; height: number; pixels: Uint8Array } | null>(null)
   const blitRafRef = useRef<number | null>(null)
-  const scheduleBlit = useCallback(
-    (out: { width: number; height: number; pixels: Uint8Array }) => {
-      pendingPaintRef.current = out
-      if (blitRafRef.current != null) return
-      blitRafRef.current = requestAnimationFrame(() => {
-        blitRafRef.current = null
-        const p = pendingPaintRef.current
-        const canvas = canvasRef.current
-        const ctx = canvas?.getContext('2d')
-        if (!p || !canvas || !ctx) return
-        if (canvas.width !== p.width) canvas.width = p.width
-        if (canvas.height !== p.height) canvas.height = p.height
-        ctx.putImageData(new ImageData(new Uint8ClampedArray(p.pixels), p.width, p.height), 0, 0)
-      })
-    },
-    [],
-  )
+  const scheduleBlit = useCallback((out: { width: number; height: number; pixels: Uint8Array }) => {
+    pendingPaintRef.current = out
+    if (blitRafRef.current != null) return
+    blitRafRef.current = requestAnimationFrame(() => {
+      blitRafRef.current = null
+      const p = pendingPaintRef.current
+      const canvas = canvasRef.current
+      const ctx = canvas?.getContext('2d')
+      if (!p || !canvas || !ctx) return
+      if (canvas.width !== p.width) canvas.width = p.width
+      if (canvas.height !== p.height) canvas.height = p.height
+      ctx.putImageData(new ImageData(new Uint8ClampedArray(p.pixels), p.width, p.height), 0, 0)
+    })
+  }, [])
   useEffect(
     () => () => {
       if (blitRafRef.current != null) cancelAnimationFrame(blitRafRef.current)
@@ -418,41 +415,45 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   // component — so multiple <Player>s sharing one engine (e.g. a gallery that
   // remounts on switch) never call its `&mut render()` re-entrantly (wasm:
   // "recursive use of an object … unsafe aliasing in rust").
-  const paintGpu = useCallback((gpu: GpuEngine) => {
-    if (enginesRendering.has(gpu)) return
-    enginesRendering.add(gpu)
-    ;(async () => {
-      try {
-        let done: { c: ReactElement; f: number; v: number } | null = null
-        while (true) {
-          const { composition: c, frame: f, images: v } = targetRef.current
-          // Caught up only if the frame/composition AND the resolved-image
-          // version are unchanged — so an image that finishes fetching mid-paint
-          // repaints even though the composition + frame are the same.
-          if (done && done.c === c && done.f === f && done.v === v) break
-          done = { c, f, v }
-          const scene = renderFrame(c, f)
-          applyResolvedImages(scene.root as never)
-          // Decode the current frame of any <Video> node (browser-side) and
-          // attach it before rendering — a video's pixels change every frame.
-          await resolveVideoFrames(scene.root as never)
-          // Load any custom fonts the composition registered (via `loadFont`) into
-          // this engine before drawing, so preview matches export. No-op once warm.
-          ensureFontsLoaded(gpu)
-          const out = await gpu.render(JSON.stringify(scene))
-          // Paint on the next animation frame (vsync-aligned), not inline — see
-          // `scheduleBlit`. Keeps the video repaint from tearing under mouse-move.
-          scheduleBlit(out)
+  const paintGpu = useCallback(
+    (gpu: GpuEngine) => {
+      if (enginesRendering.has(gpu)) return
+      enginesRendering.add(gpu)
+      ;(async () => {
+        try {
+          let done: { c: ReactElement; f: number; v: number } | null = null
+          while (true) {
+            const { composition: c, frame: f, images: v } = targetRef.current
+            // Caught up only if the frame/composition AND the resolved-image
+            // version are unchanged — so an image that finishes fetching mid-paint
+            // repaints even though the composition + frame are the same.
+            if (done && done.c === c && done.f === f && done.v === v) break
+            done = { c, f, v }
+            const scene = renderFrame(c, f)
+            applyResolvedImages(scene.root as never)
+            // Decode the current frame of any <Video> node (browser-side) and
+            // attach it before rendering — a video's pixels change every frame.
+            await resolveVideoFrames(scene.root as never)
+            // Load any custom fonts the composition registered (via `loadFont`) into
+            // this engine before drawing, so preview matches export. No-op once warm.
+            ensureFontsLoaded(gpu)
+            const out = await gpu.render(JSON.stringify(scene))
+            // Paint on the next animation frame (vsync-aligned), not inline — see
+            // `scheduleBlit`. Keeps the video repaint from tearing under mouse-move.
+            scheduleBlit(out)
+          }
+        } catch {
+          setGpuFailed(true) // drop to the next renderer
+        } finally {
+          enginesRendering.delete(gpu)
         }
-      } catch {
-        setGpuFailed(true) // drop to the next renderer
-      } finally {
-        enginesRendering.delete(gpu)
-      }
-    })()
-  }, [scheduleBlit])
+      })()
+    },
+    [scheduleBlit],
+  )
 
   // Re-draw whenever the frame, composition, or renderer changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: paint fns are stable refs; deps list the real triggers
   useEffect(() => {
     if (mode.kind === 'gpu') {
       paintGpu(mode.engine)
@@ -470,6 +471,7 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   // Keep the `previewFallback: 'element'` overlay <video>s in lockstep with the
   // player's play/pause. (They aren't frame-locked to the timeline — a display-
   // only preview — but at least they pause when the composition pauses.)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-queries the DOM each run; playing is the only trigger
   useEffect(() => {
     const vids = videoOverlayRef.current?.querySelectorAll('video')
     if (!vids) return
@@ -484,10 +486,7 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   // Note the conspicuous absence of a per-`frame` effect: the audio runs on the
   // AudioContext clock anchored at play-time, NOT chasing the visual frame each
   // tick — that's what keeps it gapless and jank-proof.
-  const compSeconds = useCallback(
-    (f: number) => f / Math.max(1, config.fps),
-    [config.fps],
-  )
+  const compSeconds = useCallback((f: number) => f / Math.max(1, config.fps), [config.fps])
 
   // Clip set + timeline period (one loop cycle, seconds).
   useEffect(() => {
@@ -522,6 +521,7 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   // Re-anchor on an explicit seek (bumped by seekTo/goToFrame) — but only while
   // playing; a paused seek just records the position for the next play. Normal
   // playback advances `frame` without bumping this, so the audio is never yanked.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: seekNonce is the intentional trigger; refs carry live state
   useEffect(() => {
     if (liveRef.current.playing) audioRef.current?.seek(compSeconds(liveRef.current.frame))
   }, [seekNonce, compSeconds])
@@ -738,9 +738,11 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
         .filter(Boolean)
         .join(' ')}
       style={styles.root}
+      // biome-ignore lint/a11y/useSemanticElements: a media-player region; no semantic element exists for it
       role="group"
       aria-label={label}
       aria-roledescription="media player"
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: the player root IS the keyboard surface (Space/arrows/Home/End)
       tabIndex={0}
       onKeyDown={onKeyDown}
     >
@@ -751,6 +753,7 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
         className="onda-player__stage"
         style={{ ...styles.stage, aspectRatio: `${config.width} / ${config.height}` }}
       >
+        {/* biome-ignore lint/a11y/useKeyWithClickEvents: keyboard play/pause lives on the player root (Space) */}
         <canvas
           ref={canvasRef}
           width={config.width}

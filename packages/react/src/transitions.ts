@@ -739,6 +739,7 @@ function TransitionSeriesRoot({ children }: { children?: ReactNode }): ReactElem
           duration: seq.durationInFrames,
           enter,
           exit,
+          // biome-ignore lint/correctness/noChildrenProp: raw createElement props object, not JSX
           children: seq.children,
         }),
       ),

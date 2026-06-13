@@ -566,18 +566,12 @@ function toNode(node: HostNode): SceneNode {
 
     case '#text':
       throw new Error(
-        `renderToScene: raw text "${String(node.text ?? '').slice(0, 60)}" ` +
-          `was placed inside a non-Text node. ` +
-          `String children are only valid inside <Text>. ` +
-          `Wrap it: h(Text, { x, y, fontSize, color }, '${String(node.text ?? '').slice(0, 30)}')`,
+        `renderToScene: raw text "${String(node.text ?? '').slice(0, 60)}" was placed inside a non-Text node. String children are only valid inside <Text>. Wrap it: h(Text, { x, y, fontSize, color }, '${String(node.text ?? '').slice(0, 30)}')`,
       )
 
     default:
       throw new Error(
-        `renderToScene: unsupported element type "${node.type}". ` +
-          `Only ONDA primitives (Group/Rect/Ellipse/Path/Text/Image/Video/Svg) are valid. ` +
-          `DOM elements like <div>/<span> and custom types are not rendered — ` +
-          `use @onda/react primitives only.`,
+        `renderToScene: unsupported element type "${node.type}". Only ONDA primitives (Group/Rect/Ellipse/Path/Text/Image/Video/Svg) are valid. DOM elements like <div>/<span> and custom types are not rendered — use @onda/react primitives only.`,
       )
   }
 }

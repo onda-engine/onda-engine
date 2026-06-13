@@ -436,6 +436,7 @@ function EntrySlot({
   return createElement(
     Sequence,
     { from: toFrames(entry.at, fps), durationInFrames: toFrames(entry.for, fps) },
+    // biome-ignore lint/correctness/noChildrenProp: raw createElement props object, not JSX
     suppress ? createElement(MorphSuppressGate, { suppress, children: animated }) : animated,
   )
 }
@@ -760,6 +761,7 @@ export function buildComposition(
           ? createElement(AnimatedCamera, {
               move: scene.camera,
               durationInFrames: sceneDur[i] ?? sceneDurationFrames(scene, fps),
+              // biome-ignore lint/correctness/noChildrenProp: raw createElement props object, not JSX
               children: createElement(SceneTracks, { scene, registry, suppress: sceneSuppress }),
             })
           : createElement(SceneTracks, { scene, registry, suppress: sceneSuppress }),
