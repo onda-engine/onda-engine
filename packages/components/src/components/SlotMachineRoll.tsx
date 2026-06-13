@@ -8,9 +8,9 @@
 //! spin) that lands square on the target — the glyph drops in and stops, with no
 //! past-target kick (an over-roll that flashes a wrong glyph reads as a glitch, not
 //! a premium settle). Columns sit on the house stagger; the cell advance is a touch
-//! airier so the digits breathe. One earned accent: a soft, low-opacity accent glow
-//! blooms behind the landed row as the reels settle — the only color in the piece,
-//! the digits stay near-white.
+//! airier so the digits breathe. An opt-in accent (`glow`, default OFF): a soft
+//! radial bloom behind the landed row as the reels settle — a TRUE falloff to
+//! transparent (not a solid wash with a fake shadow), the digits stay near-white.
 //!
 //! Engine port notes (vs the ondajs/CSS original):
 //!  - ondajs nests `overflow:hidden` spans and translates an inner block. Here
@@ -48,6 +48,8 @@ import {
   Text,
   clipRect,
   interpolate,
+  parseColor,
+  radialGradient,
   random,
   spring,
   useCurrentFrame,
@@ -116,6 +118,11 @@ export interface SlotMachineRollProps {
   fontWeight?: number
   /** Italic glyphs. */
   italic?: boolean
+  /** Render a soft accent bloom behind the landed row. Default `false` — OFF.
+   *  It was a filled ellipse at half opacity faking a glow, so it read as a
+   *  muddy lozenge (a shape, not light), not a real radial falloff. Opt in with
+   *  `true` only if you know a theme's accent wants it. */
+  glow?: boolean
   /** Horizontal anchoring of the whole block (default `'center'`). Only applies
    *  to the legacy `x` anchor — `placement` always anchors the block's center. */
   align?: 'left' | 'center' | 'right'
@@ -150,6 +157,7 @@ export function SlotMachineRoll({
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
+  glow = false,
   align = 'center',
   placement,
   x,
@@ -230,26 +238,42 @@ export function SlotMachineRoll({
     config: SPRING_SMOOTH,
     durationInFrames: DURATION.base,
   })
-  const glowOpacity = interpolate(glowP, [0, 1], [0, 0.5], {
+  const glowOpacity = interpolate(glowP, [0, 1], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   })
-  const glowW = totalWidth + cell * 0.9
-  const glowH = cell * 1.35
+  // A REAL bloom (not a solid ellipse): a circular accent falloff to FULLY
+  // TRANSPARENT — so you read light, not a lozenge — stretched wide to hug the
+  // row. The shape edge sits where the gradient is already transparent, so it's
+  // invisible; the spring drives the reveal, the stop alphas set the softness.
+  const glowCx = totalWidth / 2
+  const glowCy = cell / 2
+  const glowR = cell * 1.1
+  const glowScaleX = Math.max(1, (totalWidth / 2 + cell * 0.45) / glowR)
+  const accentRGB = parseColor(theme.accent)
 
   return (
     <Group x={originX} y={originY}>
-      {/* Accent bloom behind the row — drawn first so the digits read on top of it.
-          Centered on the block; a wide, soft, low-opacity wash, not a hard fill. */}
-      <Ellipse
-        x={totalWidth / 2 - glowW / 2}
-        y={cell / 2 - glowH / 2}
-        width={glowW}
-        height={glowH}
-        fill={theme.accentSoft}
-        opacity={glowOpacity}
-        shadow={{ color: theme.accent, blur: cell * 0.7, offsetY: 0 }}
-      />
+      {/* One earned accent (opt-in via `glow`): a soft radial bloom behind the
+          landed row. A circular accent falloff to FULLY TRANSPARENT — light, not
+          a shape — stretched wide to hug the row. No hard body, no drop-shadow
+          (those made it a muddy lozenge). Drawn first; digits read on top. */}
+      {glow && (
+        <Group originX={glowCx} originY={glowCy} scaleX={glowScaleX} scaleY={0.92}>
+          <Ellipse
+            x={glowCx - glowR * 1.1}
+            y={glowCy - glowR * 1.1}
+            width={glowR * 2.2}
+            height={glowR * 2.2}
+            opacity={glowOpacity}
+            gradient={radialGradient([glowR * 1.1, glowR * 1.1], glowR, [
+              { offset: 0, color: { ...accentRGB, a: 0.42 } },
+              { offset: 0.45, color: { ...accentRGB, a: 0.14 } },
+              { offset: 1, color: { ...accentRGB, a: 0 } },
+            ])}
+          />
+        </Group>
+      )}
       {laid.cells.map(({ ch, index: i, x: localX, space }) => {
         // Spaces occupy advance but render nothing — no reel, no window.
         if (space) return null

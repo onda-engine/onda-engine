@@ -41,6 +41,12 @@ export const slotMachineRollSchema = z.object({
     .describe('Monospace/display stack keeps reels column-aligned (default: theme fontFamily).'),
   fontWeight: z.number().default(600).describe('Font weight (default 600).'),
   italic: z.boolean().default(false).describe('Italic glyphs.'),
+  glow: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Render a soft radial accent bloom behind the landed row as the reels settle — a true falloff to transparent, not a solid wash. Default false (off).',
+    ),
   align: z
     .enum(['left', 'center', 'right'])
     .default('center')
