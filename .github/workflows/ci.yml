@@ -121,12 +121,6 @@ jobs:
     name: Render smoke (Vello on lavapipe)
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      # Pin the Vulkan loader to lavapipe (the only working ICD on a GPU-less
-      # runner anyway; pinning keeps it deterministic). Older loaders read
-      # VK_ICD_FILENAMES, newer ones VK_DRIVER_FILES — set both.
-      VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
-      VK_DRIVER_FILES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
     steps:
       - uses: actions/checkout@v5
 
@@ -134,6 +128,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools ffmpeg
+          # Point the Vulkan loader at lavapipe's ICD wherever THIS distro put it.
+          # A hardcoded path silently breaks the loader ("Found no drivers!") when
+          # it differs across Ubuntu releases — so discover it, and fail loudly if
+          # the package didn't ship one (a packaging problem, not a code bug).
+          icd=$(find /usr/share/vulkan /etc/vulkan /usr/lib -name 'lvp_icd*.json' 2>/dev/null | head -1 || true)
+          if [ -z "$icd" ]; then
+            echo "::error::lavapipe ICD not found after install"; ls -laR /usr/share/vulkan/icd.d || true; exit 1
+          fi
+          echo "lavapipe ICD: $icd"
+          echo "VK_ICD_FILENAMES=$icd" >> "$GITHUB_ENV"
+          echo "VK_DRIVER_FILES=$icd" >> "$GITHUB_ENV"
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
