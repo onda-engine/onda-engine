@@ -52,11 +52,17 @@ cheaper), capped by the export meter already built.
 Build order matters: each item depends on the one above. Verbs run on the same
 render worker that already renders video.
 
-- [ ] **A1. Video ingest foundation** _(the prerequisite for everything below)_.
-  Today raw `.mov`/HEVC uploads dead-end (stored untranscoded, may render nothing).
-  Normalize on ingest: H.264 proxy + thumbnail + duration/dimension probe; flip the
-  engine's off-by-default `video` feature ON in the embed-kit build (A-roll decode
-  needs it). Mostly Studio-side pipeline + `onda` video plumbing.
+- [x] **A1. Video ingest foundation** _(done 2026-06-13)_. Engine: `video` feature
+  baked into the embed-kit binary (native A-roll decode for export, ffmpeg CLI) —
+  verified a Video node composites footage under a title. Studio: transcode-on-
+  ingest (`backend/src/lib/video-ingest.ts`) — ffprobe → H.264 proxy (longest edge
+  ≤1920, faststart) + poster thumbnail, replacing the original; rotation handled via
+  ffmpeg's default autorotate + display-dim probe (portrait phone video comes out
+  UPRIGHT); status lifecycle `transcoding`→`complete`/`failed`+reason (never silently
+  complete); quota rewritten to proxy+poster bytes. Verified live on temp files
+  (landscape/4K-downscale/portrait-rotation/HEVC .mov) + R2 round-trip. ⚠️ ACTION:
+  apply migration `0020` (adds `failure_reason`) before the Studio upload flow works
+  for video; frontend `processing` spinner deferred (failed-chip already shows).
 - [ ] **A2. One-click captions** _(highest-visibility single win)_. whisper.cpp
   (MIT, local, Rust via the `ort`/CLI pattern) → word-level timestamps → the
   EXISTING `Captions` component. The moat: captions rendered as first-class motion
