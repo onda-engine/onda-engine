@@ -68,7 +68,15 @@ if [[ "$SKIP_BINARY" -eq 0 ]]; then
   # cmake + a C++ toolchain (whisper.cpp is compiled from source) — macOS has
   # these via Homebrew/Xcode; Linux CI needs `apt-get install cmake`. The Whisper
   # model (~142MB base.en) downloads once at first use to ~/.onda/models/.
-  cargo build --release -p onda-cli --features segment,video,transcribe
+  # `speak` bakes Kokoro-82M AI voiceover into the binary for `onda speak` (the
+  # engine half of Studio narration). BUILD-TIME DEPS: cmake + clang (espeak-ng,
+  # the phonemizer, is compiled from bundled C source via cmake+bindgen) AND a
+  # complete espeak-ng-data on disk for the phoneme tables — i.e. an espeak-ng
+  # install (macOS: `brew install espeak-ng`; Debian/Ubuntu CI: `apt-get install
+  # cmake clang espeak-ng espeak-ng-data`). NO system espeak-ng is needed at RUN
+  # time. The Kokoro model (~325MB) + voices (~28MB) download once at first use
+  # to ~/.onda/models/.
+  cargo build --release -p onda-cli --features segment,video,transcribe,speak
   cargo build --release -p onda-audio --example synth_json --example beats_json
   cp target/release/onda "$OUT/onda"
   cp target/release/examples/synth_json "$OUT/synth_json"

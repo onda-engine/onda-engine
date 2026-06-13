@@ -1,0 +1,50 @@
+[package]
+name = "onda-tts"
+description = "Native text-to-speech (AI voiceover) for ONDA: turn a script into natural narration with Kokoro-82M (ONNX Runtime). The engine half of Studio voiceover — `onda speak \"...\" out.wav`. English, multi-voice, ~4-5x realtime on CPU."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+# NATIVE-ONLY. This crate pulls in `ort`/onnxruntime (the Kokoro inference, same
+# as onda-segment) AND `espeak-rs`, which COMPILES espeak-ng from bundled C
+# source with cmake (the IPA phonemizer) — neither can target
+# wasm32-unknown-unknown. So, exactly like onda-segment + onda-transcribe, this
+# crate is deliberately NOT a wasm member; it is depended on only behind the
+# `speak` feature of onda-cli.
+#
+# BUILD-TIME DEPS of this crate: cmake + a C/C++ toolchain + libclang (espeak-ng
+# is built from source via cmake, with bindgen generating the FFI). CI that turns
+# on the `speak` feature must have these (e.g. `apt-get install cmake clang` on
+# Linux runners; preinstalled on macOS via Homebrew/Xcode). NO system espeak-ng
+# install is required — espeak-rs vendors the espeak-ng source + data and builds
+# them in, mirroring how whisper-rs vendors whisper.cpp for `transcribe`.
+
+[dependencies]
+# Kokoro ONNX inference. The SAME `ort` pin the rest of the tree already uses
+# (onda-segment), so the `speak` feature reuses one statically-linked onnxruntime
+# rather than pulling a second copy — the DRY choice over crates that pin ort 1.x
+# or bring a whole second ML stack (Candle).
+ort = "=2.0.0-rc.10"
+# IPA phonemes via espeak-ng. espeak-rs (MIT, by thewh1teagle — the author of the
+# kokoro-onnx Python pipeline ONDA validated against) VENDORS espeak-ng + its data
+# and compiles them from source, so there is no system espeak-ng dependency at
+# build OR run time. `with_stress`/`preserve_punctuation` is built in.
+# default-features off: the `compile-espeak-intonations` default recompiles the
+# intonation spectral data from source, which fails to build in some toolchains
+# (truncated phsource filenames). The phonemizer (text→IPA) does not need it.
+espeak-rs = { version = "0.2", default-features = false }
+# voices-v1.0.bin is a NumPy .npz (a zip of per-voice .npy style tensors). zip
+# reads the archive; the .npy parse is a few lines in-crate (no numpy crate).
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# Read/write the 24 kHz mono WAV. hound is the small pure-Rust WAV crate the tree
+# already uses (onda-transcribe).
+hound = "3"
+# Lightweight blocking HTTP for the one-time model+voices download (rustls, no
+# tokio) — mirrors onda-segment / onda-transcribe.
+ureq = "2"
+serde = { workspace = true, features = ["derive"] }
+anyhow = { workspace = true }
