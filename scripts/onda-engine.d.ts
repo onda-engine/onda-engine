@@ -65,7 +65,8 @@ export interface InspectViolation {
 
 export interface InspectReport {
   violations: InspectViolation[]
-  summary: { errors: number; warnings: number; infos: number }
+  /** Counts keyed by severity — matches `Violation['severity']` exactly. */
+  summary: { error: number; warn: number; info: number }
   format: string
   fps: number
   totalFrames: number
