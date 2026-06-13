@@ -134,6 +134,19 @@ export function renderStillToFile(
  *  text in that family. */
 export function registerFont(data: Uint8Array): void
 
+/** Evaluate frames `[startFrame, endFrame)` of a composition to a JSON array of
+ *  scene graphs — the `frames.json` the `onda` CLI's vision verbs consume
+ *  (`onda lint` geometry measurement, `onda contact-sheet` annotated tiles,
+ *  `onda render-frame --crop` zoom, `onda export-frames` short clips). The
+ *  agent's motion-perception bridge: a scene's transition window becomes
+ *  numbers + an annotated strip without rendering the whole video. */
+export function renderFrameRangeJSON(
+  composition: CompositionElement,
+  startFrame: number,
+  endFrame: number,
+  space?: number,
+): string
+
 // ── @onda/components ────────────────────────────────────────────────────────
 
 /** Load a custom font (`.ttf`/`.otf` bytes) into the author-time measurement
