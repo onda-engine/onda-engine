@@ -30,11 +30,10 @@
       }
     },
     {
-      "comment": "Demo/authoring comp scripts — throwaway, not shipped code. Keep formatting, but don't gate CI on style-nitpick lint rules.",
       "include": ["apps/site/scripts/**"],
       "linter": {
         "rules": {
-          "style": "off"
+          "style": { "recommended": false }
         }
       }
     }
