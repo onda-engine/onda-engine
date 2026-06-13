@@ -40,18 +40,20 @@ jobs:
       - name: rustfmt
         run: cargo fmt --check
 
-      # onda-segment is excluded from clippy/test: its `ort` (ONNX Runtime) dependency
-      # tree is heavy (native runtime download + long build) and the `segment` feature
-      # is opt-in on onda-cli anyway — the default builds never enable it.
+      # onda-segment (ort/ONNX) and onda-transcribe (whisper.cpp, needs cmake + a
+      # C++ toolchain) are excluded from clippy/test: their dependency trees are
+      # heavy and both are opt-in features on onda-cli (segment / transcribe) that
+      # the default builds never enable. They're exercised by the tagged release
+      # build (release.yml), which installs cmake.
       #
       # No `-D warnings`: the workspace is not warning-clean today (verified locally:
       # 2x clippy::redundant_closure in onda-layout + 1 unused import in the renderer
       # golden test). Re-add `-- -D warnings` once those are fixed.
       - name: clippy
-        run: cargo clippy --workspace --exclude onda-segment --all-targets
+        run: cargo clippy --workspace --exclude onda-segment --exclude onda-transcribe --all-targets
 
       - name: cargo test
-        run: cargo test --workspace --exclude onda-segment
+        run: cargo test --workspace --exclude onda-segment --exclude onda-transcribe
 
       # Golden-frame determinism harness: CPU reference renders diffed against
       # committed PNGs (packages/renderer-rs/tests/golden). Gated behind the `png`
