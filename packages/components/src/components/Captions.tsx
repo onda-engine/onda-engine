@@ -33,7 +33,15 @@
 //!   not applied (see `approximations`). Line height comes from the engine's
 //!   fixed text box instead.
 
-import { Group, Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
+import {
+  Group,
+  Rect,
+  Text,
+  interpolate,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from '@onda/react'
 import { DURATION, SPRING_SMOOTH, staggerFrames } from '../motion.js'
 import { letterSpacingPx, measureText, useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'
@@ -96,9 +104,19 @@ export interface CaptionsProps {
     | 'upper-third'
     | 'lower-third'
     | { x?: number; y?: number }
-  /** Max line width as a 0–1 fraction of canvas width — the block wraps within
-   *  this (default 0.8). */
+  /** Max line width as a 0–1 fraction of canvas width — the block wraps to more
+   *  lines within this (default 0.8) instead of overflowing the frame. */
   maxWidth?: number
+  /** Legibility backing so captions read over any footage (Text has no native
+   *  stroke). `'shadow'` (default) drops a soft dark copy behind each word;
+   *  `'box'` lays a rounded translucent card behind the whole block (the CapCut
+   *  subtitle look — guaranteed legible over busy/bright footage); `'none'` for
+   *  clean plates that don't need it. */
+  backdrop?: 'none' | 'shadow' | 'box'
+  /** How the active word is emphasized. `'color'` (default) recolors it to the
+   *  accent; `'box'` seats it in a rounded accent pill with dark text (the
+   *  dominant short-form caption look). */
+  highlight?: 'color' | 'box'
 }
 
 const DEFAULT_CAPTIONS: CaptionEntry[] = [
@@ -133,6 +151,8 @@ export function Captions({
   align = 'center',
   placement = 'lower-third',
   maxWidth = 0.8,
+  backdrop = 'shadow',
+  highlight = 'color',
 }: CaptionsProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
@@ -178,18 +198,30 @@ export function Captions({
         .filter(Boolean)
         .map((text) => ({ text, startMs: 0, endMs: 0 }))
   const spaceW = measureText(' ', fontSize, { fontFamily, fontWeight, letterSpacing: lsPx }).width
+  const maxW = Math.max(0, Math.min(1, maxWidth))
+  const maxWidthPx = width * maxW
 
-  // Measure each word and lay them out left-to-right by the cumulative advance
-  // of the words before it. `left` is the word's left edge from the line's own
-  // left edge; `lineWidth` is the total shaped width used to center the line.
+  // Measure each word and pack them into LINES: a word that would push the
+  // current line past `maxWidthPx` starts a new line (greedy wrap) instead of
+  // running off-frame. `left` is the word's left edge within its own line;
+  // `lineWidths[line]` is each line's shaped width (for per-line centering).
+  const laid: { word: string; left: number; line: number; w: number; startMs: number }[] = []
+  const lineWidths: number[] = []
+  let line = 0
   let cursor = 0
-  const laid = srcWords.map((w) => {
-    const width = measureText(w.text, fontSize, { fontFamily, fontWeight, letterSpacing: lsPx }).width
-    const left = cursor
-    cursor += width + spaceW
-    return { word: w.text, left, startMs: w.startMs }
-  })
-  const lineWidth = Math.max(0, cursor - spaceW)
+  for (const sw of srcWords) {
+    const ww = measureText(sw.text, fontSize, { fontFamily, fontWeight, letterSpacing: lsPx }).width
+    if (cursor > 0 && cursor + ww > maxWidthPx) {
+      lineWidths[line] = cursor - spaceW
+      line += 1
+      cursor = 0
+    }
+    laid.push({ word: sw.text, left: cursor, line, w: ww, startMs: sw.startMs })
+    cursor += ww + spaceW
+  }
+  lineWidths[line] = Math.max(0, cursor - spaceW)
+  const numLines = line + 1
+  const widestLine = Math.max(...lineWidths)
 
   // Frames since this caption window opened — the clock its words cascade against.
   const activationLocalFrame = local - (active.startMs / 1000) * fps
@@ -207,7 +239,12 @@ export function Captions({
   // Word-timed lines reveal as ONE block (a single settle on activation, words
   // stay put and only the accent moves); cascade lines lift word-by-word.
   const lineReveal = wordTimed
-    ? spring({ frame: activationLocalFrame, fps, config: SPRING_SMOOTH, durationInFrames: DURATION.base })
+    ? spring({
+        frame: activationLocalFrame,
+        fps,
+        config: SPRING_SMOOTH,
+        durationInFrames: DURATION.base,
+      })
     : 0
 
   // Horizontal anchor for the line's CENTRE, kept inside the `maxWidth` safe band
@@ -217,9 +254,9 @@ export function Captions({
     typeof placement === 'object' && placement.x !== undefined
       ? placement.x * width
       : align === 'left'
-        ? margin + lineWidth / 2
+        ? margin + widestLine / 2
         : align === 'right'
-          ? width - margin - lineWidth / 2
+          ? width - margin - widestLine / 2
           : width / 2
   // Vertical anchor: the placement band centre (lower-third ≈ 0.78 by default,
   // the broadcast subtitle position), or a normalized point's y.
@@ -228,16 +265,47 @@ export function Captions({
       ? (placement.y ?? 0.5) * height
       : height * PLACEMENT_TO_BAND[placement]
 
+  // Each line's vertical centre, relative to the block centre (the Group origin):
+  // line L sits at `(L - (numLines-1)/2) * lineHeight`, so the whole block stays
+  // centred on the placement band whether it's one line or three.
+  const lineCY = (l: number) => (l - (numLines - 1) / 2) * lineHeight
+  // A word's left edge within the Group: its line is centred on cx.
+  const wordX = (left: number, l: number) => left - (lineWidths[l] ?? 0) / 2
+
+  // Drop-shadow offset for `backdrop: 'shadow'` — a soft dark copy down-right.
+  const shOff = Math.max(1.5, fontSize * 0.05)
+
   return (
-    // The Group sits at the band anchor; the words are placed from the line's
-    // own left edge (`-lineWidth/2`) so the centered line stays put while each
-    // word lifts its own `translateY` into place.
+    // The Group sits at the band anchor; words are placed per line so the block
+    // stays centred while each word reveals + the accent rides the voice.
     <Group x={cx} y={cy}>
-      {laid.map(({ word, left }, i) => {
-        // Reveal ramp. Word-timed: the WHOLE line shares one settle (it's already
-        // there before the voice arrives, so only the accent moves). Default: a
-        // 0→1 SPRING_SMOOTH ramp per word, delayed by the canonical stagger wave,
-        // so words lift into place one after another.
+      {/* `box` backdrop: one rounded card behind the whole (possibly multi-line)
+          block, padded — the guaranteed-legible subtitle look. */}
+      {backdrop === 'box' &&
+        (() => {
+          const padX = fontSize * 0.4
+          const padY = fontSize * 0.22
+          const boxW = widestLine + padX * 2
+          const boxH = numLines * lineHeight + padY * 2
+          return (
+            <Rect
+              x={-boxW / 2}
+              y={-boxH / 2}
+              width={boxW}
+              height={boxH}
+              cornerRadius={Math.min(boxH / 2, fontSize * 0.35)}
+              fill="#000000b3"
+              opacity={interpolate(lineReveal, [0, 1], [0, 1], {
+                extrapolateLeft: 'clamp',
+                extrapolateRight: 'clamp',
+              })}
+            />
+          )
+        })()}
+      {laid.map(({ word, left, line: l, w: ww }, i) => {
+        // Reveal ramp. Word-timed: the WHOLE line shares one settle (already
+        // there before the voice arrives, only the accent moves). Default: a
+        // per-word SPRING_SMOOTH ramp delayed by the stagger wave (cascade).
         const reveal = wordTimed
           ? lineReveal
           : spring({
@@ -254,24 +322,55 @@ export function Captions({
           extrapolateLeft: 'clamp',
           extrapolateRight: 'clamp',
         })
-        // Karaoke accent: only the word the eye is currently landing on glows
-        // accent; the rest settle to near-white (the last word stays accented
-        // once the whole line has arrived).
+        // Karaoke accent: only the word the eye is landing on glows; the rest
+        // settle to near-white (the last word stays accented once the line's in).
         const isCurrent = i === currentWord
+        const x = wordX(left, l)
+        const y = lineCY(l) - lineHeight / 2 + ty
+        // Boxed active word: a rounded accent pill behind it, dark text on top.
+        const boxed = highlight === 'box' && isCurrent
+        const textColor = boxed ? '#0a0a0f' : isCurrent ? accentColor : restColor
         return (
-          <Text
-            key={i}
-            x={left - lineWidth / 2}
-            y={-lineHeight / 2 + ty}
-            fontSize={fontSize}
-            color={isCurrent ? accentColor : restColor}
-            fontFamily={fontFamily}
-            fontWeight={fontWeight}
-            letterSpacing={lsPx}
-            opacity={opacity}
-          >
-            {word}
-          </Text>
+          <Group key={i}>
+            {boxed && (
+              <Rect
+                x={x - fontSize * 0.18}
+                y={lineCY(l) - lineHeight * 0.42 + ty}
+                width={ww + fontSize * 0.36}
+                height={lineHeight * 0.84}
+                cornerRadius={fontSize * 0.18}
+                fill={accentColor}
+                opacity={opacity}
+              />
+            )}
+            {/* `shadow` backdrop: a soft dark copy offset down-right, behind. */}
+            {backdrop === 'shadow' && !boxed && (
+              <Text
+                x={x + shOff}
+                y={y + shOff}
+                fontSize={fontSize}
+                color="#000000"
+                fontFamily={fontFamily}
+                fontWeight={fontWeight}
+                letterSpacing={lsPx}
+                opacity={opacity * 0.55}
+              >
+                {word}
+              </Text>
+            )}
+            <Text
+              x={x}
+              y={y}
+              fontSize={fontSize}
+              color={textColor}
+              fontFamily={fontFamily}
+              fontWeight={fontWeight}
+              letterSpacing={lsPx}
+              opacity={opacity}
+            >
+              {word}
+            </Text>
+          </Group>
         )
       })}
     </Group>
