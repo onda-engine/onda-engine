@@ -98,12 +98,7 @@ interface OndaEngineLike {
     italic?: boolean,
     letterSpacing?: number,
   ): TextMetrics
-  fontMetrics(
-    fontSize: number,
-    family?: string,
-    weight?: number,
-    italic?: boolean,
-  ): FontMetrics
+  fontMetrics(fontSize: number, family?: string, weight?: number, italic?: boolean): FontMetrics
   glyphLayout(
     content: string,
     fontSize: number,
@@ -210,13 +205,13 @@ export function measureText(
 
 function estimateFontMetrics(fontSize: number): FontMetrics {
   return {
-    capTop: fontSize * 0.10,
-    capHeight: fontSize * 0.70,
-    xTop: fontSize * 0.30,
+    capTop: fontSize * 0.1,
+    capHeight: fontSize * 0.7,
+    xTop: fontSize * 0.3,
     xHeight: fontSize * 0.52,
-    ascent: fontSize * 0.80,
-    descent: fontSize * 0.20,
-    lineHeight: fontSize * 1.20,
+    ascent: fontSize * 0.8,
+    descent: fontSize * 0.2,
+    lineHeight: fontSize * 1.2,
   }
 }
 
@@ -245,8 +240,12 @@ export function useFontMetrics(fontSize: number, opts: MeasureOpts = {}): FontMe
   useEffect(() => {
     if (engine || loadFailed || typeof window === 'undefined') return
     let cancelled = false
-    preloadTextMetrics().then(() => { if (!cancelled) bump((v) => v + 1) })
-    return () => { cancelled = true }
+    preloadTextMetrics().then(() => {
+      if (!cancelled) bump((v) => v + 1)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [])
   return fontMetrics(fontSize, opts)
 }
@@ -287,6 +286,7 @@ export function glyphLayout(
     )
     const out: GlyphInfo[] = []
     for (let i = 0; i < raw.length; i += 4) {
+      // biome-ignore lint/style/noNonNullAssertion: stride-4 walk — i..i+3 in bounds by the loop condition
       out.push({ start: raw[i]!, end: raw[i + 1]!, x: raw[i + 2]!, advance: raw[i + 3]! })
     }
     return out
@@ -306,8 +306,12 @@ export function useGlyphLayout(
   useEffect(() => {
     if (engine || loadFailed || typeof window === 'undefined') return
     let cancelled = false
-    preloadTextMetrics().then(() => { if (!cancelled) bump((v) => v + 1) })
-    return () => { cancelled = true }
+    preloadTextMetrics().then(() => {
+      if (!cancelled) bump((v) => v + 1)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [])
   return glyphLayout(content, fontSize, opts)
 }

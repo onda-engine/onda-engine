@@ -20,6 +20,26 @@
           "suspicious": { "noArrayIndexKey": "off" }
         }
       }
+    },
+    {
+      "include": ["**/*.test.ts", "**/*.test.tsx"],
+      "linter": {
+        "rules": {
+          "style": { "noNonNullAssertion": "off" }
+        }
+      }
+    },
+    {
+      "include": ["apps/site/scripts/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useSingleVarDeclarator": "off",
+            "useTemplate": "off",
+            "noUnusedTemplateLiteral": "off"
+          }
+        }
+      }
     }
   ],
   "javascript": {

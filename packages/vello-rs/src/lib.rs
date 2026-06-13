@@ -135,14 +135,36 @@ impl VelloRenderer {
     /// where WebGPU may be missing or lack the limits Vello's compute path needs.
     pub async fn try_new_async() -> Result<Self, String> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
-        let adapter = instance
+        let hardware = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 force_fallback_adapter: false,
                 compatible_surface: None,
             })
-            .await
-            .ok_or_else(|| "request_adapter returned no adapter".to_string())?;
+            .await;
+        let adapter = match hardware {
+            Some(a) => a,
+            // wgpu treats CPU adapters (Mesa lavapipe / SwiftShader) as
+            // fallback-only and never returns them unless forced. A software
+            // Vulkan device runs the full Vello pipeline — identical output,
+            // CPU speed — and is the planned substrate for headless servers
+            // without GPUs, so accept it as the last resort.
+            None => instance
+                .request_adapter(&wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::HighPerformance,
+                    force_fallback_adapter: true,
+                    compatible_surface: None,
+                })
+                .await
+                .ok_or_else(|| "request_adapter returned no adapter".to_string())?,
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        if adapter.get_info().device_type == wgpu::DeviceType::Cpu {
+            eprintln!(
+                "[onda-vello] using a software Vulkan adapter ({}) — full fidelity, CPU speed",
+                adapter.get_info().name
+            );
+        }
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
