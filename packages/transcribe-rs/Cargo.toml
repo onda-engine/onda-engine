@@ -1,0 +1,34 @@
+[package]
+name = "onda-transcribe"
+description = "Native speech transcription for ONDA: turn an audio/video track into a timed Transcript (word-level timestamps + readable caption lines) with OpenAI Whisper (whisper.cpp via whisper-rs). The foundation for one-click captions and text-based editing."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+# NATIVE-ONLY. `whisper-rs` wraps whisper.cpp (a C/C++ library compiled with
+# cmake), which cannot target wasm32-unknown-unknown — so, exactly like
+# onda-segment, this crate is deliberately NOT pulled into the wasm builds. It is
+# depended on only behind the `transcribe` feature of onda-cli.
+#
+# BUILD-TIME DEPS of this crate: cmake + a C/C++ toolchain (whisper.cpp is built
+# from source). CI that turns on the `transcribe` feature must have cmake (e.g.
+# `apt-get install cmake` on Linux runners; preinstalled on macOS via Homebrew).
+
+[dependencies]
+# whisper.cpp Rust bindings (MIT). 0.14.4 is the version spiked + proven on this
+# machine; it produces accurate word-level timestamps with token_timestamps +
+# max_len(1). Default (CPU) features only — no metal/cuda/openblas, so the build
+# needs nothing beyond cmake + a C++ compiler.
+whisper-rs = { version = "0.14", default-features = false }
+# Read the 16 kHz mono WAV the CLI feeds us into the PCM f32 the model wants.
+# hound is the small, ubiquitous pure-Rust WAV reader.
+hound = "3"
+# Lightweight blocking HTTP for the one-time model download (rustls, no tokio) —
+# mirrors onda-segment's downloader.
+ureq = "2"
+serde = { workspace = true, features = ["derive"] }
+anyhow = { workspace = true }
