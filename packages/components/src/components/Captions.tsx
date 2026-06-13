@@ -39,11 +39,24 @@ import { letterSpacingPx, measureText, useTextMetricsReady } from '../text-metri
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
+/** One word inside a phrase, with its own spoken `[startMs, endMs)` window. */
+export interface CaptionWord {
+  text: string
+  startMs: number
+  endMs: number
+}
+
 /** One transcript entry: a word and its `[startMs, endMs)` activation window. */
 export interface CaptionEntry {
   text: string
   startMs: number
   endMs: number
+  /** Optional per-word timing. When present, the WHOLE phrase shows at once and
+   *  each word lights up the instant it is spoken (`currentMs` inside that word's
+   *  `[startMs, endMs)`) — true word-synced karaoke — instead of the default
+   *  cascade-timed reveal where words fade in on a fixed stagger and the accent
+   *  follows that wave. The shape `onda transcribe` emits per segment. */
+  words?: CaptionWord[]
 }
 
 export interface CaptionsProps {
@@ -153,33 +166,49 @@ export function Captions({
   const lsPx = letterSpacingPx(letterSpacing, fontSize)
   const lineHeight = fontSize * 1.2
 
-  // Split the active caption (a word or short phrase) into words so each can
-  // cascade in on the house stagger. A single space rejoins them for layout.
-  const words = active.text.split(/\s+/).filter(Boolean)
+  // Word source: per-word-timed (the whole phrase is shown and each word lights
+  // up at its OWN spoken time — true karaoke) when `active.words` is supplied,
+  // else the phrase text split on spaces (the default cascade reveal).
+  const wordTimed = !!(active.words && active.words.length > 0)
+  const srcWords = wordTimed
+    ? // biome-ignore lint/style/noNonNullAssertion: guarded by wordTimed
+      active.words!
+    : active.text
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((text) => ({ text, startMs: 0, endMs: 0 }))
   const spaceW = measureText(' ', fontSize, { fontFamily, fontWeight, letterSpacing: lsPx }).width
 
   // Measure each word and lay them out left-to-right by the cumulative advance
   // of the words before it. `left` is the word's left edge from the line's own
   // left edge; `lineWidth` is the total shaped width used to center the line.
   let cursor = 0
-  const laid = words.map((word) => {
-    const w = measureText(word, fontSize, { fontFamily, fontWeight, letterSpacing: lsPx }).width
+  const laid = srcWords.map((w) => {
+    const width = measureText(w.text, fontSize, { fontFamily, fontWeight, letterSpacing: lsPx }).width
     const left = cursor
-    cursor += w + spaceW
-    return { word, left }
+    cursor += width + spaceW
+    return { word: w.text, left, startMs: w.startMs }
   })
   const lineWidth = Math.max(0, cursor - spaceW)
 
   // Frames since this caption window opened — the clock its words cascade against.
   const activationLocalFrame = local - (active.startMs / 1000) * fps
 
-  // The word the eye is landing on right now: the highest index whose stagger
-  // start has passed (so the freshest reveal). It carries the accent; the rest
-  // settle to near-white. Clamps to the last word once the whole line is in.
+  // The word currently carrying the accent. Word-timed: the latest word whose
+  // spoken start has passed (so the glow rides the real voice and holds on the
+  // last word through any gap). Default: the highest index whose stagger start
+  // has passed (the freshest cascade reveal).
   let currentWord = 0
-  for (let i = 0; i < laid.length; i++) {
-    if (activationLocalFrame >= staggerFrames(i)) currentWord = i
-  }
+  laid.forEach((w, i) => {
+    const reached = wordTimed ? currentMs >= w.startMs : activationLocalFrame >= staggerFrames(i)
+    if (reached) currentWord = i
+  })
+
+  // Word-timed lines reveal as ONE block (a single settle on activation, words
+  // stay put and only the accent moves); cascade lines lift word-by-word.
+  const lineReveal = wordTimed
+    ? spring({ frame: activationLocalFrame, fps, config: SPRING_SMOOTH, durationInFrames: DURATION.base })
+    : 0
 
   // Horizontal anchor for the line's CENTRE, kept inside the `maxWidth` safe band
   // so left/right placements never kiss the frame edge.
@@ -205,20 +234,23 @@ export function Captions({
     // word lifts its own `translateY` into place.
     <Group x={cx} y={cy}>
       {laid.map(({ word, left }, i) => {
-        // House reveal: a 0→1 SPRING_SMOOTH ramp, the i-th word delayed by the
-        // canonical stagger wave. No pop-in — opacity fades and the word lifts a
-        // small `translateY` (24→0px) as it settles.
-        const reveal = spring({
-          frame: activationLocalFrame - staggerFrames(i),
-          fps,
-          config: SPRING_SMOOTH,
-          durationInFrames: DURATION.base,
-        })
+        // Reveal ramp. Word-timed: the WHOLE line shares one settle (it's already
+        // there before the voice arrives, so only the accent moves). Default: a
+        // 0→1 SPRING_SMOOTH ramp per word, delayed by the canonical stagger wave,
+        // so words lift into place one after another.
+        const reveal = wordTimed
+          ? lineReveal
+          : spring({
+              frame: activationLocalFrame - staggerFrames(i),
+              fps,
+              config: SPRING_SMOOTH,
+              durationInFrames: DURATION.base,
+            })
         const opacity = interpolate(reveal, [0, 1], [0, 1], {
           extrapolateLeft: 'clamp',
           extrapolateRight: 'clamp',
         })
-        const ty = interpolate(reveal, [0, 1], [24, 0], {
+        const ty = interpolate(reveal, [0, 1], [wordTimed ? 12 : 24, 0], {
           extrapolateLeft: 'clamp',
           extrapolateRight: 'clamp',
         })
