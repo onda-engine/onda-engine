@@ -63,11 +63,17 @@ render worker that already renders video.
   (landscape/4K-downscale/portrait-rotation/HEVC .mov) + R2 round-trip. ⚠️ ACTION:
   apply migration `0020` (adds `failure_reason`) before the Studio upload flow works
   for video; frontend `processing` spinner deferred (failed-chip already shows).
-- [ ] **A2. One-click captions** _(highest-visibility single win)_. whisper.cpp
-  (MIT, local, Rust via the `ort`/CLI pattern) → word-level timestamps → the
-  EXISTING `Captions` component. The moat: captions rendered as first-class motion
-  graphics (brand fonts, placement contract, beat-aware, Inspector-legibility-checked)
-  — not one of twelve CapCut templates. New verb `onda transcribe`.
+- [x] **A2. One-click captions** _(done 2026-06-13)_. `onda transcribe` (whisper.cpp
+  via whisper-rs, MIT, feature-gated `transcribe`, model auto-downloads like U²-Net)
+  → word + caption-line timings. Studio `transcribe_asset` MCP tool + captions
+  playbook. The `Captions` component got the premium-caption table-stakes: word-synced
+  karaoke (per-word `words` light up on the real voice), automatic line wrapping,
+  legibility backing (`backdrop: shadow|outline|box` + `backdropColor`), word-box
+  pill highlight, place-anywhere (`placement {x,y}`). The agent honors the user's
+  STYLE in plain language (one-word vs phrase / color / outline / box / black bg /
+  position). Proven on a real internet clip. Gaps left: transcript EDITING (Studio
+  UX, for fixing Whisper errors — trust); auto-positioning to dodge face+UI (pieces
+  exist via Inspector safe-zones); keyword/emoji emphasis (advanced).
 - [ ] **A3. The Descript trinity** _(shares A2's transcript infra)_: silence-cut
   (RMS gating, no transcript needed — "tighten this take"); filler-word removal
   ("cut the ums" = transcript filter → cut list); **text-based editing** (delete a
