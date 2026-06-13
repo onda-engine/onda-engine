@@ -38,6 +38,12 @@ onda-segment = { path = "../segment-rs", version = "0.1.0", optional = true }
 # feature: whisper.cpp is C++ built with cmake and can't target wasm32, so it
 # stays out of the default + wasm builds (cmake is a build-time dep of the feature).
 onda-transcribe = { workspace = true, optional = true }
+# Native text-to-speech / AI voiceover (Kokoro-82M via ONNX Runtime + espeak-ng).
+# Behind the `speak` feature: it pulls in onnxruntime + compiles espeak-ng, which
+# can't target wasm32, so it stays out of the default + wasm builds. Build-time
+# deps: cmake + clang (espeak-ng is built from source) and a complete
+# espeak-ng-data (an espeak-ng install) for the phoneme tables.
+onda-tts = { workspace = true, optional = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
 
@@ -54,3 +60,10 @@ segment = ["dep:onda-segment"]
 # whisper.cpp. Build with `--features transcribe`. Build-time deps: cmake + a C++
 # toolchain (whisper.cpp is compiled from source).
 transcribe = ["dep:onda-transcribe"]
+# Enable `onda speak <text|-> <out.wav>`: native AI voiceover via Kokoro-82M (ONNX
+# Runtime + espeak-ng). Off by default so the default + wasm builds don't pull in
+# onnxruntime/espeak-ng (neither targets wasm32). Build with `--features speak`.
+# Build-time deps: cmake + clang (espeak-ng built from source) + a complete
+# espeak-ng-data on disk (an espeak-ng install). The Kokoro model (~325 MB) +
+# voices (~28 MB) download once at first use to ~/.onda/models/.
+speak = ["dep:onda-tts"]

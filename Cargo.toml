@@ -29,6 +29,11 @@ members = [
     # onda-cli dependency under the `transcribe` feature, so it never leaks into
     # the wasm builds.
     "packages/transcribe-rs",
+    # Native-only (ort/onnxruntime for Kokoro inference + espeak-ng compiled from
+    # source via cmake — neither targets wasm32); like segment-rs/transcribe-rs
+    # it's a workspace member for `cargo build/test` but only an onda-cli
+    # dependency under the `speak` feature, so it never leaks into the wasm builds.
+    "packages/tts-rs",
 ]
 
 [workspace.package]
@@ -56,6 +61,7 @@ onda-layout = { path = "packages/layout-rs", version = "0.1.0" }
 onda-audio = { path = "packages/audio-rs", version = "0.1.0", default-features = false }
 onda-video = { path = "packages/video-rs", version = "0.1.0" }
 onda-transcribe = { path = "packages/transcribe-rs", version = "0.1.0" }
+onda-tts = { path = "packages/tts-rs", version = "0.1.0" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

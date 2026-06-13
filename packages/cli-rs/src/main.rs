@@ -42,6 +42,9 @@ USAGE:
                                                    (--frame N); --crop a region
     onda contact-sheet <frames.json> <out.png>     Tile N frames + overlay the
                                                    lint's numbered problem boxes
+    onda speak <text|-> <out.wav>                  AI voiceover from a script
+                                                   (--voice, --speed, --list-voices;
+                                                   needs --features speak)
 
     <scene.json>   a scene graph              (onda-scene JSON)
     <movie.json>   a scene graph + timeline   ({ \"scene\": ..., \"timeline\": ... })
@@ -272,6 +275,7 @@ fn run(args: Vec<String>) -> Result<()> {
         "lint" => lint_command(&args[1..]),
         "segment" => segment_command(&args[1..]),
         "transcribe" => transcribe_command(&args[1..]),
+        "speak" => speak_command(&args[1..]),
         other => bail!("unknown command '{other}'\n\n{USAGE}"),
     }
 }
@@ -526,6 +530,97 @@ fn transcribe_command(args: &[String]) -> Result<()> {
 #[cfg(not(feature = "transcribe"))]
 fn transcribe_command(_args: &[String]) -> Result<()> {
     bail!("`onda transcribe` is not built in — rebuild onda-cli with `--features transcribe`")
+}
+
+/// `onda speak <text|-> <out.wav> [--voice af_heart] [--speed 1.0] [--list-voices]`
+/// — generate natural AI narration from a script (the engine half of Studio
+/// voiceover). Runs Kokoro-82M (ONNX Runtime + espeak-ng) and writes a 24 kHz mono
+/// WAV. `<text>` is the script, or `-` to read it from stdin. `--list-voices`
+/// prints the curated catalog (id + a human label) and exits. Only built with
+/// `--features speak` (it pulls in onnxruntime + espeak-ng, which can't target
+/// wasm32, so it stays out of the default + wasm builds).
+#[cfg(feature = "speak")]
+fn speak_command(args: &[String]) -> Result<()> {
+    use std::io::Read;
+
+    let mut positionals: Vec<&str> = Vec::new();
+    let mut voice: String = onda_tts::DEFAULT_VOICE.to_string();
+    let mut speed: f32 = 1.0;
+    let mut list_voices = false;
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--list-voices" => list_voices = true,
+            "--voice" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--voice needs a voice id\n\n{USAGE}"))?;
+                voice = v.to_string();
+            }
+            "--speed" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--speed needs a number\n\n{USAGE}"))?;
+                speed = v
+                    .trim()
+                    .parse::<f32>()
+                    .with_context(|| format!("--speed '{v}' is not a number"))?;
+            }
+            flag if flag.starts_with("--") => {
+                bail!("unknown flag '{flag}' for speak\n\n{USAGE}")
+            }
+            value => positionals.push(value),
+        }
+    }
+
+    // `--list-voices` prints the catalog and exits (no text/output needed).
+    if list_voices {
+        println!("Available voices (--voice <id>):");
+        for v in onda_tts::voices() {
+            println!("  {}", v.label);
+        }
+        return Ok(());
+    }
+
+    let [text_arg, output] = positionals.as_slice() else {
+        bail!("speak needs a script (text or `-` for stdin) and an output .wav path\n\n{USAGE}");
+    };
+
+    // `-` reads the script from stdin (so a long script can be piped in).
+    let text = if *text_arg == "-" {
+        let mut buf = String::new();
+        std::io::stdin()
+            .read_to_string(&mut buf)
+            .context("reading the script from stdin")?;
+        buf
+    } else {
+        text_arg.to_string()
+    };
+
+    let opts = onda_tts::SpeakOptions {
+        voice: &voice,
+        speed,
+        ..Default::default()
+    };
+    let wav = onda_tts::synthesize(&text, &opts).context("synthesizing speech")?;
+    wav.write_wav(Path::new(output))
+        .with_context(|| format!("writing WAV '{output}'"))?;
+
+    // One-line summary on stdout (the crate already logs infer time / realtime
+    // factor / RMS to stderr).
+    println!(
+        "spoke -> {output} ({:.2}s, 24000 Hz mono, voice {voice}, RMS {:.3})",
+        wav.duration_secs(),
+        wav.rms(),
+    );
+    Ok(())
+}
+
+/// Stub when the `speak` feature is off: keep the dispatch arm compiling while
+/// onnxruntime + espeak-ng stay out of the default + wasm builds.
+#[cfg(not(feature = "speak"))]
+fn speak_command(_args: &[String]) -> Result<()> {
+    bail!("`onda speak` is not built in — rebuild onda-cli with `--features speak`")
 }
 
 fn render_command(args: &[String]) -> Result<()> {
