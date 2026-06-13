@@ -5,10 +5,10 @@
 
 :root {
   /* Type — Space Grotesk (body), JetBrains Mono (code). Loaded in astro.config head. */
-  --sl-font: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-  --sl-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  --sl-font: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --sl-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   /* Brand display face for headings. */
-  --onda-font-head: 'Clash Display', 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --onda-font-head: "Clash Display", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   /* A touch wider reading measure + roomier content. */
   --sl-content-width: 50rem;
   --sl-text-code: 0.9em;
@@ -16,7 +16,7 @@
 
 /* Dark theme (default brand surface) — rose accent + warm near-black. */
 :root,
-:root[data-theme='dark'] {
+:root[data-theme="dark"] {
   --sl-color-accent-low: #3a1f27;
   --sl-color-accent: #d96b82;
   --sl-color-accent-high: #f0c2cc;
@@ -51,7 +51,7 @@
 }
 
 /* Light theme — keep the same rose so links/CTAs stay on-brand. */
-:root[data-theme='light'] {
+:root[data-theme="light"] {
   --sl-color-accent-low: #f7dde3;
   --sl-color-accent: #c8576f;
   --sl-color-accent-high: #5e1f2b;
@@ -144,14 +144,13 @@ h1#_top {
   --ec-frm-edTabBarBg: var(--onda-surface);
   --ec-frm-trmBg: var(--sl-color-black);
   --ec-frm-trmTtbBg: var(--onda-surface);
-  --ec-frm-frameBoxShdCssVal: 0 1px 0 rgba(255, 255, 255, 0.03) inset,
-    0 8px 28px rgba(0, 0, 0, 0.4);
+  --ec-frm-frameBoxShdCssVal: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 28px rgba(0, 0, 0, 0.4);
 }
 .expressive-code .frame {
   border-radius: 12px;
 }
 /* Fallback for any non-Expressive-Code <pre>. */
-.sl-markdown-content pre:not([class*='expressive']) {
+.sl-markdown-content pre:not([class*="expressive"]) {
   border: 1px solid var(--onda-border);
   border-radius: 12px;
   background: var(--sl-color-black);
@@ -248,7 +247,7 @@ nav.sidebar-content .top-level > li > details > summary span,
 .sidebar-content a:hover {
   background: var(--onda-surface-2);
 }
-.sidebar-content a[aria-current='page'] {
+.sidebar-content a[aria-current="page"] {
   background: var(--onda-rose-soft);
   color: var(--sl-color-white);
   font-weight: 600;
@@ -270,8 +269,8 @@ nav.sidebar-content .top-level > li > details > summary span,
 }
 
 /* ===================== On-this-page (right TOC) ===================== */
-starlight-toc a[aria-current='true'],
-.right-sidebar a[aria-current='true'] {
+starlight-toc a[aria-current="true"],
+.right-sidebar a[aria-current="true"] {
   color: var(--sl-color-text-accent);
   font-weight: 600;
   border-inline-start-color: var(--sl-color-accent);
@@ -284,8 +283,8 @@ starlight-toc a[aria-current='true'],
   border: 1px solid var(--onda-border);
   border-radius: 14px;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease,
-    box-shadow 0.2s ease;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s
+    ease;
 }
 .sl-markdown-content .card:hover,
 .card-grid .card:hover {

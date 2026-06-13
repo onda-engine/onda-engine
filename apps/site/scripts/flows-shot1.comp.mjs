@@ -1,20 +1,20 @@
-// FLOWS AGENT — replication, shot 1 (0–6.3s). v3: title "Flows Agent" (together,
-// title-case), FADE-IN TYPING (each glyph fades in as it types, with a cursor),
-// bigger card matching the reference crop. Cloud palette sampled via palettegen.
-import { createElement as h } from 'react'
+import { measureText } from '@onda/components'
 import {
-  Composition,
   AbsoluteFill,
-  Group,
-  Rect,
+  Composition,
   Ellipse,
+  Group,
   Path,
+  Rect,
   Text,
   fbmGradient,
   interpolate,
   useCurrentFrame,
 } from '@onda/react'
-import { measureText } from '@onda/components'
+// FLOWS AGENT — replication, shot 1 (0–6.3s). v3: title "Flows Agent" (together,
+// title-case), FADE-IN TYPING (each glyph fades in as it types, with a cursor),
+// bigger card matching the reference crop. Cloud palette sampled via palettegen.
+import { createElement as h } from 'react'
 
 const FPS = 30
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
@@ -31,7 +31,8 @@ const mw = (ch, size, weight) => {
   }
   return v
 }
-const textWidth = (str, size, weight) => Array.from(str).reduce((s, ch) => s + mw(ch, size, weight), 0)
+const textWidth = (str, size, weight) =>
+  Array.from(str).reduce((s, ch) => s + mw(ch, size, weight), 0)
 
 const CLOUD = [
   { offset: 0.0, color: '#A6321A' }, // deeper saturated red-orange (less washed)
@@ -44,7 +45,20 @@ const CLOUD = [
 
 // Fade-in typewriter: glyph i begins fading at start + i*charFrames, over fadeFrames;
 // a caret blinks at the typed edge. `leftX` is the baseline-left anchor (or centered).
-function FadeType({ text, leftX, baselineY, size, weight = 400, color = '#fff', start = 0, charFrames = 2.4, fadeFrames = 9, center = false, canvasW = 0, cursor = true }) {
+function FadeType({
+  text,
+  leftX,
+  baselineY,
+  size,
+  weight = 400,
+  color = '#fff',
+  start = 0,
+  charFrames = 2.4,
+  fadeFrames = 9,
+  center = false,
+  canvasW = 0,
+  cursor = true,
+}) {
   const frame = useCurrentFrame()
   const lf = frame - start
   const chars = Array.from(text)
@@ -57,7 +71,22 @@ function FadeType({ text, leftX, baselineY, size, weight = 400, color = '#fff', 
     const w = mw(ch, size, weight)
     const op = clamp((lf - i * charFrames) / fadeFrames, 0, 1)
     if (op > 0.002 && ch !== ' ') {
-      nodes.push(h(Text, { key: i, x: x0 + cx, y: baselineY, fontSize: size, fontFamily: SANS, fontWeight: weight, color, opacity: op }, ch))
+      nodes.push(
+        h(
+          Text,
+          {
+            key: i,
+            x: x0 + cx,
+            y: baselineY,
+            fontSize: size,
+            fontFamily: SANS,
+            fontWeight: weight,
+            color,
+            opacity: op,
+          },
+          ch,
+        ),
+      )
     }
     if (op > 0.5) edge = cx + w
     cx += w
@@ -66,7 +95,22 @@ function FadeType({ text, leftX, baselineY, size, weight = 400, color = '#fff', 
     const blink = lf % 28 < 16 ? 0.95 : 0.12
     // Render the caret as a glyph at the SAME baseline as the text so it sits
     // INLINE beside the last letter (a Rect floated above — wrong baseline).
-    nodes.push(h(Text, { key: 'caret', x: x0 + edge + 1, y: baselineY, fontSize: size, fontFamily: SANS, fontWeight: weight, color, opacity: blink }, '|'))
+    nodes.push(
+      h(
+        Text,
+        {
+          key: 'caret',
+          x: x0 + edge + 1,
+          y: baselineY,
+          fontSize: size,
+          fontFamily: SANS,
+          fontWeight: weight,
+          color,
+          opacity: blink,
+        },
+        '|',
+      ),
+    )
   }
   return h(Group, { key: 'ft' }, ...nodes)
 }
@@ -75,7 +119,14 @@ function Shot1({ width, height }) {
   const frame = useCurrentFrame()
   const t = frame / FPS
 
-  const field = h(Rect, { key: 'cloud', x: 0, y: 0, width, height, gradient: fbmGradient(CLOUD, { scale: 0.42, warp: 0.6, time: t * 0.06 }) })
+  const field = h(Rect, {
+    key: 'cloud',
+    x: 0,
+    y: 0,
+    width,
+    height,
+    gradient: fbmGradient(CLOUD, { scale: 0.42, warp: 0.6, time: t * 0.06 }),
+  })
 
   // Title "Flows Agent" — TYPES in (typewriter ~2f/char) + a cursor, held; the card
   // then grows out of the cursor gap and COVERS it (ref @0.3–1.9s, native-fps read).
@@ -83,7 +134,19 @@ function Shot1({ width, height }) {
   const title = h(
     Group,
     { key: 'title' },
-    h(FadeType, { text: 'Flows Agent', size: TSIZE, weight: 400, color: '#FBF7F2', start: 8, charFrames: 2, fadeFrames: 3, center: true, canvasW: width, baselineY: Math.round(530 - TSIZE * 0.55), cursor: true }),
+    h(FadeType, {
+      text: 'Flows Agent',
+      size: TSIZE,
+      weight: 400,
+      color: '#FBF7F2',
+      start: 8,
+      charFrames: 2,
+      fadeFrames: 3,
+      center: true,
+      canvasW: width,
+      baselineY: Math.round(530 - TSIZE * 0.55),
+      cursor: true,
+    }),
   )
 
   // Prompt card — BORN as a small rounded square at the cursor gap (center) and
@@ -119,20 +182,69 @@ function Shot1({ width, height }) {
   const card = h(
     Group,
     { key: 'card', opacity: cardOp },
-    h(Rect, { x: BX, y: BY, width: W, height: Hh, cornerRadius: Math.min(26, Hh / 2), fill: '#FFFFFF', shadow: { color: '#00000026', blur: 50, offsetY: 16 } }),
+    h(Rect, {
+      x: BX,
+      y: BY,
+      width: W,
+      height: Hh,
+      cornerRadius: Math.min(26, Hh / 2),
+      fill: '#FFFFFF',
+      shadow: { color: '#00000026', blur: 50, offsetY: 16 },
+    }),
     h(
       Group,
       { opacity: contentOp },
       // header (measured: top +28, left +54) + green status dot right of it
-      h(Text, { x: CX + 54, y: CY + 24, fontSize: 28, fontFamily: SANS, fontWeight: 600, color: '#1A1A1A' }, 'Flows Agent'),
+      h(
+        Text,
+        {
+          x: CX + 54,
+          y: CY + 24,
+          fontSize: 28,
+          fontFamily: SANS,
+          fontWeight: 600,
+          color: '#1A1A1A',
+        },
+        'Flows Agent',
+      ),
       h(Ellipse, { x: CX + 54 + headerW + 12, y: CY + 33, width: 15, height: 15, fill: '#36C24A' }),
       // input field (measured pads) + text vertically centred in it
       h(Rect, { x: FX, y: FY, width: FW, height: FH, cornerRadius: 16, fill: '#F2F1EF' }),
-      h(FadeType, { text: '10-second product ad for these running shoes.', leftX: FX + 22, baselineY: FY + FH / 2 - 10, size: 19, weight: 400, color: '#3C3C3C', start: TYPE_START, charFrames: 1.7, fadeFrames: 8, cursor: true }),
+      h(FadeType, {
+        text: '10-second product ad for these running shoes.',
+        leftX: FX + 22,
+        baselineY: FY + FH / 2 - 10,
+        size: 19,
+        weight: 400,
+        color: '#3C3C3C',
+        start: TYPE_START,
+        charFrames: 1.7,
+        fadeFrames: 8,
+        cursor: true,
+      }),
       // buttons bottom-right (measured: arrow right edge 43px from card edge, centre y ~CY+196)
-      h(Text, { x: CX + CW - 126, y: CY + 184, fontSize: 28, fontFamily: SANS, fontWeight: 400, color: '#9C9C9C' }, '+'),
+      h(
+        Text,
+        {
+          x: CX + CW - 126,
+          y: CY + 184,
+          fontSize: 28,
+          fontFamily: SANS,
+          fontWeight: 400,
+          color: '#9C9C9C',
+        },
+        '+',
+      ),
       h(Ellipse, { x: CX + CW - 93, y: CY + 171, width: 50, height: 50, fill: '#ECECEC' }),
-      h(Path, { x: CX + CW - 68, y: CY + 196, d: 'M 0 9 L 0 -9 M -6 -3 L 0 -9 L 6 -3', stroke: '#3A3A3A', strokeWidth: 2.6, strokeCap: 'round', strokeJoin: 'round' }),
+      h(Path, {
+        x: CX + CW - 68,
+        y: CY + 196,
+        d: 'M 0 9 L 0 -9 M -6 -3 L 0 -9 L 6 -3',
+        stroke: '#3A3A3A',
+        strokeWidth: 2.6,
+        strokeCap: 'round',
+        strokeJoin: 'round',
+      }),
     ),
   )
 
@@ -140,5 +252,9 @@ function Shot1({ width, height }) {
 }
 
 export default function flowsShot1({ fps, durationInFrames, width, height }) {
-  return h(Composition, { width, height, fps, durationInFrames, linear: true }, h(Shot1, { width, height }))
+  return h(
+    Composition,
+    { width, height, fps, durationInFrames, linear: true },
+    h(Shot1, { width, height }),
+  )
 }
