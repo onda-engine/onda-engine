@@ -34,6 +34,10 @@ onda-video = { workspace = true, optional = true }
 # feature: it pulls in onnxruntime, which can't target wasm32, so it stays out
 # of the default + wasm builds.
 onda-segment = { path = "../segment-rs", version = "0.1.0", optional = true }
+# Native speech transcription (Whisper via whisper.cpp). Behind the `transcribe`
+# feature: whisper.cpp is C++ built with cmake and can't target wasm32, so it
+# stays out of the default + wasm builds (cmake is a build-time dep of the feature).
+onda-transcribe = { workspace = true, optional = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
 
@@ -45,3 +49,8 @@ video = ["dep:onda-video"]
 # Runtime). Off by default so the default + wasm builds don't pull in
 # onnxruntime (which can't target wasm32). Build with `--features segment`.
 segment = ["dep:onda-segment"]
+# Enable `onda transcribe <in> <out.json>`: native speech transcription via
+# Whisper (whisper.cpp). Off by default so the default + wasm builds don't pull in
+# whisper.cpp. Build with `--features transcribe`. Build-time deps: cmake + a C++
+# toolchain (whisper.cpp is compiled from source).
+transcribe = ["dep:onda-transcribe"]
