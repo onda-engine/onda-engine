@@ -27,7 +27,8 @@ jobs:
       - name: Install software Vulkan (lavapipe) + tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools ffmpeg
+          # cmake: build-time dep of the `transcribe` feature (whisper.cpp compiles from source).
+          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools ffmpeg cmake
           # Discover lavapipe's ICD (path varies by distro; a hardcoded one breaks
           # the loader). See ci.yml render-smoke for the rationale.
           icd=$(find /usr/share/vulkan /etc/vulkan /usr/lib -name 'lvp_icd*.json' 2>/dev/null | head -1 || true)
