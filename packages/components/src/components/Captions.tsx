@@ -109,10 +109,12 @@ export interface CaptionsProps {
   maxWidth?: number
   /** Legibility backing so captions read over any footage (Text has no native
    *  stroke). `'shadow'` (default) drops a soft dark copy behind each word;
-   *  `'box'` lays a rounded translucent card behind the whole block (the CapCut
-   *  subtitle look — guaranteed legible over busy/bright footage); `'none'` for
-   *  clean plates that don't need it. */
-  backdrop?: 'none' | 'shadow' | 'box'
+   *  `'outline'` rings each word in dark — the classic black-border caption that
+   *  reads over ANYTHING; `'box'` lays a rounded translucent card behind the
+   *  whole block (the CapCut subtitle look); `'none'` for clean plates. */
+  backdrop?: 'none' | 'shadow' | 'outline' | 'box'
+  /** Backing color for `'shadow'`/`'outline'`/`'box'` (default near-black). */
+  backdropColor?: string
   /** How the active word is emphasized. `'color'` (default) recolors it to the
    *  accent; `'box'` seats it in a rounded accent pill with dark text (the
    *  dominant short-form caption look). */
@@ -152,6 +154,7 @@ export function Captions({
   placement = 'lower-third',
   maxWidth = 0.8,
   backdrop = 'shadow',
+  backdropColor = '#000000',
   highlight = 'color',
 }: CaptionsProps) {
   const frame = useCurrentFrame()
@@ -294,7 +297,9 @@ export function Captions({
               width={boxW}
               height={boxH}
               cornerRadius={Math.min(boxH / 2, fontSize * 0.35)}
-              fill="#000000b3"
+              // Translucent by default so the footage reads through the card; an
+              // explicit `backdropColor` (incl. an 8-digit hex for alpha) wins.
+              fill={backdropColor === '#000000' ? '#000000b3' : backdropColor}
               opacity={interpolate(lineReveal, [0, 1], [0, 1], {
                 extrapolateLeft: 'clamp',
                 extrapolateRight: 'clamp',
@@ -330,6 +335,24 @@ export function Captions({
         // Boxed active word: a rounded accent pill behind it, dark text on top.
         const boxed = highlight === 'box' && isCurrent
         const textColor = boxed ? '#0a0a0f' : isCurrent ? accentColor : restColor
+        // Per-word legibility backing offsets `[dx, dy, alpha]`: `shadow` = one
+        // soft copy down-right; `outline` = dark copies ringed around the word.
+        const backing: [number, number, number][] = boxed
+          ? []
+          : backdrop === 'shadow'
+            ? [[shOff, shOff, 0.55]]
+            : backdrop === 'outline'
+              ? [
+                  [shOff, 0, 1],
+                  [-shOff, 0, 1],
+                  [0, shOff, 1],
+                  [0, -shOff, 1],
+                  [shOff, shOff, 1],
+                  [-shOff, shOff, 1],
+                  [shOff, -shOff, 1],
+                  [-shOff, -shOff, 1],
+                ]
+              : []
         return (
           <Group key={i}>
             {boxed && (
@@ -343,21 +366,25 @@ export function Captions({
                 opacity={opacity}
               />
             )}
-            {/* `shadow` backdrop: a soft dark copy offset down-right, behind. */}
-            {backdrop === 'shadow' && !boxed && (
+            {/* Per-word backing: `shadow` = one soft dark copy down-right;
+                `outline` = dark copies ringed around the word (a real border
+                that reads over anything). The `box` highlight already isolates
+                the active word, so it skips the backing. */}
+            {backing.map(([dx, dy, a], k) => (
               <Text
-                x={x + shOff}
-                y={y + shOff}
+                key={k}
+                x={x + dx}
+                y={y + dy}
                 fontSize={fontSize}
-                color="#000000"
+                color={backdropColor}
                 fontFamily={fontFamily}
                 fontWeight={fontWeight}
                 letterSpacing={lsPx}
-                opacity={opacity * 0.55}
+                opacity={opacity * a}
               >
                 {word}
               </Text>
-            )}
+            ))}
             <Text
               x={x}
               y={y}
