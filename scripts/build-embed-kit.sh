@@ -63,7 +63,12 @@ if [[ "$SKIP_BINARY" -eq 0 ]]; then
   # model itself (~176MB) downloads once at first use to ~/.onda/models/.
   # `video` enables native A-roll decode for export (onda-video shells to the
   # ffmpeg CLI; near-zero binary cost). Without it, Video nodes render nothing.
-  cargo build --release -p onda-cli --features segment,video
+  # `transcribe` bakes Whisper speech-to-text (whisper.cpp) into the binary for
+  # `onda transcribe` (one-click captions + text-based editing). BUILD-TIME DEPS:
+  # cmake + a C++ toolchain (whisper.cpp is compiled from source) — macOS has
+  # these via Homebrew/Xcode; Linux CI needs `apt-get install cmake`. The Whisper
+  # model (~142MB base.en) downloads once at first use to ~/.onda/models/.
+  cargo build --release -p onda-cli --features segment,video,transcribe
   cargo build --release -p onda-audio --example synth_json --example beats_json
   cp target/release/onda "$OUT/onda"
   cp target/release/examples/synth_json "$OUT/synth_json"

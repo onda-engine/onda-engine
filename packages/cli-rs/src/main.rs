@@ -271,6 +271,7 @@ fn run(args: Vec<String>) -> Result<()> {
         "export-frames" => export_frames_command(&args[1..]),
         "lint" => lint_command(&args[1..]),
         "segment" => segment_command(&args[1..]),
+        "transcribe" => transcribe_command(&args[1..]),
         other => bail!("unknown command '{other}'\n\n{USAGE}"),
     }
 }
@@ -437,6 +438,94 @@ fn segment_command(args: &[String]) -> Result<()> {
 #[cfg(not(feature = "segment"))]
 fn segment_command(_args: &[String]) -> Result<()> {
     bail!("`onda segment` is not built in — rebuild onda-cli with `--features segment`")
+}
+
+/// `onda transcribe <input> <output.json> [--model tiny.en|base.en|small.en]` —
+/// transcribe speech from an audio OR video file into a timed `Transcript` JSON
+/// (word-level timestamps + readable caption lines). Runs Whisper (whisper.cpp).
+/// Only built with `--features transcribe` (whisper.cpp is C++/cmake and can't
+/// target wasm32, so it stays out of the default + wasm builds).
+///
+/// The input's audio is extracted + resampled to the 16 kHz mono WAV Whisper
+/// wants via the ffmpeg CLI (the same runtime dep as `onda export`), so a video
+/// (its audio track) or any audio format works.
+#[cfg(feature = "transcribe")]
+fn transcribe_command(args: &[String]) -> Result<()> {
+    use std::process::Command;
+
+    let mut positionals: Vec<&str> = Vec::new();
+    let mut model: Option<onda_transcribe::WhisperModel> = None;
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--model" => {
+                let value = iter
+                    .next()
+                    .with_context(|| format!("--model needs a value\n\n{USAGE}"))?;
+                model = Some(
+                    onda_transcribe::WhisperModel::from_name(value).with_context(|| {
+                        format!("unknown model '{value}' — use tiny.en, base.en, or small.en")
+                    })?,
+                );
+            }
+            flag if flag.starts_with("--") => {
+                bail!("unknown flag '{flag}' for transcribe\n\n{USAGE}")
+            }
+            value => positionals.push(value),
+        }
+    }
+    let [input, output] = positionals.as_slice() else {
+        bail!(
+            "transcribe needs exactly an input (audio/video) and an output .json path\n\n{USAGE}"
+        );
+    };
+
+    // Extract + resample the input's audio to a 16 kHz mono WAV (what Whisper
+    // wants) with the ffmpeg CLI — works for audio OR video input. We always pipe
+    // through ffmpeg for simplicity (a 16 kHz mono WAV just re-encodes to itself).
+    let tmp_wav = std::env::temp_dir().join(format!("onda-transcribe-{}.wav", std::process::id()));
+    let status = Command::new("ffmpeg")
+        .args([
+            "-v", "error", "-y", "-i", input, "-ar", "16000", "-ac", "1", "-f", "wav",
+        ])
+        .arg(&tmp_wav)
+        .status()
+        .with_context(|| "could not run ffmpeg (is it installed?) to extract audio".to_string())?;
+    if !status.success() {
+        let _ = std::fs::remove_file(&tmp_wav);
+        bail!("ffmpeg failed to extract 16 kHz mono audio from '{input}' (no audio track?)");
+    }
+
+    let opts = onda_transcribe::TranscribeOptions {
+        model,
+        ..Default::default()
+    };
+    let result = onda_transcribe::transcribe(&tmp_wav, &opts);
+    let _ = std::fs::remove_file(&tmp_wav);
+    let transcript = result.with_context(|| format!("transcribing '{input}'"))?;
+
+    let json =
+        serde_json::to_string_pretty(&transcript).context("serializing the transcript to JSON")?;
+    std::fs::write(Path::new(output), json)
+        .with_context(|| format!("writing transcript JSON '{output}'"))?;
+
+    // One-line summary on stderr (like segment/beats): words, duration, language.
+    let duration_ms = transcript.words.last().map(|w| w.end_ms).unwrap_or(0);
+    eprintln!(
+        "transcribed {input} -> {output} ({} words, {} lines, {:.1}s, lang={})",
+        transcript.words.len(),
+        transcript.segments.len(),
+        duration_ms as f64 / 1000.0,
+        transcript.language,
+    );
+    Ok(())
+}
+
+/// Stub when the `transcribe` feature is off: keep the dispatch arm compiling
+/// while whisper.cpp stays out of the default + wasm builds.
+#[cfg(not(feature = "transcribe"))]
+fn transcribe_command(_args: &[String]) -> Result<()> {
+    bail!("`onda transcribe` is not built in — rebuild onda-cli with `--features transcribe`")
 }
 
 fn render_command(args: &[String]) -> Result<()> {
