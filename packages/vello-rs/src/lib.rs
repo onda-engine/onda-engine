@@ -135,29 +135,7 @@ impl VelloRenderer {
     /// where WebGPU may be missing or lack the limits Vello's compute path needs.
     pub async fn try_new_async() -> Result<Self, String> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
-        let hardware = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                force_fallback_adapter: false,
-                compatible_surface: None,
-            })
-            .await;
-        let adapter = match hardware {
-            Some(a) => a,
-            // wgpu treats CPU adapters (Mesa lavapipe / SwiftShader) as
-            // fallback-only and never returns them unless forced. A software
-            // Vulkan device runs the full Vello pipeline — identical output,
-            // CPU speed — and is the planned substrate for headless servers
-            // without GPUs, so accept it as the last resort.
-            None => instance
-                .request_adapter(&wgpu::RequestAdapterOptions {
-                    power_preference: wgpu::PowerPreference::HighPerformance,
-                    force_fallback_adapter: true,
-                    compatible_surface: None,
-                })
-                .await
-                .ok_or_else(|| "request_adapter returned no adapter".to_string())?,
-        };
+        let adapter = Self::pick_adapter(&instance).await?;
         #[cfg(not(target_arch = "wasm32"))]
         if adapter.get_info().device_type == wgpu::DeviceType::Cpu {
             eprintln!(
@@ -209,6 +187,47 @@ impl VelloRenderer {
             scene3d_pipeline: None,
             web,
         })
+    }
+
+    /// Pick the best GPU adapter, accepting a software one as a last resort.
+    ///
+    /// On native we ENUMERATE all adapters and rank by device type — a hardware
+    /// GPU wins, but a software Vulkan device (Mesa lavapipe / SwiftShader) is
+    /// taken when that's all there is. `request_adapter`'s `force_fallback_adapter`
+    /// is NOT enough here: wgpu only treats a small set of drivers as "fallback",
+    /// and lavapipe presents as an ordinary CPU-type Vulkan adapter, so it's
+    /// invisible to that path — but it runs the full Vello pipeline (identical
+    /// output, CPU speed) and is the substrate for headless servers without a GPU.
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn pick_adapter(instance: &wgpu::Instance) -> Result<wgpu::Adapter, String> {
+        fn rank(t: wgpu::DeviceType) -> u8 {
+            match t {
+                wgpu::DeviceType::DiscreteGpu => 4,
+                wgpu::DeviceType::IntegratedGpu => 3,
+                wgpu::DeviceType::VirtualGpu => 2,
+                wgpu::DeviceType::Cpu => 1,
+                wgpu::DeviceType::Other => 0,
+            }
+        }
+        instance
+            .enumerate_adapters(wgpu::Backends::all())
+            .into_iter()
+            .max_by_key(|a| rank(a.get_info().device_type))
+            .ok_or_else(|| "no Vulkan/Metal/DX12 adapter found".to_string())
+    }
+
+    /// On the web, enumeration isn't available — ask the browser for its WebGPU
+    /// adapter (high-performance), which is the only one there is.
+    #[cfg(target_arch = "wasm32")]
+    async fn pick_adapter(instance: &wgpu::Instance) -> Result<wgpu::Adapter, String> {
+        instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                force_fallback_adapter: false,
+                compatible_surface: None,
+            })
+            .await
+            .ok_or_else(|| "request_adapter returned no adapter".to_string())
     }
 
     /// Render an ONDA scene to a [`Frame`] (blocking readback; native only).
