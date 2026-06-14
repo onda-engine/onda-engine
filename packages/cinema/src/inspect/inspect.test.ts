@@ -60,6 +60,39 @@ describe('inspect — field-failure fixtures', () => {
     expect(withFix?.fix?.suggested).toBeLessThan(140)
   })
 
+  it('suggests an overflow fix that CONVERGES in one pass (no shrink-loop)', () => {
+    // Regression: a CENTERED wide line under 9:16's ASYMMETRIC safe margins.
+    // The fix used to target the full safe-area WIDTH, but a centered box bumps
+    // the nearer edge first — so the "fix" still overflowed and the agent
+    // shrank in tiny steps forever. Applying the suggestion must clear it ONCE.
+    const comp = (fontSize: number): CompositionPayload => ({
+      ...PORTRAIT,
+      scenes: [
+        scene('s1', '2s', [
+          {
+            at: 0,
+            for: '2s',
+            id: 'name',
+            component: 'TrackingIn',
+            props: { text: 'THE BIG NAME', fontSize, letterSpacing: 16 },
+          },
+        ]),
+      ],
+    })
+    const flagged = inspect(comp(240)).violations.find(
+      (v) => v.check === 'layout.overflow' && v.targetId === 'name' && v.fix,
+    )
+    expect(flagged?.fix?.prop).toBe('fontSize')
+    const suggested = flagged?.fix?.suggested as number
+    expect(suggested).toBeGreaterThan(0)
+    expect(suggested).toBeLessThan(240)
+    // The suggested size must actually fit — zero overflow on the next pass.
+    const afterFix = inspect(comp(suggested)).violations.filter(
+      (v) => v.check === 'layout.overflow' && v.targetId === 'name',
+    )
+    expect(afterFix).toHaveLength(0)
+  })
+
   it('flags a slot-roll whose settle exceeds a 1.4s scene (cut collision)', () => {
     const report = inspect({
       ...LANDSCAPE,
