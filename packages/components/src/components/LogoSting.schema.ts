@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const logoStingSchema = z.object({
+  ...textStyleSchemaShape,
   d: z
     .string()
     .default('M 50 60 Q 100 20 150 60 T 250 60')
@@ -35,14 +37,6 @@ export const logoStingSchema = z.object({
       'Underline accent color \u2014 the signature dusty rose (defaults to theme `accent`).',
     ),
   titleFontSize: z.number().default(96).describe('Title font size in px.'),
-  color: z.string().optional().describe('Title color (defaults to theme `text`).'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe(
-      'Display font family, must be loaded at render time (defaults to theme `headingFamily`).',
-    ),
-  fontWeight: z.number().default(600).describe('Title font weight (display default 600).'),
 })
 
 export type LogoStingSchemaProps = z.infer<typeof logoStingSchema>

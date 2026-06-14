@@ -15,10 +15,12 @@
 
 import { Ellipse, Group, Text, interpolate, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useTextMetrics } from '../text-metrics.js'
+import type { TextStyleProps } from '../text-style.js'
 import { useTheme } from '../theme.js'
 
-export interface PulsingIndicatorProps {
-  /** Dot + ring color (default: theme `accent`). */
+export interface PulsingIndicatorProps extends TextStyleProps {
+  /** Dot + ring color (default: theme `accent`). Note: this is the dot/ring fill,
+   *  not the label text color — set the label color via `labelColor`. */
   color?: string
   /** Dot diameter in px. */
   size?: number
@@ -26,8 +28,6 @@ export interface PulsingIndicatorProps {
   label?: string
   /** Label color (default: theme `textMuted`). */
   labelColor?: string
-  /** Label font family (must be loaded by the renderer) (default: theme `fontFamily`). */
-  fontFamily?: string
   /** Label font size in px. */
   fontSize?: number
   /** Frames per pulse cycle. */
@@ -46,6 +46,7 @@ export function PulsingIndicator({
   label = 'LIVE',
   labelColor: labelColorProp,
   fontFamily: fontFamilyProp,
+  letterSpacing,
   fontSize = 28,
   period = 45,
   x: xProp,
@@ -105,6 +106,7 @@ export function PulsingIndicator({
           fontSize={fontSize}
           color={labelColor}
           fontFamily={fontFamily}
+          letterSpacing={letterSpacing}
         >
           {labelText}
         </Text>

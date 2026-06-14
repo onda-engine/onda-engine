@@ -4,18 +4,16 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const trackingInSchema = z.object({
+  ...textStyleSchemaShape,
   text: z.string().default('Onda').describe('The text to settle in.'),
   delay: timeSchema.default(0).describe('Frames before the entrance starts.'),
   durationInFrames: timeSchema
     .optional()
     .describe('Frames until the text settles (default DURATION.slow = 24).'),
-  color: z
-    .string()
-    .optional()
-    .describe('Text color (hex #rrggbb / #rrggbbaa); defaults to theme text.'),
   fromTracking: z
     .number()
     .default(0.5)
@@ -28,14 +26,6 @@ export const trackingInSchema = z.object({
       'Start the text soft and sharpen as it settles (approximated as a fading ghost layer).',
     ),
   fontSize: z.number().default(96).describe('Font size in px.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe(
-      'Loaded font family (e.g. a --font passed to onda render); defaults to theme fontFamily.',
-    ),
-  fontWeight: z.number().default(600).describe('Font weight (display default 600).'),
-  italic: z.boolean().default(false).describe('Italic text.'),
   align: z
     .enum(['left', 'center', 'right'])
     .default('center')

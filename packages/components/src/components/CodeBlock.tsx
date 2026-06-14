@@ -35,10 +35,11 @@
 import { Ellipse, Group, Rect, Text, useVideoConfig } from '@onda/react'
 import type { TextRunInput } from '@onda/react'
 import { useStaggeredEntrance } from '../hooks.js'
+import type { TextStyleProps } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import type { TimeInput } from '../time.js'
 
-export interface CodeBlockProps {
+export interface CodeBlockProps extends TextStyleProps {
   /** The source to render. Newlines split into reveal-able lines. */
   code?: string
   /** Filename shown in the title bar. Empty hides the title (dots still show if `chrome`). */
@@ -51,8 +52,6 @@ export interface CodeBlockProps {
   delay?: TimeInput
   /** Frames between successive line reveals. */
   lineDelay?: TimeInput
-  /** Monospace font stack. Real monospace by default — code needs column alignment (default: theme `monoFamily`). */
-  fontFamily?: string
   /** Code font size in px. Sized for a video canvas, not a screen UI. */
   fontSize?: number
   /** Panel width in px. */
@@ -158,6 +157,7 @@ export function CodeBlock({
   delay = 0,
   lineDelay = 3,
   fontFamily: fontFamilyProp,
+  letterSpacing,
   fontSize = 48,
   width = 900,
   textColor: textColorProp,
@@ -310,6 +310,7 @@ export function CodeBlock({
                   fontSize={fontSize}
                   color={textColor}
                   fontFamily={fontFamily}
+                  letterSpacing={letterSpacing}
                   runs={runs}
                 >
                   {flat}

@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const progressBarSchema = z.object({
+  ...textStyleSchemaShape,
   value: z.number().default(64).describe('Target fill, 0-100. The bar grows from 0 to this value.'),
   delay: timeSchema.default(0).describe('Frames before the animation starts.'),
   duration: timeSchema.optional().describe('Frames to reach the full target value.'),
@@ -22,12 +24,7 @@ export const progressBarSchema = z.object({
     .boolean()
     .default(true)
     .describe('Whether to render the ${value}% label beside the bar.'),
-  color: z.string().optional().describe('Label color (default: theme text).'),
   fontSize: z.number().default(28).describe('Label font size in px.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Label font family (must be loaded by the renderer; default: theme fontFamily).'),
 })
 
 export type ProgressBarSchemaProps = z.infer<typeof progressBarSchema>

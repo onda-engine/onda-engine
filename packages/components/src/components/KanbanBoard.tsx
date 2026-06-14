@@ -27,6 +27,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
@@ -41,7 +42,7 @@ export interface KanbanColumn {
   cards?: string[]
 }
 
-export interface KanbanBoardProps {
+export interface KanbanBoardProps extends TextStyleProps {
   /** The columns, laid out left-to-right. Each holds its own ticket cards. */
   columns?: KanbanColumn[]
   /** Overall board width in px. Split evenly across the columns. */
@@ -54,8 +55,6 @@ export interface KanbanBoardProps {
   stagger?: TimeInput
   /** Base column-header font size in px. */
   fontSize?: number
-  /** Loaded font family for headers and ticket labels (default: theme `fontFamily`). */
-  fontFamily?: string
   /** Default accent for the dot/count when a column omits its own (default: theme `accent`). */
   accent?: string
   /** Header / title text color (default: theme `text`). */
@@ -96,6 +95,8 @@ export function KanbanBoard({
   stagger: staggerIn = STAGGER,
   fontSize = 22,
   fontFamily: fontFamilyProp,
+  letterSpacing,
+  uppercase,
   accent: accentProp,
   textColor: textColorProp,
   cardTextColor: cardTextColorProp,
@@ -207,8 +208,9 @@ export function KanbanBoard({
                 color={textColor}
                 fontFamily={fontFamily}
                 fontWeight={600}
+                letterSpacing={letterSpacing}
               >
-                {col.title}
+                {applyTextCase(col.title, { uppercase })}
               </Text>
               {/* Count — right-aligned within the inner column width. The engine
                   measures text from its own origin (no right-align), so we offset

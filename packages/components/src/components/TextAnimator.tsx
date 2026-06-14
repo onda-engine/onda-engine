@@ -38,6 +38,7 @@ import { LINE_RATIO, layoutGlyphLine, lineStartX, lineTopY } from '../glyph-line
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { measureText, useTextMetricsReady } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { staggeredSettle, useTimeScale } from '../timing.js'
@@ -70,7 +71,7 @@ export interface TextAnimate {
   color?: readonly [string, string]
 }
 
-export interface TextAnimatorProps {
+export interface TextAnimatorProps extends TextStyleProps {
   /** The text to choreograph. `\n` starts a new line. */
   text?: string
   /** Unit granularity (default `'glyph'`). */
@@ -106,12 +107,6 @@ export interface TextAnimatorProps {
   /** Explicit width cap in px for the line; combines with `fit` (the smaller
    *  cap wins). */
   maxWidth?: number
-  /** Resting text color (default theme `text`). */
-  color?: string
-  /** Loaded font family (default theme `fontFamily`). */
-  fontFamily?: string
-  /** Font weight (display default 600). */
-  fontWeight?: number
   /** Horizontal alignment of each line about the placement anchor (default `'center'`). */
   align?: 'left' | 'center' | 'right'
   /** Where the text block sits: a region keyword (`'center'`, `'lower-third'`,
@@ -149,7 +144,7 @@ function orderOf(i: number, n: number, direction: TextAnimatorDirection): number
 }
 
 export function TextAnimator({
-  text = 'Animate',
+  text: textProp = 'Animate',
   units = 'glyph',
   animate,
   stagger: staggerIn = STAGGER,
@@ -167,9 +162,15 @@ export function TextAnimator({
   color: colorProp,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
+  italic = false,
+  letterSpacing,
+  uppercase,
   align = 'center',
   placement,
 }: TextAnimatorProps) {
+  // Uppercase the SOURCE before it's split into lines/units, so the case
+  // transform survives the per-unit layout (mirrors the shared contract).
+  const text = applyTextCase(textProp, { uppercase })
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const theme = useTheme()
@@ -323,6 +324,8 @@ export function TextAnimator({
             color={unitColor}
             fontFamily={fontFamily}
             fontWeight={fontWeight}
+            italic={italic}
+            letterSpacing={letterSpacing}
           >
             {unit.content}
           </Text>

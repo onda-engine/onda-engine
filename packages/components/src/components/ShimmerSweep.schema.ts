@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const shimmerSweepSchema = z.object({
+  ...textStyleSchemaShape,
   text: z.string().default('Onda').describe('The single line of text to sweep light across.'),
   delay: timeSchema.default(0).describe('Frames before the sweep starts.'),
   duration: timeSchema
@@ -14,12 +16,6 @@ export const shimmerSweepSchema = z.object({
     .describe('Frames for one sweep pass (default DURATION.slower = 30).'),
   loop: z.boolean().default(false).describe('Loop the sweep instead of a single pass.'),
   interval: timeSchema.default(60).describe('Frames between sweeps when looping.'),
-  color: z
-    .string()
-    .optional()
-    .describe(
-      'Base (dim) text color so the bright band reads as a highlight (default: theme textMuted).',
-    ),
   shimmerColor: z
     .string()
     .optional()
@@ -29,13 +25,6 @@ export const shimmerSweepSchema = z.object({
     .default(110)
     .describe('Sweep angle in degrees (approximated by tilting the gradient band).'),
   fontSize: z.number().default(96).describe('Font size in px (default 96).'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe(
-      'Loaded font family (e.g. a --font passed to onda render) (default: theme fontFamily).',
-    ),
-  fontWeight: z.number().default(600).describe('Font weight (display default 600).'),
   width: z
     .number()
     .optional()

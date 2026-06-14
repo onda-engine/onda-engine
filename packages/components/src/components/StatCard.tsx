@@ -5,11 +5,12 @@
 import { AbsoluteFill, Flex, Rect, Text, useVideoConfig } from '@onda/react'
 import { DURATION, staggerFrames } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { FadeIn } from './FadeIn.js'
 
-export interface StatCardProps {
+export interface StatCardProps extends TextStyleProps {
   /** The headline metric, e.g. "26.8 fps" or "100×" (number is stringified).
    *  Defaults to "—" so an under-specified card renders a placeholder, not nothing. */
   value?: string | number
@@ -27,8 +28,6 @@ export interface StatCardProps {
   accent?: boolean | string
   /** Accent rule color (default: theme `accent`). */
   accentColor?: string
-  /** Loaded font family (default: theme body family). */
-  fontFamily?: string
   delay?: TimeInput
   /** Where the stat sits: a region keyword (`'center'`, `'lower-third'`, …) or
    *  normalized `{x,y}` (0–1, stat center). The shared placement contract;
@@ -46,6 +45,8 @@ export function StatCard({
   accent = true,
   accentColor,
   fontFamily,
+  letterSpacing,
+  uppercase,
   delay: delayIn = 0,
   placement,
 }: StatCardProps) {
@@ -73,9 +74,9 @@ export function StatCard({
               color={valueCol}
               fontFamily={family}
               fontWeight={700}
-              letterSpacing={Math.round(valueSize * -0.02)}
+              letterSpacing={letterSpacing ?? Math.round(valueSize * -0.02)}
             >
-              {String(value)}
+              {applyTextCase(String(value), { uppercase })}
             </Text>
           </FadeIn>
           {showAccent ? (

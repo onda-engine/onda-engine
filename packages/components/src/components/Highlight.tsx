@@ -26,13 +26,14 @@ import {
 import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
 /** Engine line-box height as a multiple of font size (matches typography crate). */
 const LINE_RATIO = 1.2
 
-export interface HighlightProps {
+export interface HighlightProps extends TextStyleProps {
   /** Text to highlight. */
   text?: string
   /** Frames before the text starts revealing. */
@@ -43,16 +44,10 @@ export interface HighlightProps {
   lineDelay?: TimeInput
   /** Accent-bar wipe duration. Fast on purpose — emphatic (default `DURATION.fast`). */
   lineDuration?: TimeInput
-  /** Text color (default: theme `text`). */
-  color?: string
   /** Accent (highlight) bar color (default: theme `accent`). */
   accentColor?: string
   /** Font size in px (default 64). */
   fontSize?: number
-  /** Loaded font family. */
-  fontFamily?: string
-  /** Font weight (display default 600). */
-  fontWeight?: number
   /** Pixels past the text edges that the accent bar extends (default 8). */
   paddingX?: number
   /** Explicit text width in px. Overrides the glyph-count estimate when known. */
@@ -64,7 +59,7 @@ export interface HighlightProps {
 }
 
 export function Highlight({
-  text = 'highlight this',
+  text: textProp = 'highlight this',
   delay: delayIn = 0,
   duration: durationIn = DURATION.base,
   lineDelay: lineDelayIn = 8,
@@ -74,11 +69,15 @@ export function Highlight({
   fontSize = 64,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
+  italic = false,
+  letterSpacing,
+  uppercase,
   paddingX = 8,
   width,
   x = 0,
   y = 0,
 }: HighlightProps) {
+  const text = applyTextCase(textProp, { uppercase })
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
@@ -122,7 +121,14 @@ export function Highlight({
       <Rect x={-paddingX} y={0} width={barWidth} height={lineHeight} fill={accentColor} />
       {/* Text on top — fades in, always legible against the accent. */}
       <Group opacity={opacity}>
-        <Text fontSize={fontSize} color={color} fontFamily={fontFamily} fontWeight={fontWeight}>
+        <Text
+          fontSize={fontSize}
+          color={color}
+          fontFamily={fontFamily}
+          fontWeight={fontWeight}
+          italic={italic}
+          letterSpacing={letterSpacing}
+        >
           {text}
         </Text>
       </Group>

@@ -4,18 +4,17 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const wordStaggerSchema = z.object({
+  ...textStyleSchemaShape,
   text: z
     .string()
     .default('motion that moves you')
     .describe('The phrase; split on whitespace into one reveal per word.'),
   fontSize: z.number().default(64).describe('Font size in px.'),
-  color: z.string().optional().describe('Text color; defaults to theme text color.'),
   width: z.number().default(1080).describe('Container width in px; the line wraps within this.'),
-  fontFamily: z.string().optional().describe('Loaded font family; defaults to theme font family.'),
-  fontWeight: z.number().default(600).describe('Font weight (display default).'),
   justify: z
     .enum(['start', 'center', 'end'])
     .default('start')

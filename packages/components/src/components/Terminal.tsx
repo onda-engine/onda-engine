@@ -42,10 +42,11 @@ import type { TextRunInput } from '@onda/react'
 import { useStaggeredEntrance, useTextReveal } from '../hooks.js'
 import { STAGGER } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
+import type { TextStyleProps } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
-export interface TerminalProps {
+export interface TerminalProps extends TextStyleProps {
   /** The command that types itself out after the prompt. */
   command?: string
   /** Output lines that appear, staggered, once the command finishes typing. */
@@ -62,8 +63,6 @@ export interface TerminalProps {
   typeSpeed?: TimeInput
   /** Frames after the command finishes before output begins. */
   outputDelay?: TimeInput
-  /** Monospace font stack (default: theme `monoFamily`). */
-  fontFamily?: string
   /** Font size in px. Sized for a 1080p+ video canvas, not a screen UI. */
   fontSize?: number
   /** Width of the window in px. Fixed so the frame is stable while the command
@@ -114,6 +113,7 @@ export function Terminal({
   typeSpeed: typeSpeedIn = 30,
   outputDelay: outputDelayIn = 8,
   fontFamily: fontFamilyProp,
+  letterSpacing: letterSpacingProp,
   fontSize = 48,
   width = 1100,
   textColor: textColorProp,
@@ -310,7 +310,7 @@ export function Terminal({
         x={commandX}
         y={bodyTop}
         fontSize={fontSize}
-        letterSpacing={fontSize * 0.04}
+        letterSpacing={letterSpacingProp ?? fontSize * 0.04}
         color={textColor}
         fontFamily={fontFamily}
         fontWeight={500}

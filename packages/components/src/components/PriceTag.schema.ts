@@ -1,8 +1,10 @@
 //! Runtime prop schema for {@link PriceTag} — @onda-native (mirrors PriceTagProps).
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 
 export const priceTagSchema = z.object({
+  ...textStyleSchemaShape,
   name: z
     .string()
     .default('Product')
@@ -21,7 +23,6 @@ export const priceTagSchema = z.object({
     .number()
     .default(1)
     .describe('Base scale for the chip (1 = the default size). Scales type + padding together.'),
-  color: z.string().optional().describe('Name text color (defaults to theme text).'),
   priceColor: z.string().optional().describe('Price text color (defaults to theme accent).'),
   accentColor: z
     .string()
@@ -29,10 +30,6 @@ export const priceTagSchema = z.object({
     .describe('Divider + SOLD-pill accent color (defaults to theme accent).'),
   surface: z.string().optional().describe('Chip fill color (defaults to theme surface).'),
   border: z.string().optional().describe('Chip hairline border color (defaults to theme border).'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Display font for the name (defaults to theme headingFamily ?? fontFamily).'),
   bodyFamily: z
     .string()
     .optional()

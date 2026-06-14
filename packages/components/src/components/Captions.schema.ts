@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const captionsSchema = z.object({
+  ...textStyleSchemaShape,
   captions: z
     .any()
     .default([
@@ -20,12 +22,6 @@ export const captionsSchema = z.object({
   delay: timeSchema
     .default(0)
     .describe('Frames before the timeline starts (shifts every startMs by this).'),
-  color: z
-    .string()
-    .optional()
-    .describe(
-      'Settled word color — the near-white tone a word relaxes to once the eye has landed past it (defaults to theme text).',
-    ),
   accentColor: z
     .string()
     .optional()
@@ -33,14 +29,6 @@ export const captionsSchema = z.object({
       'Active word color — the one earned accent carried by the word the eye is currently landing on as the line cascades in (defaults to theme accent).',
     ),
   fontSize: z.number().default(96).describe('Font size in px.'),
-  fontFamily: z.string().optional().describe('Loaded font family (defaults to theme fontFamily).'),
-  fontWeight: z.number().default(600).describe('Font weight (display default 600).'),
-  letterSpacing: z
-    .string()
-    .optional()
-    .describe(
-      "CSS letter-spacing (e.g. '-0.02em' or '2px'); applied to the caption and folded into its measured width so centering stays exact.",
-    ),
   lineHeight: z
     .number()
     .optional()

@@ -21,10 +21,11 @@ import {
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
+import type { TextStyleProps } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
-export interface ProgressBarProps {
+export interface ProgressBarProps extends TextStyleProps {
   /** Target fill, 0–100. The bar grows from 0 to this value. */
   value?: number
   /** Frames before the animation starts. */
@@ -43,12 +44,8 @@ export interface ProgressBarProps {
   accentColor?: string
   /** Whether to render the `${value}%` label beside the bar. */
   showValue?: boolean
-  /** Label color (default: theme `text`). */
-  color?: string
   /** Label font size in px. */
   fontSize?: number
-  /** Label font family (must be loaded by the renderer). */
-  fontFamily?: string
 }
 
 export function ProgressBar({

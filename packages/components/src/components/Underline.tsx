@@ -24,10 +24,11 @@ import {
 import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
-export interface UnderlineProps {
+export interface UnderlineProps extends TextStyleProps {
   /** Text to reveal. Pass `""` to draw the rule alone. */
   text?: string
   /** Frames before the text starts revealing. */
@@ -38,8 +39,6 @@ export interface UnderlineProps {
   lineDelay?: TimeInput
   /** Rule draw duration. Fast on purpose — emphatic (default `DURATION.fast`). */
   lineDuration?: TimeInput
-  /** Text color (default: theme `text`). */
-  color?: string
   /** Rule color (default: theme `accent`). */
   accentColor?: string
   /** Rule thickness in px. */
@@ -48,10 +47,6 @@ export interface UnderlineProps {
   lineOffset?: number
   /** Text size in px (default 64). */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`). */
-  fontFamily?: string
-  /** Font weight (display default 600). */
-  fontWeight?: number
   /** Horizontal alignment of the rule under the text. */
   align?: 'left' | 'center' | 'right'
 }
@@ -61,7 +56,7 @@ export interface UnderlineProps {
 const LINE_RATIO = 1.2
 
 export function Underline({
-  text = 'underline this',
+  text: textProp = 'underline this',
   delay: delayIn = 0,
   duration: durationIn = DURATION.base,
   lineDelay: lineDelayIn = 8,
@@ -73,8 +68,12 @@ export function Underline({
   fontSize = 64,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
+  italic = false,
+  letterSpacing,
+  uppercase,
   align = 'left',
 }: UnderlineProps) {
+  const text = applyTextCase(textProp, { uppercase })
   const frame = useCurrentFrame()
   const { fps, width: canvasWidth, height: canvasHeight } = useVideoConfig()
   // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
@@ -139,6 +138,8 @@ export function Underline({
         color={color}
         fontFamily={fontFamily}
         fontWeight={fontWeight}
+        italic={italic}
+        letterSpacing={letterSpacing}
       >
         {text}
       </Text>

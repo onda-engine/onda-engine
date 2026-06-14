@@ -41,6 +41,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { DURATION } from '../motion.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
@@ -81,7 +82,7 @@ const STAR_SYMBOLS = new Set([
   '⭒', // U+2B52 white small star
 ])
 
-export interface IconPopProps {
+export interface IconPopProps extends TextStyleProps {
   /** A character/emoji to pop in (e.g. "✦", "★", "🎉"). Takes precedence over
    *  `shape` when set. Rendered via `<Text>` so it works on both backends. */
   glyph?: string
@@ -129,6 +130,8 @@ export function IconPop({
   delay: delayIn = 0,
   durationInFrames: durationInFramesIn = DURATION.base,
   overshoot = 0.18,
+  letterSpacing,
+  uppercase,
   x = 0,
   y = 0,
 }: IconPopProps) {
@@ -175,7 +178,7 @@ export function IconPop({
             // the pop is always visible. Other glyphs render as text.
             STAR_SYMBOLS.has(glyph)
             ? renderShape('star', iconSize, color, strokeWidth)
-            : renderGlyph(glyph, iconSize, color, fontFamily)
+            : renderGlyph(glyph, iconSize, color, fontFamily, { letterSpacing, uppercase })
           : renderShape(shape, iconSize, color, strokeWidth)}
       </Group>
     </Group>
@@ -187,7 +190,13 @@ export function IconPop({
  *  approximation: width is estimated from `iconSize`, and the vertical nudge
  *  assumes the glyph cap-box is ~0.7 of the font size. Wide/narrow glyphs will
  *  sit slightly off-center. */
-function renderGlyph(glyph: string, iconSize: number, color: string, fontFamily?: string) {
+function renderGlyph(
+  glyph: string,
+  iconSize: number,
+  color: string,
+  fontFamily?: string,
+  style: Pick<TextStyleProps, 'letterSpacing' | 'uppercase'> = {},
+) {
   // Estimate the rendered glyph width (most emoji/symbols are ~square at this
   // font size; multi-codepoint strings will be wider and under-shifted).
   const estWidth = iconSize * 0.62
@@ -196,10 +205,11 @@ function renderGlyph(glyph: string, iconSize: number, color: string, fontFamily?
       fontSize={iconSize}
       color={color}
       fontFamily={fontFamily}
+      letterSpacing={style.letterSpacing}
       x={-estWidth / 2}
       y={-iconSize / 2}
     >
-      {glyph}
+      {applyTextCase(glyph, style)}
     </Text>
   )
 }

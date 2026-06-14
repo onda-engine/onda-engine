@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const underlineSchema = z.object({
+  ...textStyleSchemaShape,
   text: z
     .string()
     .default('underline this')
@@ -21,16 +23,10 @@ export const underlineSchema = z.object({
   lineDuration: timeSchema
     .optional()
     .describe('Rule draw duration. Fast on purpose \u2014 emphatic (default DURATION.fast).'),
-  color: z.string().optional().describe('Text color (default: theme text).'),
   accentColor: z.string().optional().describe('Rule color (default: theme accent).'),
   lineThickness: z.number().default(3).describe('Rule thickness in px.'),
   lineOffset: z.number().default(6).describe('Pixel gap between the text box and the rule.'),
   fontSize: z.number().default(64).describe('Text size in px (default 64).'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Loaded font family (e.g. a --font passed to onda render); defaults to theme font.'),
-  fontWeight: z.number().default(600).describe('Font weight (display default 600).'),
   align: z
     .enum(['left', 'center', 'right'])
     .default('left')

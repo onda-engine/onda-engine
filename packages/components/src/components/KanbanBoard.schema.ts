@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const kanbanBoardSchema = z.object({
+  ...textStyleSchemaShape,
   columns: z
     .any()
     .default([
@@ -37,10 +39,6 @@ export const kanbanBoardSchema = z.object({
     .number()
     .default(22)
     .describe('Base column-header font size in px (ticket labels derive from it).'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Loaded font family for headers and ticket labels (defaults to theme fontFamily).'),
   accent: z
     .string()
     .optional()

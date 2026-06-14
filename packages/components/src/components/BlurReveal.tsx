@@ -26,10 +26,11 @@ import type { ReactNode } from 'react'
 import { useFittedFontSize } from '../bounds.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
-export interface BlurRevealProps {
+export interface BlurRevealProps extends TextStyleProps {
   /** What to reveal. Rendered as a single-line `<Text>` unless `children` is
    *  provided. */
   text?: string
@@ -41,9 +42,6 @@ export interface BlurRevealProps {
   /** Frames until the reveal fully settles (default `DURATION.base` = 18). With
    *  `SPRING_SMOOTH` the visible motion settles in roughly this range. */
   durationInFrames?: TimeInput
-  /** Text color (hex `#rrggbb` / `#rrggbbaa`). Ignored when `children` is set.
-   *  (default: theme `text`) */
-  color?: string
   /** Text size in px. Ignored when `children` is set. */
   fontSize?: number
   /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
@@ -53,10 +51,6 @@ export interface BlurRevealProps {
   /** Explicit width cap in px for the line; combines with `fit` (the smaller
    *  cap wins). */
   maxWidth?: number // (Ignored when `children` is set.)
-  /** Loaded font family. Ignored when `children` is set. (default: theme `fontFamily`) */
-  fontFamily?: string
-  /** Font weight (display default 600). Ignored when `children` is set. */
-  fontWeight?: number
   /** Where the reveal sits. The legacy `'top'`/`'bottom'` keywords keep their
    *  historical edge-flush meaning (layout `justify`); every other region
    *  keyword and normalized `{x,y}` (0-1, content center) goes through the
@@ -72,7 +66,7 @@ export interface BlurRevealProps {
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
 
 export function BlurReveal({
-  text = 'Onda',
+  text: textProp = 'Onda',
   children,
   delay: delayIn = 0,
   durationInFrames: durationInFramesIn = DURATION.base,
@@ -82,10 +76,14 @@ export function BlurReveal({
   maxWidth,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
+  italic = false,
+  letterSpacing,
+  uppercase,
   placement = 'center',
   travelPx = 16,
   fromBlur = 10,
 }: BlurRevealProps) {
+  const text = applyTextCase(textProp, { uppercase })
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
@@ -120,7 +118,14 @@ export function BlurReveal({
   const justify = placement === 'top' ? 'start' : placement === 'bottom' ? 'end' : 'center'
 
   const content: ReactNode = children ?? (
-    <Text fontSize={fontSize} color={color} fontFamily={fontFamily} fontWeight={fontWeight}>
+    <Text
+      fontSize={fontSize}
+      color={color}
+      fontFamily={fontFamily}
+      fontWeight={fontWeight}
+      italic={italic}
+      letterSpacing={letterSpacing}
+    >
       {text}
     </Text>
   )

@@ -32,6 +32,7 @@
 import { Group, Path, Text, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { estimatePathLength } from '../path-length.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { ScaleIn } from './ScaleIn.js'
@@ -54,7 +55,7 @@ const STACK_GAP = 32
 const TITLE_OFFSET = 18
 const UNDERLINE_OFFSET = 34
 
-export interface LogoStingProps {
+export interface LogoStingProps extends TextStyleProps {
   /** SVG path `d` for the logo mark, in `viewBox` coordinate space. */
   d?: string
   /** The brand / product title beneath the mark. */
@@ -77,12 +78,6 @@ export interface LogoStingProps {
   accentColor?: string
   /** Title font size in px. */
   titleFontSize?: number
-  /** Title color (default: theme `text`). */
-  color?: string
-  /** Display font family (must be loaded at render time) (default: theme `headingFamily`). */
-  fontFamily?: string
-  /** Title font weight (display default 600). */
-  fontWeight?: number
 }
 
 /** Parse an SVG `viewBox` string into `[minX, minY, width, height]`, defensively
@@ -119,6 +114,9 @@ export function LogoSting({
   color: colorProp,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
+  italic = false,
+  letterSpacing,
+  uppercase,
 }: LogoStingProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
@@ -212,8 +210,10 @@ export function LogoSting({
             color={color}
             fontFamily={fontFamily}
             fontWeight={fontWeight}
+            italic={italic}
+            letterSpacing={letterSpacing}
           >
-            {title}
+            {applyTextCase(title, { uppercase })}
           </Text>
         </ScaleIn>
       </Group>

@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const splitScreenSchema = z.object({
+  ...textStyleSchemaShape,
   orientation: z
     .enum(['horizontal', 'vertical'])
     .default('horizontal')
@@ -51,10 +53,6 @@ export const splitScreenSchema = z.object({
     .string()
     .optional()
     .describe('Placeholder label color for an empty pane (default: theme textMuted).'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Loaded font family for empty-pane placeholders (default: theme fontFamily).'),
 })
 
 export type SplitScreenSchemaProps = z.infer<typeof splitScreenSchema>

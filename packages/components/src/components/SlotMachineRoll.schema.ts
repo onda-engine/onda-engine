@@ -5,9 +5,11 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const slotMachineRollSchema = z.object({
+  ...textStyleSchemaShape,
   text: z
     .string()
     .default('2026')
@@ -30,17 +32,10 @@ export const slotMachineRollSchema = z.object({
     .describe('How many filler glyphs spin past before the target lands.'),
   seed: z.number().int().default(7).describe('Seed for the (deterministic) filler glyphs.'),
   charset: z.string().default('0123456789').describe('Glyph pool the reel spins through.'),
-  color: z.string().optional().describe('Text color (default: theme text).'),
   fontSize: z
     .number()
     .default(140)
     .describe('Font size in px (default 140). The cell height equals this.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Monospace/display stack keeps reels column-aligned (default: theme fontFamily).'),
-  fontWeight: z.number().default(600).describe('Font weight (default 600).'),
-  italic: z.boolean().default(false).describe('Italic glyphs.'),
   glow: z
     .boolean()
     .default(false)

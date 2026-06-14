@@ -30,10 +30,11 @@
 import { AbsoluteFill, Group, Text, useCurrentFrame } from '@onda/react'
 import { stateSwap } from '../choreography.js'
 import { DURATION } from '../motion.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import type { TimeInput } from '../time.js'
 
-export interface TextFadeReplaceProps {
+export interface TextFadeReplaceProps extends TextStyleProps {
   /** The outgoing phrase (shown first, fades out). */
   from: string
   /** The incoming phrase (fades in over `from`). */
@@ -46,24 +47,24 @@ export interface TextFadeReplaceProps {
   durationInFrames?: TimeInput
   /** Font size in px (default `96`, matching the ondajs display default). */
   fontSize?: number
-  /** Text color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `text`). */
-  color?: string
-  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `headingFamily`). */
-  fontFamily?: string
-  /** Font weight (default `600`). */
-  fontWeight?: number
 }
 
 export function TextFadeReplace({
-  from,
-  to,
+  from: fromProp,
+  to: toProp,
   delay = DURATION.hold,
   durationInFrames = DURATION.base,
   fontSize = 96,
   color: colorProp,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
+  italic = false,
+  letterSpacing,
+  uppercase,
 }: TextFadeReplaceProps) {
+  // Both phrases are primary text — uppercase each before render.
+  const from = applyTextCase(fromProp, { uppercase })
+  const to = applyTextCase(toProp, { uppercase })
   const frame = useCurrentFrame()
   const theme = useTheme()
   const color = colorProp ?? theme.text
@@ -80,12 +81,26 @@ export function TextFadeReplace({
           same local origin so the swap stays put — only opacity animates. */}
       <Group>
         <Group opacity={outOpacity}>
-          <Text fontSize={fontSize} color={color} fontFamily={fontFamily} fontWeight={fontWeight}>
+          <Text
+            fontSize={fontSize}
+            color={color}
+            fontFamily={fontFamily}
+            fontWeight={fontWeight}
+            italic={italic}
+            letterSpacing={letterSpacing}
+          >
             {from}
           </Text>
         </Group>
         <Group opacity={inOpacity}>
-          <Text fontSize={fontSize} color={color} fontFamily={fontFamily} fontWeight={fontWeight}>
+          <Text
+            fontSize={fontSize}
+            color={color}
+            fontFamily={fontFamily}
+            fontWeight={fontWeight}
+            italic={italic}
+            letterSpacing={letterSpacing}
+          >
             {to}
           </Text>
         </Group>
