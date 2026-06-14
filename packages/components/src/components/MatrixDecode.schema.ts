@@ -5,9 +5,11 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const matrixDecodeSchema = z.object({
+  ...textStyleSchemaShape,
   text: z.string().default('ONDA').describe('The text that decodes into place.'),
   delay: timeSchema.default(0).describe('Frames before decoding starts.'),
   charDelay: timeSchema
@@ -24,20 +26,11 @@ export const matrixDecodeSchema = z.object({
     .string()
     .default('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+=<>/')
     .describe('Glyph pool drawn from while scrambling.'),
-  color: z.string().optional().describe('Settled text color (default: theme text).'),
   scrambleColor: z
     .string()
     .optional()
     .describe('Color of still-scrambling glyphs \u2014 the earned accent (default: theme accent).'),
   fontSize: z.number().default(120).describe('Font size in px.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe(
-      'Monospace stack keeps the advance steady as glyphs flicker (default: theme monoFamily).',
-    ),
-  fontWeight: z.number().default(600).describe('Font weight.'),
-  italic: z.boolean().default(false).describe('Italic text.'),
   align: z
     .enum(['left', 'center', 'right'])
     .default('center')

@@ -5,9 +5,11 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const maskRevealSchema = z.object({
+  ...textStyleSchemaShape,
   text: z.string().default('Onda').describe('The single line of text to reveal.'),
   delay: timeSchema.default(0).describe('Frames before the reveal starts.'),
   duration: timeSchema.optional().describe('Frames for the mask to fully retreat.'),
@@ -15,17 +17,7 @@ export const maskRevealSchema = z.object({
     .enum(['left', 'right', 'top', 'bottom'])
     .default('left')
     .describe('The side the content appears to come in from; the mask retreats toward this side.'),
-  color: z
-    .string()
-    .optional()
-    .describe('Text color as a hex string; defaults to the theme text color.'),
   fontSize: z.number().default(96).describe('Text size in px.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Loaded font family; defaults to the theme heading or base font family.'),
-  fontWeight: z.number().default(600).describe('Font weight (display default 600).'),
-  italic: z.boolean().default(false).describe('Render the text in italic.'),
   width: z
     .number()
     .optional()

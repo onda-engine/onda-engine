@@ -35,6 +35,7 @@ import { entryFadeRise } from '../choreography.js'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
@@ -60,7 +61,7 @@ const PRESS_OUT = 7
 const PRIMARY_BORDER = '#ffffff24'
 const PRIMARY_BORDER_WIDTH = 1
 
-export interface ButtonProps {
+export interface ButtonProps extends TextStyleProps {
   /** The button label. */
   label?: string
   /** `'primary'` = filled with `color`; `'ghost'` = transparent with a `color`
@@ -120,6 +121,9 @@ export function Button({
   fontSize = 24,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
+  italic = false,
+  letterSpacing,
+  uppercase,
   placement,
   centerX,
   centerY,
@@ -217,12 +221,13 @@ export function Button({
               x={labelX}
               y={labelY}
               fontSize={fontSize}
-              letterSpacing={labelTracking}
+              letterSpacing={letterSpacing ?? labelTracking}
               color={labelColor}
               fontFamily={fontFamily}
               fontWeight={fontWeight}
+              italic={italic}
             >
-              {label}
+              {applyTextCase(label, { uppercase })}
             </Text>
           </Group>
         </Group>

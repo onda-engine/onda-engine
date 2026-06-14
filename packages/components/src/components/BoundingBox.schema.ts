@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const boundingBoxSchema = z.object({
+  ...textStyleSchemaShape,
   x: z.number().default(0.3).describe('Box left edge as a 0..1 fraction of the composition width.'),
   y: z.number().default(0.3).describe('Box top edge as a 0..1 fraction of the composition height.'),
   width: z.number().default(0.4).describe('Box width as a 0..1 fraction of the composition width.'),
@@ -18,10 +20,6 @@ export const boundingBoxSchema = z.object({
     .string()
     .default('')
     .describe("Optional label tag pinned to the box's top-left corner; empty string hides it."),
-  color: z
-    .string()
-    .optional()
-    .describe('Outline, tick, and tag color; defaults to the theme accent.'),
   delay: timeSchema.default(0).describe('Frames before the outline starts revealing.'),
   drawDuration: z.number().optional().describe('Frames to reveal the full outline (default 28).'),
   strokeWidth: z.number().default(3).describe('Outline stroke width in px.'),
@@ -34,10 +32,6 @@ export const boundingBoxSchema = z.object({
     .default('#08080a')
     .describe('Label text color; a dark for contrast on the accent tag by default.'),
   fontSize: z.number().default(16).describe('Label font size in px.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Label font family; defaults to the theme heading family.'),
 })
 
 export type BoundingBoxSchemaProps = z.infer<typeof boundingBoxSchema>

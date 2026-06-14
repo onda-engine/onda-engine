@@ -36,6 +36,7 @@ import {
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { FadeIn } from './FadeIn.js'
@@ -51,7 +52,7 @@ const QUOTE_STAGGER = STAGGER + 2
 const DIVIDER_WIDTH = 48
 const DIVIDER_HEIGHT = 2
 
-export interface QuoteCardProps {
+export interface QuoteCardProps extends TextStyleProps {
   /** The pull-quote body. Revealed word-by-word on a slower-than-canonical
    *  stagger. */
   quote?: string
@@ -71,14 +72,10 @@ export interface QuoteCardProps {
   authorFontSize?: number
   /** Author / role font weight. */
   authorFontWeight?: number
-  /** Quote color (default: theme `text`). */
-  color?: string
   /** Author / role color (default: theme `textMuted`). */
   authorColor?: string
   /** Divider color (default: theme `accent`). */
   accentColor?: string
-  /** Loaded font family for every line (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
-  fontFamily?: string
   /** Wrap width for the quote in px. Defaults to ~44% of the composition width
    *  (the ondajs `40vw` pull-quote feel), so long quotes wrap onto multiple
    *  lines. */
@@ -105,6 +102,7 @@ export function QuoteCard({
   authorColor: authorColorProp,
   accentColor: accentColorProp,
   fontFamily: fontFamilyProp,
+  uppercase,
   quoteWidth,
   placement,
 }: QuoteCardProps) {
@@ -117,13 +115,14 @@ export function QuoteCard({
   const authorColor = authorColorProp ?? theme.textMuted
   const accentColor = accentColorProp ?? theme.accent
   const fontFamily = fontFamilyProp ?? theme.fontFamily
+  const quoteText = applyTextCase(quote, { uppercase })
 
   // ~40vw pull-quote feel when no explicit width is given.
   const resolvedQuoteWidth = quoteWidth ?? Math.round(width * 0.44)
 
   // The word count drives how long the quote takes to finish revealing — the
   // last word lands at (wordCount - 1) * QUOTE_STAGGER + DURATION.base.
-  const words = quote.split(/\s+/).filter(Boolean)
+  const words = quoteText.split(/\s+/).filter(Boolean)
   const wordCount = Math.max(1, words.length)
   const quoteRevealEnd = (wordCount - 1) * QUOTE_STAGGER + DURATION.base
 
@@ -154,7 +153,7 @@ export function QuoteCard({
           {/* Quote — words stagger in slowly so the line reads. WordStagger's
             wrapping Flex wraps long quotes within `quoteWidth`. */}
           <WordStagger
-            text={quote}
+            text={quoteText}
             delay={delay}
             stagger={QUOTE_STAGGER}
             justify="center"

@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const pieRevealSchema = z.object({
+  ...textStyleSchemaShape,
   data: z
     .any()
     .default([
@@ -48,12 +50,6 @@ export const pieRevealSchema = z.object({
   label: z.string().optional().describe('Center label text; defaults to the slice count.'),
   labelColor: z.string().optional().describe('Center label color (default: theme `text`).'),
   fontSize: z.number().default(56).describe('Center label font size in px.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe(
-      'Center label font family, must be loaded by the renderer (default: theme `headingFamily ?? fontFamily`).',
-    ),
 })
 
 export type PieRevealSchemaProps = z.infer<typeof pieRevealSchema>

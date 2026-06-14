@@ -5,21 +5,17 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const blurRevealSchema = z.object({
+  ...textStyleSchemaShape,
   text: z.string().default('Onda').describe('What to reveal. Rendered as a single-line Text node.'),
   delay: timeSchema.default(0).describe('Frames before the reveal starts.'),
   durationInFrames: timeSchema
     .optional()
     .describe('Frames until the reveal fully settles (DURATION.base = 18).'),
-  color: z
-    .string()
-    .optional()
-    .describe('Text color (hex #rrggbb / #rrggbbaa); defaults to theme text.'),
   fontSize: z.number().default(96).describe('Text size in px.'),
-  fontFamily: z.string().optional().describe('Loaded font family; defaults to theme fontFamily.'),
-  fontWeight: z.number().default(600).describe('Font weight (display default 600).'),
   placement: placementSchema
     .default('center')
     .describe(

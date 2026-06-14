@@ -60,6 +60,7 @@ import { fitMaxWidth } from '../bounds.js'
 import { layoutGlyphLine } from '../glyph-line.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { staggeredSettle, useTimeScale } from '../timing.js'
@@ -71,7 +72,7 @@ import { staggeredSettle, useTimeScale } from '../timing.js'
  *  display type wants air between columns, not a cramped odometer. */
 const CELL_W = 0.7
 
-export interface SlotMachineRollProps {
+export interface SlotMachineRollProps extends TextStyleProps {
   /** The text that rolls into place. Best on short strings (years, counts). */
   text?: string
   /** Time before rolling starts — frames or '0.5s'. */
@@ -101,8 +102,6 @@ export interface SlotMachineRollProps {
   variant?: number
   /** Glyph pool the reel spins through. */
   charset?: string
-  /** Text color (default: theme `text`). */
-  color?: string
   /** Font size in px (default 140). The cell height equals this. */
   fontSize?: number
   /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
@@ -112,12 +111,6 @@ export interface SlotMachineRollProps {
   /** Explicit width cap in px for the line; combines with `fit` (the smaller
    *  cap wins). */
   maxWidth?: number
-  /** Monospace/display stack keeps reels column-aligned (default: theme `fontFamily`). */
-  fontFamily?: string
-  /** Font weight (default 600). */
-  fontWeight?: number
-  /** Italic glyphs. */
-  italic?: boolean
   /** Render a soft accent bloom behind the landed row. Default `false` — OFF.
    *  It was a filled ellipse at half opacity faking a glow, so it read as a
    *  muddy lozenge (a shape, not light), not a real radial falloff. Opt in with
@@ -139,7 +132,7 @@ export interface SlotMachineRollProps {
 }
 
 export function SlotMachineRoll({
-  text = '2026',
+  text: textProp = '2026',
   delay: delayIn = 0,
   charDelay: charDelayIn = STAGGER,
   durationInFrames: durationIn = DURATION.slower,
@@ -157,12 +150,15 @@ export function SlotMachineRoll({
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
+  letterSpacing,
+  uppercase,
   glow = false,
   align = 'center',
   placement,
   x,
   y,
 }: SlotMachineRollProps) {
+  const text = applyTextCase(textProp, { uppercase })
   // The variant knob derives an alternate deterministic seed (identity at 0).
   const seed = variantSeed(seedProp, variant)
   const frame = useCurrentFrame()
@@ -332,6 +328,7 @@ export function SlotMachineRoll({
                     fontFamily={fontFamily}
                     fontWeight={fontWeight}
                     italic={italic}
+                    letterSpacing={letterSpacing}
                   >
                     {g}
                   </Text>

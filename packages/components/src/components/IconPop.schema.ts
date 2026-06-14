@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const iconPopSchema = z.object({
+  ...textStyleSchemaShape,
   glyph: z
     .string()
     .optional()

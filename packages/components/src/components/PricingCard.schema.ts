@@ -5,9 +5,11 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const pricingCardSchema = z.object({
+  ...textStyleSchemaShape,
   tier: z
     .string()
     .default('Pro')
@@ -45,10 +47,6 @@ export const pricingCardSchema = z.object({
     .string()
     .optional()
     .describe('Panel border color (when not recommended) (default: theme border).'),
-  color: z
-    .string()
-    .optional()
-    .describe('Primary text color (price, features) (default: theme text).'),
   dimColor: z
     .string()
     .optional()
@@ -57,10 +55,6 @@ export const pricingCardSchema = z.object({
     .string()
     .optional()
     .describe('Faint color for the billing period (default: theme textMuted).'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Display font for the price (default: theme headingFamily ?? fontFamily).'),
   bodyFontFamily: z
     .string()
     .optional()

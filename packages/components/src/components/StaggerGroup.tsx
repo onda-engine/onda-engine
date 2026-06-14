@@ -24,10 +24,11 @@
 import { AbsoluteFill, Flex, Group, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFadeRise } from '../choreography.js'
 import { DURATION, STAGGER, staggerFrames } from '../motion.js'
+import type { TextStyleProps } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
-export interface StaggerGroupProps {
+export interface StaggerGroupProps extends TextStyleProps {
   /** The items to reveal, in source order (default: four short lines). */
   items?: string[]
   /** Frames before the FIRST item starts (default 0). */
@@ -42,14 +43,8 @@ export interface StaggerGroupProps {
   gap?: number
   /** Cross-axis alignment of items (default `'center'`). */
   align?: 'start' | 'center' | 'end'
-  /** Text color (default: theme `text`). */
-  color?: string
   /** Font size in px (default 48). */
   fontSize?: number
-  /** Loaded font family (bundled: "Open Sans", "IBM Plex Sans") (default: theme `fontFamily`). */
-  fontFamily?: string
-  /** Font weight (display default 600). */
-  fontWeight?: number
 }
 
 export function StaggerGroup({

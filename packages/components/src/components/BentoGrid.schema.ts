@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const bentoGridSchema = z.object({
+  ...textStyleSchemaShape,
   items: z
     .any()
     .optional()
@@ -29,7 +31,6 @@ export const bentoGridSchema = z.object({
     .number()
     .default(30)
     .describe('Base title font size in px (value and caption sizes derive from it).'),
-  color: z.string().optional().describe('Title color (defaults to theme text).'),
   captionColor: z.string().optional().describe('Caption color (defaults to theme textMuted).'),
   accentColor: z
     .string()
@@ -42,12 +43,6 @@ export const bentoGridSchema = z.object({
       'Card fill \u2014 translucent dark, approximating glass (defaults to theme surface).',
     ),
   borderColor: z.string().optional().describe('Card border color (defaults to theme border).'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe(
-      'Display font family for titles and values (defaults to theme headingFamily ?? fontFamily).',
-    ),
   captionFontFamily: z
     .string()
     .optional()

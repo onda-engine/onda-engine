@@ -40,11 +40,12 @@ import { useFittedFontSize } from '../bounds.js'
 import { entryFadeRise } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { FadeIn } from './FadeIn.js'
 
-export interface ChapterCardProps {
+export interface ChapterCardProps extends TextStyleProps {
   /** The chapter heading — the focal text on the card. */
   chapter: string
   /** Numbered index above the chapter. String so leading zeros (`"01"`) read as intended. */
@@ -55,8 +56,6 @@ export interface ChapterCardProps {
   accent?: boolean
   /** Number color when `accent` is `true` (the Onda rose) (default: theme `accent`). */
   numberColor?: string
-  /** Chapter title color (default: theme `text`). */
-  color?: string
   /** Number color when `accent` is `false` — quiet metadata dim (default: theme `textMuted`). */
   subtitleColor?: string
   /** Number font size in px — smaller than the title, sitting above it. */
@@ -74,8 +73,6 @@ export interface ChapterCardProps {
   maxWidth?: number
   /** Title font weight. */
   titleFontWeight?: number
-  /** Onda display font, applied to both number and title for tonal consistency (default: theme `headingFamily ?? fontFamily`). */
-  fontFamily?: string
   /** Where the card sits: a region keyword (`'center'`, `'lower-third'`, ...) or
    *  normalized `{x,y}` (0-1, card center). The shared placement contract;
    *  default `'center'` (the historical self-centering). */
@@ -114,6 +111,8 @@ export function ChapterCard({
   maxWidth,
   titleFontWeight = 600,
   fontFamily: fontFamilyProp,
+  letterSpacing,
+  uppercase,
   placement,
 }: ChapterCardProps) {
   const frame = useCurrentFrame()
@@ -125,6 +124,7 @@ export function ChapterCard({
   const color = colorProp ?? theme.text
   const subtitleColor = subtitleColorProp ?? theme.textMuted
   const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
+  const chapterText = applyTextCase(chapter, { uppercase })
 
   // Opt-in auto-fit on the chapter title (the focal line).
   const titleFontSize = useFittedFontSize(chapter, titleFontSizeProp, {
@@ -207,8 +207,9 @@ export function ChapterCard({
                 color={color}
                 fontFamily={fontFamily}
                 fontWeight={titleFontWeight}
+                letterSpacing={letterSpacing}
               >
-                {chapter}
+                {chapterText}
               </Text>
             </Group>
           </Group>

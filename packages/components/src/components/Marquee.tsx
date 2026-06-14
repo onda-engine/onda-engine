@@ -14,9 +14,10 @@
 
 import { Group, Text, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { measureText, useTextMetricsReady } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 
-export interface MarqueeProps {
+export interface MarqueeProps extends TextStyleProps {
   /** Items to scroll. The list is repeated as needed for a seamless wrap. */
   items?: string[]
   /** Scroll speed in pixels per second. Keep low for restraint (default 30). */
@@ -25,14 +26,8 @@ export interface MarqueeProps {
   direction?: 'left' | 'right'
   /** Pixels between items (default 64). */
   gap?: number
-  /** Text color (default: theme `textMuted`). */
-  color?: string
   /** Font size in px (default 32). */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
-  fontFamily?: string
-  /** CSS weight 1..1000 (default 500). */
-  fontWeight?: number
   /** Viewport width to scroll within. Defaults to the full composition width. */
   width?: number
   /** Viewport height (the clip band). Defaults to the full composition height. */
@@ -40,7 +35,7 @@ export interface MarqueeProps {
 }
 
 export function Marquee({
-  items = ['ONDA', 'TYPESCRIPT', 'REACT'],
+  items: itemsProp = ['ONDA', 'TYPESCRIPT', 'REACT'],
   speed = 30,
   direction = 'left',
   gap = 64,
@@ -48,9 +43,13 @@ export function Marquee({
   fontSize = 32,
   fontFamily: fontFamilyProp,
   fontWeight = 500,
+  italic = false,
+  letterSpacing,
+  uppercase,
   width,
   height,
 }: MarqueeProps) {
+  const items = itemsProp.map((item) => applyTextCase(item, { uppercase }))
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
   const theme = useTheme()
@@ -120,6 +119,8 @@ export function Marquee({
               color={color}
               fontFamily={fontFamily}
               fontWeight={fontWeight}
+              italic={italic}
+              letterSpacing={letterSpacing}
             >
               {item}
             </Text>

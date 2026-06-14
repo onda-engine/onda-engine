@@ -5,9 +5,11 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const calloutSchema = z.object({
+  ...textStyleSchemaShape,
   label: z.string().default('Look here').describe('Bubble label. Single line \u2014 no auto-wrap.'),
   x: z
     .number()
@@ -29,7 +31,6 @@ export const calloutSchema = z.object({
     .default(6)
     .describe('Frames after the bubble starts before the pointer eases in.'),
   lineDuration: timeSchema.optional().describe('Pointer reveal duration in frames.'),
-  color: z.string().optional().describe('Label color (default: theme text).'),
   bgColor: z
     .string()
     .optional()
@@ -42,11 +43,6 @@ export const calloutSchema = z.object({
     .describe('Bubble border color (default: a bright translucent-white hairline).'),
   borderWidth: z.number().default(1).describe('Bubble border width in px.'),
   fontSize: z.number().default(20).describe('Label font size in px.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Loaded font family (the Onda display font) (default: theme fontFamily).'),
-  fontWeight: z.number().default(500).describe('Label font weight.'),
   paddingX: z.number().default(14).describe('Horizontal padding inside the bubble in px.'),
   paddingY: z.number().default(8).describe('Vertical padding inside the bubble in px.'),
   cornerRadius: z.number().optional().describe('Bubble corner radius (default: theme radius).'),

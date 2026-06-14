@@ -5,9 +5,11 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const countUpSchema = z.object({
+  ...textStyleSchemaShape,
   from: z.number().default(0).describe('Starting value the counter animates from.'),
   to: z.number().default(100).describe('Ending value the counter settles on.'),
   delay: timeSchema.default(0).describe('Frames to wait before the count starts.'),
@@ -16,13 +18,7 @@ export const countUpSchema = z.object({
   useGrouping: z.boolean().default(true).describe('Insert en-US thousands separators.'),
   prefix: z.string().default('').describe("Text prepended to the number, e.g. '$'."),
   suffix: z.string().default('').describe("Text appended to the number, e.g. '%'."),
-  color: z.string().optional().describe('Text color; defaults to the theme `text` color.'),
   fontSize: z.number().default(120).describe('Font size in px; counters are usually large.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Loaded font family; defaults to the theme `fontFamily`.'),
-  fontWeight: z.number().default(600).describe('Font weight of the rendered number.'),
   snappy: z
     .boolean()
     .default(false)

@@ -42,11 +42,12 @@ import {
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { FadeIn } from './FadeIn.js'
 
-export interface EndCardProps {
+export interface EndCardProps extends TextStyleProps {
   /** Hero CTA / headline line. */
   cta?: string
   /** Social handles or URLs displayed in a row beneath the CTA. */
@@ -67,14 +68,10 @@ export interface EndCardProps {
   handlesFontSize?: number
   /** Font weight for the handles row (default 600). */
   handlesFontWeight?: number
-  /** CTA color (default: theme `text`). */
-  color?: string
   /** Handles color — defaults so the row reads quiet (default: theme `textMuted`). */
   handlesColor?: string
   /** Underline color — the earned rose (default: theme `accent`). */
   accentColor?: string
-  /** Loaded display font for both CTA and handles (e.g. a `--font` passed to render) (default: theme `fontFamily`). */
-  fontFamily?: string
 }
 
 // Beat offsets — derived from delay so the whole card is one composed sequence.
@@ -113,6 +110,8 @@ export function EndCard({
   handlesColor: handlesColorProp,
   accentColor: accentColorProp,
   fontFamily: fontFamilyProp,
+  letterSpacing,
+  uppercase,
 }: EndCardProps) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
@@ -127,6 +126,7 @@ export function EndCard({
   // the body `fontFamily`. An explicit `fontFamily` prop overrides both.
   const ctaFontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
   const handlesFontFamily = fontFamilyProp ?? theme.fontFamily
+  const ctaText = applyTextCase(cta, { uppercase })
 
   // Vertical gap between the CTA and the handles strip, scaled off the CTA size
   // so the rhythm holds at any headline size (~40px at the default 96px CTA).
@@ -201,8 +201,9 @@ export function EndCard({
                   color={color}
                   fontFamily={ctaFontFamily}
                   fontWeight={ctaFontWeight}
+                  letterSpacing={letterSpacing}
                 >
-                  {cta}
+                  {ctaText}
                 </Text>
               </Group>
               <Group>
@@ -228,8 +229,9 @@ export function EndCard({
                 color={color}
                 fontFamily={ctaFontFamily}
                 fontWeight={ctaFontWeight}
+                letterSpacing={letterSpacing}
               >
-                {cta}
+                {ctaText}
               </Text>
             </Group>
           )}

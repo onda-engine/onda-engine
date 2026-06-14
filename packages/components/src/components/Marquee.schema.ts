@@ -4,8 +4,10 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 
 export const marqueeSchema = z.object({
+  ...textStyleSchemaShape,
   items: z
     .array(z.string())
     .default(['ONDA', 'TYPESCRIPT', 'REACT'])
@@ -16,13 +18,7 @@ export const marqueeSchema = z.object({
     .describe('Scroll speed in pixels per second; keep low for restraint.'),
   direction: z.enum(['left', 'right']).default('left').describe('Scroll direction.'),
   gap: z.number().default(64).describe('Pixels between items.'),
-  color: z.string().optional().describe('Text color; defaults to the theme textMuted token.'),
   fontSize: z.number().default(32).describe('Font size in pixels.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Loaded font family; defaults to the theme fontFamily token.'),
-  fontWeight: z.number().default(500).describe('CSS font weight, 1 to 1000.'),
   width: z
     .number()
     .optional()

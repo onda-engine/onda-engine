@@ -5,9 +5,11 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const chapterCardSchema = z.object({
+  ...textStyleSchemaShape,
   chapter: z.string().describe('The chapter heading \u2014 the focal text on the card.'),
   number: z
     .string()
@@ -28,7 +30,6 @@ export const chapterCardSchema = z.object({
     .string()
     .optional()
     .describe('Number color when accent is true (the Onda rose); defaults to theme accent.'),
-  color: z.string().optional().describe('Chapter title color; defaults to theme text.'),
   subtitleColor: z
     .string()
     .optional()
@@ -45,12 +46,6 @@ export const chapterCardSchema = z.object({
     .default(96)
     .describe('Chapter title font size in px \u2014 the focal element.'),
   titleFontWeight: z.number().default(600).describe('Title font weight.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe(
-      'Onda display font applied to both number and title; defaults to theme headingFamily ?? fontFamily.',
-    ),
   placement: placementSchema
     .optional()
     .describe(

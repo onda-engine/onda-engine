@@ -29,13 +29,14 @@ import {
 import { useStaggeredEntrance } from '../hooks.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
 
 export type LookbookLayout = 'spread-right' | 'spread-left' | 'centered'
 
-export interface LookbookShotProps {
+export interface LookbookShotProps extends TextStyleProps {
   /** Product photo source (resolved at render time by `onda render`). */
   src?: string
   /** Product name — the headline, set in the display face. */
@@ -54,14 +55,10 @@ export interface LookbookShotProps {
   matColor?: string
   /** Soft shadow color under the mat. Default a low-alpha warm dark. */
   shadowColor?: string
-  /** Name color (default: theme `text`). */
-  color?: string
   /** Eyebrow + rule color (default: theme `accent`). */
   accentColor?: string
   /** Detail line color (default: theme `textMuted`). */
   detailColor?: string
-  /** Display font for the name (default: theme `headingFamily ?? fontFamily`). */
-  fontFamily?: string
   /** Body font for eyebrow + detail (default: theme `fontFamily`). */
   bodyFamily?: string
   /** Frames over which the card's slow "breath" scale completes (default 150). */
@@ -104,6 +101,8 @@ export function LookbookShot({
   detailColor: detailColorProp,
   fontFamily: fontFamilyProp,
   bodyFamily: bodyFamilyProp,
+  letterSpacing,
+  uppercase,
   lifeDurationInFrames = 150,
 }: LookbookShotProps) {
   const frame = useCurrentFrame()
@@ -157,8 +156,16 @@ export function LookbookShot({
 
   const at = useStaggeredEntrance({ type: 'rise', delay: delay + 8, increment: 5 })
 
+  // The headline name with the shared text-case applied (so measurement,
+  // wrapping, and rendering all agree on the same string).
+  const displayName = applyTextCase(name, { uppercase })
+
   // Centering needs measured widths (the LowerThird pattern).
-  const nameMetrics = useTextMetrics(name, baseName, { fontFamily: nameFont, fontWeight: 500 })
+  const nameMetrics = useTextMetrics(displayName, baseName, {
+    fontFamily: nameFont,
+    fontWeight: 500,
+    letterSpacing,
+  })
   // Measure WITH the same letter-spacing the eyebrow renders with (4px) — else the
   // shaped width is ~4·(n-1)px too small and the centered eyebrow drifts right.
   const eyebrowMetrics = useTextMetrics(eyebrow, eyebrowSize, {
@@ -206,8 +213,9 @@ export function LookbookShot({
             color={color}
             fontFamily={nameFont}
             fontWeight={500}
+            letterSpacing={letterSpacing}
           >
-            {name}
+            {displayName}
           </Text>
         </Group>
         {eyebrow ? (
@@ -233,7 +241,7 @@ export function LookbookShot({
   const typeX = layout === 'spread-right' ? margin : matX + matW + Math.round(W * 0.03)
   const typeColW =
     layout === 'spread-right' ? matX - margin - Math.round(W * 0.03) : W - typeX - margin
-  const nameLines = wrap(name, typeColW, baseName)
+  const nameLines = wrap(displayName, typeColW, baseName)
   const nameLineH = Math.round(baseName * 1.12)
   const eyebrowH = eyebrow ? Math.round(eyebrowSize * 1.6) : 0
   const ruleGap = 30
@@ -297,6 +305,7 @@ export function LookbookShot({
                 color={color}
                 fontFamily={nameFont}
                 fontWeight={500}
+                letterSpacing={letterSpacing}
               >
                 {line}
               </Text>

@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const timelineSchema = z.object({
+  ...textStyleSchemaShape,
   events: z
     .any()
     .optional()
@@ -39,10 +41,6 @@ export const timelineSchema = z.object({
     .describe('Final dot color \u2014 the earned accent (default: theme accent).'),
   labelColor: z.string().optional().describe('Label color (default: theme textMuted).'),
   fontSize: z.number().default(28).describe('Label font size in px.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Loaded font family for labels (default: theme headingFamily ?? fontFamily).'),
 })
 
 export type TimelineSchemaProps = z.infer<typeof timelineSchema>

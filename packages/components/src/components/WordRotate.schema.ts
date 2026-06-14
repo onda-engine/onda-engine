@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const wordRotateSchema = z.object({
+  ...textStyleSchemaShape,
   phrases: z
     .array(z.string())
     .default(['fast', 'beautiful', 'restrained'])
@@ -20,11 +22,7 @@ export const wordRotateSchema = z.object({
     .int()
     .default(12)
     .describe('Frames for a single phrase to fade in (and, separately, fade out).'),
-  color: z.string().optional().describe('Text color. Defaults to theme `text`.'),
   fontSize: z.number().default(96).describe('Font size in px. Phrases are usually large.'),
-  fontFamily: z.string().optional().describe('Loaded font family. Defaults to theme `fontFamily`.'),
-  fontWeight: z.number().default(600).describe('Font weight (display default 600).'),
-  italic: z.boolean().default(false).describe('Italic text.'),
   align: z
     .enum(['left', 'center', 'right'])
     .default('left')

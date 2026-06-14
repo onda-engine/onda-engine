@@ -27,13 +27,14 @@
 import { Flex, Group, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useTextReveal } from '../hooks.js'
 import { type Placement, usePlacement } from '../placement.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
 /** Engine line-box height as a multiple of font size (typography crate). */
 const LINE_RATIO = 1.2
 
-export interface InputFieldProps {
+export interface InputFieldProps extends TextStyleProps {
   /** The field's value. With `typed` on, this is what types itself in. */
   value?: string
   /** Placeholder shown while the field is empty (before any glyph is revealed). */
@@ -52,8 +53,6 @@ export interface InputFieldProps {
   width?: number
   /** Text size in px. */
   fontSize?: number
-  /** UI font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
-  fontFamily?: string
   /** Value text color (default: theme `text`). */
   textColor?: string
   /** Placeholder text color (default: theme `textMuted`). */
@@ -89,6 +88,8 @@ export function InputField({
   width = 640,
   fontSize = 36,
   fontFamily: fontFamilyProp,
+  letterSpacing,
+  uppercase,
   textColor: textColorProp,
   placeholderColor: placeholderColorProp,
   labelColor: labelColorProp,
@@ -239,8 +240,14 @@ export function InputField({
       {visible.length > 0 || showCaret ? (
         <Flex direction="row" align="center" gap={caretGap} x={textX} y={textY} height={lineHeight}>
           {visible.length > 0 ? (
-            <Text fontSize={fontSize} color={textColor} fontFamily={fontFamily} fontWeight={400}>
-              {visible}
+            <Text
+              fontSize={fontSize}
+              color={textColor}
+              fontFamily={fontFamily}
+              fontWeight={400}
+              letterSpacing={letterSpacing}
+            >
+              {applyTextCase(visible, { uppercase })}
             </Text>
           ) : null}
           {showCaret ? (

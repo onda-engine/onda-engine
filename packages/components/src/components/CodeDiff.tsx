@@ -30,6 +30,7 @@
 import { Ellipse, Group, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { entryFadeRise } from '../choreography.js'
 import { DURATION, STAGGER, staggerFrames } from '../motion.js'
+import type { TextStyleProps } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
@@ -44,7 +45,7 @@ export interface DiffLine {
   type?: DiffLineType
 }
 
-export interface CodeDiffProps {
+export interface CodeDiffProps extends TextStyleProps {
   /** The diff lines, top to bottom. */
   lines?: DiffLine[]
   /** Filename shown in the title bar. */
@@ -57,8 +58,6 @@ export interface CodeDiffProps {
   delay?: TimeInput
   /** Frames between consecutive line reveals (default canonical `STAGGER` = 5). */
   lineDelay?: TimeInput
-  /** Monospace font stack for code (and the title) (default: theme `monoFamily ?? fontFamily`). */
-  fontFamily?: string
   /** Code font size in px. */
   fontSize?: number
   /** Panel width in px. */
@@ -122,6 +121,7 @@ export function CodeDiff({
   delay: delayIn = 0,
   lineDelay: lineDelayIn = STAGGER,
   fontFamily: fontFamilyProp,
+  letterSpacing,
   fontSize = 44,
   width = 760,
   textColor: textColorProp,
@@ -287,6 +287,7 @@ export function CodeDiff({
                 fontSize={fontSize}
                 color={c}
                 fontFamily={fontFamily}
+                letterSpacing={letterSpacing}
               >
                 {line.text}
               </Text>
