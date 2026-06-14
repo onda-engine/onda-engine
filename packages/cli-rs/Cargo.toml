@@ -46,6 +46,10 @@ onda-transcribe = { workspace = true, optional = true }
 onda-tts = { workspace = true, optional = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
+# Blocking HTTP client (already in the lockfile via segment/tts/transcribe). Used
+# by the remote-source pre-pass to fetch `http(s)://` media to a local temp file
+# so the offline decoders can read it — a plain GET, no cloud/storage credentials.
+ureq = "2"
 
 [features]
 # Decode <Video> frames during `onda export` (requires the ffmpeg binary at run

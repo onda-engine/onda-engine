@@ -10,9 +10,10 @@
 //!   onda export <movie.json> <out.gif|out.mp4> [--backend ...] [--system-fonts]
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use anyhow::{bail, Context, Result};
 use kurbo::{Affine, Rect};
@@ -28,6 +29,107 @@ use onda_vello::VelloRenderer;
 /// Set by `--progress`: when true, the Vello render emits a `[onda-progress]{…}`
 /// JSON line per frame on stdout (parsed by the @onda/node bridge for onProgress).
 static EMIT_PROGRESS: AtomicBool = AtomicBool::new(false);
+
+// ─── Remote-source materialization ───────────────────────────────────────────
+//
+// The offline decoders (onda-image, onda-video→ffmpeg, onda-audio) read FILES and
+// `data:` URIs — they do NOT fetch `http(s)://` URLs. So before any render pass we
+// walk the scene and download every remote media `src` to a local temp file,
+// rewriting the `src` to that path. This is what makes a composition that
+// references hosted media (a signed R2/S3/CDN link, or any public asset) actually
+// render its images, video, AND audio.
+//
+// The engine stays storage-agnostic: it does a plain HTTP GET on whatever URL it's
+// handed — no cloud SDK, no credentials (a signed URL is already a public link).
+// Best-effort: a failed fetch leaves the original src untouched (the decoder then
+// skips it, exactly as before) so an unreachable asset never aborts a render.
+
+/// Monotonic counter for unique temp filenames within one process.
+static REMOTE_SEQ: AtomicUsize = AtomicUsize::new(0);
+
+/// Process-wide cache: a remote `src` URL → the local temp path it was fetched to,
+/// so a source referenced by every frame is downloaded ONCE per render.
+fn remote_cache() -> &'static Mutex<HashMap<String, String>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// If `src` is an `http(s)://` URL, download it to a temp file and rewrite `src`
+/// to that local path. Local paths / `data:` URIs are left untouched.
+fn materialize_src(src: &mut String) {
+    if !(src.starts_with("http://") || src.starts_with("https://")) {
+        return;
+    }
+    if let Some(local) = remote_cache().lock().unwrap().get(src).cloned() {
+        *src = local;
+        return;
+    }
+    match fetch_remote_to_temp(src) {
+        Ok(path) => {
+            remote_cache()
+                .lock()
+                .unwrap()
+                .insert(src.clone(), path.clone());
+            *src = path;
+        }
+        Err(e) => {
+            let shown: String = src.chars().take(80).collect();
+            eprintln!("onda: could not fetch remote source ({e}) — skipping: {shown}");
+        }
+    }
+}
+
+fn fetch_remote_to_temp(url: &str) -> Result<String> {
+    let resp = ureq::get(url)
+        .call()
+        .map_err(|e| anyhow::anyhow!("HTTP GET failed: {e}"))?;
+    // Keep the URL's extension (before any query/fragment) so ffmpeg can sniff the
+    // container; image bytes are format-detected from content, so a fallback is fine.
+    let ext = url
+        .split(['?', '#'])
+        .next()
+        .and_then(|p| p.rsplit('.').next())
+        .filter(|e| (1..=5).contains(&e.len()) && e.chars().all(|c| c.is_ascii_alphanumeric()))
+        .unwrap_or("bin");
+    let n = REMOTE_SEQ.fetch_add(1, Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!("onda-remote-{}-{}.{ext}", std::process::id(), n));
+    let mut reader = resp.into_reader();
+    let mut file = std::fs::File::create(&path)
+        .with_context(|| format!("creating temp file '{}'", path.display()))?;
+    std::io::copy(&mut reader, &mut file).context("writing remote source to temp file")?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+/// Walk a scene graph and materialize every remote media source (Image / Video /
+/// Audio / Svg `src`). Run once per scene, before the offline decode pre-passes.
+fn materialize_scene_sources(scene: &mut Scene) {
+    materialize_node(&mut scene.root);
+}
+
+fn materialize_node(node: &mut Node) {
+    match &mut node.kind {
+        NodeKind::Image(image) => materialize_src(&mut image.src),
+        NodeKind::Video(video) => materialize_src(&mut video.src),
+        NodeKind::Audio(audio) => materialize_src(&mut audio.src),
+        NodeKind::Svg(svg) => {
+            if let Some(src) = svg.src.as_mut() {
+                materialize_src(src);
+            }
+        }
+        _ => {}
+    }
+    for child in &mut node.children {
+        materialize_node(child);
+    }
+}
+
+/// Materialize the soundtrack's remote sources — the lifted `AudioTrack`s the
+/// animated-scene export muxes separately from the scene graph.
+fn materialize_audio_tracks(tracks: &mut [AudioTrack]) {
+    for t in tracks {
+        materialize_src(&mut t.src);
+    }
+}
 
 const USAGE: &str = "\
 onda — render a scene-graph document to an image or video
@@ -522,6 +624,21 @@ fn transcribe_command(args: &[String]) -> Result<()> {
         duration_ms as f64 / 1000.0,
         transcript.language,
     );
+    // Measured quality — so a misheard or hallucinated transcript is visible, not
+    // shipped blind (the `quality` field carries the full report + reasons).
+    let q = &transcript.quality;
+    eprintln!(
+        "  caption quality = {} (confidence {:.0}%, low-confidence words {:.0}%, repetition {:.0}%)",
+        q.verdict,
+        q.mean_confidence * 100.0,
+        q.low_confidence_frac * 100.0,
+        q.repetition * 100.0,
+    );
+    if q.verdict != "good" {
+        for reason in &q.reasons {
+            eprintln!("    • {reason}");
+        }
+    }
     Ok(())
 }
 
@@ -720,12 +837,14 @@ fn render_frame_command(args: &[String]) -> Result<()> {
         output.with_context(|| format!("render-frame needs an output .png path\n\n{USAGE}"))?;
     let json =
         std::fs::read_to_string(input).with_context(|| format!("reading frames file '{input}'"))?;
-    let scenes: Vec<Scene> =
+    let mut scenes: Vec<Scene> =
         serde_json::from_str(&json).context("frames JSON is not an array of scene graphs")?;
     let total = scenes.len();
     let scene = scenes
-        .get(frame)
+        .get_mut(frame)
         .with_context(|| format!("frame {frame} is out of range (0..{total})"))?;
+    materialize_scene_sources(scene);
+    let scene = &*scene;
 
     // Same pre-passes as `onda render`, so the zoomed frame is faithful.
     let base_dir = Path::new(input).parent().unwrap_or_else(|| Path::new(""));
@@ -895,10 +1014,14 @@ fn contact_sheet_command(args: &[String]) -> Result<()> {
         output.with_context(|| format!("contact-sheet needs an output .png path\n\n{USAGE}"))?;
     let json =
         std::fs::read_to_string(input).with_context(|| format!("reading frames file '{input}'"))?;
-    let scenes: Vec<Scene> =
+    let mut scenes: Vec<Scene> =
         serde_json::from_str(&json).context("frames JSON is not an array of scene graphs")?;
     if scenes.is_empty() {
         bail!("no frames to tile");
+    }
+    // Pull remote media to local temp files (the per-URL cache fetches each once).
+    for scene in scenes.iter_mut() {
+        materialize_scene_sources(scene);
     }
 
     let extra_fonts = load_font_bytes(&font_paths)?;
@@ -1920,6 +2043,10 @@ struct Movie {
 fn movie_scenes(json: &str, base_dir: &Path) -> Result<Movie> {
     let mut doc: AnimatedScene =
         serde_json::from_str(json).context("movie JSON is not a valid animated scene")?;
+    // Pull remote images/video/audio to local temp files before any decode pass
+    // (the soundtrack is lifted into `doc.audio`, so materialize it too).
+    materialize_scene_sources(&mut doc.scene);
+    materialize_audio_tracks(&mut doc.audio);
     doc.scene = onda_svg::expand_svg(&doc.scene, base_dir).context("expanding <svg> nodes")?;
     // Decode images once on the template; frame clones then share the pixels.
     doc.scene = onda_image::load_images(&doc.scene, base_dir).context("loading images")?;
@@ -1935,12 +2062,17 @@ fn movie_scenes(json: &str, base_dir: &Path) -> Result<Movie> {
 /// Parse a pre-evaluated sequence of scene graphs (one per frame), expanding any
 /// `<svg>` nodes (file `src`s relative to `base_dir`).
 fn frames_scenes(json: &str, base_dir: &Path) -> Result<(Vec<Scene>, f32)> {
-    let raw: Vec<Scene> =
+    let mut raw: Vec<Scene> =
         serde_json::from_str(json).context("frames JSON is not an array of scene graphs")?;
     let Some(first) = raw.first() else {
         bail!("frames JSON contains no scenes");
     };
     let fps = first.composition.fps;
+    // Materialize remote media to local temp files so the offline image/video/
+    // audio decoders (which don't fetch URLs) can read them.
+    for scene in raw.iter_mut() {
+        materialize_scene_sources(scene);
+    }
     let mut scenes = Vec::with_capacity(raw.len());
     // One persistent, sequential video decoder across all frames: each `src`
     // streams from a single ffmpeg pipe (frame-accurate, ~no per-frame spawn)
@@ -2143,7 +2275,9 @@ fn render_stream(
         slice
             .iter()
             .map(|raw| {
-                let s = onda_svg::expand_svg(raw, base_dir).context("expanding <svg> nodes")?;
+                let mut owned = raw.clone();
+                materialize_scene_sources(&mut owned);
+                let s = onda_svg::expand_svg(&owned, base_dir).context("expanding <svg> nodes")?;
                 #[cfg(feature = "video")]
                 let s = video.resolve_scene(&s).context("decoding video frames")?;
                 let s = if scene_has_layout(&s) {
@@ -2257,13 +2391,18 @@ fn stream_frames_to_mp4(
     fonts: &[Vec<u8>],
     encoder: EncoderChoice,
 ) -> Result<()> {
-    let raw: Vec<Scene> =
+    let mut raw: Vec<Scene> =
         serde_json::from_str(json).context("frames JSON is not an array of scene graphs")?;
     let Some(first) = raw.first() else {
         bail!("frames JSON contains no scenes");
     };
     let fps = first.composition.fps;
     let (w, h) = (first.composition.width, first.composition.height);
+    // Materialize remote media (images/video/audio) to local temp files before the
+    // audio mux + frame render — the offline decoders don't fetch URLs.
+    for scene in raw.iter_mut() {
+        materialize_scene_sources(scene);
+    }
     let audio_tracks = collect_audio_tracks(&raw, fps);
 
     let wav = if audio_tracks.is_empty() {
@@ -2317,8 +2456,9 @@ fn render_scene_file(
 ) -> Result<(u32, u32, &'static str)> {
     let json = std::fs::read_to_string(input)
         .with_context(|| format!("reading scene file '{}'", input.display()))?;
-    let parsed: Scene =
+    let mut parsed: Scene =
         serde_json::from_str(&json).context("scene JSON is not a valid scene graph")?;
+    materialize_scene_sources(&mut parsed);
     let base_dir = input.parent().unwrap_or(Path::new(""));
     let scene = onda_svg::expand_svg(&parsed, base_dir).context("expanding <svg> nodes")?;
     // Decode video frames before images so `Video.data` is set and the image pass
