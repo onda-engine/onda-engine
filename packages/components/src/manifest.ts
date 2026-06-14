@@ -54,6 +54,7 @@ import { marqueeSchema } from './components/Marquee.schema.js'
 import { maskRevealSchema } from './components/MaskReveal.schema.js'
 import { matrixDecodeSchema } from './components/MatrixDecode.schema.js'
 import { meshGradientSchema } from './components/MeshGradient.schema.js'
+import { moodboardSchema } from './components/Moodboard.schema.js'
 import { nodeGraphSchema } from './components/NodeGraph.schema.js'
 import { parallaxSchema } from './components/Parallax.schema.js'
 import { pathMorphSchema } from './components/PathMorph.schema.js'
@@ -79,6 +80,7 @@ import { splitScreenSchema } from './components/SplitScreen.schema.js'
 import { spotlightSchema } from './components/Spotlight.schema.js'
 import { spotlightCardSchema } from './components/SpotlightCard.schema.js'
 import { staggerGroupSchema } from './components/StaggerGroup.schema.js'
+import { splitLockupSchema } from './components/SplitLockup.schema.js'
 import { statCardSchema } from './components/StatCard.schema.js'
 import { terminalSchema } from './components/Terminal.schema.js'
 import { textFadeReplaceSchema } from './components/TextFadeReplace.schema.js'
@@ -10625,6 +10627,38 @@ const RAW: RawEntry[] = [
       },
     ],
     schema: wordStaggerSchema,
+  },
+  {
+    slug: 'split-lockup',
+    name: 'SplitLockup',
+    category: 'Text',
+    title: 'Split Lockup',
+    description:
+      'Two lines that START split to opposite corners, CONVERGE into a centered stacked left-aligned lockup (ease-out, no overshoot), HOLD, then DISASSEMBLE back to the corners — the exit is the entrance reversed.',
+    pickWhen:
+      'A two-word title card that should split open and reassemble (e.g. NEW / PROJECT) — the signature image-cascade / showcase intro lockup. Pair with Moodboard for the surrounding tiles.',
+    composes: ['Moodboard'],
+    sceneRole: 'block',
+    occlusion: 'centered',
+    example: { line1: 'NEW', line2: 'PROJECT', fontSize: 180, fontWeight: 400, letterSpacing: 8 },
+    props: [],
+    schema: splitLockupSchema,
+  },
+  {
+    slug: 'moodboard',
+    name: 'Moodboard',
+    category: 'Media',
+    title: 'Moodboard',
+    description:
+      'A seeded scatter-grid of image tiles arranged AROUND a central exclusion zone (where a title sits). Places exactly one tile per image, mixed aspect/size; each cascades in (fade + drift) on a visible stagger and exits on the mirrored stagger.',
+    pickWhen:
+      'A portfolio / moodboard spread of tiles cascading in around a centered title (pair with SplitLockup) — the image-cascade showcase. Feed it N images; it auto-distributes them.',
+    composes: ['SplitLockup'],
+    sceneRole: 'background',
+    occlusion: 'non_occluding',
+    example: { images: [], seed: 11, columns: 5, rows: 4, exclusionWidth: 0.52, exclusionHeight: 0.42, stagger: 4 },
+    props: [],
+    schema: moodboardSchema,
   },
 ]
 
