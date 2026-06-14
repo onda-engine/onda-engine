@@ -10628,11 +10628,105 @@ const RAW: RawEntry[] = [
   },
 ]
 
-/** The catalog — RAW entries enriched with the live fidelity rating. */
+// ─── Schema → PropMeta reconciliation (the "codegen", live at build time) ────
+//
+// The curated `props` arrays are hand-written, but the Zod `schema` is the source
+// of truth — and now carries the SHARED text-style props (color/fontFamily/
+// fontWeight/italic/letterSpacing/uppercase via `textStyleSchemaShape`). The two
+// drift the moment a schema gains a prop the curated list doesn't mention — and
+// the studio reads `props` (PropMeta names) to decide what's a KNOWN prop, so a
+// missing entry means the agent's `letterSpacing`/`uppercase` get STRIPPED.
+//
+// So we derive a PropMeta for any schema prop the curated list is missing. Adding
+// a prop to a schema (or to the shared mixin) now shows up in the agent catalog,
+// the /llms.txt + /api/components.json docs, and the studio's allowed-prop set
+// automatically — no hand-maintenance, no codegen file to go stale.
+
+function unwrapZod(field: z.ZodTypeAny): { def: { typeName?: string; [k: string]: unknown }; default?: string } {
+  let f = field as unknown as { _def?: { typeName?: string; innerType?: unknown; defaultValue?: () => unknown } }
+  let dflt: string | undefined
+  for (let i = 0; i < 8 && f?._def; i++) {
+    const tn = f._def.typeName
+    if (tn === 'ZodOptional' || tn === 'ZodNullable') {
+      f = f._def.innerType as typeof f
+      continue
+    }
+    if (tn === 'ZodDefault') {
+      try {
+        dflt = JSON.stringify(f._def.defaultValue?.())
+      } catch {
+        /* non-serializable default — leave undefined */
+      }
+      f = f._def.innerType as typeof f
+      continue
+    }
+    break
+  }
+  return { def: (f?._def ?? {}) as { typeName?: string }, default: dflt }
+}
+
+function zodKind(def: { typeName?: string; checks?: { kind?: string }[]; values?: string[] }): {
+  type: string
+  enumValues?: string[]
+} {
+  switch (def.typeName) {
+    case 'ZodString':
+      return { type: 'string' }
+    case 'ZodNumber':
+      return { type: (def.checks ?? []).some((c) => c.kind === 'int') ? 'int' : 'number' }
+    case 'ZodBoolean':
+      return { type: 'boolean' }
+    case 'ZodEnum':
+      return { type: 'enum', enumValues: def.values }
+    case 'ZodArray':
+      return { type: 'array' }
+    default:
+      return { type: 'unknown' }
+  }
+}
+
+function roleFor(name: string, type: string): string {
+  if (name === 'color' || /[Cc]olor$/.test(name)) return 'color'
+  if (name === 'fontFamily' || /[Ff]ontFamily$/.test(name)) return 'font'
+  if (name === 'fontSize') return 'fontSize'
+  if (name === 'text') return 'text'
+  if (type === 'enum') return 'enum'
+  if (type === 'boolean') return 'boolean'
+  if (type === 'int' || type === 'number') return 'number'
+  return 'other'
+}
+
+/** Curated PropMeta + a derived entry for any schema prop the curated list omits. */
+function reconcileProps(entry: RawEntry): PropMeta[] {
+  const shape = (entry.schema as { shape?: Record<string, z.ZodTypeAny> }).shape
+  if (!shape || typeof shape !== 'object') return entry.props
+  const have = new Set(entry.props.map((p) => p.name))
+  const derived: PropMeta[] = []
+  for (const [name, field] of Object.entries(shape)) {
+    if (have.has(name)) continue
+    const { def, default: dflt } = unwrapZod(field)
+    const { type, enumValues } = zodKind(def)
+    derived.push({
+      name,
+      type,
+      role: roleFor(name, type),
+      ...(enumValues ? { enumValues } : {}),
+      ...(dflt !== undefined ? { default: dflt } : {}),
+      themeable: name === 'color' || name === 'fontFamily',
+      required: false,
+      description: (field as { description?: string }).description ?? '',
+    })
+  }
+  return derived.length ? [...entry.props, ...derived] : entry.props
+}
+
+/** The catalog — RAW entries enriched with the live fidelity rating + the
+ *  schema-reconciled prop list (so curated `props` can never drift from `schema`). */
 export const MANIFEST: ManifestEntry[] = RAW.map((e) => {
   const f = COMPONENT_FIDELITY[e.name]
   return {
     ...e,
+    props: reconcileProps(e),
     fidelity: f?.fidelity ?? 'first_class',
     backend: f?.backend ?? 'both',
     engineNative: f?.engineNative ?? true,
