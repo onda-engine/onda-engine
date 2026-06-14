@@ -9,7 +9,18 @@ export const pathMorphSchema = z.object({
     .string()
     .describe('SVG path `d` to morph FROM (e.g. a logo emblem), in its own coordinate space.'),
   to: z.string().describe('SVG path `d` to morph TO (e.g. a divider line), in the SAME space.'),
-  color: z.string().optional().describe('Fill color (hex); defaults to theme `text`.'),
+  color: z
+    .string()
+    .optional()
+    .describe('Ink (hex) — FILL for closed shapes, STROKE for open lines; defaults to theme `text`.'),
+  stroke: z
+    .boolean()
+    .optional()
+    .describe('Force STROKE (line) rendering; auto-true when both paths are OPEN (no `Z`).'),
+  strokeWidth: z
+    .number()
+    .default(4)
+    .describe('Stroke width in path-coordinate units (when stroked).'),
   delay: z.number().int().default(0).describe('Frames before the morph starts.'),
   durationInFrames: z
     .number()
