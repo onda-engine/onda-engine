@@ -9,7 +9,7 @@
 //! and the exit is the entrance reversed (same curve). Pair it with a centered
 //! title (e.g. <SplitLockup>) sitting in the exclusion zone.
 
-import { Group, Image, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Image, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { type TimeInput, framesOf } from '../time.js'
 
 export interface MoodboardProps {
@@ -34,10 +34,14 @@ export interface MoodboardProps {
   tileExit?: TimeInput
   /** Total clip length; defaults to the enclosing Sequence duration. */
   durationInFrames?: TimeInput
-  /** Entrance start scale (default 0.9). */
+  /** Entrance start scale (default 1 — the look is fade + slide, no scale). */
   scaleFrom?: number
   /** Entrance drift distance in px (tiles rise into place). */
   driftPx?: number
+  /** Rounded-corner radius for each tile in px (default 16). */
+  cornerRadius?: number
+  /** Position jitter as a fraction of the cell (default 0.12). */
+  jitter?: number
 }
 
 const clamp01 = (t: number): number => (t < 0 ? 0 : t > 1 ? 1 : t)
@@ -66,8 +70,10 @@ export function Moodboard({
   exitStagger,
   tileExit,
   durationInFrames,
-  scaleFrom = 0.9,
-  driftPx = 36,
+  scaleFrom = 1,
+  driftPx = 44,
+  cornerRadius = 16,
+  jitter = 0.12,
 }: MoodboardProps) {
   const frame = useCurrentFrame()
   const { fps, width, height, durationInFrames: clipFrames } = useVideoConfig()
@@ -95,25 +101,37 @@ export function Moodboard({
   const exTop = height / 2 - (height * exclusionHeight) / 2
   const exBottom = height / 2 + (height * exclusionHeight) / 2
 
-  const tiles: Tile[] = []
-  let idx = 0
+  // Collect non-excluded cells, shuffle deterministically, then place exactly ONE
+  // tile per image — so the moodboard has N tiles scattered around the title, not a
+  // packed grid.
+  const cells: Array<{ cx: number; cy: number }> = []
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < columns; c++) {
       const ccx = (c + 0.5) * cellW
       const ccy = (r + 0.5) * cellH
       if (ccx > exLeft && ccx < exRight && ccy > exTop && ccy < exBottom) continue
-      const sizeF = 0.66 + rnd() * 0.26
-      const aspect = ASPECTS[Math.floor(rnd() * ASPECTS.length)] ?? 1
-      const base = Math.min(cellW, cellH) * sizeF
-      tiles.push({
-        cx: ccx + (rnd() - 0.5) * cellW * 0.22,
-        cy: ccy + (rnd() - 0.5) * cellH * 0.22,
-        w: base * Math.sqrt(aspect),
-        h: base / Math.sqrt(aspect),
-        src: images[idx % images.length] as string,
-      })
-      idx++
+      cells.push({ cx: ccx, cy: ccy })
     }
+  }
+  for (let i = cells.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1))
+    const tmp = cells[i] as { cx: number; cy: number }
+    cells[i] = cells[j] as { cx: number; cy: number }
+    cells[j] = tmp
+  }
+  const tiles: Tile[] = []
+  for (let i = 0; i < images.length && i < cells.length; i++) {
+    const cell = cells[i] as { cx: number; cy: number }
+    const sizeF = 0.66 + rnd() * 0.26
+    const aspect = ASPECTS[Math.floor(rnd() * ASPECTS.length)] ?? 1
+    const base = Math.min(cellW, cellH) * sizeF
+    tiles.push({
+      cx: cell.cx + (rnd() - 0.5) * cellW * jitter,
+      cy: cell.cy + (rnd() - 0.5) * cellH * jitter,
+      w: base * Math.sqrt(aspect),
+      h: base / Math.sqrt(aspect),
+      src: images[i] as string,
+    })
   }
 
   const n = tiles.length
@@ -135,7 +153,7 @@ export function Moodboard({
         return (
           <Group key={`${i}-${t.src}`} x={t.cx} y={t.cy + dy} opacity={opacity}>
             <Group scaleX={scale} scaleY={scale}>
-              <Group x={-t.w / 2} y={-t.h / 2}>
+              <Group x={-t.w / 2} y={-t.h / 2} clip={clipRect(t.w, t.h, cornerRadius)}>
                 <Image src={t.src} width={t.w} height={t.h} fit="cover" />
               </Group>
             </Group>
