@@ -25,11 +25,12 @@ import { useTextReveal } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { useTimeScale } from '../timing.js'
 
-export interface TypewriterProps {
+export interface TypewriterProps extends TextStyleProps {
   /** What to type out. */
   text?: string
   /** Time before typing starts — frames or '0.5s'. */
@@ -49,8 +50,6 @@ export interface TypewriterProps {
   cursor?: boolean
   /** Cursor color (default: theme `accent`). */
   cursorColor?: string
-  /** Text color (default: theme `text`). */
-  color?: string
   /** Font size in px (default 64). */
   fontSize?: number
   /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
@@ -60,12 +59,6 @@ export interface TypewriterProps {
   /** Explicit width cap in px for the line; combines with `fit` (the smaller
    *  cap wins). */
   maxWidth?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
-  fontFamily?: string
-  /** Font weight (default 500 — reads more "terminal"). */
-  fontWeight?: number
-  /** Italic text. */
-  italic?: boolean
   /** Where the line sits: a region keyword (`'center'`, `'lower-third'`, …) or
    *  normalized `{x,y}` (0–1, anchored at the FULL line's measured center). The
    *  shared placement contract; default `'center'`. */
@@ -79,7 +72,7 @@ export interface TypewriterProps {
 }
 
 export function Typewriter({
-  text = 'motion graphics',
+  text: textProp = 'motion graphics',
   delay: delayIn = 0,
   durationInFrames: durationIn = DURATION.slow,
   fitToClip,
@@ -94,10 +87,13 @@ export function Typewriter({
   fontFamily: fontFamilyProp,
   fontWeight = 500,
   italic = false,
+  letterSpacing,
+  uppercase,
   placement,
   x,
   y,
 }: TypewriterProps) {
+  const text = applyTextCase(textProp, { uppercase })
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const theme = useTheme()
@@ -161,6 +157,7 @@ export function Typewriter({
       fontFamily={fontFamily}
       fontWeight={fontWeight}
       italic={italic}
+      letterSpacing={letterSpacing}
       runs={runs}
     >
       {revealed}
