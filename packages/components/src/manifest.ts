@@ -54,6 +54,7 @@ import { marqueeSchema } from './components/Marquee.schema.js'
 import { maskRevealSchema } from './components/MaskReveal.schema.js'
 import { matrixDecodeSchema } from './components/MatrixDecode.schema.js'
 import { meshGradientSchema } from './components/MeshGradient.schema.js'
+import { keyframesSchema } from './components/Keyframes.schema.js'
 import { moodboardSchema } from './components/Moodboard.schema.js'
 import { nodeGraphSchema } from './components/NodeGraph.schema.js'
 import { parallaxSchema } from './components/Parallax.schema.js'
@@ -10659,6 +10660,32 @@ const RAW: RawEntry[] = [
     example: { images: [], seed: 11, columns: 5, rows: 4, exclusionWidth: 0.52, exclusionHeight: 0.42, stagger: 4 },
     props: [],
     schema: moodboardSchema,
+  },
+  {
+    slug: 'keyframes',
+    name: 'Keyframes',
+    category: 'Motion',
+    title: 'Keyframes',
+    description:
+      'Animate ONE element (an image tile or a text line) along explicit per-channel tracks — position / opacity / scale / rotation — each keyframe carrying its own easing (a named curve OR a raw cubic-bezier [x1,y1,x2,y2]). Arbitrary motion, not a fixed preset.',
+    pickWhen:
+      'You need EXACT custom motion — e.g. transcribing an AE/Lottie reference, or any move the entrance presets can\'t express. The content (src/text) stays editable; the motion lives in the tracks.',
+    composes: [],
+    sceneRole: 'block',
+    occlusion: 'unknown',
+    example: {
+      content: { kind: 'text', text: 'NEW', fontSize: 170 },
+      position: [
+        { at: 0, x: 600, y: 700, ease: 'easeOut' },
+        { at: 18, x: 470, y: 540 },
+      ],
+      opacity: [
+        { at: 0, v: 0 },
+        { at: 10, v: 1 },
+      ],
+    },
+    props: [],
+    schema: keyframesSchema,
   },
 ]
 

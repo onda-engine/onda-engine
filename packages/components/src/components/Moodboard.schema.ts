@@ -33,6 +33,10 @@ export const moodboardSchema = z.object({
   driftPx: z.number().default(44).describe('Entrance drift distance in px (tiles rise into place).'),
   cornerRadius: z.number().default(16).describe('Rounded-corner radius for each tile in px.'),
   jitter: z.number().default(0.12).describe('Position jitter as a fraction of the cell.'),
+  aspects: z
+    .array(z.number())
+    .optional()
+    .describe('Tile aspect-ratio pool (w/h) the scatter draws from (default landscape + square).'),
 })
 
 export type MoodboardSchemaProps = z.infer<typeof moodboardSchema>

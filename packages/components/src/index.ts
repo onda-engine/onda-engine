@@ -219,6 +219,15 @@ export { InputField, type InputFieldProps } from './components/InputField.js'
 export { KanbanBoard, type KanbanBoardProps, type KanbanColumn } from './components/KanbanBoard.js'
 export { KenBurns, type KenBurnsProps } from './components/KenBurns.js'
 export {
+  Keyframes,
+  type KeyframesProps,
+  type KeyframesImageContent,
+  type KeyframesTextContent,
+  type PosKey,
+  type ValKey,
+  type Ease,
+} from './components/Keyframes.js'
+export {
   KineticText,
   type KineticTextPreset,
   type KineticTextProps,

@@ -42,13 +42,17 @@ export interface MoodboardProps {
   cornerRadius?: number
   /** Position jitter as a fraction of the cell (default 0.12). */
   jitter?: number
+  /** Tile aspect-ratio pool (w/h) the scatter draws from (default landscape + square). */
+  aspects?: number[]
 }
 
 const clamp01 = (t: number): number => (t < 0 ? 0 : t > 1 ? 1 : t)
 const easeOut = (t: number): number => 1 - (1 - clamp01(t)) ** 3
 const easeIn = (t: number): number => clamp01(t) ** 3
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t
-const ASPECTS = [1.4, 1.0, 0.78, 1.18]
+// Default tile aspect pool — landscape + square (no portraits), matching the
+// moodboard/portfolio look. Override with the `aspects` prop.
+const ASPECTS = [1.37, 1.6, 1.0, 1.83, 1.37, 1.0]
 
 interface Tile {
   cx: number
@@ -74,6 +78,7 @@ export function Moodboard({
   driftPx = 44,
   cornerRadius = 16,
   jitter = 0.12,
+  aspects = ASPECTS,
 }: MoodboardProps) {
   const frame = useCurrentFrame()
   const { fps, width, height, durationInFrames: clipFrames } = useVideoConfig()
@@ -123,7 +128,7 @@ export function Moodboard({
   for (let i = 0; i < images.length && i < cells.length; i++) {
     const cell = cells[i] as { cx: number; cy: number }
     const sizeF = 0.66 + rnd() * 0.26
-    const aspect = ASPECTS[Math.floor(rnd() * ASPECTS.length)] ?? 1
+    const aspect = aspects[Math.floor(rnd() * aspects.length)] ?? 1
     const base = Math.min(cellW, cellH) * sizeF
     tiles.push({
       cx: cell.cx + (rnd() - 0.5) * cellW * jitter,
