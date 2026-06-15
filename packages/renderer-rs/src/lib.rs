@@ -109,6 +109,46 @@ impl Framebuffer {
         ((y as usize) * (self.width as usize) + (x as usize)) * 4
     }
 
+    /// Box-downscale by an integer factor `s` — averages each `s`×`s` block into
+    /// one output pixel. This is SPATIAL supersampling's collapse step: render at
+    /// `s`× resolution, then `downscale_box(s)` to native, which area-averages away
+    /// the minification aliasing that detailed images shimmer with under motion.
+    /// Straight-alpha mean (exact for the opaque output a full-bleed composition
+    /// produces, where premultiplied == straight); the analogue of
+    /// `average_frame_groups` for space rather than time. `s <= 1` clones as-is;
+    /// trailing pixels when `width`/`height` aren't multiples of `s` are dropped.
+    pub fn downscale_box(&self, s: u32) -> Framebuffer {
+        if s <= 1 {
+            return Framebuffer::from_rgba(self.width, self.height, self.pixels.clone());
+        }
+        let (ow, oh) = (self.width / s, self.height / s);
+        let stride = (self.width as usize) * 4;
+        let n = s * s;
+        let half = n / 2;
+        let mut out = vec![0u8; (ow as usize) * (oh as usize) * 4];
+        for oy in 0..oh {
+            for ox in 0..ow {
+                let mut acc = [0u32; 4];
+                for dy in 0..s {
+                    let row = ((oy * s + dy) as usize) * stride;
+                    for dx in 0..s {
+                        let p = row + ((ox * s + dx) as usize) * 4;
+                        acc[0] += self.pixels[p] as u32;
+                        acc[1] += self.pixels[p + 1] as u32;
+                        acc[2] += self.pixels[p + 2] as u32;
+                        acc[3] += self.pixels[p + 3] as u32;
+                    }
+                }
+                let o = ((oy as usize) * (ow as usize) + (ox as usize)) * 4;
+                out[o] = ((acc[0] + half) / n) as u8;
+                out[o + 1] = ((acc[1] + half) / n) as u8;
+                out[o + 2] = ((acc[2] + half) / n) as u8;
+                out[o + 3] = ((acc[3] + half) / n) as u8;
+            }
+        }
+        Framebuffer::from_rgba(ow, oh, out)
+    }
+
     /// Composite `src` over the existing pixel at `(x, y)` (straight-alpha
     /// src-over). No-op if out of bounds, so callers can rasterize freely.
     fn blend(&mut self, x: u32, y: u32, src: Color) {

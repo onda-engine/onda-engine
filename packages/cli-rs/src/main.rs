@@ -400,6 +400,11 @@ struct Options {
     /// one output frame (temporal supersampling — a 180° shutter when the producer
     /// spread the sub-frames across half the frame). 1 = off (the default).
     motion_blur: u32,
+    /// SPATIAL supersampling factor (`export-frames` mp4 streaming path): render
+    /// each frame at `N`× resolution, then box-downscale to native — area-averages
+    /// away the minification aliasing detailed images shimmer with. Scaling is
+    /// applied BEFORE image decode, so images resolve at `N`× detail. 1 = off.
+    supersample: u32,
 }
 
 /// Parse the shared `[--backend ...] [--system-fonts] [--font <path>]...` +
@@ -412,11 +417,22 @@ fn parse_io(args: &[String], verb: &str) -> Result<Options> {
     let mut progress = false;
     let mut fonts: Vec<PathBuf> = Vec::new();
     let mut motion_blur: u32 = 1;
+    let mut supersample: u32 = 1;
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
             "--system-fonts" => font = FontMode::System,
             "--progress" => progress = true,
+            "--supersample" => {
+                let value = iter
+                    .next()
+                    .with_context(|| format!("--supersample needs a value\n\n{USAGE}"))?;
+                supersample = value
+                    .parse::<u32>()
+                    .ok()
+                    .filter(|k| (1..=4).contains(k))
+                    .with_context(|| format!("--supersample needs an integer 1-4\n\n{USAGE}"))?;
+            }
             "--motion-blur" => {
                 let value = iter
                     .next()
@@ -479,6 +495,7 @@ fn parse_io(args: &[String], verb: &str) -> Result<Options> {
         progress,
         fonts,
         motion_blur,
+        supersample,
     })
 }
 
@@ -750,6 +767,7 @@ fn render_command(args: &[String]) -> Result<()> {
         progress: _,
         fonts,
         motion_blur: _,
+        supersample: _,
     } = parse_io(args, "render")?;
     let fonts = load_font_bytes(&fonts)?;
     let (width, height, used) =
@@ -1182,6 +1200,7 @@ fn export_command(args: &[String]) -> Result<()> {
         progress,
         fonts,
         motion_blur: _,
+        supersample: _,
     } = parse_io(args, "export")?;
     let fonts = load_font_bytes(&fonts)?;
     EMIT_PROGRESS.store(progress, Ordering::Relaxed);
@@ -1215,6 +1234,7 @@ fn export_frames_command(args: &[String]) -> Result<()> {
         progress,
         fonts,
         motion_blur,
+        supersample,
     } = parse_io(args, "export-frames")?;
     let fonts = load_font_bytes(&fonts)?;
     EMIT_PROGRESS.store(progress, Ordering::Relaxed);
@@ -1242,7 +1262,13 @@ fn export_frames_command(args: &[String]) -> Result<()> {
             font,
             &fonts,
             encoder,
+            supersample,
         );
+    }
+    if supersample > 1 {
+        // The buffered path (gif / motion-blur) doesn't carry the spatial
+        // supersample yet — it'd hold every N× frame in memory. Surface that.
+        eprintln!("note: --supersample is applied only on the mp4 streaming path; ignored here");
     }
 
     let (scenes, fps) = frames_scenes(&json, base_dir_of(&input))
@@ -2249,14 +2275,53 @@ fn pipe_encode(
 /// pre-passed (svg → video → layout → images) and rendered, then freed before the
 /// next, so peak RAM is ~one chunk of frames regardless of the video's length
 /// (vs. buffering every frame). Returns the backend actually used.
+/// Scale a scene by integer factor `s` for SPATIAL supersampling: the composition
+/// grows `s`× and the whole tree is wrapped in a `scale(s)` group. Applied BEFORE
+/// image decode/layout (in `render_stream`'s prepare), so images resolve at `s`×
+/// detail — the detail `Framebuffer::downscale_box(s)` then area-averages into
+/// clean, alias-free pixels (kills the shimmer detailed images get under motion).
+fn supersample_scene(scene: &Scene, s: u32) -> Scene {
+    if s <= 1 {
+        return scene.clone();
+    }
+    let sf = s as f32;
+    let mut comp = scene.composition.clone();
+    comp.width *= s;
+    comp.height *= s;
+    let root = Node::group()
+        .with_transform(Transform {
+            scale: Vec2::new(sf, sf),
+            ..Transform::IDENTITY
+        })
+        .with_children([scene.root.clone()]);
+    Scene::new(comp).with_root(root)
+}
+
 fn render_stream(
     raw_scenes: &[Scene],
     base_dir: &Path,
     backend: BackendChoice,
     font: FontMode,
     extra_fonts: &[Vec<u8>],
+    supersample: u32,
     mut write: impl FnMut(&Framebuffer) -> Result<()>,
 ) -> Result<&'static str> {
+    // Spatial supersampling: render at N× (scaled scenes → images decode at N×
+    // detail), then `downscale_box(N)` each frame to native before piping. The N×
+    // frames raise per-frame bytes, so the adaptive chunk below shrinks to match —
+    // memory stays bounded. `write` always receives NATIVE-size frames.
+    let ss = supersample.max(1);
+    let scaled: Vec<Scene>;
+    let raw_scenes: &[Scene] = if ss > 1 {
+        scaled = raw_scenes
+            .iter()
+            .map(|s| supersample_scene(s, ss))
+            .collect();
+        &scaled
+    } else {
+        raw_scenes
+    };
+    let down = |fb: Framebuffer| if ss > 1 { fb.downscale_box(ss) } else { fb };
     let comp = &raw_scenes[0].composition;
     // Adaptive chunk: target ~1 GiB of raw frames in flight, whatever the
     // resolution (1080p ≈ 128 frames, 4K ≈ 32), so memory stays flat + bounded.
@@ -2305,11 +2370,8 @@ fn render_stream(
         for slice in raw_scenes.chunks(chunk) {
             for scene in &prepare(slice)? {
                 let frame = renderer.render(scene);
-                write(&Framebuffer::from_rgba(
-                    frame.width,
-                    frame.height,
-                    frame.pixels,
-                ))?;
+                let fb = Framebuffer::from_rgba(frame.width, frame.height, frame.pixels);
+                write(&down(fb))?;
             }
         }
         Ok("vello")
@@ -2319,8 +2381,8 @@ fn render_stream(
         }
         for slice in raw_scenes.chunks(chunk) {
             let frames = render_scenes_cpu(&prepare(slice)?, font, extra_fonts);
-            for fb in &frames {
-                write(fb)?;
+            for fb in frames {
+                write(&down(fb))?;
             }
         }
         Ok("cpu")
@@ -2340,8 +2402,11 @@ fn stream_encode_mp4(
     font: FontMode,
     extra_fonts: &[Vec<u8>],
     encoder: EncoderChoice,
+    supersample: u32,
     audio_wav: Option<&Path>,
 ) -> Result<(&'static str, Encoder)> {
+    // ffmpeg receives NATIVE-size frames — render_stream supersamples internally
+    // and downscales each frame back to the composition's native size before piping.
     let comp = &raw_scenes[0].composition;
     let attempt = |enc: Encoder| -> Result<&'static str> {
         use std::io::Write;
@@ -2349,11 +2414,19 @@ fn stream_encode_mp4(
             .spawn()
             .context("failed to launch ffmpeg — is it installed and on PATH?")?;
         let mut stdin = child.stdin.take().context("ffmpeg stdin was unavailable")?;
-        let render = render_stream(raw_scenes, base_dir, backend, font, extra_fonts, |fb| {
-            stdin
-                .write_all(fb.as_bytes())
-                .context("piping frame to ffmpeg")
-        });
+        let render = render_stream(
+            raw_scenes,
+            base_dir,
+            backend,
+            font,
+            extra_fonts,
+            supersample,
+            |fb| {
+                stdin
+                    .write_all(fb.as_bytes())
+                    .context("piping frame to ffmpeg")
+            },
+        );
         drop(stdin); // EOF so ffmpeg finalizes (and unblocks if the render errored)
         let status = child.wait().context("waiting for ffmpeg")?;
         let used = render?; // a render error is the root cause — surface it first
@@ -2390,6 +2463,7 @@ fn stream_frames_to_mp4(
     font: FontMode,
     fonts: &[Vec<u8>],
     encoder: EncoderChoice,
+    supersample: u32,
 ) -> Result<()> {
     let mut raw: Vec<Scene> =
         serde_json::from_str(json).context("frames JSON is not an array of scene graphs")?;
@@ -2424,6 +2498,7 @@ fn stream_frames_to_mp4(
         font,
         fonts,
         encoder,
+        supersample,
         wav.as_deref(),
     );
     if let Some(w) = &wav {
