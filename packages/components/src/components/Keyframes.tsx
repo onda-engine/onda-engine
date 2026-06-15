@@ -85,6 +85,9 @@ function makeBezier([x1, y1, x2, y2]: [number, number, number, number]): (t: num
       const d = dX(t)
       if (Math.abs(dx) < 1e-5 || d === 0) break
       t -= dx / d
+      // Clamp t to [0,1] — Newton can overshoot past the curve for certain handles,
+      // and sampleY() then EXTRAPOLATES the cubic to a wild value (a 1-frame spike).
+      t = t < 0 ? 0 : t > 1 ? 1 : t
     }
     return t
   }
