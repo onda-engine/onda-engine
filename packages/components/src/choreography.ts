@@ -20,16 +20,18 @@ import { DURATION, OVERSHOOT, SPRING_SMOOTH } from './motion.js'
 import { type TimeInput, framesOf } from './time.js'
 
 /** Numeric motion for a scene node. Spread the relevant fields onto a `<Group>`:
- *  `x`/`y` (px translate), `scaleX`/`scaleY` (1 = identity), `opacity` (0..1). */
+ *  `x`/`y` (px translate), `scaleX`/`scaleY` (1 = identity), `opacity` (0..1),
+ *  `rotation` (degrees; optional — only keyframe animation emits it). */
 export type Motion = {
   opacity: number
   x: number
   y: number
   scaleX: number
   scaleY: number
+  rotation?: number
 }
 
-const REST: Motion = { opacity: 1, x: 0, y: 0, scaleX: 1, scaleY: 1 }
+const REST: Motion = { opacity: 1, x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
 

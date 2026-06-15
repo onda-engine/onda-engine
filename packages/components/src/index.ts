@@ -227,6 +227,15 @@ export {
   type ValKey,
   type Ease,
 } from './components/Keyframes.js'
+// Shared keyframe sampler — consumed by the cinema EXPORT choreography + the
+// Studio preview so both interpolate identically (no twin to drift).
+export {
+  sampleKeyframes,
+  sampleTrack,
+  hasKeyframeTracks,
+  type KeyframeTracks,
+  type SampledKeyframes,
+} from './keyframes-sampler.js'
 export {
   KineticText,
   type KineticTextPreset,
