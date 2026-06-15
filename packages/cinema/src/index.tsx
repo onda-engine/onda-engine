@@ -6,7 +6,7 @@
 //! (the engine transform), not CSS.
 
 import * as Components from '@onda/components'
-import type { Motion, Theme } from '@onda/components'
+import type { KeyframeTracks, Motion, Theme } from '@onda/components'
 import {
   AbsoluteFill,
   Camera,
@@ -100,6 +100,14 @@ type PatternFn = (frame: number, fps: number, p: Record<string, unknown>, dur: n
 /** Choreography by name — calls the `@onda/components` pattern (returns scene
  *  `Motion`). Mirrors Studio's `CHOREOGRAPHY` map but on the engine model. */
 const CHOREOGRAPHY: Record<string, PatternFn> = {
+  // Direct-manipulation keyframe animation (the Studio editor). Shares the sampler
+  // with the Keyframes component + Studio preview, so interpolation is identical.
+  // Position is an OFFSET from placement (additive); opacity/scale absolute;
+  // rotation in degrees.
+  keyframes: (frame, _fps, p) => {
+    const k = Components.sampleKeyframes(p as KeyframeTracks, frame)
+    return { opacity: k.opacity, x: k.x, y: k.y, scaleX: k.scale, scaleY: k.scale, rotation: k.rotation }
+  },
   entryFade: (frame, fps, p) =>
     Components.entryFade({
       frame,
@@ -192,6 +200,7 @@ function composeMotion(
       y: m.y + r.y,
       scaleX: m.scaleX * r.scaleX,
       scaleY: m.scaleY * r.scaleY,
+      rotation: (m.rotation ?? 0) + (r.rotation ?? 0),
     }
   }
   return m
@@ -382,7 +391,7 @@ function AnimatedEntry({
       { x: cx, y: cy },
       createElement(
         Group,
-        { scaleX: m.scaleX, scaleY: m.scaleY },
+        { scaleX: m.scaleX, scaleY: m.scaleY, rotation: m.rotation },
         createElement(Group, { x: -cx, y: -cy }, child),
       ),
     ),
