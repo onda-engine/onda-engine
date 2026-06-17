@@ -25,6 +25,10 @@ pnpm --filter benchmark bench:onda 120 40
 
 ## Result (Apple M4 Pro, 1920×1080, 120 frames; one warm-up, ~run-to-run variance)
 
+**Versions measured:** Remotion 4.0.470 vs ONDA 0.1.0 (this repository), June 2026,
+libx264 encoding on both engines where encoding applies. Re-run the commands above
+to reproduce on current versions — results vary by scene, hardware and configuration.
+
 **Trivial scene — 1 cluster (6 nodes).** Remotion's best case.
 
 | Backend                            |    fps | ms/frame |

@@ -114,27 +114,32 @@ const year = new Date().getFullYear()
         <span id="top"></span>
 
         <!-- ============ HERO (the hook) ============ -->
-        <section class="hero" aria-labelledby="hero-title">
-          <div class="hero__bg" data-parallax="0.18" aria-hidden="true">
-            <div class="hero__wash"></div>
+        {/* Full-bleed film hero. The backdrop is a 24s seamless-loop composition
+            (apps/site/scripts/engine-hero.comp.mjs) rendered natively by THIS
+            engine — textless by design, so this HTML supplies the words. The
+            copy is deliberately minimal: headline, one sentence, two paths in. */}
+        <section class="hero hero--film" aria-labelledby="hero-title">
+          <div class="hero__film" aria-hidden="true">
+            <video
+              class="hero__film-video"
+              src="/hero-film.mp4"
+              poster="/hero-film-poster.jpg"
+              autoplay
+              loop
+              muted
+              playsinline
+            ></video>
+            <span class="hero__film-scrim"></span>
           </div>
-          <div class="container hero__inner">
-            <div class="hero__copy hero__lede">
-              <img
-                class="hero__mark"
-                src="/onda-mark-animated.svg"
-                alt="ONDA"
-                width="216"
-                height="54"
-              />
-              <p class="eyebrow">Open source · Rust · GPU-native</p>
+          <div class="container hero__inner hero__inner--film">
+            <div class="hero__copy hero__lede hero__lede--film">
               <h1 id="hero-title" class="hero__title">
                 Motion graphics at <span class="accent-text">GPU speed</span>. No browser.
               </h1>
               <p class="hero__sub">
-                Author compositions in React; render them through a native GPU pipeline —
-                <strong>zero Chromium</strong> anywhere in the loop. The film below is rendered
-                <strong>live, on your GPU</strong>, by the very same engine.
+                Author in React. ONDA compiles your composition to a scene graph and renders it
+                natively on the GPU — <strong>no Chromium, no per-frame screenshots, no browser
+                tax.</strong>
               </p>
               <div class="hero__actions">
                 <a class="btn btn--primary" href="/guide/getting-started">Get started</a>
@@ -145,32 +150,12 @@ const year = new Date().getFullYear()
                   View on GitHub
                 </a>
               </div>
-              <ul class="hero__chips" aria-label="At a glance">
-                <li>No DOM · No Chromium</li>
-                <li>Vello GPU renderer</li>
-                <li>MIT / Apache-2.0</li>
-              </ul>
             </div>
-
-            <figure class="hero__stage" aria-label="An ONDA composition rendered by the engine">
-              <div class="live__frame hero__stage-frame">
-                <video
-                  class="hero__video"
-                  src="/hero.mp4"
-                  poster="/hero-poster.jpg"
-                  autoplay
-                  loop
-                  muted
-                  playsinline
-                  aria-label="ONDA — the wave: a composition rendered by the engine"
-                ></video>
-              </div>
-              <figcaption class="hero__stage-cap">
-                Rendered frame-for-frame by the <code>@onda</code> engine — GPU-native, no browser.
-                <strong>Authored in React. Exported to video.</strong>
-              </figcaption>
-            </figure>
           </div>
+          {/* The honest badge — the whole pitch in one line of chrome. */}
+          <p class="hero__made">
+            this backdrop: rendered by the engine · <code>onda export</code> · no browser
+          </p>
           <a class="hero__scroll" href="#architecture" aria-label="Scroll to read on">
             <span class="hero__scroll-line" aria-hidden="true"></span>
           </a>
@@ -184,9 +169,10 @@ const year = new Date().getFullYear()
               <p class="eyebrow"><span class="eyebrow__tick">01</span> The problem</p>
               <h2 id="arch-title" class="section__title">Every frame renders through a browser</h2>
               <p class="section__lede">
-                Remotion drives each frame through a headless Chromium — DOM, CSS layout, a
-                screenshot and IPC, on <em>every single frame</em>. ONDA compiles your scene to a
-                graph and hands it straight to the GPU. Fewer hops, no DOM, no screenshot pipeline.
+                Remotion drives every frame through headless Chromium: DOM, CSS layout, a
+                screenshot, IPC — whether the frame is six nodes or two hundred. That cost is
+                fixed. It's the <strong>browser tax</strong>, and you pay it per frame, per
+                worker, forever.
               </p>
             </header>
             <div class="arch">
@@ -211,7 +197,7 @@ const year = new Date().getFullYear()
                   <li class="flow__node flow__node--ok">Native GPU renderer</li>
                   <li class="flow__node flow__node--end">Frame &rarr; Video</li>
                 </ol>
-                <p class="arch__note">No browser anywhere. Deterministic, low-memory, high-concurrency per machine.</p>
+                <p class="arch__note">No browser anywhere. Deterministic output — one lean process per machine, no browser pool to babysit.</p>
               </article>
             </div>
           </div>
@@ -225,9 +211,9 @@ const year = new Date().getFullYear()
               <p class="eyebrow"><span class="eyebrow__tick">02</span> The architecture</p>
               <h2 id="features-title" class="section__title">One scene graph, straight to the GPU</h2>
               <p class="section__lede">
-                The renderer is the product; React, JSON and AI are all adapters onto one
-                universal scene graph. Author it like Remotion, finish it like a film, render it
-                natively — no browser to install or babysit.
+                The scene graph is the contract. React, JSON, or an AI agent emit it; one native
+                renderer draws it. Author like Remotion, finish like a film — no browser to
+                install, version-pin, or babysit.
               </p>
             </header>
 
@@ -277,7 +263,7 @@ const year = new Date().getFullYear()
                   <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="12" cy="20" r="2"/><path d="M7 6.5 10 10m4 0 3-3.5M12 15v3"/></svg>
                 </span>
                 <h3 class="feature__title">Universal scene graph</h3>
-                <p class="feature__body">React, JSON or an AI agent all emit the same graph. One runtime renders it — the renderer is the platform, not any single front end.</p>
+                <p class="feature__body">React, JSON or an AI agent all emit the same graph. Your agent emits JSON; ONDA returns deterministic video — no headless browser farm behind your API.</p>
               </li>
               <li class="card feature">
                 <span class="feature__icon" aria-hidden="true">
@@ -344,20 +330,47 @@ const year = new Date().getFullYear()
               </div>
               <div class="stat" role="listitem">
                 <p class="stat__num"><span class="accent-text" data-count="8.5" data-decimals="1" data-suffix="×">8.5×</span></p>
-                <p class="stat__label">per thread, heavy scene</p>
-                <p class="stat__sub">ONDA GPU vs a Remotion worker at 201 nodes — up from 3.8× on a trivial scene</p>
+                <p class="stat__label">per worker, heavy scene</p>
+                <p class="stat__sub">ONDA GPU vs one Remotion worker at 201 nodes — up from 3.8× on a trivial scene</p>
               </div>
               <div class="stat stat--target" role="listitem">
                 <p class="stat__num"><span class="stat__target-num">100×</span> <span class="stat__tag">target</span></p>
                 <p class="stat__label">architectural ceiling</p>
-                <p class="stat__sub">the realized goal on real workloads — complex scenes × GPU present × cold-start × concurrency. Not a single-scene measurement.</p>
+                <p class="stat__sub">where the architecture points — complex scenes × GPU present × cold-start × concurrency. A target we publish, not a number we've measured.</p>
               </div>
             </div>
             <p class="stats__foot">
-              Measured on an Apple M4 Pro at 1080p, 120 frames, with libx264 on both engines — so
-              the win is the no-browser raster, not the encoder. Numbers vary by scene, hardware and
-              config. <a href="/benchmark">Full method &amp; reproduction →</a>
+              Measured on an Apple M4 Pro at 1080p, 120 frames — Remotion 4.0.470 vs ONDA 0.1.0,
+              libx264 on both engines, so the win is the no-browser raster, not the encoder. One
+              single-threaded ONDA process also outpaces Remotion's full multi-worker pool (~1.7×)
+              before ONDA parallelizes anything. Numbers vary by scene, hardware and config.
+              <a href="/benchmark">Full method &amp; reproduction →</a>
             </p>
+          </div>
+        </section>
+
+        <!-- ============ BREADTH MARQUEE ============ -->
+        <section class="breadth" aria-label="What ships in the engine">
+          <p class="breadth__line">
+            <strong>80+ components · 21 transitions · 17 effects</strong> · FFT analysis + a
+            declarative audio synth · 3D layers — every one a node in the same scene graph.
+            <strong>No plugins. No browser.</strong>
+          </p>
+          <div class="breadth__marquee" aria-hidden="true">
+            <div class="breadth__track">
+              <span>Kinetic type</span><i></i><span>Film burn</span><i></i><span>Luma wipe</span><i></i>
+              <span>Whip pan</span><i></i><span>Zoom blur</span><i></i><span>Ken Burns</span><i></i>
+              <span>Mesh gradients</span><i></i><span>Particles</span><i></i><span>Path morph</span><i></i>
+              <span>Film grain</span><i></i><span>Bloom</span><i></i><span>Depth of field</span><i></i>
+              <span>Color grade</span><i></i><span>3D extrude</span><i></i><span>Camera moves</span><i></i>
+              <span>Beat sync</span><i></i><span>Audio synth</span><i></i><span>SVG import</span><i></i>
+              <span>Kinetic type</span><i></i><span>Film burn</span><i></i><span>Luma wipe</span><i></i>
+              <span>Whip pan</span><i></i><span>Zoom blur</span><i></i><span>Ken Burns</span><i></i>
+              <span>Mesh gradients</span><i></i><span>Particles</span><i></i><span>Path morph</span><i></i>
+              <span>Film grain</span><i></i><span>Bloom</span><i></i><span>Depth of field</span><i></i>
+              <span>Color grade</span><i></i><span>3D extrude</span><i></i><span>Camera moves</span><i></i>
+              <span>Beat sync</span><i></i><span>Audio synth</span><i></i><span>SVG import</span><i></i>
+            </div>
           </div>
         </section>
 
@@ -366,7 +379,7 @@ const year = new Date().getFullYear()
           <div class="container creds__inner">
             <ul class="creds__list" role="list">
               <li class="creds__item">
-                <span class="creds__k">MIT / Apache-2.0</span>
+                <span class="creds__k">MIT OR Apache-2.0</span>
                 <span class="creds__v">Permissive, dual-licensed</span>
               </li>
               <li class="creds__item">
@@ -375,7 +388,7 @@ const year = new Date().getFullYear()
               </li>
               <li class="creds__item">
                 <span class="creds__k">Deterministic</span>
-                <span class="creds__v">Byte-identical CPU reference</span>
+                <span class="creds__v">Byte-identical CPU golden frames in CI</span>
               </li>
               <li class="creds__item">
                 <span class="creds__k">Engine-rendered</span>
@@ -396,17 +409,20 @@ const year = new Date().getFullYear()
           <div class="container">
             <div class="studio__card">
               <div class="studio__copy">
-                <p class="eyebrow studio__eyebrow">ONDA Studio · the AI director</p>
+                <p class="eyebrow studio__eyebrow">ONDA Studio · built on this engine</p>
                 <h2 id="studio-title" class="section__title studio__title">
-                  Don't build it. <span class="accent-text">Direct it.</span>
+                  You've met the engine. <span class="accent-text">Meet its director.</span>
                 </h2>
                 <p class="section__lede studio__lede">
-                  Describe the video. Studio directs the engine and ships it —
-                  <strong>broadcast-ready, the first time.</strong>
+                  Studio is the hosted AI director on top of the open engine: describe the film,
+                  and it authors the composition, the cut, the grade, and the score — then renders
+                  it through <strong>the exact pipeline on this page</strong>. Same scene graph,
+                  same deterministic frames. The engine stays free and open source; Studio is for
+                  the days you'd rather direct than build.
                 </p>
                 <div class="studio__actions">
-                  <a class="btn btn--studio" href={STUDIO_URL} rel="noopener">Start with Studio →</a>
-                  <span class="studio__note">Engine: free &amp; open source. Studio: the hosted director on top.</span>
+                  <a class="btn btn--studio" href={STUDIO_URL} rel="noopener">Direct your first film →</a>
+                  <span class="studio__note">Engine: open source, forever. Studio: hosted, on top.</span>
                 </div>
               </div>
 
@@ -434,7 +450,10 @@ const year = new Date().getFullYear()
         <section class="cta" aria-labelledby="cta-title">
           <div class="container cta__inner">
             <h2 id="cta-title" class="cta__title">Render your first frame without a browser</h2>
-            <p class="cta__sub">Clone the repo, write a composition, ship a video. It's all open source.</p>
+            <p class="cta__sub">
+              <code>cargo</code> + <code>pnpm</code> and you're rendering in minutes. Clone,
+              compose, export — all open source.
+            </p>
             <a class="btn btn--primary btn--lg" href="/guide/getting-started">Get started</a>
           </div>
         </section>
@@ -473,27 +492,26 @@ const year = new Date().getFullYear()
         </div>
         <div class="container footer__legal">
           <p>
-            ONDA Engine is an independent, open-source project — not affiliated with, endorsed by,
-            or sponsored by Remotion GmbH or Adobe Inc. “Remotion” is a trademark of Remotion GmbH.
-            “Adobe” and “After Effects” are trademarks of Adobe Inc. All other product names and
-            logos are the property of their respective owners and are used here for identification
-            and comparison only, which does not imply any affiliation or endorsement. Benchmark
-            figures reflect the configurations and hardware described in the
-            <a href={BENCH} rel="noopener">benchmark methodology</a>; results vary by scene,
-            hardware and configuration.
+            ONDA Engine is an independent open-source project. It is not affiliated with, endorsed
+            by, or sponsored by Remotion GmbH or Adobe Inc. “Remotion” is a trademark of Remotion
+            GmbH; “Adobe” and “After Effects” are trademarks of Adobe Inc. Third-party names are
+            used for identification and comparison only. Performance comparisons are based on our
+            published, reproducible <a href={BENCH} rel="noopener">benchmark methodology</a>
+            (Apple M4 Pro, 1080p, 120 frames, libx264 on both engines; Remotion 4.0.470, ONDA
+            0.1.0, measured June 2026); results vary by scene, hardware, and configuration. The
+            100× figure is an architectural target, not a measured result.
           </p>
         </div>
       </footer>
     </div>
 
     <script>
-      // Motion (motion.dev — the framework-agnostic engine behind Framer Motion):
-      // a tasteful entrance + scroll-reveal pass, scroll-linked parallax, a read
-      // progress rail and animated stat count-ups. Plus sticky-nav shadow and the
-      // code-card copy buttons. Honors prefers-reduced-motion (skips all motion).
-      import { animate, inView, stagger, scroll } from 'motion'
+      // CRITICAL UI — this module must stay dependency-free. The nav toggle
+      // and film etiquette live here so they work even when the heavier
+      // motion module below is slow to load (cold vite prebundle) or killed
+      // (extensions/blockers). Same lesson as the hero's CSS entrance.
 
-      // Sticky nav: hairline + tint once scrolled.
+      // Sticky nav: hairline + tint once scrolled, and the mobile menu toggle.
       const nav = document.getElementById('site-nav')
       if (nav) {
         const onScroll = () => nav.classList.toggle('is-scrolled', window.scrollY > 8)
@@ -510,12 +528,44 @@ const year = new Date().getFullYear()
             toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu')
           }
           toggle.addEventListener('click', () => setOpen(!nav.classList.contains('is-open')))
-          for (const a of navLinks.querySelectorAll('a')) a.addEventListener('click', () => setOpen(false))
+          for (const a of navLinks.querySelectorAll('a'))
+            a.addEventListener('click', () => setOpen(false))
           document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') setOpen(false)
           })
         }
       }
+
+      // Hero film etiquette: respect reduced motion (hold the poster), and
+      // don't burn decode cycles while the hero is scrolled away.
+      const film = document.querySelector('.hero__film-video')
+      if (film instanceof HTMLVideoElement) {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          film.removeAttribute('autoplay')
+          film.pause()
+        } else if ('IntersectionObserver' in window) {
+          const io = new IntersectionObserver(
+            (entries) => {
+              for (const e of entries) {
+                if (e.isIntersecting) film.play().catch(() => {})
+                else film.pause()
+              }
+            },
+            { rootMargin: '120px 0px' },
+          )
+          io.observe(film)
+        }
+      }
+    </script>
+    <script>
+      // Motion (motion.dev — the framework-agnostic engine behind Framer Motion):
+      // a tasteful entrance + scroll-reveal pass, scroll-linked parallax, a read
+      // progress rail and animated stat count-ups. Plus sticky-nav shadow and the
+      // code-card copy buttons. Honors prefers-reduced-motion (skips all motion).
+      import { animate, inView, stagger, scroll } from 'motion'
+
+      // (Nav + mobile menu live in the dependency-free script above — critical
+      // UI must not wait on this module's 'motion' import.)
 
       // Copy-to-clipboard on code cards.
       for (const btn of document.querySelectorAll('.code-card__copy')) {
@@ -550,23 +600,8 @@ const year = new Date().getFullYear()
           for (const el of els) el.style.opacity = '0'
         }
 
-        // Hero entrance: stagger the copy, slide the stage in.
-        const heroEls = Array.from(document.querySelectorAll('.hero__copy > *'))
-        hide(heroEls)
-        animate(
-          heroEls,
-          { opacity: [0, 1], y: [16, 0] },
-          { delay: stagger(0.07), duration: 0.6, ease: EASE },
-        )
-        const stage = document.querySelector('.hero__stage')
-        if (stage) {
-          stage.style.opacity = '0'
-          animate(
-            stage,
-            { opacity: [0, 1], y: [24, 0], scale: [0.985, 1] },
-            { duration: 0.8, delay: 0.22, ease: EASE },
-          )
-        }
+        // (Hero entrance is pure CSS — see the hero-rise/hero-stage-in
+        // keyframes. Above-the-fold copy must never wait on this module.)
 
         // Scroll-linked parallax: drift any [data-parallax] element as its
         // section crosses the viewport. Subtle (transform-only, GPU-friendly) —
@@ -1791,11 +1826,53 @@ const year = new Date().getFullYear()
         color: var(--text-muted);
       }
 
-      /* Pre-hide the above-the-fold hero before paint (the head inline script
-         adds html.anim only when motion is allowed) so its entrance can't flash. */
-      :global(html.anim) .hero__copy > *,
+      /* Hero entrance — pure CSS, deliberately NOT script-driven. The motion
+         module can take seconds on a cold dev cache (vite prebundle) and can
+         be killed by extensions/blockers; above-the-fold copy must never wait
+         on it. html.anim is set pre-paint by the inline head script (skipped
+         under reduced motion), so: no flash, instant start, JS-proof. */
+      :global(html.anim) .hero__copy > * {
+        opacity: 0;
+        animation: hero-rise 0.6s var(--ease) forwards;
+      }
+      :global(html.anim) .hero__copy > *:nth-child(2) {
+        animation-delay: 0.07s;
+      }
+      :global(html.anim) .hero__copy > *:nth-child(3) {
+        animation-delay: 0.14s;
+      }
+      :global(html.anim) .hero__copy > *:nth-child(4) {
+        animation-delay: 0.21s;
+      }
+      :global(html.anim) .hero__copy > *:nth-child(5) {
+        animation-delay: 0.28s;
+      }
+      :global(html.anim) .hero__copy > *:nth-child(6) {
+        animation-delay: 0.35s;
+      }
       :global(html.anim) .hero__stage {
         opacity: 0;
+        animation: hero-stage-in 0.8s var(--ease) 0.25s forwards;
+      }
+      @keyframes hero-rise {
+        from {
+          opacity: 0;
+          transform: translateY(16px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes hero-stage-in {
+        from {
+          opacity: 0;
+          transform: translateY(24px) scale(0.985);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
       }
 
       /* ===================== Lights & effects =====================
@@ -2230,6 +2307,345 @@ const year = new Date().getFullYear()
       @media (max-width: 900px) {
         .studio__card {
           grid-template-columns: 1fr;
+        }
+      }
+
+      /* ===================================================================
+         Design system v2 — the Studio-landing language, rose-skinned for the
+         engine: wave horizon, keyline cards, aurora headlines, breadth
+         marquee, horizon finale. Appended last so overrides win in-order.
+         =================================================================== */
+
+      /* --- Full-bleed film hero. The film (engine-hero.comp.mjs, rendered by
+             this engine) is the backdrop; the copy floats centered over its
+             calm upper field. One viewport, three elements, one honest badge. --- */
+      .hero--film {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        /* svh: stable under mobile URL-bar collapse; nav is sticky (3.5rem). */
+        min-height: calc(100svh - 3.6rem);
+        padding-block: var(--s-16);
+      }
+      .hero__film {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .hero__film-video {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      /* Text-safety scrim: gentle left-center darkening + a bottom fade into
+         the page background so the next section connects seamlessly. */
+      .hero__film-scrim {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(58% 52% at 50% 38%, rgba(5, 4, 10, 0.5) 0%, transparent 100%),
+          linear-gradient(180deg, rgba(14, 14, 18, 0.5) 0%, transparent 22%),
+          linear-gradient(0deg, var(--bg) 0%, rgba(14, 14, 18, 0.5) 9%, transparent 26%);
+      }
+      .hero__inner--film {
+        flex: none;
+      }
+      .hero__lede--film {
+        max-width: 980px;
+      }
+      .hero--film .hero__title {
+        font-size: clamp(3rem, 6.6vw, 6.5rem);
+        text-shadow: 0 2px 40px rgba(5, 4, 10, 0.55);
+      }
+      .hero--film .hero__sub {
+        font-size: var(--fs-md);
+        max-width: 58ch;
+        text-shadow: 0 1px 18px rgba(5, 4, 10, 0.7);
+      }
+      .hero--film .hero__actions {
+        margin-bottom: 0;
+      }
+      /* The honest badge — bottom-left chrome, the page's best one-liner. */
+      .hero__made {
+        position: absolute;
+        left: max(var(--s-8), env(safe-area-inset-left));
+        bottom: var(--s-6);
+        z-index: 1;
+        margin: 0;
+        font-family: var(--font-code);
+        font-size: 0.72rem;
+        letter-spacing: 0.05em;
+        color: var(--text-dim);
+      }
+      .hero__made code {
+        color: var(--text-muted);
+        font-size: inherit;
+      }
+      /* Reduced motion (html.anim absent): hold the poster frame. */
+      html:not(.anim) .hero__film-video {
+        display: none;
+      }
+      html:not(.anim) .hero__film {
+        background: url('/hero-film-poster.jpg') center / cover no-repeat;
+      }
+
+      /* --- Aurora headline accents (white → rose; Studio block goes violet) --- */
+      .hero__title .accent-text,
+      .section__title .accent-text {
+        background-image: linear-gradient(135deg, #f2f2f4 12%, #e89aab 52%, #d96b82 90%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .studio .section__title .accent-text {
+        background-image: linear-gradient(135deg, #f2f2f4 12%, #c4a6ff 52%, #9a52f5 90%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      /* --- Keyline cards: hairline + a rose light-strip along the top edge --- */
+      .card,
+      .proof-card,
+      .stat,
+      .code-card,
+      .studio__card {
+        position: relative;
+      }
+      .card::after,
+      .proof-card::after,
+      .stat:not(.stat--target)::after,
+      .code-card::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 12%;
+        right: 12%;
+        height: 1px;
+        pointer-events: none;
+        background: linear-gradient(90deg, transparent, rgba(217, 107, 130, 0.45), transparent);
+      }
+      .studio__card::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 12%;
+        right: 12%;
+        height: 1px;
+        pointer-events: none;
+        background: linear-gradient(90deg, transparent, rgba(176, 108, 255, 0.55), transparent);
+      }
+
+      /* --- Hero product window (chrome around the engine-rendered film) --- */
+      .hero__window {
+        position: relative;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 18px;
+        overflow: hidden;
+        background: var(--surface);
+        box-shadow:
+          0 40px 140px -40px rgba(217, 107, 130, 0.45),
+          0 30px 80px -30px rgba(0, 0, 0, 0.8);
+      }
+      .hero__window::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 12%;
+        right: 12%;
+        height: 1px;
+        pointer-events: none;
+        background: linear-gradient(90deg, transparent, rgba(232, 154, 171, 0.6), transparent);
+      }
+      .hero__window-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--s-4);
+        padding: 10px 16px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(24, 24, 29, 0.7);
+      }
+      .hero__window-dots {
+        display: inline-flex;
+        gap: 6px;
+      }
+      .hero__window-dots i {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .hero__window-file {
+        font-family: var(--font-code);
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+        color: var(--text-dim);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .hero__window-badge {
+        font-family: var(--font-code);
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        white-space: nowrap;
+      }
+      .hero__window .live__frame,
+      .hero__window .hero__stage-frame {
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      /* --- Breadth marquee --- */
+      .breadth {
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba(18, 18, 23, 0.4);
+        padding-block: var(--s-12);
+        overflow: hidden;
+      }
+      .breadth__line {
+        margin: 0 auto var(--s-8);
+        padding-inline: var(--s-6);
+        max-width: 880px;
+        text-align: center;
+        font-family: var(--font-code);
+        font-size: var(--fs-sm);
+        color: var(--text-muted);
+      }
+      .breadth__line strong {
+        color: var(--text);
+      }
+      .breadth__marquee {
+        -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+        mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+      }
+      .breadth__track {
+        display: flex;
+        align-items: center;
+        gap: var(--s-8);
+        width: max-content;
+        animation: breadth-scroll 56s linear infinite;
+      }
+      .breadth__track span {
+        font-family: var(--font-head);
+        font-weight: 500;
+        font-size: var(--fs-2xl);
+        letter-spacing: -0.02em;
+        color: var(--text-dim);
+        white-space: nowrap;
+      }
+      .breadth__track i {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: rgba(217, 107, 130, 0.5);
+        flex: none;
+      }
+      @keyframes breadth-scroll {
+        from {
+          transform: translateX(0);
+        }
+        to {
+          transform: translateX(-50%);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .breadth__track {
+          animation: none;
+        }
+      }
+
+      /* --- Horizon finale under the CTA --- */
+      .cta {
+        position: relative;
+        overflow: hidden;
+      }
+      .cta::before {
+        content: '';
+        position: absolute;
+        inset: auto 0 0;
+        height: 46vh;
+        pointer-events: none;
+        background:
+          radial-gradient(50% 100% at 50% 100%, rgba(217, 107, 130, 0.26) 0%, transparent 70%),
+          radial-gradient(34% 64% at 50% 100%, rgba(232, 154, 171, 0.22) 0%, transparent 72%);
+      }
+      .cta::after {
+        content: '';
+        position: absolute;
+        left: 6%;
+        right: 6%;
+        bottom: 0;
+        height: 1px;
+        pointer-events: none;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(232, 154, 171, 0.7) 38%,
+          #f0c2cc 50%,
+          rgba(232, 154, 171, 0.7) 62%,
+          transparent
+        );
+      }
+      .cta__inner {
+        position: relative;
+        z-index: 1;
+      }
+
+      /* --- Faint blueprint grid behind the proof chapter --- */
+      .section--alt {
+        position: relative;
+      }
+      .section--alt::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        background-size: 56px 56px;
+        -webkit-mask-image: radial-gradient(70% 60% at 50% 35%, #000, transparent);
+        mask-image: radial-gradient(70% 60% at 50% 35%, #000, transparent);
+      }
+      .section--alt > * {
+        position: relative;
+      }
+
+      @media (max-width: 768px) {
+        .hero__window-badge {
+          display: none;
+        }
+        .breadth__track span {
+          font-size: var(--fs-xl);
+        }
+        /* Phones: the copy stack reaches deeper into the wave — extend the
+           calm zone so chips/buttons don't sit on bright mesh lines. */
+        .hero__wave-scrim--top {
+          height: 52%;
+        }
+      }
+
+      /* --- Film-hero copy rhythm --- */
+      .hero--film .hero__title {
+        margin-bottom: var(--s-6);
+      }
+      .hero--film .hero__sub {
+        margin-bottom: var(--s-8);
+      }
+      @media (max-width: 768px) {
+        .hero__made {
+          position: static;
+          margin-top: var(--s-8);
+          padding-inline: var(--s-6);
+          text-align: center;
         }
       }
     </style>
