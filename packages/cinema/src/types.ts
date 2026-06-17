@@ -140,6 +140,18 @@ export interface Scene {
   tracks: Track[]
   /** A cinematic camera move over this scene. */
   camera?: CameraMove
+  /** The canvas this scene's content was AUTHORED for. When it differs from the
+   *  composition canvas, the renderer uniformly scales + centers the scene's
+   *  content to `fit` the output (e.g. a 4:3 template scene into a 16:9 video). */
+  designWidth?: number
+  designHeight?: number
+  /** How to re-frame the design canvas into the output:
+   *  - `contain` — uniformly scale + center, letterbox.
+   *  - `cover` — uniformly scale + center, fill + crop.
+   *  - `responsive` — "Magic Resize": re-anchor each element individually (pin to
+   *    edge / center per axis, size scaled uniformly) so one master adapts to any
+   *    aspect ratio without per-format variants. */
+  fit?: 'contain' | 'cover' | 'responsive'
 }
 
 /** A composition-level layer entry — absolute-timed, spans scene cuts. */

@@ -49,7 +49,7 @@ import {
   zoom,
   zoomBlur,
 } from '@onda/react'
-import { type ComponentType, type ReactElement, createElement } from 'react'
+import { type ComponentType, type ReactElement, cloneElement, createElement } from 'react'
 import { PROP_ALIASES, SELF_ANCHORING, adaptProps, placementOffset } from './props.js'
 import {
   sceneDurationFrames,
@@ -106,7 +106,14 @@ const CHOREOGRAPHY: Record<string, PatternFn> = {
   // rotation in degrees.
   keyframes: (frame, _fps, p) => {
     const k = Components.sampleKeyframes(p as KeyframeTracks, frame)
-    return { opacity: k.opacity, x: k.x, y: k.y, scaleX: k.scale, scaleY: k.scale, rotation: k.rotation }
+    return {
+      opacity: k.opacity,
+      x: k.x,
+      y: k.y,
+      scaleX: k.scale,
+      scaleY: k.scale,
+      rotation: k.rotation,
+    }
   },
   entryFade: (frame, fps, p) =>
     Components.entryFade({
@@ -492,11 +499,14 @@ function SceneTracks({
   scene,
   registry,
   suppress,
+  responsive,
 }: {
   scene: Scene
   registry: Registry
   /** entry → its magic-move suppression window (entry-local frames). */
   suppress?: Map<Entry, MorphSuppress>
+  /** `fit:"responsive"` re-frame context — re-anchor each entry to the output. */
+  responsive?: { design: Components.Box; out: Components.Box }
 }): ReactElement {
   return createElement(
     Group,
@@ -505,14 +515,23 @@ function SceneTracks({
       createElement(
         Group,
         { key: track.id ?? `track-${ti}` },
-        ...track.entries.map((entry, ei) =>
-          createElement(EntrySlot, {
-            key: entry.id ?? `entry-${ei}`,
-            entry,
-            registry,
-            suppress: suppress?.get(entry),
-          }),
-        ),
+        ...track.entries.map((entry, ei) => {
+          const key = entry.id ?? `entry-${ei}`
+          const slot = createElement(EntrySlot, { entry, registry, suppress: suppress?.get(entry) })
+          if (!responsive) return cloneElement(slot, { key })
+          // Magic Resize: pin this element's design anchor onto the output canvas.
+          const t = Components.responsiveEntryTransform(
+            Components.entryDesignAnchor(entry.props),
+            responsive.design,
+            responsive.out,
+          )
+          if (t.x === 0 && t.y === 0 && t.scale === 1) return cloneElement(slot, { key })
+          return createElement(
+            Group,
+            { key, x: t.x, y: t.y, scaleX: t.scale, scaleY: t.scale },
+            slot,
+          )
+        }),
       ),
     ),
   )
@@ -719,6 +738,39 @@ function brandToTheme(brand: Brand): Partial<Theme> {
  * Build an `@onda/react` `<Composition>` from a timeline payload. Pass the
  * result to `@onda/render`'s `renderToFile` (export) or `<Player>` (preview).
  */
+/** Scene-level FIT — when a scene declares the canvas its content was AUTHORED for
+ *  (designWidth/designHeight) and it differs from the output, uniformly scale +
+ *  center the scene's content to `fit` the output canvas (`contain` = letterbox,
+ *  `cover` = fill + crop). Lets a 4:3 template scene drop into a 16:9 video with no
+ *  per-element re-layout. No-op when the fields are absent or already match. */
+function fitGroup(scene: Scene, width: number, height: number, child: ReactElement): ReactElement {
+  const dw = scene.designWidth
+  const dh = scene.designHeight
+  const fit = scene.fit
+  // `responsive` re-frames each element individually (see SceneTracks) — no uniform
+  // scale here. cover/contain stay a single Group around the whole scene.
+  if (!dw || !dh || !fit || fit === 'responsive' || (dw === width && dh === height)) return child
+  const scale =
+    fit === 'contain' ? Math.min(width / dw, height / dh) : Math.max(width / dw, height / dh)
+  const x = (width - dw * scale) / 2
+  const y = (height - dh * scale) / 2
+  return createElement(Group, { x, y, scaleX: scale, scaleY: scale }, child)
+}
+
+/** When a scene opts into `fit:"responsive"` and the output differs from its design
+ *  canvas, the per-element re-frame context SceneTracks needs; else `undefined`
+ *  (cover/contain/no-fit all skip per-element handling). */
+function sceneResponsive(
+  scene: Scene,
+  width: number,
+  height: number,
+): { design: Components.Box; out: Components.Box } | undefined {
+  const dw = scene.designWidth
+  const dh = scene.designHeight
+  if (scene.fit !== 'responsive' || !dw || !dh || (dw === width && dh === height)) return undefined
+  return { design: { width: dw, height: dh }, out: { width, height } }
+}
+
 export function buildComposition(
   payload: CompositionPayload,
   opts: BuildOptions = {},
@@ -762,6 +814,7 @@ export function buildComposition(
       )
     }
     const sceneSuppress = morphPlan.suppress.get(i)
+    const responsive = sceneResponsive(scene, width, height)
     seriesChildren.push(
       createElement(
         TransitionSeries.Sequence,
@@ -771,9 +824,24 @@ export function buildComposition(
               move: scene.camera,
               durationInFrames: sceneDur[i] ?? sceneDurationFrames(scene, fps),
               // biome-ignore lint/correctness/noChildrenProp: raw createElement props object, not JSX
-              children: createElement(SceneTracks, { scene, registry, suppress: sceneSuppress }),
+              children: fitGroup(
+                scene,
+                width,
+                height,
+                createElement(SceneTracks, {
+                  scene,
+                  registry,
+                  suppress: sceneSuppress,
+                  responsive,
+                }),
+              ),
             })
-          : createElement(SceneTracks, { scene, registry, suppress: sceneSuppress }),
+          : fitGroup(
+              scene,
+              width,
+              height,
+              createElement(SceneTracks, { scene, registry, suppress: sceneSuppress, responsive }),
+            ),
       ),
     )
   })
