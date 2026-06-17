@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 440" width="1200" height="440" fill="none" role="img" aria-label="ONDA Engine — a GPU-native, browser-free motion-graphics engine in Rust">
+  <defs>
+    <!-- The ONE accent: muted rose, drifting on a 7s loop. GitHub's SVG renderer
+         plays SMIL, so the mark subtly shimmers inline in the README. -->
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1200" y2="0">
+      <stop offset="0%" stop-color="#e89aac"/>
+      <stop offset="50%" stop-color="#d96b82"/>
+      <stop offset="100%" stop-color="#e89aac"/>
+      <animate attributeName="x1" values="0;-220;0" dur="7s" repeatCount="indefinite"/>
+      <animate attributeName="x2" values="1200;1420;1200" dur="7s" repeatCount="indefinite"/>
+    </linearGradient>
+    <!-- a single faint rose radial on the hero stage (onda.video signature) -->
+    <radialGradient id="tint" cx="80%" cy="14%" r="62%">
+      <stop offset="0%" stop-color="#d96b82" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#d96b82" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- dark canvas (baked in → identical on GitHub light & dark themes) -->
+  <rect width="1200" height="440" fill="#0e0e12"/>
+  <rect width="1200" height="440" fill="url(#tint)"/>
+  <rect x="0" y="0" width="1200" height="1" fill="#26262c"/>
+  <rect x="0" y="439" width="1200" height="1" fill="#26262c"/>
+
+  <!-- the wave mark ("onda" = wave) — three layered strokes -->
+  <g transform="translate(509,72) scale(3.8)" stroke="url(#wave)" stroke-width="3.6" stroke-linecap="round" fill="none">
+    <path d="M5 17 q6.5 -9 13 0 t13 0 t13 0"/>
+    <path d="M5 24 q6.5 -9 13 0 t13 0 t13 0" opacity="0.85"/>
+    <path d="M5 31 q6.5 -9 13 0 t13 0 t13 0" opacity="0.7"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="600" y="298" text-anchor="middle"
+        font-family="'Space Grotesk','Segoe UI',system-ui,-apple-system,Helvetica,Arial,sans-serif"
+        font-size="64" font-weight="700" letter-spacing="7" fill="#f2f2f4">ONDA ENGINE</text>
+
+  <!-- tagline -->
+  <text x="600" y="346" text-anchor="middle"
+        font-family="'Space Grotesk','Segoe UI',system-ui,-apple-system,Helvetica,Arial,sans-serif"
+        font-size="23" font-weight="400" fill="#a9a9b2">Motion graphics at GPU speed.&#8194;No browser.</text>
+
+  <!-- mono eyebrow -->
+  <text x="600" y="397" text-anchor="middle"
+        font-family="'JetBrains Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace"
+        font-size="13" font-weight="500" letter-spacing="5" fill="#d96b82">GPU-NATIVE&#8197;·&#8197;BROWSER-FREE&#8197;·&#8197;RUST + WASM</text>
+</svg>
