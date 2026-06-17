@@ -20,7 +20,7 @@
 
 ONDA turns a **React composition** into a renderer-agnostic **scene graph**, then rasterizes it with a native GPU renderer ([Vello](https://github.com/linebender/vello)) — or a deterministic CPU reference renderer, or a WASM path for live in-browser preview. The scene graph is the universal language; the renderer is the platform.
 
-It's the engine behind **[Onda Studio](https://onda.video)** — an AI motion-graphics studio ("Lovable for video") — but it stands on its own as a programmatic-video toolkit.
+It's the engine behind **[Onda Studio](https://studio.onda.video)** — an AI motion-graphics studio ("Lovable for video") — but it stands on its own as a programmatic-video toolkit.
 
 > [!NOTE]
 > **Pre-1.0.** APIs are unstable and packages are unpublished. The Rust + WASM core is solid (it powers a production studio), but expect breaking changes. ⭐ Star to follow along — the website lands at **[onda.video](https://onda.video)**.
