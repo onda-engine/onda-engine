@@ -12,4 +12,4 @@ export { loadFont, preloadTextMetrics } from './packages/components/dist/index.j
 // MANIFEST — consumed by embedding apps (ONDA Studio's occlusion gate + the agent
 // vocabulary) so they don't need the source packages at runtime.
 export { isPlacement, measureText, resolvePlacement } from './packages/components/dist/index.js'
-export { MANIFEST } from './packages/components/dist/manifest.js'
+export { CAPABILITIES, MANIFEST } from './packages/components/dist/manifest.js'
