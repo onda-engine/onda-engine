@@ -161,3 +161,59 @@ export function loadFont(data: Uint8Array): Promise<string[]>
  *  Call before building/rendering so text measurement uses real shaped metrics
  *  instead of the glyph-count estimate. Idempotent. */
 export function preloadTextMetrics(): Promise<void>
+
+/** A `placement` value — a region keyword (e.g. 'center', 'top-left',
+ *  'lower-third') or a normalized 0..1 canvas point anchored at the element center. */
+export type Placement = string | { x?: number; y?: number }
+
+/** Shaped text metrics (real metrics when the wasm engine is loaded, else an
+ *  estimate). Width/height in px; extra per-engine fields may be present. */
+export function measureText(
+  content: string,
+  fontSize: number,
+  opts?: { fontFamily?: string; fontWeight?: number; italic?: boolean; letterSpacing?: number },
+): { width: number; height: number } & Record<string, unknown>
+
+/** Narrowing helper: is this value a placement region/point at all? */
+export function isPlacement(value: unknown): value is Placement
+
+/** Resolve a `placement` to canvas px (pure). Edge/corner regions sit flush on
+ *  the safe margin when `element` size is known; `{x,y}` points are center-anchored. */
+export function resolvePlacement(
+  placement: Placement | undefined,
+  frame: { width: number; height: number },
+  element?: { width?: number; height?: number },
+): { x: number; y: number; originX: number; originY: number; dx: number; dy: number }
+
+/** One prop on a component, schema-derived (name, kind, role, constraints). */
+export interface PropMeta {
+  name: string
+  type: string
+  role: string
+  required: boolean
+  themeable: boolean
+  description: string
+  enumValues?: string[]
+  default?: string
+  min?: number
+  max?: number
+  unit?: string
+}
+
+/** One component-catalog entry: identity + curation + capability + prop schema.
+ *  (A subset of the full shape; extra fields may be present.) */
+export interface ManifestEntry {
+  slug: string
+  name: string
+  category: string
+  title: string
+  description: string
+  sceneRole: string
+  occlusion: string
+  props?: PropMeta[]
+  [key: string]: unknown
+}
+
+/** The component manifest — the agent's vocabulary (names + prop schemas +
+ *  fidelity/occlusion classes). Imported from `@onda/components/manifest`. */
+export const MANIFEST: ManifestEntry[]

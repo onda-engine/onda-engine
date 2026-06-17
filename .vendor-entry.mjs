@@ -8,3 +8,8 @@ export { registerFont, renderFrameRangeJSON } from './packages/react/dist/index.
 // font for centering) AND registers the bytes for the renderer — registerFont
 // alone only does the latter, leaving measureText on the fallback font.
 export { loadFont, preloadTextMetrics } from './packages/components/dist/index.js'
+// Author-time layout primitives (text measurement + placement) and the component
+// MANIFEST — consumed by embedding apps (ONDA Studio's occlusion gate + the agent
+// vocabulary) so they don't need the source packages at runtime.
+export { isPlacement, measureText, resolvePlacement } from './packages/components/dist/index.js'
+export { MANIFEST } from './packages/components/dist/manifest.js'
