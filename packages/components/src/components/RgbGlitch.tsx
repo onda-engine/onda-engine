@@ -27,14 +27,17 @@
 //! offset x accordingly. The three copies share that base x/y so they stack, and
 //! the whole effect is wrapped in a single `<Group>` so it composes as one node.
 //!
-//! letter-spacing (ondajs `-0.02em`) has no scene-graph equivalent and is dropped.
+//! Tracking: the shared `letterSpacing` knob now rides the scene `<Text>` (the
+//! ondajs original tightened by `-0.02em`); the measured width is tracking-aware
+//! so the three copies stay aligned.
 
 import { Group, Text, random, useCurrentFrame, useVideoConfig, variantSeed } from '@onda/react'
 import { useTextMetrics } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
-export interface RgbGlitchProps {
+export interface RgbGlitchProps extends TextStyleProps {
   /** The text to glitch. */
   text?: string
   /** Frames before the effect starts. */
@@ -53,8 +56,6 @@ export interface RgbGlitchProps {
    *  variant), so alternates never require hand-edited magic seeds. 0/omitted
    *  = the default take (identical to today's output). */
   variant?: number
-  /** Base (center) text color (default: theme `text`). */
-  color?: string
   /** Red-channel copy color (default: theme `accent`). */
   redColor?: string
   /** Cyan-channel copy color (default: theme `palette[1]`). */
@@ -64,12 +65,6 @@ export interface RgbGlitchProps {
   channelOpacity?: number
   /** Font size in px. */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
-  fontFamily?: string
-  /** Font weight (default 600). */
-  fontWeight?: number
-  /** Italic text. */
-  italic?: boolean
   /** Line alignment relative to the placement point. Default `'center'`. */
   align?: 'left' | 'center' | 'right'
   /** Absolute x of the alignment anchor. Defaults to canvas horizontal center. */
@@ -79,7 +74,7 @@ export interface RgbGlitchProps {
 }
 
 export function RgbGlitch({
-  text = 'GLITCH',
+  text: textProp = 'GLITCH',
   delay: delayIn = 0,
   baseSplit = 2,
   intensity = 10,
@@ -95,10 +90,13 @@ export function RgbGlitch({
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
+  letterSpacing,
+  uppercase,
   align = 'center',
   x,
   y,
 }: RgbGlitchProps) {
+  const text = applyTextCase(textProp, { uppercase })
   // The variant knob derives an alternate deterministic seed (identity at 0).
   const seed = variantSeed(seedProp, variant)
   const frame = useCurrentFrame()
@@ -110,7 +108,7 @@ export function RgbGlitch({
   const redColor = redColorProp ?? theme.accent
   const cyanColor = cyanColorProp ?? theme.palette[1] ?? '#4de2ff'
   const fontFamily = fontFamilyProp ?? theme.fontFamily
-  const measured = useTextMetrics(text, fontSize, { fontFamily, fontWeight })
+  const measured = useTextMetrics(text, fontSize, { fontFamily, fontWeight, letterSpacing })
 
   const local = Math.max(0, frame - delay)
 
@@ -132,7 +130,7 @@ export function RgbGlitch({
   const baseX =
     align === 'center' ? anchorX - lineWidth / 2 : align === 'right' ? anchorX - lineWidth : anchorX
 
-  const common = { fontSize, fontFamily, fontWeight, italic } as const
+  const common = { fontSize, fontFamily, fontWeight, italic, letterSpacing } as const
 
   // The coloured copies composite with a real `screen` blend (ondajs's
   // mix-blend-mode: screen) so overlaps brighten toward white; the white center

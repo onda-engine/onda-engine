@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const barChartSchema = z.object({
+  ...textStyleSchemaShape,
   data: z
     .any()
     .default([
@@ -51,7 +53,6 @@ export const barChartSchema = z.object({
     .string()
     .optional()
     .describe('Bar track (background) color. Defaults to theme.surface.'),
-  color: z.string().optional().describe('Label and value text color. Defaults to theme.text.'),
   showValues: z.boolean().default(false).describe('Show the numeric value at the end of each bar.'),
   countUp: z
     .boolean()
@@ -69,10 +70,6 @@ export const barChartSchema = z.object({
     .describe('Title font size in px. Defaults to ~1.5x the label fontSize.'),
   titleColor: z.string().optional().describe('Title color. Defaults to color.'),
   fontSize: z.number().default(24).describe('Label / value font size in px.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Loaded font family for labels and values. Defaults to theme.fontFamily.'),
 })
 
 export type BarChartSchemaProps = z.infer<typeof barChartSchema>

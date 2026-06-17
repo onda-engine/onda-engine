@@ -26,6 +26,7 @@
 import { Group, Rect, Text, linearGradient, useVideoConfig } from '@onda/react'
 import { useStaggeredEntrance } from '../hooks.js'
 import { STAGGER } from '../motion.js'
+import type { TextStyleProps } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import type { TimeInput } from '../time.js'
 
@@ -45,7 +46,7 @@ export interface BentoItem {
   accent?: boolean
 }
 
-export interface BentoGridProps {
+export interface BentoGridProps extends TextStyleProps {
   /** The cells, laid out left-to-right, top-to-bottom. Spans drive the rhythm. */
   items?: BentoItem[]
   /** Number of grid columns (default 3). */
@@ -64,8 +65,6 @@ export interface BentoGridProps {
   stagger?: TimeInput
   /** Base title font size in px (default 30). */
   fontSize?: number
-  /** Title color (default: theme `text`). */
-  color?: string
   /** Caption color (default: theme `textMuted`). */
   captionColor?: string
   /** Accent color for the earned `accent` cell (default: theme `accent`). */
@@ -74,8 +73,6 @@ export interface BentoGridProps {
   cardColor?: string
   /** Card border color (default: theme `border`). */
   borderColor?: string
-  /** Display font family for titles and values (default: theme `headingFamily ?? fontFamily`). */
-  fontFamily?: string
   /** Body font family for captions (default: theme `fontFamily`). */
   captionFontFamily?: string
 }

@@ -5,9 +5,11 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const statCardSchema = z.object({
+  ...textStyleSchemaShape,
   value: z
     .string()
     .default('\u2014')
@@ -30,10 +32,6 @@ export const statCardSchema = z.object({
     .string()
     .optional()
     .describe('Accent rule color (default: theme accent); wins over a string passed to accent.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Loaded font family for both value and label (default: theme body family).'),
   delay: timeSchema.default(0).describe('Frames to delay before the staggered fade-in begins.'),
   placement: placementSchema
     .optional()

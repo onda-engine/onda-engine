@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const progressStepsSchema = z.object({
+  ...textStyleSchemaShape,
   steps: z
     .array(z.string())
     .default(['Plan', 'Build', 'Render', 'Ship'])
@@ -29,10 +31,6 @@ export const progressStepsSchema = z.object({
     .optional()
     .describe('Pending color for dots and connector track (defaults to theme `border`).'),
   labelColor: z.string().optional().describe('Label color (defaults to theme `textMuted`).'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Loaded font family for labels (defaults to theme `fontFamily`).'),
   fontSize: z.number().default(34).describe('Label font size in px.'),
   width: z.number().default(1280).describe('Overall width in px (dots are spaced across this).'),
   dotSize: z.number().default(30).describe('Dot diameter in px.'),

@@ -5,9 +5,11 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const quoteCardSchema = z.object({
+  ...textStyleSchemaShape,
   quote: z
     .string()
     .default('Motion is the difference between art and craft.')
@@ -23,13 +25,8 @@ export const quoteCardSchema = z.object({
   quoteFontWeight: z.number().default(600).describe('Quote font weight (display default 600).'),
   authorFontSize: z.number().default(22).describe('Author / role font size in px.'),
   authorFontWeight: z.number().default(500).describe('Author / role font weight.'),
-  color: z.string().optional().describe('Quote color (defaults to theme text).'),
   authorColor: z.string().optional().describe('Author / role color (defaults to theme textMuted).'),
   accentColor: z.string().optional().describe('Divider color (defaults to theme accent).'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Loaded font family for every line (defaults to theme fontFamily).'),
   quoteWidth: z
     .number()
     .optional()

@@ -35,6 +35,7 @@ import { entryFade, entryFadeRise, entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
@@ -58,7 +59,7 @@ const POINTER_OVERLAP = 2
  *  rough direction the callout is aimed). */
 export type CalloutDirection = 'top' | 'bottom' | 'left' | 'right'
 
-export interface CalloutProps {
+export interface CalloutProps extends TextStyleProps {
   /** Bubble label. Single line — no auto-wrap. */
   label?: string
   /** Where the bubble sits: a region keyword (`'center'`, `'lower-third'`, …)
@@ -81,8 +82,6 @@ export interface CalloutProps {
   lineDelay?: TimeInput
   /** Pointer reveal duration in frames (default `DURATION.base`). */
   lineDuration?: TimeInput
-  /** Label color (default: theme `text`). */
-  color?: string
   /** Bubble background fill (default: an elevated translucent-white surface that
    *  lifts the bubble off the dark canvas). */
   bgColor?: string
@@ -92,10 +91,6 @@ export interface CalloutProps {
   borderWidth?: number
   /** Label font size in px (default 20). */
   fontSize?: number
-  /** Loaded font family (the Onda display font) (default: theme `fontFamily`). */
-  fontFamily?: string
-  /** Label font weight (default 500). */
-  fontWeight?: number
   /** Horizontal padding inside the bubble (default 14). */
   paddingX?: number
   /** Vertical padding inside the bubble (default 8). */
@@ -127,6 +122,8 @@ export function Callout({
   fontSize = 20,
   fontFamily: fontFamilyProp,
   fontWeight = 500,
+  letterSpacing,
+  uppercase,
   paddingX = 14,
   paddingY = 8,
   cornerRadius: cornerRadiusProp,
@@ -149,11 +146,12 @@ export function Callout({
   const borderColor = borderColorProp ?? ELEVATED_BORDER
   const fontFamily = fontFamilyProp ?? theme.fontFamily
   const cornerRadius = cornerRadiusProp ?? theme.radius
+  const labelText = applyTextCase(label, { uppercase })
 
   // Real shaped label width (overridable via `width`). The engine measures it
   // (proportional — exact); falls back to a glyph-count estimate until the wasm
   // engine warms in the browser, or if `width` is passed.
-  const measured = useTextMetrics(label, fontSize, { fontFamily, fontWeight })
+  const measured = useTextMetrics(labelText, fontSize, { fontFamily, fontWeight })
 
   // Bubble box, sized to the measured text extent unless `width` is given.
   const textWidth = measured.width
@@ -248,8 +246,9 @@ export function Callout({
           color={color}
           fontFamily={fontFamily}
           fontWeight={fontWeight}
+          letterSpacing={letterSpacing}
         >
-          {label}
+          {labelText}
         </Text>
       </Group>
     </Group>

@@ -40,6 +40,7 @@ import {
 import { entryScale, entrySlide } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { measureText, useTextMetricsReady } from '../text-metrics.js'
+import type { TextStyleProps } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
@@ -48,7 +49,7 @@ export interface TimelineEvent {
   label: string
 }
 
-export interface TimelineProps {
+export interface TimelineProps extends TextStyleProps {
   /** Anchor points down the timeline. Order is preserved — top to bottom. */
   events?: TimelineEvent[]
   /** Frames before the line begins to draw. */
@@ -77,8 +78,6 @@ export interface TimelineProps {
   labelColor?: string
   /** Label font size in px. */
   fontSize?: number
-  /** Loaded font family for labels (default: theme `headingFamily ?? fontFamily`). */
-  fontFamily?: string
 }
 
 const DEFAULT_EVENTS: TimelineEvent[] = [

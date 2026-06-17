@@ -19,11 +19,12 @@ import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH, SPRING_SNAPPY } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { useTimeScale } from '../timing.js'
 
-export interface CountUpProps {
+export interface CountUpProps extends TextStyleProps {
   /** Starting value (default `0`). */
   from?: number
   /** Ending value (default `100`). */
@@ -49,8 +50,6 @@ export interface CountUpProps {
   prefix?: string
   /** Appended to the number, e.g. `'%'` (default `''`). */
   suffix?: string
-  /** Text color (default: theme `text`). */
-  color?: string
   /** Font size in px. Counters are usually large (default `120`). */
   fontSize?: number
   /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
@@ -60,10 +59,6 @@ export interface CountUpProps {
   /** Explicit width cap in px for the line; combines with `fit` (the smaller
    *  cap wins). */
   maxWidth?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
-  fontFamily?: string
-  /** Font weight (default `600`). */
-  fontWeight?: number
   /** Use the snappier spring (`SPRING_SNAPPY`) for the count (default `false`,
    *  i.e. `SPRING_SMOOTH` — matches ondajs). */
   snappy?: boolean
@@ -120,6 +115,9 @@ export function CountUp({
   maxWidth,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
+  italic = false,
+  letterSpacing,
+  uppercase,
   snappy = false,
   placement,
   x = 0,
@@ -192,8 +190,10 @@ export function CountUp({
       fontSize={fontSize}
       fontFamily={fontFamily}
       fontWeight={fontWeight}
+      italic={italic}
+      letterSpacing={letterSpacing}
     >
-      {`${prefix}${formatted}${suffix}`}
+      {applyTextCase(`${prefix}${formatted}${suffix}`, { uppercase })}
     </Text>
   )
 }

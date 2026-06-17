@@ -44,6 +44,7 @@ import {
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, staggerFrames } from '../motion.js'
 import { letterSpacingPx, measureText, useTextMetricsReady } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
@@ -67,27 +68,17 @@ export interface CaptionEntry {
   words?: CaptionWord[]
 }
 
-export interface CaptionsProps {
+export interface CaptionsProps extends TextStyleProps {
   /** The transcript timeline. Each entry is a word + its `[startMs, endMs)`
    *  window — the format every STT / transcript tool already speaks. */
   captions?: CaptionEntry[]
   /** Frames before the timeline starts (shifts every `startMs` by this). */
   delay?: TimeInput
-  /** Settled word color — the near-white tone a word relaxes to once the eye has
-   *  landed past it (the karaoke "already read" state) (default: theme `text`). */
-  color?: string
   /** Active word color — the one earned accent, carried by the word the eye is
    *  currently landing on as the line cascades in (default: theme `accent`). */
   accentColor?: string
   /** Font size in px. */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
-  fontFamily?: string
-  /** Font weight (display default 600). */
-  fontWeight?: number
-  /** CSS letter-spacing (e.g. `'-0.02em'` or `'2px'`). Applied to the caption
-   *  text and folded into its measured width so centering stays exact. */
-  letterSpacing?: string
   /** Unitless line height. Accepted for prop-shape parity with ondajs; the scene
    *  `<Text>` has a fixed text box, so it is NOT applied (see `approximations`). */
   lineHeight?: number
@@ -150,6 +141,7 @@ export function Captions({
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   letterSpacing,
+  uppercase,
   align = 'center',
   placement = 'lower-third',
   maxWidth = 0.8,
@@ -193,13 +185,15 @@ export function Captions({
   // up at its OWN spoken time — true karaoke) when `active.words` is supplied,
   // else the phrase text split on spaces (the default cascade reveal).
   const wordTimed = !!(active.words && active.words.length > 0)
-  const srcWords = wordTimed
-    ? // biome-ignore lint/style/noNonNullAssertion: guarded by wordTimed
-      active.words!
-    : active.text
-        .split(/\s+/)
-        .filter(Boolean)
-        .map((text) => ({ text, startMs: 0, endMs: 0 }))
+  const srcWords = (
+    wordTimed
+      ? // biome-ignore lint/style/noNonNullAssertion: guarded by wordTimed
+        active.words!
+      : active.text
+          .split(/\s+/)
+          .filter(Boolean)
+          .map((text) => ({ text, startMs: 0, endMs: 0 }))
+  ).map((w) => ({ ...w, text: applyTextCase(w.text, { uppercase }) }))
   const spaceW = measureText(' ', fontSize, { fontFamily, fontWeight, letterSpacing: lsPx }).width
   const maxW = Math.max(0, Math.min(1, maxWidth))
   const maxWidthPx = width * maxW

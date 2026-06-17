@@ -24,10 +24,11 @@
 import { Ellipse, Group, Rect, Text, interpolate, useVideoConfig } from '@onda/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
+import type { TextStyleProps } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import type { TimeInput } from '../time.js'
 
-export interface ProgressStepsProps {
+export interface ProgressStepsProps extends TextStyleProps {
   /** Step labels, left to right. */
   steps?: string[]
   /** How many steps are complete — the fill animates to this index (0-based count). */
@@ -42,8 +43,6 @@ export interface ProgressStepsProps {
   dimColor?: string
   /** Label color (default: theme `textMuted`). */
   labelColor?: string
-  /** Loaded font family for labels (default: theme `fontFamily`). */
-  fontFamily?: string
   /** Label font size in px. */
   fontSize?: number
   /** Overall width in px (dots are spaced across this). */

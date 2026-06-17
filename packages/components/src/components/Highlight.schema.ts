@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const highlightSchema = z.object({
+  ...textStyleSchemaShape,
   text: z.string().default('highlight this').describe('Text to highlight.'),
   delay: timeSchema.default(0).describe('Frames before the text starts revealing.'),
   duration: timeSchema
@@ -18,14 +20,11 @@ export const highlightSchema = z.object({
   lineDuration: timeSchema
     .optional()
     .describe('Accent-bar wipe duration. Fast on purpose \u2014 emphatic (default DURATION.fast).'),
-  color: z.string().optional().describe('Text color (default: theme text).'),
   accentColor: z
     .string()
     .optional()
     .describe('Accent (highlight) bar color (default: theme accent).'),
   fontSize: z.number().default(64).describe('Font size in px (default 64).'),
-  fontFamily: z.string().optional().describe('Loaded font family (default: theme fontFamily).'),
-  fontWeight: z.number().default(600).describe('Font weight (display default 600).'),
   paddingX: z
     .number()
     .default(8)

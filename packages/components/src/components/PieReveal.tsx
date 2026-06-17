@@ -32,6 +32,7 @@ import {
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
+import type { TextStyleProps } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
@@ -46,7 +47,7 @@ export interface PieRevealSlice {
   label?: string
 }
 
-export interface PieRevealProps {
+export interface PieRevealProps extends TextStyleProps {
   /** Slices to render, drawn clockwise from 12 o'clock in array order. */
   data?: PieRevealSlice[]
   /** Outer radius of the pie, in px. */
@@ -75,8 +76,6 @@ export interface PieRevealProps {
   labelColor?: string
   /** Center label font size in px. */
   fontSize?: number
-  /** Center label font family (must be loaded by the renderer) (default: theme `headingFamily ?? fontFamily`). */
-  fontFamily?: string
 }
 
 const DEFAULT_DATA: PieRevealSlice[] = [

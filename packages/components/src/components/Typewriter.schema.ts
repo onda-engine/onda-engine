@@ -5,6 +5,7 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const typewriterSchema = z.object({
@@ -20,11 +21,8 @@ export const typewriterSchema = z.object({
     .default(true)
     .describe('Show a blinking cursor at the leading edge while typing.'),
   cursorColor: z.string().optional().describe('Cursor color (defaults to theme accent).'),
-  color: z.string().optional().describe('Text color (defaults to theme text).'),
+  ...textStyleSchemaShape,
   fontSize: z.number().default(64).describe('Font size in px.'),
-  fontFamily: z.string().optional().describe('Loaded font family (defaults to theme fontFamily).'),
-  fontWeight: z.number().default(500).describe("Font weight (default 500 reads more 'terminal')."),
-  italic: z.boolean().default(false).describe('Italic text.'),
   x: z
     .number()
     .optional()

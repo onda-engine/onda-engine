@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const codeBlockSchema = z.object({
+  ...textStyleSchemaShape,
   code: z
     .string()
     .default("const onda = motion('identity');\nexport default onda;")
@@ -27,10 +29,6 @@ export const codeBlockSchema = z.object({
     .describe('Reveal lines one-by-one instead of all at once.'),
   delay: timeSchema.default(0).describe('Frames before the first line appears.'),
   lineDelay: timeSchema.default(3).describe('Frames between successive line reveals.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Monospace font stack; code needs column alignment (defaults to theme monoFamily).'),
   fontSize: z
     .number()
     .default(48)

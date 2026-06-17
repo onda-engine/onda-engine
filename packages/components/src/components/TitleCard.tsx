@@ -10,11 +10,12 @@ import { AbsoluteFill, Flex, Text, useVideoConfig } from '@onda/react'
 import { useFittedFontSize } from '../bounds.js'
 import { DURATION, staggerFrames } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { FadeIn } from './FadeIn.js'
 
-export interface TitleCardProps {
+export interface TitleCardProps extends TextStyleProps {
   title: string
   subtitle?: string
   /** Title font size in px (default 120). */
@@ -32,8 +33,6 @@ export interface TitleCardProps {
   titleColor?: string
   /** Subtitle color (default: theme `textMuted`). */
   subtitleColor?: string
-  /** Loaded font family (default: theme heading family, else body family). */
-  fontFamily?: string
   /** Frame the title begins fading in (subtitle follows by one stagger step). */
   delay?: TimeInput
   /** Where the card sits: a region keyword (`'center'`, `'lower-third'`, …) or
@@ -52,6 +51,8 @@ export function TitleCard({
   titleColor,
   subtitleColor,
   fontFamily,
+  letterSpacing,
+  uppercase,
   delay: delayIn = 0,
   placement,
 }: TitleCardProps) {
@@ -62,6 +63,7 @@ export function TitleCard({
   const titleCol = titleColor ?? theme.text
   const subtitleCol = subtitleColor ?? theme.textMuted
   const family = fontFamily ?? theme.headingFamily ?? theme.fontFamily
+  const titleText = applyTextCase(title, { uppercase })
 
   // Opt-in auto-fit on the title line (tracking scales with the size).
   const titleSize = useFittedFontSize(title, titleSizeProp, {
@@ -82,9 +84,9 @@ export function TitleCard({
               color={titleCol}
               fontFamily={family}
               fontWeight={700}
-              letterSpacing={Math.round(titleSize * -0.02)}
+              letterSpacing={letterSpacing ?? Math.round(titleSize * -0.02)}
             >
-              {title}
+              {titleText}
             </Text>
           </FadeIn>
           {subtitle ? (

@@ -41,6 +41,7 @@ import {
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION } from '../motion.js'
 import { measureText, useTextMetricsReady } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
@@ -49,7 +50,7 @@ const LINE_RATIO = 1.2
 /** Band width as a fraction of the text box — a soft, generous shine. */
 const BAND_RATIO = 0.5
 
-export interface ShimmerSweepProps {
+export interface ShimmerSweepProps extends TextStyleProps {
   /** The single line of text to sweep light across. */
   text?: string
   /** Frames before the sweep starts. */
@@ -60,18 +61,12 @@ export interface ShimmerSweepProps {
   loop?: boolean
   /** Frames between sweeps when looping. */
   interval?: TimeInput
-  /** Base (dim) text color so the bright band reads as a highlight (default: theme `textMuted`). */
-  color?: string
   /** The sweeping highlight color (default: theme `text`). */
   shimmerColor?: string
   /** Sweep angle in degrees (approximated by tilting the gradient band). */
   angle?: number
   /** Font size in px (default 96). */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
-  fontFamily?: string
-  /** Font weight (display default 600). */
-  fontWeight?: number
   /** Explicit text-box width in px. Overrides the measured width. */
   width?: number
   /** Top-left x in px. Defaults to centering the word on the canvas. */
@@ -81,7 +76,7 @@ export interface ShimmerSweepProps {
 }
 
 export function ShimmerSweep({
-  text = 'Onda',
+  text: textProp = 'Onda',
   delay: delayIn = 0,
   duration: durationIn = DURATION.slower,
   loop = false,
@@ -92,10 +87,14 @@ export function ShimmerSweep({
   fontSize = 96,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
+  italic = false,
+  letterSpacing,
+  uppercase,
   width,
   x,
   y,
 }: ShimmerSweepProps) {
+  const text = applyTextCase(textProp, { uppercase })
   const frame = useCurrentFrame()
   const { width: canvasW, height: canvasH, fps } = useVideoConfig()
   // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
@@ -158,7 +157,14 @@ export function ShimmerSweep({
   return (
     <Group x={groupX} y={groupY}>
       {/* Base text — dim, always legible, never moves. */}
-      <Text fontSize={fontSize} color={color} fontFamily={fontFamily} fontWeight={fontWeight}>
+      <Text
+        fontSize={fontSize}
+        color={color}
+        fontFamily={fontFamily}
+        fontWeight={fontWeight}
+        italic={italic}
+        letterSpacing={letterSpacing}
+      >
         {text}
       </Text>
       {/* Bright shine band, masked to the TEXT GLYPHS via an alpha matte — the
@@ -173,6 +179,8 @@ export function ShimmerSweep({
             color={shimmerColor}
             fontFamily={fontFamily}
             fontWeight={fontWeight}
+            italic={italic}
+            letterSpacing={letterSpacing}
           >
             {text}
           </Text>

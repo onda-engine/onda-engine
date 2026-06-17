@@ -29,7 +29,7 @@ import { PreviewAudio } from './audio-engine.js'
 import { type AudioClip, collectAudioClips } from './audio.js'
 import { type FrameDrawer, drawScene } from './canvas-renderer.js'
 import { type RenderEngine, engineDrawer } from './engine-drawer.js'
-import { applyResolvedImages, collectImageUrls, resolveImageUrl } from './images.js'
+import { applyResolvedImages, collectImageUrls, imageResolved, resolveImageUrl } from './images.js'
 import { collectVideoOverlays, resolveVideoFrames } from './video.js'
 
 /** An async, GPU renderer — structurally `@onda/wasm-vello`'s `VelloEngine`.
@@ -430,6 +430,18 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
             if (done && done.c === c && done.f === f && done.v === v) break
             done = { c, f, v }
             const scene = renderFrame(c, f)
+            // On-demand image resolution: the 3-frame pre-sample can miss srcs that
+            // only appear BETWEEN samples (e.g. a template's time-staggered tiles),
+            // so fetch any not-yet-resolved image in THIS frame's tree; the bump
+            // repaints once they land (terminates — resolved srcs are skipped).
+            const urls = new Set<string>()
+            collectImageUrls(scene.root as never, urls)
+            const pending = [...urls].filter((u) => !imageResolved(u))
+            if (pending.length > 0) {
+              void Promise.all(pending.map(resolveImageUrl)).then(() =>
+                setImagesReady((n) => n + 1),
+              )
+            }
             applyResolvedImages(scene.root as never)
             // Decode the current frame of any <Video> node (browser-side) and
             // attach it before rendering — a video's pixels change every frame.
@@ -461,6 +473,14 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
       const ctx = canvasRef.current?.getContext('2d')
       if (ctx) {
         const scene = renderFrame(composition, frame)
+        // On-demand image resolution (see the GPU path) — fetch any image in this
+        // frame the pre-sample missed, repainting via `imagesReady` when it lands.
+        const urls = new Set<string>()
+        collectImageUrls(scene.root as never, urls)
+        const pending = [...urls].filter((u) => !imageResolved(u))
+        if (pending.length > 0) {
+          void Promise.all(pending.map(resolveImageUrl)).then(() => setImagesReady((n) => n + 1))
+        }
         applyResolvedImages(scene.root as never)
         mode.draw(ctx, scene)
       }
@@ -579,11 +599,15 @@ export const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
 
   const togglePlay = useCallback(() => {
     setPlaying((p) => {
-      // Restart from 0 if pressing play at the end of a non-looping clip.
-      if (!p && !loop && frame >= lastFrame) setFrame(0)
+      // Restart from 0 if pressing play at the end of a non-looping clip. Read the LIVE
+      // values (not the `frame`/`loop`/`lastFrame` deps) so this callback stays STABLE —
+      // otherwise it re-creates on every frame, churning the imperative handle (and any
+      // host effect keyed on it) every tick during playback.
+      const { frame: f, loop: lp, lastFrame: lf } = liveRef.current
+      if (!p && !lp && f >= lf) setFrame(0)
       return !p
     })
-  }, [loop, frame, lastFrame])
+  }, [])
 
   const seekTo = useCallback(
     (next: number) => {

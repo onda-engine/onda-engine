@@ -35,12 +35,13 @@ import { Group, Text, interpolate, spring, useCurrentFrame, useVideoConfig } fro
 import { HOUSE_EASE } from '../easing.js'
 import { SPRING_SMOOTH } from '../motion.js'
 import { measureText, useTextMetricsReady } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
 
-export interface WordRotateProps {
+export interface WordRotateProps extends TextStyleProps {
   /** Phrases cycled in place, in order. One is visible at a time. */
   phrases?: string[]
   /** Frames before the first phrase begins to enter (default `0`). */
@@ -51,16 +52,8 @@ export interface WordRotateProps {
   /** Frames for a single phrase to fade in (and, separately, fade out)
    *  (default `12`). */
   transitionDuration?: number
-  /** Text color (default: theme `text`). */
-  color?: string
   /** Font size in px. Phrases are usually large (default `96`). */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
-  fontFamily?: string
-  /** Font weight (display default `600`). */
-  fontWeight?: number
-  /** Italic text (default `false`). */
-  italic?: boolean
   /** Horizontal anchor of each phrase relative to `x` (default `'left'`).
    *  `'center'`/`'right'` use an estimated text width (see doc comment). */
   align?: 'left' | 'center' | 'right'
@@ -71,7 +64,7 @@ export interface WordRotateProps {
 }
 
 export function WordRotate({
-  phrases = ['fast', 'beautiful', 'restrained'],
+  phrases: phrasesProp = ['fast', 'beautiful', 'restrained'],
   delay: delayIn = 0,
   holdDuration: holdDurationIn = 30,
   transitionDuration = 12,
@@ -80,6 +73,8 @@ export function WordRotate({
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
+  letterSpacing,
+  uppercase,
   align = 'left',
   x,
   y,
@@ -92,6 +87,8 @@ export function WordRotate({
   const theme = useTheme()
   const color = colorProp ?? theme.text
   const fontFamily = fontFamilyProp ?? theme.fontFamily
+  // Uppercase each phrase (the primary text) before measure + render.
+  const phrases = uppercase ? phrasesProp.map((p) => applyTextCase(p, { uppercase })) : phrasesProp
   // Warm real text measurement (browser re-renders when ready); per-phrase widths
   // are read with the sync `measureText` inside the map below.
   useTextMetricsReady()
@@ -128,8 +125,12 @@ export function WordRotate({
         )
 
         // Anchor offset: 'left' is exact; 'center'/'right' use the real shaped
-        // width (measured) so alignment hugs the actual phrase.
-        const estWidth = measureText(phrase, fontSize, { fontFamily, fontWeight }).width
+        // width (measured, tracking-aware) so alignment hugs the actual phrase.
+        const estWidth = measureText(phrase, fontSize, {
+          fontFamily,
+          fontWeight,
+          letterSpacing,
+        }).width
         const offsetX = align === 'center' ? -estWidth / 2 : align === 'right' ? -estWidth : 0
 
         return (
@@ -140,6 +141,7 @@ export function WordRotate({
               fontFamily={fontFamily}
               fontWeight={fontWeight}
               italic={italic}
+              letterSpacing={letterSpacing}
             >
               {phrase}
             </Text>

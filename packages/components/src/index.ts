@@ -219,6 +219,32 @@ export { InputField, type InputFieldProps } from './components/InputField.js'
 export { KanbanBoard, type KanbanBoardProps, type KanbanColumn } from './components/KanbanBoard.js'
 export { KenBurns, type KenBurnsProps } from './components/KenBurns.js'
 export {
+  Keyframes,
+  type KeyframesProps,
+  type KeyframesImageContent,
+  type KeyframesTextContent,
+  type PosKey,
+  type ValKey,
+  type Ease,
+} from './components/Keyframes.js'
+// Shared keyframe sampler — consumed by the cinema EXPORT choreography + the
+// Studio preview so both interpolate identically (no twin to drift).
+export {
+  sampleKeyframes,
+  sampleTrack,
+  hasKeyframeTracks,
+  type KeyframeTracks,
+  type SampledKeyframes,
+} from './keyframes-sampler.js'
+// "Magic Resize" — per-element responsive re-framing (Canva/Figma constraints), so
+// one master adapts to any aspect ratio. Shared by the cinema export + Studio preview.
+export {
+  type Box,
+  type ResponsiveTransform,
+  entryDesignAnchor,
+  responsiveEntryTransform,
+} from './responsive.js'
+export {
   KineticText,
   type KineticTextPreset,
   type KineticTextProps,
@@ -236,6 +262,7 @@ export { Marquee, type MarqueeProps } from './components/Marquee.js'
 export { MaskReveal, type MaskRevealProps } from './components/MaskReveal.js'
 export { MatrixDecode, type MatrixDecodeProps } from './components/MatrixDecode.js'
 export { MeshGradient, type MeshGradientProps } from './components/MeshGradient.js'
+export { Moodboard, type MoodboardProps } from './components/Moodboard.js'
 export { NodeGraph, type NodeGraphProps, type Satellite } from './components/NodeGraph.js'
 export { Parallax, type ParallaxProps, type ParallaxLayer } from './components/Parallax.js'
 export { PathMorph, type PathMorphProps } from './components/PathMorph.js'
@@ -261,6 +288,7 @@ export { SplitScreen, type SplitScreenProps } from './components/SplitScreen.js'
 export { Spotlight, type SpotlightProps } from './components/Spotlight.js'
 export { SpotlightCard, type SpotlightCardProps } from './components/SpotlightCard.js'
 export { StaggerGroup, type StaggerGroupProps } from './components/StaggerGroup.js'
+export { SplitLockup, type SplitLockupProps } from './components/SplitLockup.js'
 export { StatCard, type StatCardProps } from './components/StatCard.js'
 export { Terminal, type TerminalProps } from './components/Terminal.js'
 export {

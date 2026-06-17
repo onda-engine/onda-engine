@@ -26,6 +26,7 @@ import {
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
@@ -33,7 +34,7 @@ const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
 /** Engine line-box height as a multiple of font size (matches typography crate). */
 const LINE_RATIO = 1.2
 
-export interface PriceTagProps {
+export interface PriceTagProps extends TextStyleProps {
   /** Product name — the label, set in the display face. */
   name?: string
   /** Price as a string so any currency works (e.g. `'$70'`, `'€19'`, `'£12.50'`). */
@@ -46,8 +47,6 @@ export interface PriceTagProps {
   delay?: number
   /** Base scale for the chip (1 = the default size). Scales type + padding together. */
   size?: number
-  /** Name text color (default: theme `text`). */
-  color?: string
   /** Price text color (default: theme `accent`). */
   priceColor?: string
   /** Divider + SOLD-pill accent color (default: theme `accent`). */
@@ -56,8 +55,6 @@ export interface PriceTagProps {
   surface?: string
   /** Chip hairline border color (default: theme `border`). */
   border?: string
-  /** Display font for the name (default: theme `headingFamily ?? fontFamily`). */
-  fontFamily?: string
   /** Body font for the price + SOLD pill (default: theme `fontFamily`). */
   bodyFamily?: string
   /** Local-space x of the chip's top-left. Omit to center on the composition. */
@@ -80,6 +77,8 @@ export function PriceTag({
   border: borderProp,
   fontFamily: fontFamilyProp,
   bodyFamily: bodyFamilyProp,
+  letterSpacing,
+  uppercase,
   x,
   y,
 }: PriceTagProps) {
@@ -94,6 +93,7 @@ export function PriceTag({
   const border = borderProp ?? theme.border
   const nameFont = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
   const bodyFont = bodyFamilyProp ?? theme.fontFamily
+  const nameText = applyTextCase(name, { uppercase })
 
   // ── Sizing (scaled by `size`) ──────────────────────────────────────────────
   const nameSize = Math.round(36 * size)
@@ -106,7 +106,7 @@ export function PriceTag({
   const soldGap = Math.round(14 * size)
 
   // ── Measured text widths (the chip hugs its content) ───────────────────────
-  const nameMetrics = useTextMetrics(name, nameSize, { fontFamily: nameFont, fontWeight: 500 })
+  const nameMetrics = useTextMetrics(nameText, nameSize, { fontFamily: nameFont, fontWeight: 500 })
   const priceMetrics = useTextMetrics(price, priceSize, { fontFamily: bodyFont, fontWeight: 600 })
   const soldMetrics = useTextMetrics(soldLabel, soldSize, {
     fontFamily: bodyFont,
@@ -178,8 +178,9 @@ export function PriceTag({
         color={color}
         fontFamily={nameFont}
         fontWeight={500}
+        letterSpacing={letterSpacing}
       >
-        {name}
+        {nameText}
       </Text>
 
       {/* Thin accent divider between name and price. */}

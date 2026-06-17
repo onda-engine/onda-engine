@@ -63,12 +63,43 @@ export const checkOverflow: Check = (ctx) => {
         x0 < safeRect.left || y0 < safeRect.top || x1 > safeRect.right || y1 > safeRect.bottom
       if (!escapesFrame && !escapesSafe) continue
 
-      // Mechanical fix: the size at which the line fits the safe band.
-      const band = safeRect.right - safeRect.left
-      const fitted = fitFontSize(b.content, size, band, measureOpts)
+      // Mechanical fix: the largest size at which the box sits inside the safe
+      // rect AT ITS PLACEMENT — found by reusing the SAME resolve+measure
+      // predicate as the check above, not a flat width fit. (Fitting to the raw
+      // safe-area WIDTH is wrong for a CENTERED element under ASYMMETRIC safe
+      // margins — e.g. 9:16, whose right/bottom band is wider: a centered box
+      // bumps the nearer edge first, so a width-only fit still overflows and the
+      // agent shrink-loops. Reusing the box-in-rect predicate converges by
+      // construction.)
+      const boxFitsSafe = (fs: number): boolean => {
+        const fm = measureText(b.content, fs, measureOpts)
+        const fb = resolvePlacement(
+          isPlacement(placement) ? (placement as Placement) : undefined,
+          { width, height },
+          { width: fm.width, height: fm.height },
+        )
+        return (
+          fb.originX >= safeRect.left &&
+          fb.originY >= safeRect.top &&
+          fb.originX + fm.width <= safeRect.right &&
+          fb.originY + fm.height <= safeRect.bottom
+        )
+      }
+      let lo = 1
+      let hi = Math.floor(size)
+      let fitted = 0
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1
+        if (boxFitsSafe(mid)) {
+          fitted = mid
+          lo = mid + 1
+        } else {
+          hi = mid - 1
+        }
+      }
       const fix =
-        b.sizeProp && fitted < size
-          ? { prop: b.sizeProp, suggested: Math.floor(fitted) }
+        b.sizeProp && fitted > 0 && fitted < size
+          ? { prop: b.sizeProp, suggested: fitted }
           : undefined
 
       violations.push({

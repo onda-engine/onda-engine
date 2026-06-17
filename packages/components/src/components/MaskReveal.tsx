@@ -31,6 +31,7 @@ import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import type { TimeInput } from '../time.js'
 
@@ -45,7 +46,7 @@ const BOX_PAD = 8
  *  is never trimmed by the estimate. */
 const AXIS_PAD = 12
 
-export interface MaskRevealProps {
+export interface MaskRevealProps extends TextStyleProps {
   /** What to reveal (single line). Ignored when `children` is supplied. */
   text?: string
   /** Frames before the reveal starts. */
@@ -55,8 +56,6 @@ export interface MaskRevealProps {
   /** The side the content appears to come IN from (mirrors `SlideIn`). The mask
    *  retreats toward this side. */
   direction?: 'left' | 'right' | 'top' | 'bottom'
-  /** Text color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `text`). */
-  color?: string
   /** Text size in px (default 96). */
   fontSize?: number
   /** Opt-in auto-fit: `'frame'` scales the font size DOWN (never up) so the
@@ -66,12 +65,6 @@ export interface MaskRevealProps {
   /** Explicit width cap in px for the padded clip box; combines with `fit`
    *  (the smaller cap wins). Text mode only. */
   maxWidth?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `headingFamily ?? fontFamily`). */
-  fontFamily?: string
-  /** Font weight (display default 600). */
-  fontWeight?: number
-  /** Italic text. */
-  italic?: boolean
   /** Clip-box width in px. Required for `children`; otherwise estimated from `text`. */
   width?: number
   /** Clip-box height in px. Required for `children`; otherwise `fontSize × 1.2`. */
@@ -85,7 +78,7 @@ export interface MaskRevealProps {
 }
 
 export function MaskReveal({
-  text = 'Onda',
+  text: textProp = 'Onda',
   delay = 0,
   duration = DURATION.base,
   direction = 'left',
@@ -96,11 +89,14 @@ export function MaskReveal({
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
+  letterSpacing,
+  uppercase,
   width,
   height,
   placement,
   children,
 }: MaskRevealProps) {
+  const text = applyTextCase(textProp, { uppercase })
   // House spring (SPRING_SMOOTH, no overshoot), matching ondajs. `useSpringValue`
   // clamps the pre-delay frames to 0 internally, so it reads 0 before `delay`.
   const progress = useSpringValue({ delay, durationInFrames: duration })
@@ -118,9 +114,10 @@ export function MaskReveal({
       ? fitFontSize(text, fontSizeProp, Math.max(1, cap - textPad), { fontFamily, fontWeight })
       : fontSizeProp
 
-  // Real shaped text width — the engine measures the glyphs (proportional, exact);
-  // falls back to a glyph-count estimate until the wasm engine warms in the browser.
-  const measured = useTextMetrics(text, fontSize, { fontFamily, fontWeight })
+  // Real shaped text width — the engine measures the glyphs (proportional, exact;
+  // tracking-aware so the clip box still covers the line); falls back to a
+  // glyph-count estimate until the wasm engine warms in the browser.
+  const measured = useTextMetrics(text, fontSize, { fontFamily, fontWeight, letterSpacing })
   // Revealed fraction 0 → 1 (ondajs animates `cover` 100 → 0; this is `1 - cover`).
   const p = Math.min(1, Math.max(0, progress))
 
@@ -139,6 +136,7 @@ export function MaskReveal({
       fontFamily={fontFamily}
       fontWeight={fontWeight}
       italic={italic}
+      letterSpacing={letterSpacing}
     >
       {text}
     </Text>

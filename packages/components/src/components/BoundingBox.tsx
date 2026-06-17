@@ -47,13 +47,14 @@ import { entryFade, entryScale } from '../choreography.js'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION, SPRING_SMOOTH, staggerFrames } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
 /** Engine line-box height as a multiple of font size (matches typography crate). */
 const LINE_RATIO = 1.2
 
-export interface BoundingBoxProps {
+export interface BoundingBoxProps extends TextStyleProps {
   /** Box left edge as a `0..1` fraction of the composition width. */
   x?: number
   /** Box top edge as a `0..1` fraction of the composition height. */
@@ -64,8 +65,6 @@ export interface BoundingBoxProps {
   height?: number
   /** Optional label tag pinned to the box's top-left corner. Empty hides it. */
   label?: string
-  /** Outline / tick / tag color — the earned Onda rose by default (default: theme `accent`). */
-  color?: string
   /** Frames before the outline starts revealing. */
   delay?: TimeInput
   /** Frames to reveal the full outline (default `DURATION.slow` = 28). */
@@ -79,8 +78,6 @@ export interface BoundingBoxProps {
   labelColor?: string
   /** Label font size in px. */
   fontSize?: number
-  /** Label font family (must be loaded by the renderer) (default: theme `headingFamily`). */
-  fontFamily?: string
 }
 
 export function BoundingBox({
@@ -88,7 +85,7 @@ export function BoundingBox({
   y = 0.3,
   width = 0.4,
   height = 0.4,
-  label = '',
+  label: labelProp = '',
   color: colorProp,
   delay: delayIn = 0,
   drawDuration = DURATION.slow,
@@ -97,6 +94,8 @@ export function BoundingBox({
   labelColor = '#08080a',
   fontSize = 16,
   fontFamily: fontFamilyProp,
+  letterSpacing,
+  uppercase,
 }: BoundingBoxProps) {
   const frame = useCurrentFrame()
   const { fps, width: canvasW, height: canvasH } = useVideoConfig()
@@ -105,6 +104,10 @@ export function BoundingBox({
   const theme = useTheme()
   const color = colorProp ?? theme.accent
   const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
+
+  // Apply the case transform up front so the measured width, the `showTag` gate,
+  // and the rendered glyphs all agree on the same (possibly uppercased) string.
+  const label = applyTextCase(labelProp, { uppercase })
 
   // Real shaped label width — the engine measures the glyphs (proportional —
   // exact); falls back to a glyph-count estimate until the wasm engine warms in
@@ -246,6 +249,7 @@ export function BoundingBox({
               color={labelColor}
               fontFamily={fontFamily}
               fontWeight={600}
+              letterSpacing={letterSpacing}
             >
               {label}
             </Text>

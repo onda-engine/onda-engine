@@ -23,18 +23,17 @@ import { Group, Text, useVideoConfig } from '@onda/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import type { TimeInput } from '../time.js'
 
-export interface TrackingInProps {
+export interface TrackingInProps extends TextStyleProps {
   /** The text to settle in. */
   text?: string
   /** Frames before the entrance starts. */
   delay?: TimeInput
   /** Frames until the text settles (default `DURATION.slow` = 24). */
   durationInFrames?: TimeInput
-  /** Text color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `text`). */
-  color?: string
   /** Starting letter-spacing in em — the text begins spread wide and contracts. */
   fromTracking?: number
   /** Resting letter-spacing in em. */
@@ -43,12 +42,6 @@ export interface TrackingInProps {
   blur?: boolean
   /** Font size in px. */
   fontSize?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
-  fontFamily?: string
-  /** Font weight (display default 600). */
-  fontWeight?: number
-  /** Italic text. */
-  italic?: boolean
   /** Horizontal alignment of the line about `x`. Default `'center'`. */
   align?: 'left' | 'center' | 'right'
   /** @deprecated No longer used — the line now uses real shaped letter-spacing
@@ -61,7 +54,7 @@ export interface TrackingInProps {
 }
 
 export function TrackingIn({
-  text = 'Onda',
+  text: textProp = 'Onda',
   delay = 0,
   durationInFrames = DURATION.slow,
   color: colorProp,
@@ -72,10 +65,13 @@ export function TrackingIn({
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
+  letterSpacing,
+  uppercase,
   align = 'center',
   x,
   y,
 }: TrackingInProps) {
+  const text = applyTextCase(textProp, { uppercase })
   const { width, height } = useVideoConfig()
   const theme = useTheme()
   const color = colorProp ?? theme.text
@@ -87,9 +83,12 @@ export function TrackingIn({
   // Opacity fades 0 → 1 across the settle.
   const opacity = progress
 
-  // Current tracking, contracting from spread → rest: em → engine px.
+  // Current tracking, contracting from spread → rest: em → engine px. The
+  // shared `letterSpacing` (px) is an additive RESTING offset on top of the
+  // animated em track, so it lands the line at extra tracking once settled
+  // (undefined → 0, i.e. identical to the historical behavior).
   const ls = fromTracking + (tracking - fromTracking) * progress
-  const trackPx = ls * fontSize
+  const trackPx = ls * fontSize + (letterSpacing ?? 0)
 
   // ONE engine <Text> with real letter-spacing (exact shaping + tracking, no
   // per-glyph estimate). The line's width changes every frame as it contracts;

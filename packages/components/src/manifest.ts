@@ -44,6 +44,7 @@ import { imageRevealSchema } from './components/ImageReveal.schema.js'
 import { inputFieldSchema } from './components/InputField.schema.js'
 import { kanbanBoardSchema } from './components/KanbanBoard.schema.js'
 import { kenBurnsSchema } from './components/KenBurns.schema.js'
+import { keyframesSchema } from './components/Keyframes.schema.js'
 import { kineticTextSchema } from './components/KineticText.schema.js'
 import { lineChartSchema } from './components/LineChart.schema.js'
 import { logoRevealSchema } from './components/LogoReveal.schema.js'
@@ -54,6 +55,7 @@ import { marqueeSchema } from './components/Marquee.schema.js'
 import { maskRevealSchema } from './components/MaskReveal.schema.js'
 import { matrixDecodeSchema } from './components/MatrixDecode.schema.js'
 import { meshGradientSchema } from './components/MeshGradient.schema.js'
+import { moodboardSchema } from './components/Moodboard.schema.js'
 import { nodeGraphSchema } from './components/NodeGraph.schema.js'
 import { parallaxSchema } from './components/Parallax.schema.js'
 import { pathMorphSchema } from './components/PathMorph.schema.js'
@@ -75,6 +77,7 @@ import { skeletonCardSchema } from './components/SkeletonCard.schema.js'
 import { slideInSchema } from './components/SlideIn.schema.js'
 import { slideOutSchema } from './components/SlideOut.schema.js'
 import { slotMachineRollSchema } from './components/SlotMachineRoll.schema.js'
+import { splitLockupSchema } from './components/SplitLockup.schema.js'
 import { splitScreenSchema } from './components/SplitScreen.schema.js'
 import { spotlightSchema } from './components/Spotlight.schema.js'
 import { spotlightCardSchema } from './components/SpotlightCard.schema.js'
@@ -103,8 +106,15 @@ export interface PropMeta {
   role: string
   /** Allowed values, when the prop is an enum. */
   enumValues?: string[]
-  /** The default value literal (TS source), when the prop has one. */
+  /** The default value (schema-derived, JSON-encoded), when the prop has one.
+   *  Always sourced from the Zod schema so it can't drift from what renders. */
   default?: string
+  /** Minimum (inclusive) for a number prop, from the Zod schema. */
+  min?: number
+  /** Maximum (inclusive) for a number prop, from the Zod schema. */
+  max?: number
+  /** Display-unit hint for a number prop — 'px' | 'frames' | 'deg'. */
+  unit?: string
   /** Defaults to a theme color/font token; the agent should usually OMIT it. */
   themeable: boolean
   /** Must be provided (no default, not optional). */
@@ -10626,13 +10636,247 @@ const RAW: RawEntry[] = [
     ],
     schema: wordStaggerSchema,
   },
+  {
+    slug: 'split-lockup',
+    name: 'SplitLockup',
+    category: 'Text',
+    title: 'Split Lockup',
+    description:
+      'Two lines that START split to opposite corners, CONVERGE into a centered stacked left-aligned lockup (ease-out, no overshoot), HOLD, then DISASSEMBLE back to the corners — the exit is the entrance reversed.',
+    pickWhen:
+      'A two-word title card that should split open and reassemble (e.g. NEW / PROJECT) — the signature image-cascade / showcase intro lockup. Pair with Moodboard for the surrounding tiles.',
+    composes: ['Moodboard'],
+    sceneRole: 'block',
+    occlusion: 'centered',
+    example: { line1: 'NEW', line2: 'PROJECT', fontSize: 180, fontWeight: 400, letterSpacing: 8 },
+    props: [],
+    schema: splitLockupSchema,
+  },
+  {
+    slug: 'moodboard',
+    name: 'Moodboard',
+    category: 'Media',
+    title: 'Moodboard',
+    description:
+      'A seeded scatter-grid of image tiles arranged AROUND a central exclusion zone (where a title sits). Places exactly one tile per image, mixed aspect/size; each cascades in (fade + drift) on a visible stagger and exits on the mirrored stagger.',
+    pickWhen:
+      'A portfolio / moodboard spread of tiles cascading in around a centered title (pair with SplitLockup) — the image-cascade showcase. Feed it N images; it auto-distributes them.',
+    composes: ['SplitLockup'],
+    sceneRole: 'background',
+    occlusion: 'non_occluding',
+    example: {
+      images: [],
+      seed: 11,
+      columns: 5,
+      rows: 4,
+      exclusionWidth: 0.52,
+      exclusionHeight: 0.42,
+      stagger: 4,
+    },
+    props: [],
+    schema: moodboardSchema,
+  },
+  {
+    slug: 'keyframes',
+    name: 'Keyframes',
+    category: 'Motion',
+    title: 'Keyframes',
+    description:
+      "Animate ONE element along explicit per-channel tracks — position / scale / scaleX / scaleY (non-uniform) / opacity / rotation — each key carrying its own easing (a named curve OR a raw cubic-bezier [x1,y1,x2,y2]). The element is set by `content.kind`: 'image' = a card/tile whose FILL is an image `src`, a solid `color`, OR a `gradient` (linear/radial/fbm), plus `cornerRadius`/`width`/`height` (omit `src` for a color/gradient placeholder the user swaps a photo into); 'ellipse' or 'path' = vector shapes with a `color`/`gradient` fill and/or a `stroke`+`strokeWidth` (rings, dots, bars, geometric marks); 'text' = an editable line (text/fontSize/color/fontFamily/fontWeight/letterSpacing). Arbitrary motion + any shape/fill, not a fixed preset.",
+    pickWhen:
+      'EXACT custom motion (transcribe an AE/Lottie ref) OR an animated SHAPE/CARD: a colored / gradient / image BACKGROUND card, a ring / dot / line / geometric mark, or a swappable photo tile. Fills are editable — set content.color (solid), content.gradient, or content.src (image); shapes add content.stroke/strokeWidth. Use scaleX/scaleY to grow a bar in one axis.',
+    composes: [],
+    sceneRole: 'block',
+    occlusion: 'unknown',
+    example: {
+      // A gradient card (omit `gradient` + set `color` for a flat fill, or `src` for a photo).
+      content: {
+        kind: 'image',
+        gradient: {
+          type: 'linear',
+          start: [0, 0],
+          end: [320, 320],
+          stops: [
+            { offset: 0, color: '#6E8BFF' },
+            { offset: 1, color: '#3B2A6B' },
+          ],
+        },
+        width: 320,
+        height: 320,
+        cornerRadius: 16,
+      },
+      position: [{ at: 0, x: 960, y: 540 }],
+      scale: [
+        { at: 0, v: 0 },
+        { at: 12, v: 1, ease: 'easeOut' },
+      ],
+      opacity: [
+        { at: 0, v: 0 },
+        { at: 6, v: 1 },
+      ],
+    },
+    props: [],
+    schema: keyframesSchema,
+  },
 ]
 
-/** The catalog — RAW entries enriched with the live fidelity rating. */
+// ─── Schema → PropMeta reconciliation (the "codegen", live at build time) ────
+//
+// The curated `props` arrays are hand-written, but the Zod `schema` is the source
+// of truth — and now carries the SHARED text-style props (color/fontFamily/
+// fontWeight/italic/letterSpacing/uppercase via `textStyleSchemaShape`). The two
+// drift the moment a schema gains a prop the curated list doesn't mention — and
+// the studio reads `props` (PropMeta names) to decide what's a KNOWN prop, so a
+// missing entry means the agent's `letterSpacing`/`uppercase` get STRIPPED.
+//
+// So we derive a PropMeta for any schema prop the curated list is missing. Adding
+// a prop to a schema (or to the shared mixin) now shows up in the agent catalog,
+// the /llms.txt + /api/components.json docs, and the studio's allowed-prop set
+// automatically — no hand-maintenance, no codegen file to go stale.
+
+function unwrapZod(field: z.ZodTypeAny): {
+  def: { typeName?: string; [k: string]: unknown }
+  default?: string
+  min?: number
+  max?: number
+} {
+  let f = field as unknown as {
+    _def?: { typeName?: string; innerType?: unknown; defaultValue?: () => unknown }
+  }
+  let dflt: string | undefined
+  for (let i = 0; i < 8 && f?._def; i++) {
+    const tn = f._def.typeName
+    if (tn === 'ZodOptional' || tn === 'ZodNullable') {
+      f = f._def.innerType as typeof f
+      continue
+    }
+    if (tn === 'ZodDefault') {
+      try {
+        dflt = JSON.stringify(f._def.defaultValue?.())
+      } catch {
+        /* non-serializable default — leave undefined */
+      }
+      f = f._def.innerType as typeof f
+      continue
+    }
+    break
+  }
+  const def = (f?._def ?? {}) as { typeName?: string; checks?: { kind?: string; value?: number }[] }
+  // Number constraints — min/max from the Zod `.min()/.max()` checks.
+  let min: number | undefined
+  let max: number | undefined
+  if (Array.isArray(def.checks)) {
+    for (const c of def.checks) {
+      if (c.kind === 'min' && typeof c.value === 'number') min = c.value
+      if (c.kind === 'max' && typeof c.value === 'number') max = c.value
+    }
+  }
+  return { def, default: dflt, min, max }
+}
+
+function zodKind(def: { typeName?: string; checks?: { kind?: string }[]; values?: string[] }): {
+  type: string
+  enumValues?: string[]
+} {
+  switch (def.typeName) {
+    case 'ZodString':
+      return { type: 'string' }
+    case 'ZodNumber':
+      return { type: (def.checks ?? []).some((c) => c.kind === 'int') ? 'int' : 'number' }
+    case 'ZodBoolean':
+      return { type: 'boolean' }
+    case 'ZodEnum':
+      return { type: 'enum', enumValues: def.values }
+    case 'ZodArray':
+      return { type: 'array' }
+    default:
+      return { type: 'unknown' }
+  }
+}
+
+function roleFor(name: string, type: string): string {
+  if (name === 'color' || /[Cc]olor$/.test(name)) return 'color'
+  if (name === 'fontFamily' || /[Ff]ontFamily$/.test(name)) return 'font'
+  if (name === 'fontSize') return 'fontSize'
+  if (name === 'text') return 'text'
+  if (type === 'enum') return 'enum'
+  if (type === 'boolean') return 'boolean'
+  if (type === 'int' || type === 'number') return 'number'
+  return 'other'
+}
+
+/** A display-unit hint for a number prop, from its role / name / description.
+ *  Conservative — only the unambiguous cases (px, frames, deg). */
+function unitFor(name: string, role: string, description: string): string | undefined {
+  const d = description.toLowerCase()
+  if (/\bframes?\b/.test(d) || /(?:InFrames|Frames)$/.test(name) || /duration/i.test(name))
+    return 'frames'
+  if (role === 'fontSize' || /\bin px\b|\bpx\b|\bpixels?\b/.test(d)) return 'px'
+  if (/degrees?|°/.test(d) || /(?:rotation|angle|tilt|skew)/i.test(name)) return 'deg'
+  return undefined
+}
+
+/** Reconcile curated PropMeta against the Zod schema (the source of truth):
+ *  every prop's `default`, `enumValues`, `min`, `max`, `unit` are DERIVED from the
+ *  schema so they can never drift from what actually renders (the curated `default`
+ *  used to go stale — e.g. TitleCard.titleSize 96 vs the schema's 120). Curated
+ *  `type`/`role`/`description`/`themeable` are kept (richer than what's inferable),
+ *  and any schema prop the curated list omits gets a fully-derived entry. */
+function reconcileProps(entry: RawEntry): PropMeta[] {
+  const shape = (entry.schema as { shape?: Record<string, z.ZodTypeAny> }).shape
+  if (!shape || typeof shape !== 'object') return entry.props
+
+  // Enrich a curated prop with schema-authoritative default/enum/min/max/unit.
+  const enrich = (p: PropMeta): PropMeta => {
+    const field = shape[p.name]
+    if (!field) return p
+    const { def, default: dflt, min, max } = unwrapZod(field)
+    const { enumValues } = zodKind(def)
+    const unit = unitFor(p.name, p.role, p.description)
+    return {
+      ...p,
+      ...(enumValues ? { enumValues } : {}),
+      ...(dflt !== undefined ? { default: dflt } : {}), // schema wins → no drift
+      ...(min !== undefined ? { min } : {}),
+      ...(max !== undefined ? { max } : {}),
+      ...(unit ? { unit } : {}),
+    }
+  }
+
+  const have = new Set(entry.props.map((p) => p.name))
+  const curated = entry.props.map(enrich)
+  const derived: PropMeta[] = []
+  for (const [name, field] of Object.entries(shape)) {
+    if (have.has(name)) continue
+    const { def, default: dflt, min, max } = unwrapZod(field)
+    const { type, enumValues } = zodKind(def)
+    const role = roleFor(name, type)
+    const description = (field as { description?: string }).description ?? ''
+    const unit = unitFor(name, role, description)
+    derived.push({
+      name,
+      type,
+      role,
+      ...(enumValues ? { enumValues } : {}),
+      ...(dflt !== undefined ? { default: dflt } : {}),
+      ...(min !== undefined ? { min } : {}),
+      ...(max !== undefined ? { max } : {}),
+      ...(unit ? { unit } : {}),
+      themeable: name === 'color' || name === 'fontFamily',
+      required: false,
+      description,
+    })
+  }
+  return [...curated, ...derived]
+}
+
+/** The catalog — RAW entries enriched with the live fidelity rating + the
+ *  schema-reconciled prop list (so curated `props` can never drift from `schema`). */
 export const MANIFEST: ManifestEntry[] = RAW.map((e) => {
   const f = COMPONENT_FIDELITY[e.name]
   return {
     ...e,
+    props: reconcileProps(e),
     fidelity: f?.fidelity ?? 'first_class',
     backend: f?.backend ?? 'both',
     engineNative: f?.engineNative ?? true,

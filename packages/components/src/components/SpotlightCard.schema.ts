@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const spotlightCardSchema = z.object({
+  ...textStyleSchemaShape,
   eyebrow: z
     .string()
     .default('FEATURE')
@@ -31,10 +33,6 @@ export const spotlightCardSchema = z.object({
     .describe('Card height in px; if omitted, sized from content plus padding.'),
   padding: z.number().default(48).describe('Inner padding in px.'),
   align: z.enum(['left', 'center']).default('left').describe('Text alignment within the card.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Display font for the title (default: theme headingFamily ?? theme.fontFamily).'),
   bodyFontFamily: z
     .string()
     .optional()

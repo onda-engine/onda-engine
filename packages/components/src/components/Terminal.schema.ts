@@ -5,9 +5,11 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const terminalSchema = z.object({
+  ...textStyleSchemaShape,
   command: z
     .string()
     .default('npx ondajs add code-block')
@@ -27,7 +29,6 @@ export const terminalSchema = z.object({
   outputDelay: timeSchema
     .default(8)
     .describe('Frames after the command finishes before output begins.'),
-  fontFamily: z.string().optional().describe('Monospace font stack (default: theme monoFamily).'),
   fontSize: z.number().default(48).describe('Font size in px, sized for a 1080p+ video canvas.'),
   width: z
     .number()

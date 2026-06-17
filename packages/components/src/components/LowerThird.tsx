@@ -36,6 +36,7 @@ import {
 import { entryFade, entrySlide } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
@@ -74,7 +75,7 @@ const LINE_RATIO = 1.2
 const ROLE_OFFSET = 4
 const UNDERLINE_OFFSET = 8
 
-export interface LowerThirdProps {
+export interface LowerThirdProps extends TextStyleProps {
   /** The person's name (the primary line). */
   name?: string
   /** The person's role / title (the secondary line). */
@@ -86,8 +87,6 @@ export interface LowerThirdProps {
   delay?: TimeInput
   /** Show the accent rule beneath the name (default `true`). */
   accent?: boolean
-  /** Name color (default: theme `text`). */
-  color?: string
   /** Role color (default: theme `textMuted`). */
   roleColor?: string
   /** Accent rule color (default: theme `accent`). */
@@ -100,8 +99,6 @@ export interface LowerThirdProps {
   roleFontSize?: number
   /** Role font weight (default 500). */
   roleFontWeight?: number
-  /** Loaded font family for both lines (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
-  fontFamily?: string
   /** Accent rule corner radius in px (capped so a thin sliver never bulges) (default: theme `radius`). */
   cornerRadius?: number
 }
@@ -120,6 +117,8 @@ export function LowerThird({
   roleFontSize = 22,
   roleFontWeight = 500,
   fontFamily: fontFamilyProp,
+  letterSpacing,
+  uppercase,
   cornerRadius: cornerRadiusProp,
 }: LowerThirdProps) {
   const frame = useCurrentFrame()
@@ -132,10 +131,11 @@ export function LowerThird({
   const accentColor = accentColorProp ?? theme.accent
   const fontFamily = fontFamilyProp ?? theme.fontFamily
   const cornerRadius = cornerRadiusProp ?? theme.radius
+  const nameText = applyTextCase(name, { uppercase })
 
   // Real shaped line-box widths (the engine measures them exactly; falls back to
   // a glyph-count estimate until the wasm engine warms). One hook per fixed line.
-  const nameMetrics = useTextMetrics(name, fontSize, { fontFamily, fontWeight: nameFontWeight })
+  const nameMetrics = useTextMetrics(nameText, fontSize, { fontFamily, fontWeight: nameFontWeight })
   const roleMetrics = useTextMetrics(role, roleFontSize, { fontFamily, fontWeight: roleFontWeight })
 
   // A lower-third only lives in a corner; a caller (or the agent) may pass a
@@ -232,8 +232,9 @@ export function LowerThird({
             color={color}
             fontFamily={fontFamily}
             fontWeight={nameFontWeight}
+            letterSpacing={letterSpacing}
           >
-            {name}
+            {nameText}
           </Text>
         </Group>
       </Group>
