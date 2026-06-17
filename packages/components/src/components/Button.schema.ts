@@ -5,9 +5,11 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const buttonSchema = z.object({
+  ...textStyleSchemaShape,
   label: z.string().default('Get started').describe('The button label.'),
   variant: z
     .enum(['primary', 'ghost'])

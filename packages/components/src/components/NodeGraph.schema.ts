@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const nodeGraphSchema = z.object({
+  ...textStyleSchemaShape,
   hubLabel: z
     .string()
     .default('AI')
@@ -49,10 +51,6 @@ export const nodeGraphSchema = z.object({
     .describe('Border color of the satellite pills (default: theme border).'),
   textColor: z.string().optional().describe('Text color of every label (default: theme text).'),
   satelliteFontSize: z.number().default(20).describe('Satellite label font size in px.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Display font for every label (default: theme fontFamily).'),
   centerX: z
     .number()
     .default(0.5)

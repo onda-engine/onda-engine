@@ -45,6 +45,7 @@ import {
 } from '@onda/react'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION, SPRING_SMOOTH, staggerFrames } from '../motion.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
@@ -60,7 +61,7 @@ export interface Satellite {
   startAngle: number
 }
 
-export interface NodeGraphProps {
+export interface NodeGraphProps extends TextStyleProps {
   /** Label inside the central hub node — a single character or short word. */
   hubLabel?: string
   /** The orbiting satellites. Each flies in from off-frame, then settles into
@@ -97,8 +98,6 @@ export interface NodeGraphProps {
   textColor?: string
   /** Satellite label font size in px. */
   satelliteFontSize?: number
-  /** Display font for every label (default: theme `fontFamily`). */
-  fontFamily?: string
   /** Horizontal center of the constellation as a 0–1 fraction of canvas width. */
   centerX?: number
   /** Vertical center of the constellation as a 0–1 fraction of canvas height. */
@@ -165,6 +164,8 @@ export function NodeGraph({
   textColor: textColorProp,
   satelliteFontSize = 20,
   fontFamily: fontFamilyProp,
+  letterSpacing,
+  uppercase,
   centerX = 0.5,
   centerY = 0.5,
 }: NodeGraphProps) {
@@ -403,8 +404,9 @@ export function NodeGraph({
                 color={textColor}
                 fontFamily={fontFamily}
                 fontWeight={600}
+                letterSpacing={letterSpacing}
               >
-                {sat.label}
+                {applyTextCase(sat.label, { uppercase })}
               </Text>
             </Group>
           )

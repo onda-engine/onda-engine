@@ -21,6 +21,7 @@ import { LINE_RATIO, layoutGlyphLine, lineStartX, lineTopY } from '../glyph-line
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetricsReady } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { staggeredSettle, useTimeScale } from '../timing.js'
@@ -29,7 +30,7 @@ import { type TextAnimate, TextAnimator } from './TextAnimator.js'
 /** The per-glyph entrance presets. */
 export type KineticTextPreset = 'rise' | 'fade' | 'scale' | 'blur' | 'wave'
 
-export interface KineticTextProps {
+export interface KineticTextProps extends TextStyleProps {
   /** The line to choreograph. Laid out as one row of absolutely-placed glyphs. */
   text?: string
   /** Font size in px (default 96). */
@@ -59,12 +60,6 @@ export interface KineticTextProps {
   hold?: TimeInput
   /** Horizontal alignment of the line about its anchor (default `'center'`). */
   align?: 'left' | 'center' | 'right'
-  /** Text color (default: theme `text`). */
-  color?: string
-  /** Loaded font family (default: theme `fontFamily`). */
-  fontFamily?: string
-  /** Font weight (display default 600). */
-  fontWeight?: number
   /** Where the line sits: a region keyword (`'center'`, `'lower-third'`, …) or
    *  normalized `{x,y}` (0–1, line center). The shared placement contract;
    *  default `'center'` (the historical centering). */
@@ -92,7 +87,7 @@ const PRESET_ANIMATE: Record<Exclude<KineticTextPreset, 'wave'>, TextAnimate> = 
 }
 
 export function KineticText({
-  text = 'kinetic',
+  text: textProp = 'kinetic',
   fontSize = 96,
   fit,
   maxWidth,
@@ -107,8 +102,14 @@ export function KineticText({
   color,
   fontFamily,
   fontWeight = 600,
+  italic = false,
+  letterSpacing,
+  uppercase,
   placement,
 }: KineticTextProps) {
+  // Uppercase the SOURCE once here, before it's handed to the per-glyph engine
+  // (TextAnimator / KineticWave), so the transform survives the glyph layout.
+  const text = applyTextCase(textProp, { uppercase })
   // KineticText is the engine's DISPLAY-statement component, so it follows the
   // theme's heading family by default (`headingFamily ?? fontFamily`) — set
   // `fontDisplay` on the brand and the kinetic lines pick up the title face,
@@ -136,6 +137,8 @@ export function KineticText({
         color={color}
         fontFamily={resolvedFamily}
         fontWeight={fontWeight}
+        italic={italic}
+        letterSpacing={letterSpacing}
         placement={placement}
       />
     )
@@ -159,6 +162,8 @@ export function KineticText({
       color={color}
       fontFamily={resolvedFamily}
       fontWeight={fontWeight}
+      italic={italic}
+      letterSpacing={letterSpacing}
       placement={placement}
     />
   )
@@ -179,6 +184,8 @@ interface KineticWaveProps {
   color?: string
   fontFamily?: string
   fontWeight: number
+  italic?: boolean
+  letterSpacing?: number
   placement?: Placement
 }
 
@@ -200,6 +207,8 @@ function KineticWave({
   color: colorProp,
   fontFamily: fontFamilyProp,
   fontWeight,
+  italic = false,
+  letterSpacing,
   placement,
 }: KineticWaveProps) {
   const frame = useCurrentFrame()
@@ -261,6 +270,8 @@ function KineticWave({
             color={color}
             fontFamily={fontFamily}
             fontWeight={fontWeight}
+            italic={italic}
+            letterSpacing={letterSpacing}
           >
             {ch}
           </Text>

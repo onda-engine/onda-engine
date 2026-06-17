@@ -39,10 +39,11 @@ import {
 } from '@onda/react'
 import type { ReactNode } from 'react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
+import type { TextStyleProps } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
-export interface SplitScreenProps {
+export interface SplitScreenProps extends TextStyleProps {
   /** Content for the left (or top) pane — any scene subtree. */
   left?: ReactNode
   /** Content for the right (or bottom) pane — any scene subtree. */
@@ -71,8 +72,6 @@ export interface SplitScreenProps {
   dividerColor?: string
   /** Placeholder label color for an empty pane (default: theme `textMuted`). */
   placeholderColor?: string
-  /** Loaded font family for empty-pane placeholders (default: theme `fontFamily`). */
-  fontFamily?: string
 }
 
 /** House-spring travel for the pane entrance, in px (matches ondajs). */

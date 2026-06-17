@@ -5,9 +5,11 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const titleCardSchema = z.object({
+  ...textStyleSchemaShape,
   title: z.string().describe('The hero headline rendered as the large centered title.'),
   subtitle: z
     .string()
@@ -17,10 +19,6 @@ export const titleCardSchema = z.object({
   subtitleSize: z.number().default(36).describe('Subtitle font size in px.'),
   titleColor: z.string().optional().describe('Title color (defaults to theme text).'),
   subtitleColor: z.string().optional().describe('Subtitle color (defaults to theme textMuted).'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Loaded font family (defaults to theme heading family, else body family).'),
   delay: timeSchema
     .default(0)
     .describe('Frame the title begins fading in; the subtitle follows by one stagger step.'),

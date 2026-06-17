@@ -13,23 +13,18 @@
 
 import { AbsoluteFill, Flex, Text, useVideoConfig } from '@onda/react'
 import { STAGGER, staggerFrames } from '../motion.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { FadeIn } from './FadeIn.js'
 
-export interface WordStaggerProps {
+export interface WordStaggerProps extends TextStyleProps {
   /** The phrase. Split on whitespace into one reveal per word. */
   text?: string
   /** Font size in px (default 64). */
   fontSize?: number
-  /** Text color (default: theme `text`). */
-  color?: string
   /** Container width in px — the line wraps within this (default 1080). */
   width?: number
-  /** Loaded font family (e.g. a `--font` passed to `onda render`) (default: theme `fontFamily`). */
-  fontFamily?: string
-  /** Font weight (display default 600). */
-  fontWeight?: number
   /** Horizontal alignment of words within each line (default `'start'`). */
   justify?: 'start' | 'center' | 'end'
   /** Frames before the FIRST word starts (default 0). */
@@ -39,16 +34,20 @@ export interface WordStaggerProps {
 }
 
 export function WordStagger({
-  text = 'motion that moves you',
+  text: textProp = 'motion that moves you',
   fontSize = 64,
   color: colorProp,
   width = 1080,
   fontFamily: fontFamilyProp,
   fontWeight = 600,
+  italic = false,
+  letterSpacing,
+  uppercase,
   justify = 'start',
   delay: delayIn = 0,
   stagger: staggerIn,
 }: WordStaggerProps) {
+  const text = applyTextCase(textProp, { uppercase })
   const { fps } = useVideoConfig()
   // TimeInput props -> frames (accepts numbers or '0.5s'/'500ms'/'12f').
   const delay = framesOf(delayIn, fps)
@@ -66,7 +65,14 @@ export function WordStagger({
       <Flex direction="row" wrap justify={justify} gap={Math.round(fontSize * 0.3)} width={width}>
         {words.map((word, i) => (
           <FadeIn key={`${i}-${word}`} delay={delay + staggerFrames(i, stagger)}>
-            <Text fontSize={fontSize} color={color} fontFamily={fontFamily} fontWeight={fontWeight}>
+            <Text
+              fontSize={fontSize}
+              color={color}
+              fontFamily={fontFamily}
+              fontWeight={fontWeight}
+              italic={italic}
+              letterSpacing={letterSpacing}
+            >
               {word}
             </Text>
           </FadeIn>

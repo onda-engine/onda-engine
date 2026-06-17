@@ -5,9 +5,11 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const kineticTextSchema = z.object({
+  ...textStyleSchemaShape,
   text: z
     .string()
     .default('kinetic')
@@ -28,9 +30,6 @@ export const kineticTextSchema = z.object({
     .enum(['left', 'center', 'right'])
     .default('center')
     .describe('Horizontal alignment of the line about its anchor.'),
-  color: z.string().optional().describe('Text color; defaults to theme text color.'),
-  fontFamily: z.string().optional().describe('Loaded font family; defaults to theme font family.'),
-  fontWeight: z.number().default(600).describe('Font weight (display default).'),
   placement: placementSchema
     .optional()
     .describe(

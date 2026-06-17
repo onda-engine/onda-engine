@@ -10,9 +10,10 @@
 //!   onda export <movie.json> <out.gif|out.mp4> [--backend ...] [--system-fonts]
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use anyhow::{bail, Context, Result};
 use kurbo::{Affine, Rect};
@@ -28,6 +29,107 @@ use onda_vello::VelloRenderer;
 /// Set by `--progress`: when true, the Vello render emits a `[onda-progress]{…}`
 /// JSON line per frame on stdout (parsed by the @onda/node bridge for onProgress).
 static EMIT_PROGRESS: AtomicBool = AtomicBool::new(false);
+
+// ─── Remote-source materialization ───────────────────────────────────────────
+//
+// The offline decoders (onda-image, onda-video→ffmpeg, onda-audio) read FILES and
+// `data:` URIs — they do NOT fetch `http(s)://` URLs. So before any render pass we
+// walk the scene and download every remote media `src` to a local temp file,
+// rewriting the `src` to that path. This is what makes a composition that
+// references hosted media (a signed R2/S3/CDN link, or any public asset) actually
+// render its images, video, AND audio.
+//
+// The engine stays storage-agnostic: it does a plain HTTP GET on whatever URL it's
+// handed — no cloud SDK, no credentials (a signed URL is already a public link).
+// Best-effort: a failed fetch leaves the original src untouched (the decoder then
+// skips it, exactly as before) so an unreachable asset never aborts a render.
+
+/// Monotonic counter for unique temp filenames within one process.
+static REMOTE_SEQ: AtomicUsize = AtomicUsize::new(0);
+
+/// Process-wide cache: a remote `src` URL → the local temp path it was fetched to,
+/// so a source referenced by every frame is downloaded ONCE per render.
+fn remote_cache() -> &'static Mutex<HashMap<String, String>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// If `src` is an `http(s)://` URL, download it to a temp file and rewrite `src`
+/// to that local path. Local paths / `data:` URIs are left untouched.
+fn materialize_src(src: &mut String) {
+    if !(src.starts_with("http://") || src.starts_with("https://")) {
+        return;
+    }
+    if let Some(local) = remote_cache().lock().unwrap().get(src).cloned() {
+        *src = local;
+        return;
+    }
+    match fetch_remote_to_temp(src) {
+        Ok(path) => {
+            remote_cache()
+                .lock()
+                .unwrap()
+                .insert(src.clone(), path.clone());
+            *src = path;
+        }
+        Err(e) => {
+            let shown: String = src.chars().take(80).collect();
+            eprintln!("onda: could not fetch remote source ({e}) — skipping: {shown}");
+        }
+    }
+}
+
+fn fetch_remote_to_temp(url: &str) -> Result<String> {
+    let resp = ureq::get(url)
+        .call()
+        .map_err(|e| anyhow::anyhow!("HTTP GET failed: {e}"))?;
+    // Keep the URL's extension (before any query/fragment) so ffmpeg can sniff the
+    // container; image bytes are format-detected from content, so a fallback is fine.
+    let ext = url
+        .split(['?', '#'])
+        .next()
+        .and_then(|p| p.rsplit('.').next())
+        .filter(|e| (1..=5).contains(&e.len()) && e.chars().all(|c| c.is_ascii_alphanumeric()))
+        .unwrap_or("bin");
+    let n = REMOTE_SEQ.fetch_add(1, Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!("onda-remote-{}-{}.{ext}", std::process::id(), n));
+    let mut reader = resp.into_reader();
+    let mut file = std::fs::File::create(&path)
+        .with_context(|| format!("creating temp file '{}'", path.display()))?;
+    std::io::copy(&mut reader, &mut file).context("writing remote source to temp file")?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+/// Walk a scene graph and materialize every remote media source (Image / Video /
+/// Audio / Svg `src`). Run once per scene, before the offline decode pre-passes.
+fn materialize_scene_sources(scene: &mut Scene) {
+    materialize_node(&mut scene.root);
+}
+
+fn materialize_node(node: &mut Node) {
+    match &mut node.kind {
+        NodeKind::Image(image) => materialize_src(&mut image.src),
+        NodeKind::Video(video) => materialize_src(&mut video.src),
+        NodeKind::Audio(audio) => materialize_src(&mut audio.src),
+        NodeKind::Svg(svg) => {
+            if let Some(src) = svg.src.as_mut() {
+                materialize_src(src);
+            }
+        }
+        _ => {}
+    }
+    for child in &mut node.children {
+        materialize_node(child);
+    }
+}
+
+/// Materialize the soundtrack's remote sources — the lifted `AudioTrack`s the
+/// animated-scene export muxes separately from the scene graph.
+fn materialize_audio_tracks(tracks: &mut [AudioTrack]) {
+    for t in tracks {
+        materialize_src(&mut t.src);
+    }
+}
 
 const USAGE: &str = "\
 onda — render a scene-graph document to an image or video
@@ -298,6 +400,11 @@ struct Options {
     /// one output frame (temporal supersampling — a 180° shutter when the producer
     /// spread the sub-frames across half the frame). 1 = off (the default).
     motion_blur: u32,
+    /// SPATIAL supersampling factor (`export-frames` mp4 streaming path): render
+    /// each frame at `N`× resolution, then box-downscale to native — area-averages
+    /// away the minification aliasing detailed images shimmer with. Scaling is
+    /// applied BEFORE image decode, so images resolve at `N`× detail. 1 = off.
+    supersample: u32,
 }
 
 /// Parse the shared `[--backend ...] [--system-fonts] [--font <path>]...` +
@@ -310,11 +417,22 @@ fn parse_io(args: &[String], verb: &str) -> Result<Options> {
     let mut progress = false;
     let mut fonts: Vec<PathBuf> = Vec::new();
     let mut motion_blur: u32 = 1;
+    let mut supersample: u32 = 1;
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
             "--system-fonts" => font = FontMode::System,
             "--progress" => progress = true,
+            "--supersample" => {
+                let value = iter
+                    .next()
+                    .with_context(|| format!("--supersample needs a value\n\n{USAGE}"))?;
+                supersample = value
+                    .parse::<u32>()
+                    .ok()
+                    .filter(|k| (1..=4).contains(k))
+                    .with_context(|| format!("--supersample needs an integer 1-4\n\n{USAGE}"))?;
+            }
             "--motion-blur" => {
                 let value = iter
                     .next()
@@ -377,6 +495,7 @@ fn parse_io(args: &[String], verb: &str) -> Result<Options> {
         progress,
         fonts,
         motion_blur,
+        supersample,
     })
 }
 
@@ -522,6 +641,21 @@ fn transcribe_command(args: &[String]) -> Result<()> {
         duration_ms as f64 / 1000.0,
         transcript.language,
     );
+    // Measured quality — so a misheard or hallucinated transcript is visible, not
+    // shipped blind (the `quality` field carries the full report + reasons).
+    let q = &transcript.quality;
+    eprintln!(
+        "  caption quality = {} (confidence {:.0}%, low-confidence words {:.0}%, repetition {:.0}%)",
+        q.verdict,
+        q.mean_confidence * 100.0,
+        q.low_confidence_frac * 100.0,
+        q.repetition * 100.0,
+    );
+    if q.verdict != "good" {
+        for reason in &q.reasons {
+            eprintln!("    • {reason}");
+        }
+    }
     Ok(())
 }
 
@@ -633,6 +767,7 @@ fn render_command(args: &[String]) -> Result<()> {
         progress: _,
         fonts,
         motion_blur: _,
+        supersample: _,
     } = parse_io(args, "render")?;
     let fonts = load_font_bytes(&fonts)?;
     let (width, height, used) =
@@ -720,12 +855,14 @@ fn render_frame_command(args: &[String]) -> Result<()> {
         output.with_context(|| format!("render-frame needs an output .png path\n\n{USAGE}"))?;
     let json =
         std::fs::read_to_string(input).with_context(|| format!("reading frames file '{input}'"))?;
-    let scenes: Vec<Scene> =
+    let mut scenes: Vec<Scene> =
         serde_json::from_str(&json).context("frames JSON is not an array of scene graphs")?;
     let total = scenes.len();
     let scene = scenes
-        .get(frame)
+        .get_mut(frame)
         .with_context(|| format!("frame {frame} is out of range (0..{total})"))?;
+    materialize_scene_sources(scene);
+    let scene = &*scene;
 
     // Same pre-passes as `onda render`, so the zoomed frame is faithful.
     let base_dir = Path::new(input).parent().unwrap_or_else(|| Path::new(""));
@@ -895,10 +1032,14 @@ fn contact_sheet_command(args: &[String]) -> Result<()> {
         output.with_context(|| format!("contact-sheet needs an output .png path\n\n{USAGE}"))?;
     let json =
         std::fs::read_to_string(input).with_context(|| format!("reading frames file '{input}'"))?;
-    let scenes: Vec<Scene> =
+    let mut scenes: Vec<Scene> =
         serde_json::from_str(&json).context("frames JSON is not an array of scene graphs")?;
     if scenes.is_empty() {
         bail!("no frames to tile");
+    }
+    // Pull remote media to local temp files (the per-URL cache fetches each once).
+    for scene in scenes.iter_mut() {
+        materialize_scene_sources(scene);
     }
 
     let extra_fonts = load_font_bytes(&font_paths)?;
@@ -1059,6 +1200,7 @@ fn export_command(args: &[String]) -> Result<()> {
         progress,
         fonts,
         motion_blur: _,
+        supersample: _,
     } = parse_io(args, "export")?;
     let fonts = load_font_bytes(&fonts)?;
     EMIT_PROGRESS.store(progress, Ordering::Relaxed);
@@ -1092,6 +1234,7 @@ fn export_frames_command(args: &[String]) -> Result<()> {
         progress,
         fonts,
         motion_blur,
+        supersample,
     } = parse_io(args, "export-frames")?;
     let fonts = load_font_bytes(&fonts)?;
     EMIT_PROGRESS.store(progress, Ordering::Relaxed);
@@ -1119,7 +1262,13 @@ fn export_frames_command(args: &[String]) -> Result<()> {
             font,
             &fonts,
             encoder,
+            supersample,
         );
+    }
+    if supersample > 1 {
+        // The buffered path (gif / motion-blur) doesn't carry the spatial
+        // supersample yet — it'd hold every N× frame in memory. Surface that.
+        eprintln!("note: --supersample is applied only on the mp4 streaming path; ignored here");
     }
 
     let (scenes, fps) = frames_scenes(&json, base_dir_of(&input))
@@ -1920,6 +2069,10 @@ struct Movie {
 fn movie_scenes(json: &str, base_dir: &Path) -> Result<Movie> {
     let mut doc: AnimatedScene =
         serde_json::from_str(json).context("movie JSON is not a valid animated scene")?;
+    // Pull remote images/video/audio to local temp files before any decode pass
+    // (the soundtrack is lifted into `doc.audio`, so materialize it too).
+    materialize_scene_sources(&mut doc.scene);
+    materialize_audio_tracks(&mut doc.audio);
     doc.scene = onda_svg::expand_svg(&doc.scene, base_dir).context("expanding <svg> nodes")?;
     // Decode images once on the template; frame clones then share the pixels.
     doc.scene = onda_image::load_images(&doc.scene, base_dir).context("loading images")?;
@@ -1935,12 +2088,17 @@ fn movie_scenes(json: &str, base_dir: &Path) -> Result<Movie> {
 /// Parse a pre-evaluated sequence of scene graphs (one per frame), expanding any
 /// `<svg>` nodes (file `src`s relative to `base_dir`).
 fn frames_scenes(json: &str, base_dir: &Path) -> Result<(Vec<Scene>, f32)> {
-    let raw: Vec<Scene> =
+    let mut raw: Vec<Scene> =
         serde_json::from_str(json).context("frames JSON is not an array of scene graphs")?;
     let Some(first) = raw.first() else {
         bail!("frames JSON contains no scenes");
     };
     let fps = first.composition.fps;
+    // Materialize remote media to local temp files so the offline image/video/
+    // audio decoders (which don't fetch URLs) can read them.
+    for scene in raw.iter_mut() {
+        materialize_scene_sources(scene);
+    }
     let mut scenes = Vec::with_capacity(raw.len());
     // One persistent, sequential video decoder across all frames: each `src`
     // streams from a single ffmpeg pipe (frame-accurate, ~no per-frame spawn)
@@ -2117,14 +2275,53 @@ fn pipe_encode(
 /// pre-passed (svg → video → layout → images) and rendered, then freed before the
 /// next, so peak RAM is ~one chunk of frames regardless of the video's length
 /// (vs. buffering every frame). Returns the backend actually used.
+/// Scale a scene by integer factor `s` for SPATIAL supersampling: the composition
+/// grows `s`× and the whole tree is wrapped in a `scale(s)` group. Applied BEFORE
+/// image decode/layout (in `render_stream`'s prepare), so images resolve at `s`×
+/// detail — the detail `Framebuffer::downscale_box(s)` then area-averages into
+/// clean, alias-free pixels (kills the shimmer detailed images get under motion).
+fn supersample_scene(scene: &Scene, s: u32) -> Scene {
+    if s <= 1 {
+        return scene.clone();
+    }
+    let sf = s as f32;
+    let mut comp = scene.composition.clone();
+    comp.width *= s;
+    comp.height *= s;
+    let root = Node::group()
+        .with_transform(Transform {
+            scale: Vec2::new(sf, sf),
+            ..Transform::IDENTITY
+        })
+        .with_children([scene.root.clone()]);
+    Scene::new(comp).with_root(root)
+}
+
 fn render_stream(
     raw_scenes: &[Scene],
     base_dir: &Path,
     backend: BackendChoice,
     font: FontMode,
     extra_fonts: &[Vec<u8>],
+    supersample: u32,
     mut write: impl FnMut(&Framebuffer) -> Result<()>,
 ) -> Result<&'static str> {
+    // Spatial supersampling: render at N× (scaled scenes → images decode at N×
+    // detail), then `downscale_box(N)` each frame to native before piping. The N×
+    // frames raise per-frame bytes, so the adaptive chunk below shrinks to match —
+    // memory stays bounded. `write` always receives NATIVE-size frames.
+    let ss = supersample.max(1);
+    let scaled: Vec<Scene>;
+    let raw_scenes: &[Scene] = if ss > 1 {
+        scaled = raw_scenes
+            .iter()
+            .map(|s| supersample_scene(s, ss))
+            .collect();
+        &scaled
+    } else {
+        raw_scenes
+    };
+    let down = |fb: Framebuffer| if ss > 1 { fb.downscale_box(ss) } else { fb };
     let comp = &raw_scenes[0].composition;
     // Adaptive chunk: target ~1 GiB of raw frames in flight, whatever the
     // resolution (1080p ≈ 128 frames, 4K ≈ 32), so memory stays flat + bounded.
@@ -2143,7 +2340,9 @@ fn render_stream(
         slice
             .iter()
             .map(|raw| {
-                let s = onda_svg::expand_svg(raw, base_dir).context("expanding <svg> nodes")?;
+                let mut owned = raw.clone();
+                materialize_scene_sources(&mut owned);
+                let s = onda_svg::expand_svg(&owned, base_dir).context("expanding <svg> nodes")?;
                 #[cfg(feature = "video")]
                 let s = video.resolve_scene(&s).context("decoding video frames")?;
                 let s = if scene_has_layout(&s) {
@@ -2171,11 +2370,8 @@ fn render_stream(
         for slice in raw_scenes.chunks(chunk) {
             for scene in &prepare(slice)? {
                 let frame = renderer.render(scene);
-                write(&Framebuffer::from_rgba(
-                    frame.width,
-                    frame.height,
-                    frame.pixels,
-                ))?;
+                let fb = Framebuffer::from_rgba(frame.width, frame.height, frame.pixels);
+                write(&down(fb))?;
             }
         }
         Ok("vello")
@@ -2185,8 +2381,8 @@ fn render_stream(
         }
         for slice in raw_scenes.chunks(chunk) {
             let frames = render_scenes_cpu(&prepare(slice)?, font, extra_fonts);
-            for fb in &frames {
-                write(fb)?;
+            for fb in frames {
+                write(&down(fb))?;
             }
         }
         Ok("cpu")
@@ -2206,8 +2402,11 @@ fn stream_encode_mp4(
     font: FontMode,
     extra_fonts: &[Vec<u8>],
     encoder: EncoderChoice,
+    supersample: u32,
     audio_wav: Option<&Path>,
 ) -> Result<(&'static str, Encoder)> {
+    // ffmpeg receives NATIVE-size frames — render_stream supersamples internally
+    // and downscales each frame back to the composition's native size before piping.
     let comp = &raw_scenes[0].composition;
     let attempt = |enc: Encoder| -> Result<&'static str> {
         use std::io::Write;
@@ -2215,11 +2414,19 @@ fn stream_encode_mp4(
             .spawn()
             .context("failed to launch ffmpeg — is it installed and on PATH?")?;
         let mut stdin = child.stdin.take().context("ffmpeg stdin was unavailable")?;
-        let render = render_stream(raw_scenes, base_dir, backend, font, extra_fonts, |fb| {
-            stdin
-                .write_all(fb.as_bytes())
-                .context("piping frame to ffmpeg")
-        });
+        let render = render_stream(
+            raw_scenes,
+            base_dir,
+            backend,
+            font,
+            extra_fonts,
+            supersample,
+            |fb| {
+                stdin
+                    .write_all(fb.as_bytes())
+                    .context("piping frame to ffmpeg")
+            },
+        );
         drop(stdin); // EOF so ffmpeg finalizes (and unblocks if the render errored)
         let status = child.wait().context("waiting for ffmpeg")?;
         let used = render?; // a render error is the root cause — surface it first
@@ -2256,14 +2463,20 @@ fn stream_frames_to_mp4(
     font: FontMode,
     fonts: &[Vec<u8>],
     encoder: EncoderChoice,
+    supersample: u32,
 ) -> Result<()> {
-    let raw: Vec<Scene> =
+    let mut raw: Vec<Scene> =
         serde_json::from_str(json).context("frames JSON is not an array of scene graphs")?;
     let Some(first) = raw.first() else {
         bail!("frames JSON contains no scenes");
     };
     let fps = first.composition.fps;
     let (w, h) = (first.composition.width, first.composition.height);
+    // Materialize remote media (images/video/audio) to local temp files before the
+    // audio mux + frame render — the offline decoders don't fetch URLs.
+    for scene in raw.iter_mut() {
+        materialize_scene_sources(scene);
+    }
     let audio_tracks = collect_audio_tracks(&raw, fps);
 
     let wav = if audio_tracks.is_empty() {
@@ -2285,6 +2498,7 @@ fn stream_frames_to_mp4(
         font,
         fonts,
         encoder,
+        supersample,
         wav.as_deref(),
     );
     if let Some(w) = &wav {
@@ -2317,8 +2531,9 @@ fn render_scene_file(
 ) -> Result<(u32, u32, &'static str)> {
     let json = std::fs::read_to_string(input)
         .with_context(|| format!("reading scene file '{}'", input.display()))?;
-    let parsed: Scene =
+    let mut parsed: Scene =
         serde_json::from_str(&json).context("scene JSON is not a valid scene graph")?;
+    materialize_scene_sources(&mut parsed);
     let base_dir = input.parent().unwrap_or(Path::new(""));
     let scene = onda_svg::expand_svg(&parsed, base_dir).context("expanding <svg> nodes")?;
     // Decode video frames before images so `Video.data` is set and the image pass

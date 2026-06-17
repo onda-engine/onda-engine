@@ -35,6 +35,11 @@ export interface RenderToFileOptions {
   onProgress?: (progress: RenderProgress) => void
   /** Path to the `onda` binary. Default: `$ONDA_BIN`, else `onda` on PATH. */
   ondaBin?: string
+  /** Spatial supersampling factor (1–4, default 1 = off): the CLI renders each
+   *  frame at N× resolution then box-downscales to native, area-averaging away the
+   *  minification aliasing detailed images shimmer with under motion. N=2 is the
+   *  sweet spot (matches the image decoder's 2× headroom). Costs ~N² render time. */
+  superSample?: number
 }
 
 export interface RenderStillOptions {
@@ -72,7 +77,7 @@ export async function renderToFile(
   composition: ReactElement,
   options: RenderToFileOptions,
 ): Promise<void> {
-  const { output, backend = 'auto', encoder = 'auto', onProgress, ondaBin } = options
+  const { output, backend = 'auto', encoder = 'auto', onProgress, ondaBin, superSample } = options
   // Warm async engine assets (e.g. wasm text measurement) before the sync render,
   // so components bake real values into the frames instead of estimates.
   await runEngineWarmers()
@@ -96,6 +101,9 @@ export async function renderToFile(
         encoder,
         '--progress',
         ...(motionBlur ? ['--motion-blur', String(motionBlur.samples)] : []),
+        ...(superSample && superSample > 1
+          ? ['--supersample', String(Math.min(4, Math.round(superSample)))]
+          : []),
         ...(await fontArgs(dir)),
       ],
       onProgress,

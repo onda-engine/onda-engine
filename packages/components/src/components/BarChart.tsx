@@ -22,6 +22,7 @@ import {
   useVideoConfig,
 } from '@onda/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
@@ -31,7 +32,7 @@ export interface BarChartDatum {
   value: number
 }
 
-export interface BarChartProps {
+export interface BarChartProps extends TextStyleProps {
   /** Bars to render. Order is preserved — top to bottom. */
   data?: BarChartDatum[]
   /** Value mapped to a full-width bar. Bars cap at 100% of the track. */
@@ -58,8 +59,6 @@ export interface BarChartProps {
   barColor?: string
   /** Bar track (background) color. */
   trackColor?: string
-  /** Label color. */
-  color?: string
   /** Show the numeric value at the end of each bar. */
   showValues?: boolean
   /** Count each value up from 0 in sync with its bar's growth (lands exactly on
@@ -74,8 +73,6 @@ export interface BarChartProps {
   titleColor?: string
   /** Label / value font size in px. */
   fontSize?: number
-  /** Loaded font family for labels and values. */
-  fontFamily?: string
 }
 
 const DEFAULT_DATA: BarChartDatum[] = [
@@ -106,6 +103,8 @@ export function BarChart({
   titleColor: titleColorProp,
   fontSize = 24,
   fontFamily: fontFamilyProp,
+  letterSpacing,
+  uppercase,
 }: BarChartProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
@@ -157,8 +156,9 @@ export function BarChart({
           color={titleColor ?? color}
           fontFamily={fontFamily}
           fontWeight={600}
+          letterSpacing={letterSpacing}
         >
-          {title}
+          {applyTextCase(title, { uppercase })}
         </Text>
       ) : null}
       {data.map((d, i) => {

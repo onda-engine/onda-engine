@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const codeDiffSchema = z.object({
+  ...textStyleSchemaShape,
   lines: z
     .any()
     .default([
@@ -30,12 +32,6 @@ export const codeDiffSchema = z.object({
   lineDelay: timeSchema
     .optional()
     .describe('Frames between consecutive line reveals (canonical STAGGER = 5).'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe(
-      'Monospace font stack for code and title (defaults to theme monoFamily ?? fontFamily).',
-    ),
   fontSize: z.number().default(44).describe('Code font size in px.'),
   width: z.number().default(760).describe('Panel width in px.'),
   textColor: z

@@ -5,9 +5,11 @@
 
 import { z } from 'zod'
 import { placementSchema } from '../placement.js'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const inputFieldSchema = z.object({
+  ...textStyleSchemaShape,
   value: z
     .string()
     .default('hello@onda.video')
@@ -32,7 +34,6 @@ export const inputFieldSchema = z.object({
     .default(640)
     .describe('Field width in px, sized for a 1080p+ video canvas, not a screen UI.'),
   fontSize: z.number().default(36).describe('Text size in px.'),
-  fontFamily: z.string().optional().describe('UI font family; defaults to the theme `fontFamily`.'),
   textColor: z.string().optional().describe('Value text color; defaults to the theme `text`.'),
   placeholderColor: z
     .string()

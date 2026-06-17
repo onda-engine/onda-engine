@@ -39,13 +39,14 @@ import { entryFade, entryFadeRise } from '../choreography.js'
 import { DURATION, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetrics } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 
 /** Engine line-box height as a multiple of font size (matches typography crate). */
 const LINE_RATIO = 1.2
 
-export interface PricingCardProps {
+export interface PricingCardProps extends TextStyleProps {
   /** Tier name above the price (e.g. `'Pro'`). Rendered uppercase. */
   tier?: string
   /** The headline price, rendered large. Free-form: `'$29'`, `'€19'`, `'Free'`. */
@@ -70,14 +71,10 @@ export interface PricingCardProps {
   background?: string
   /** Panel border color (when not `recommended`) (default: theme `border`). */
   borderColor?: string
-  /** Primary text color (price, features) (default: theme `text`). */
-  color?: string
   /** Dim color for the tier label (default: theme `textMuted`). */
   dimColor?: string
   /** Faint color for the billing period (default: theme `textMuted`). */
   faintColor?: string
-  /** Display font for the price (default: theme `headingFamily ?? fontFamily`). */
-  fontFamily?: string
   /** Body font for tier / features / CTA (default: theme `fontFamily`). */
   bodyFontFamily?: string
   /** Where the card sits: a region keyword (`'center'`, `'lower-third'`, …) or
@@ -117,6 +114,8 @@ export function PricingCard({
   faintColor: faintColorProp,
   fontFamily: fontFamilyProp,
   bodyFontFamily: bodyFontFamilyProp,
+  letterSpacing,
+  uppercase,
   placement,
   x,
   y,
@@ -134,6 +133,7 @@ export function PricingCard({
   const faintColor = faintColorProp ?? theme.textMuted
   const fontFamily = fontFamilyProp ?? theme.headingFamily ?? theme.fontFamily
   const bodyFontFamily = bodyFontFamilyProp ?? theme.fontFamily
+  const priceText = applyTextCase(price, { uppercase })
 
   // --- Layout constants (px) — the explicit column the engine layout pass
   // would otherwise produce, kept fixed so per-frame row fades don't reflow. ---
@@ -153,10 +153,10 @@ export function PricingCard({
   // and to offset the billing period after the price. The engine measures these;
   // they fall back to a glyph-count estimate until the wasm engine warms.
   const ctaMetrics = useTextMetrics(cta, ctaSize, { fontFamily: bodyFontFamily, fontWeight: 600 })
-  const priceMetrics = useTextMetrics(price, priceSize, {
+  const priceMetrics = useTextMetrics(priceText, priceSize, {
     fontFamily,
     fontWeight: 600,
-    letterSpacing: priceSize * -0.03,
+    letterSpacing: letterSpacing ?? priceSize * -0.03,
   })
 
   // Vertical cursor through the card body, accumulating each section's height.
@@ -286,12 +286,12 @@ export function PricingCard({
             x={0}
             y={priceY}
             fontSize={priceSize}
-            letterSpacing={priceSize * -0.03}
+            letterSpacing={letterSpacing ?? priceSize * -0.03}
             color={color}
             fontFamily={fontFamily}
             fontWeight={600}
           >
-            {price}
+            {priceText}
           </Text>
           {period ? (
             <Text

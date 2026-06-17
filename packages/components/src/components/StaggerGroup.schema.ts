@@ -4,9 +4,11 @@
 //! re-run the catalog codegen rather than hand-editing.
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 import { timeSchema } from '../time.js'
 
 export const staggerGroupSchema = z.object({
+  ...textStyleSchemaShape,
   items: z
     .array(z.string())
     .default(['Less is more', 'Calm is power', 'Motion has a feel', 'Made to be edited'])
@@ -25,10 +27,7 @@ export const staggerGroupSchema = z.object({
     .enum(['start', 'center', 'end'])
     .default('center')
     .describe('Cross-axis alignment of items.'),
-  color: z.string().optional().describe('Text color; defaults to theme text.'),
   fontSize: z.number().default(48).describe('Font size in px.'),
-  fontFamily: z.string().optional().describe('Loaded font family; defaults to theme fontFamily.'),
-  fontWeight: z.number().default(600).describe('Font weight; display default 600.'),
 })
 
 export type StaggerGroupSchemaProps = z.infer<typeof staggerGroupSchema>

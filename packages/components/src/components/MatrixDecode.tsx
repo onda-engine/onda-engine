@@ -42,11 +42,12 @@ import { useFittedFontSize } from '../bounds.js'
 import { LINE_RATIO, layoutGlyphLine } from '../glyph-line.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetricsReady } from '../text-metrics.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { staggeredSettle, useTimeScale } from '../timing.js'
 
-export interface MatrixDecodeProps {
+export interface MatrixDecodeProps extends TextStyleProps {
   /** The text that decodes into place. */
   text?: string
   /** Time before decoding starts — frames or '0.5s'. */
@@ -73,8 +74,6 @@ export interface MatrixDecodeProps {
   variant?: number
   /** Glyph pool drawn from while scrambling. */
   charset?: string
-  /** Settled text color (default: theme `text`). */
-  color?: string
   /** Color of still-scrambling glyphs — the earned accent (default: theme `accent`). */
   scrambleColor?: string
   /** Font size in px (default 120). */
@@ -86,12 +85,6 @@ export interface MatrixDecodeProps {
   /** Explicit width cap in px for the line; combines with `fit` (the smaller
    *  cap wins). */
   maxWidth?: number
-  /** Monospace stack keeps the advance steady as glyphs flicker (default: theme `monoFamily`). */
-  fontFamily?: string
-  /** Font weight (default 600). */
-  fontWeight?: number
-  /** Italic text. */
-  italic?: boolean
   /** Horizontal anchoring of the single line (approximate — see file notes).
    *  Only applies to the legacy default/`x` anchoring — `placement` anchors the
    *  line's measured center. */
@@ -109,7 +102,7 @@ export interface MatrixDecodeProps {
 }
 
 export function MatrixDecode({
-  text = 'ONDA',
+  text: textProp = 'ONDA',
   delay: delayIn = 0,
   charDelay: charDelayIn = 3,
   scrambleDuration: scrambleDurationIn = 18,
@@ -128,11 +121,14 @@ export function MatrixDecode({
   fontFamily: fontFamilyProp,
   fontWeight = 600,
   italic = false,
+  letterSpacing,
+  uppercase,
   align = 'center',
   placement,
   x,
   y,
 }: MatrixDecodeProps) {
+  const text = applyTextCase(textProp, { uppercase })
   // The variant knob derives an alternate deterministic seed (identity at 0).
   const seed = variantSeed(seedProp, variant)
   const frame = useCurrentFrame()
@@ -230,6 +226,7 @@ export function MatrixDecode({
       fontFamily={fontFamily}
       fontWeight={fontWeight}
       italic={italic}
+      letterSpacing={letterSpacing}
       runs={runs}
     >
       {plain}

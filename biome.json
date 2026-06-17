@@ -30,7 +30,7 @@
       }
     },
     {
-      "include": ["apps/site/scripts/**"],
+      "include": ["apps/site/scripts/**", "apps/site/src/scripts/**"],
       "linter": {
         "rules": {
           "style": { "recommended": false }

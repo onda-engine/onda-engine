@@ -1,8 +1,10 @@
 //! Runtime prop schema for {@link LookbookShot} — @onda-native (mirrors LookbookShotProps).
 
 import { z } from 'zod'
+import { textStyleSchemaShape } from '../text-style.js'
 
 export const lookbookShotSchema = z.object({
+  ...textStyleSchemaShape,
   src: z
     .string()
     .default('')
@@ -35,13 +37,8 @@ export const lookbookShotSchema = z.object({
     .optional()
     .describe('The mat/frame color (the print border). Default a near-white off the bg.'),
   shadowColor: z.string().default('#2b201824').describe('Soft shadow color under the mat.'),
-  color: z.string().optional().describe('Name color (defaults to theme text).'),
   accentColor: z.string().optional().describe('Eyebrow + rule color (defaults to theme accent).'),
   detailColor: z.string().optional().describe('Detail line color (defaults to theme textMuted).'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Display font for the name (defaults to theme headingFamily ?? fontFamily).'),
   bodyFamily: z
     .string()
     .optional()

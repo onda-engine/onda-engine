@@ -37,6 +37,7 @@
 import { Group, Rect, Text, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION, staggerFrames } from '../motion.js'
+import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 import { FadeIn } from './FadeIn.js'
@@ -45,7 +46,7 @@ import { Spotlight } from './Spotlight.js'
 /** Engine line-box height as a multiple of font size (matches typography crate). */
 const LINE_RATIO = 1.2
 
-export interface SpotlightCardProps {
+export interface SpotlightCardProps extends TextStyleProps {
   /** Small uppercase kicker above the title. Empty hides it. */
   eyebrow?: string
   /** Card headline (display font). */
@@ -65,8 +66,6 @@ export interface SpotlightCardProps {
   padding?: number
   /** Text alignment within the card. */
   align?: 'left' | 'center'
-  /** Display font for the title (default: theme `headingFamily ?? theme.fontFamily`). */
-  fontFamily?: string
   /** Font family for the eyebrow + body copy (default: theme `fontFamily`). */
   bodyFontFamily?: string
   /** Title font size in px (default 44). */
@@ -100,6 +99,8 @@ export function SpotlightCard({
   padding = 48,
   align = 'left',
   fontFamily: fontFamilyProp,
+  letterSpacing,
+  uppercase,
   bodyFontFamily: bodyFontFamilyProp,
   titleSize = 44,
   bodySize = 20,
@@ -243,8 +244,9 @@ export function SpotlightCard({
               color={titleColor}
               fontFamily={fontFamily}
               fontWeight={600}
+              letterSpacing={letterSpacing}
             >
-              {title}
+              {applyTextCase(title, { uppercase })}
             </Text>
           </FadeIn>
 
