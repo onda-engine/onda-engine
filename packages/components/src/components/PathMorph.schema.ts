@@ -12,7 +12,9 @@ export const pathMorphSchema = z.object({
   color: z
     .string()
     .optional()
-    .describe('Ink (hex) — FILL for closed shapes, STROKE for open lines; defaults to theme `text`.'),
+    .describe(
+      'Ink (hex) — FILL for closed shapes, STROKE for open lines; defaults to theme `text`.',
+    ),
   stroke: z
     .boolean()
     .optional()

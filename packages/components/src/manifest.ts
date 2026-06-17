@@ -44,6 +44,7 @@ import { imageRevealSchema } from './components/ImageReveal.schema.js'
 import { inputFieldSchema } from './components/InputField.schema.js'
 import { kanbanBoardSchema } from './components/KanbanBoard.schema.js'
 import { kenBurnsSchema } from './components/KenBurns.schema.js'
+import { keyframesSchema } from './components/Keyframes.schema.js'
 import { kineticTextSchema } from './components/KineticText.schema.js'
 import { lineChartSchema } from './components/LineChart.schema.js'
 import { logoRevealSchema } from './components/LogoReveal.schema.js'
@@ -54,7 +55,6 @@ import { marqueeSchema } from './components/Marquee.schema.js'
 import { maskRevealSchema } from './components/MaskReveal.schema.js'
 import { matrixDecodeSchema } from './components/MatrixDecode.schema.js'
 import { meshGradientSchema } from './components/MeshGradient.schema.js'
-import { keyframesSchema } from './components/Keyframes.schema.js'
 import { moodboardSchema } from './components/Moodboard.schema.js'
 import { nodeGraphSchema } from './components/NodeGraph.schema.js'
 import { parallaxSchema } from './components/Parallax.schema.js'
@@ -77,11 +77,11 @@ import { skeletonCardSchema } from './components/SkeletonCard.schema.js'
 import { slideInSchema } from './components/SlideIn.schema.js'
 import { slideOutSchema } from './components/SlideOut.schema.js'
 import { slotMachineRollSchema } from './components/SlotMachineRoll.schema.js'
+import { splitLockupSchema } from './components/SplitLockup.schema.js'
 import { splitScreenSchema } from './components/SplitScreen.schema.js'
 import { spotlightSchema } from './components/Spotlight.schema.js'
 import { spotlightCardSchema } from './components/SpotlightCard.schema.js'
 import { staggerGroupSchema } from './components/StaggerGroup.schema.js'
-import { splitLockupSchema } from './components/SplitLockup.schema.js'
 import { statCardSchema } from './components/StatCard.schema.js'
 import { terminalSchema } from './components/Terminal.schema.js'
 import { textFadeReplaceSchema } from './components/TextFadeReplace.schema.js'
@@ -10664,7 +10664,15 @@ const RAW: RawEntry[] = [
     composes: ['SplitLockup'],
     sceneRole: 'background',
     occlusion: 'non_occluding',
-    example: { images: [], seed: 11, columns: 5, rows: 4, exclusionWidth: 0.52, exclusionHeight: 0.42, stagger: 4 },
+    example: {
+      images: [],
+      seed: 11,
+      columns: 5,
+      rows: 4,
+      exclusionWidth: 0.52,
+      exclusionHeight: 0.42,
+      stagger: 4,
+    },
     props: [],
     schema: moodboardSchema,
   },
@@ -10676,7 +10684,7 @@ const RAW: RawEntry[] = [
     description:
       "Animate ONE element along explicit per-channel tracks — position / scale / scaleX / scaleY (non-uniform) / opacity / rotation — each key carrying its own easing (a named curve OR a raw cubic-bezier [x1,y1,x2,y2]). The element is set by `content.kind`: 'image' = a card/tile whose FILL is an image `src`, a solid `color`, OR a `gradient` (linear/radial/fbm), plus `cornerRadius`/`width`/`height` (omit `src` for a color/gradient placeholder the user swaps a photo into); 'ellipse' or 'path' = vector shapes with a `color`/`gradient` fill and/or a `stroke`+`strokeWidth` (rings, dots, bars, geometric marks); 'text' = an editable line (text/fontSize/color/fontFamily/fontWeight/letterSpacing). Arbitrary motion + any shape/fill, not a fixed preset.",
     pickWhen:
-      "EXACT custom motion (transcribe an AE/Lottie ref) OR an animated SHAPE/CARD: a colored / gradient / image BACKGROUND card, a ring / dot / line / geometric mark, or a swappable photo tile. Fills are editable — set content.color (solid), content.gradient, or content.src (image); shapes add content.stroke/strokeWidth. Use scaleX/scaleY to grow a bar in one axis.",
+      'EXACT custom motion (transcribe an AE/Lottie ref) OR an animated SHAPE/CARD: a colored / gradient / image BACKGROUND card, a ring / dot / line / geometric mark, or a swappable photo tile. Fills are editable — set content.color (solid), content.gradient, or content.src (image); shapes add content.stroke/strokeWidth. Use scaleX/scaleY to grow a bar in one axis.',
     composes: [],
     sceneRole: 'block',
     occlusion: 'unknown',
@@ -10732,7 +10740,9 @@ function unwrapZod(field: z.ZodTypeAny): {
   min?: number
   max?: number
 } {
-  let f = field as unknown as { _def?: { typeName?: string; innerType?: unknown; defaultValue?: () => unknown } }
+  let f = field as unknown as {
+    _def?: { typeName?: string; innerType?: unknown; defaultValue?: () => unknown }
+  }
   let dflt: string | undefined
   for (let i = 0; i < 8 && f?._def; i++) {
     const tn = f._def.typeName
@@ -10799,7 +10809,8 @@ function roleFor(name: string, type: string): string {
  *  Conservative — only the unambiguous cases (px, frames, deg). */
 function unitFor(name: string, role: string, description: string): string | undefined {
   const d = description.toLowerCase()
-  if (/\bframes?\b/.test(d) || /(?:InFrames|Frames)$/.test(name) || /duration/i.test(name)) return 'frames'
+  if (/\bframes?\b/.test(d) || /(?:InFrames|Frames)$/.test(name) || /duration/i.test(name))
+    return 'frames'
   if (role === 'fontSize' || /\bin px\b|\bpx\b|\bpixels?\b/.test(d)) return 'px'
   if (/degrees?|°/.test(d) || /(?:rotation|angle|tilt|skew)/i.test(name)) return 'deg'
   return undefined

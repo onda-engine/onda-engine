@@ -103,7 +103,15 @@ export interface KeyframesProps {
 // Brand-token names a color/stroke can reference instead of a literal hex — they
 // resolve through the active theme, so a fill bound to "accent" recolors when the
 // brand changes (the cascade the editor's brand-binding relies on).
-const THEME_TOKENS = ['accent', 'accentSoft', 'text', 'textMuted', 'background', 'surface', 'border'] as const
+const THEME_TOKENS = [
+  'accent',
+  'accentSoft',
+  'text',
+  'textMuted',
+  'background',
+  'surface',
+  'border',
+] as const
 export function resolveColor(c: string | undefined, theme: Theme): string | undefined {
   if (!c) return c
   return (THEME_TOKENS as readonly string[]).includes(c)
@@ -132,13 +140,25 @@ function paint(
   return p
 }
 
-export function Keyframes({ position, opacity, scale, scaleX, scaleY, rotation, content }: KeyframesProps) {
+export function Keyframes({
+  position,
+  opacity,
+  scale,
+  scaleX,
+  scaleY,
+  rotation,
+  content,
+}: KeyframesProps) {
   const frame = useCurrentFrame()
   const theme = useTheme()
-  const { x, y, opacity: op, scaleX: scX, scaleY: scY, rotation: rot } = sampleKeyframes(
-    { position, opacity, scale, scaleX, scaleY, rotation },
-    frame,
-  )
+  const {
+    x,
+    y,
+    opacity: op,
+    scaleX: scX,
+    scaleY: scY,
+    rotation: rot,
+  } = sampleKeyframes({ position, opacity, scale, scaleX, scaleY, rotation }, frame)
   if (op <= 0.002) return null
 
   let inner: React.ReactNode
@@ -146,7 +166,11 @@ export function Keyframes({ position, opacity, scale, scaleX, scaleY, rotation, 
     const ax = content.anchorX ?? content.width / 2
     const ay = content.anchorY ?? content.height / 2
     inner = content.src ? (
-      <Group x={-ax} y={-ay} clip={clipRect(content.width, content.height, content.cornerRadius ?? 0)}>
+      <Group
+        x={-ax}
+        y={-ay}
+        clip={clipRect(content.width, content.height, content.cornerRadius ?? 0)}
+      >
         <Image src={content.src} width={content.width} height={content.height} fit="cover" />
       </Group>
     ) : (
@@ -165,7 +189,11 @@ export function Keyframes({ position, opacity, scale, scaleX, scaleY, rotation, 
     const ay = content.anchorY ?? content.height / 2
     inner = (
       <Group x={-ax} y={-ay}>
-        <Ellipse width={content.width} height={content.height} {...paint(content, theme, theme.surface)} />
+        <Ellipse
+          width={content.width}
+          height={content.height}
+          {...paint(content, theme, theme.surface)}
+        />
       </Group>
     )
   } else if (content.kind === 'path') {

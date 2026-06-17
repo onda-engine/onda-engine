@@ -28,11 +28,19 @@ const valKey = z.object({
 // `gradient`, or a solid `color` (falling back to the theme surface). This lets a
 // template ship as editable color/gradient cards the user can swap for images.
 const gradientStop = z.object({ offset: z.number(), color: z.string() })
-const point = z.union([z.tuple([z.number(), z.number()]), z.object({ x: z.number(), y: z.number() })])
+const point = z.union([
+  z.tuple([z.number(), z.number()]),
+  z.object({ x: z.number(), y: z.number() }),
+])
 const gradientSchema = z
   .discriminatedUnion('type', [
     z.object({ type: z.literal('linear'), start: point, end: point, stops: z.array(gradientStop) }),
-    z.object({ type: z.literal('radial'), center: point, radius: z.number(), stops: z.array(gradientStop) }),
+    z.object({
+      type: z.literal('radial'),
+      center: point,
+      radius: z.number(),
+      stops: z.array(gradientStop),
+    }),
     z.object({
       type: z.literal('fbm'),
       stops: z.array(gradientStop),
@@ -48,12 +56,16 @@ const imageContent = z.object({
   src: z
     .string()
     .optional()
-    .describe('Tile image source (editable — swap for your own). Omit for a `gradient`/`color` fill.'),
+    .describe(
+      'Tile image source (editable — swap for your own). Omit for a `gradient`/`color` fill.',
+    ),
   gradient: gradientSchema.optional(),
   color: z
     .string()
     .optional()
-    .describe('Solid fill (hex) used when neither `src` nor `gradient` is set; falls back to theme surface.'),
+    .describe(
+      'Solid fill (hex) used when neither `src` nor `gradient` is set; falls back to theme surface.',
+    ),
   width: z.number(),
   height: z.number(),
   cornerRadius: z.number().optional(),
@@ -101,7 +113,10 @@ export const keyframesSchema = z.object({
   position: z.array(posKey).optional().describe('Position track (x,y over frames).'),
   opacity: z.array(valKey).optional().describe('Opacity track (0–1 over frames).'),
   scale: z.array(valKey).optional().describe('Uniform-scale track (over frames).'),
-  scaleX: z.array(valKey).optional().describe('Horizontal-scale track — wins over `scale` (e.g. a bar growing wide).'),
+  scaleX: z
+    .array(valKey)
+    .optional()
+    .describe('Horizontal-scale track — wins over `scale` (e.g. a bar growing wide).'),
   scaleY: z.array(valKey).optional().describe('Vertical-scale track — wins over `scale`.'),
   rotation: z.array(valKey).optional().describe('Rotation track in degrees (over frames).'),
   content: z

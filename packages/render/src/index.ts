@@ -101,7 +101,9 @@ export async function renderToFile(
         encoder,
         '--progress',
         ...(motionBlur ? ['--motion-blur', String(motionBlur.samples)] : []),
-        ...(superSample && superSample > 1 ? ['--supersample', String(Math.min(4, Math.round(superSample)))] : []),
+        ...(superSample && superSample > 1
+          ? ['--supersample', String(Math.min(4, Math.round(superSample)))]
+          : []),
         ...(await fontArgs(dir)),
       ],
       onProgress,

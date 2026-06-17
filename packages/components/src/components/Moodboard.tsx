@@ -91,7 +91,7 @@ export function Moodboard({
   const exitDur = Math.max(1, framesOf(tileExit ?? '0.4s', fps))
 
   // Seeded PRNG (mulberry32) — deterministic scatter.
-  let s = (seed >>> 0) || 1
+  let s = seed >>> 0 || 1
   const rnd = (): number => {
     s = (s + 0x6d2b79f5) | 0
     let t = Math.imul(s ^ (s >>> 15), 1 | s)

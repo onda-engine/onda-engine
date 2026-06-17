@@ -126,8 +126,11 @@ export function WordRotate({
 
         // Anchor offset: 'left' is exact; 'center'/'right' use the real shaped
         // width (measured, tracking-aware) so alignment hugs the actual phrase.
-        const estWidth = measureText(phrase, fontSize, { fontFamily, fontWeight, letterSpacing })
-          .width
+        const estWidth = measureText(phrase, fontSize, {
+          fontFamily,
+          fontWeight,
+          letterSpacing,
+        }).width
         const offsetX = align === 'center' ? -estWidth / 2 : align === 'right' ? -estWidth : 0
 
         return (
