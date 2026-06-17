@@ -9,17 +9,24 @@
 // Resolved `url -> data: URI`. Module-level so multiple <Player>s share it.
 const cache = new Map<string, string>()
 const inflight = new Map<string, Promise<void>>()
+// URLs whose fetch finished UNsuccessfully (404 / CORS / network). Tracked so the
+// on-demand resolver treats them as "settled" and never re-fetches in a loop — a
+// failed image just stays blank (same as before), it doesn't peg the engine.
+const failed = new Set<string>()
 
 /** Fetch `url` and convert it to a `data:` URI, caching the result. Failures are
- *  swallowed — the image stays unresolved and the renderer simply skips it. */
+ *  recorded (not retried) — the image stays unresolved and the renderer skips it. */
 export function resolveImageUrl(url: string): Promise<void> {
-  if (cache.has(url) || typeof fetch === 'undefined') return Promise.resolve()
+  if (cache.has(url) || failed.has(url) || typeof fetch === 'undefined') return Promise.resolve()
   const existing = inflight.get(url)
   if (existing) return existing
   const p = (async () => {
     try {
       const res = await fetch(url)
-      if (!res.ok) return
+      if (!res.ok) {
+        failed.add(url)
+        return
+      }
       const blob = await res.blob()
       const dataUri = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
@@ -29,13 +36,23 @@ export function resolveImageUrl(url: string): Promise<void> {
       })
       cache.set(url, dataUri)
     } catch {
-      // Leave unresolved; the renderer draws nothing for an undecoded image.
+      // Network/CORS error — mark settled so we don't re-fetch it every repaint.
+      failed.add(url)
     } finally {
       inflight.delete(url)
     }
   })()
   inflight.set(url, p)
   return p
+}
+
+/** True once `url` is decoded-ready: a `data:`/generated src needs no fetch, and a
+ *  resolved URL is in the cache. Lets the render loop skip already-handled images
+ *  and only kick off fetches for genuinely new ones (no repaint loop). */
+export function imageResolved(url: string): boolean {
+  return (
+    url.startsWith('data:') || url.startsWith('onda-noise:') || cache.has(url) || failed.has(url)
+  )
 }
 
 /** The minimal scene-node shape these walkers touch (a subset of `Scene`). */

@@ -236,6 +236,14 @@ export {
   type KeyframeTracks,
   type SampledKeyframes,
 } from './keyframes-sampler.js'
+// "Magic Resize" — per-element responsive re-framing (Canva/Figma constraints), so
+// one master adapts to any aspect ratio. Shared by the cinema export + Studio preview.
+export {
+  type Box,
+  type ResponsiveTransform,
+  entryDesignAnchor,
+  responsiveEntryTransform,
+} from './responsive.js'
 export {
   KineticText,
   type KineticTextPreset,
