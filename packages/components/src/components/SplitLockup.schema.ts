@@ -9,10 +9,7 @@ export const splitLockupSchema = z.object({
   line2: z.string().default('PROJECT').describe('Bottom line of the lockup.'),
   fontSize: z.number().default(200).describe('Font size in px.'),
   color: z.string().optional().describe('Ink color (hex); defaults to theme `text`.'),
-  fontFamily: z
-    .string()
-    .optional()
-    .describe('Font family; defaults to the theme heading family.'),
+  fontFamily: z.string().optional().describe('Font family; defaults to the theme heading family.'),
   fontWeight: z.number().default(500).describe('Font weight (this look wants regular ≈ 400).'),
   letterSpacing: z
     .number()
