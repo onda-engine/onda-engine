@@ -106,8 +106,15 @@ export interface PropMeta {
   role: string
   /** Allowed values, when the prop is an enum. */
   enumValues?: string[]
-  /** The default value literal (TS source), when the prop has one. */
+  /** The default value (schema-derived, JSON-encoded), when the prop has one.
+   *  Always sourced from the Zod schema so it can't drift from what renders. */
   default?: string
+  /** Minimum (inclusive) for a number prop, from the Zod schema. */
+  min?: number
+  /** Maximum (inclusive) for a number prop, from the Zod schema. */
+  max?: number
+  /** Display-unit hint for a number prop — 'px' | 'frames' | 'deg'. */
+  unit?: string
   /** Defaults to a theme color/font token; the agent should usually OMIT it. */
   themeable: boolean
   /** Must be provided (no default, not optional). */
@@ -10667,21 +10674,37 @@ const RAW: RawEntry[] = [
     category: 'Motion',
     title: 'Keyframes',
     description:
-      'Animate ONE element (an image tile or a text line) along explicit per-channel tracks — position / opacity / scale / rotation — each keyframe carrying its own easing (a named curve OR a raw cubic-bezier [x1,y1,x2,y2]). Arbitrary motion, not a fixed preset.',
+      "Animate ONE element along explicit per-channel tracks — position / scale / scaleX / scaleY (non-uniform) / opacity / rotation — each key carrying its own easing (a named curve OR a raw cubic-bezier [x1,y1,x2,y2]). The element is set by `content.kind`: 'image' = a card/tile whose FILL is an image `src`, a solid `color`, OR a `gradient` (linear/radial/fbm), plus `cornerRadius`/`width`/`height` (omit `src` for a color/gradient placeholder the user swaps a photo into); 'ellipse' or 'path' = vector shapes with a `color`/`gradient` fill and/or a `stroke`+`strokeWidth` (rings, dots, bars, geometric marks); 'text' = an editable line (text/fontSize/color/fontFamily/fontWeight/letterSpacing). Arbitrary motion + any shape/fill, not a fixed preset.",
     pickWhen:
-      'You need EXACT custom motion — e.g. transcribing an AE/Lottie reference, or any move the entrance presets can\'t express. The content (src/text) stays editable; the motion lives in the tracks.',
+      "EXACT custom motion (transcribe an AE/Lottie ref) OR an animated SHAPE/CARD: a colored / gradient / image BACKGROUND card, a ring / dot / line / geometric mark, or a swappable photo tile. Fills are editable — set content.color (solid), content.gradient, or content.src (image); shapes add content.stroke/strokeWidth. Use scaleX/scaleY to grow a bar in one axis.",
     composes: [],
     sceneRole: 'block',
     occlusion: 'unknown',
     example: {
-      content: { kind: 'text', text: 'NEW', fontSize: 170 },
-      position: [
-        { at: 0, x: 600, y: 700, ease: 'easeOut' },
-        { at: 18, x: 470, y: 540 },
+      // A gradient card (omit `gradient` + set `color` for a flat fill, or `src` for a photo).
+      content: {
+        kind: 'image',
+        gradient: {
+          type: 'linear',
+          start: [0, 0],
+          end: [320, 320],
+          stops: [
+            { offset: 0, color: '#6E8BFF' },
+            { offset: 1, color: '#3B2A6B' },
+          ],
+        },
+        width: 320,
+        height: 320,
+        cornerRadius: 16,
+      },
+      position: [{ at: 0, x: 960, y: 540 }],
+      scale: [
+        { at: 0, v: 0 },
+        { at: 12, v: 1, ease: 'easeOut' },
       ],
       opacity: [
         { at: 0, v: 0 },
-        { at: 10, v: 1 },
+        { at: 6, v: 1 },
       ],
     },
     props: [],
@@ -10703,7 +10726,12 @@ const RAW: RawEntry[] = [
 // the /llms.txt + /api/components.json docs, and the studio's allowed-prop set
 // automatically — no hand-maintenance, no codegen file to go stale.
 
-function unwrapZod(field: z.ZodTypeAny): { def: { typeName?: string; [k: string]: unknown }; default?: string } {
+function unwrapZod(field: z.ZodTypeAny): {
+  def: { typeName?: string; [k: string]: unknown }
+  default?: string
+  min?: number
+  max?: number
+} {
   let f = field as unknown as { _def?: { typeName?: string; innerType?: unknown; defaultValue?: () => unknown } }
   let dflt: string | undefined
   for (let i = 0; i < 8 && f?._def; i++) {
@@ -10723,7 +10751,17 @@ function unwrapZod(field: z.ZodTypeAny): { def: { typeName?: string; [k: string]
     }
     break
   }
-  return { def: (f?._def ?? {}) as { typeName?: string }, default: dflt }
+  const def = (f?._def ?? {}) as { typeName?: string; checks?: { kind?: string; value?: number }[] }
+  // Number constraints — min/max from the Zod `.min()/.max()` checks.
+  let min: number | undefined
+  let max: number | undefined
+  if (Array.isArray(def.checks)) {
+    for (const c of def.checks) {
+      if (c.kind === 'min' && typeof c.value === 'number') min = c.value
+      if (c.kind === 'max' && typeof c.value === 'number') max = c.value
+    }
+  }
+  return { def, default: dflt, min, max }
 }
 
 function zodKind(def: { typeName?: string; checks?: { kind?: string }[]; values?: string[] }): {
@@ -10757,28 +10795,68 @@ function roleFor(name: string, type: string): string {
   return 'other'
 }
 
-/** Curated PropMeta + a derived entry for any schema prop the curated list omits. */
+/** A display-unit hint for a number prop, from its role / name / description.
+ *  Conservative — only the unambiguous cases (px, frames, deg). */
+function unitFor(name: string, role: string, description: string): string | undefined {
+  const d = description.toLowerCase()
+  if (/\bframes?\b/.test(d) || /(?:InFrames|Frames)$/.test(name) || /duration/i.test(name)) return 'frames'
+  if (role === 'fontSize' || /\bin px\b|\bpx\b|\bpixels?\b/.test(d)) return 'px'
+  if (/degrees?|°/.test(d) || /(?:rotation|angle|tilt|skew)/i.test(name)) return 'deg'
+  return undefined
+}
+
+/** Reconcile curated PropMeta against the Zod schema (the source of truth):
+ *  every prop's `default`, `enumValues`, `min`, `max`, `unit` are DERIVED from the
+ *  schema so they can never drift from what actually renders (the curated `default`
+ *  used to go stale — e.g. TitleCard.titleSize 96 vs the schema's 120). Curated
+ *  `type`/`role`/`description`/`themeable` are kept (richer than what's inferable),
+ *  and any schema prop the curated list omits gets a fully-derived entry. */
 function reconcileProps(entry: RawEntry): PropMeta[] {
   const shape = (entry.schema as { shape?: Record<string, z.ZodTypeAny> }).shape
   if (!shape || typeof shape !== 'object') return entry.props
+
+  // Enrich a curated prop with schema-authoritative default/enum/min/max/unit.
+  const enrich = (p: PropMeta): PropMeta => {
+    const field = shape[p.name]
+    if (!field) return p
+    const { def, default: dflt, min, max } = unwrapZod(field)
+    const { enumValues } = zodKind(def)
+    const unit = unitFor(p.name, p.role, p.description)
+    return {
+      ...p,
+      ...(enumValues ? { enumValues } : {}),
+      ...(dflt !== undefined ? { default: dflt } : {}), // schema wins → no drift
+      ...(min !== undefined ? { min } : {}),
+      ...(max !== undefined ? { max } : {}),
+      ...(unit ? { unit } : {}),
+    }
+  }
+
   const have = new Set(entry.props.map((p) => p.name))
+  const curated = entry.props.map(enrich)
   const derived: PropMeta[] = []
   for (const [name, field] of Object.entries(shape)) {
     if (have.has(name)) continue
-    const { def, default: dflt } = unwrapZod(field)
+    const { def, default: dflt, min, max } = unwrapZod(field)
     const { type, enumValues } = zodKind(def)
+    const role = roleFor(name, type)
+    const description = (field as { description?: string }).description ?? ''
+    const unit = unitFor(name, role, description)
     derived.push({
       name,
       type,
-      role: roleFor(name, type),
+      role,
       ...(enumValues ? { enumValues } : {}),
       ...(dflt !== undefined ? { default: dflt } : {}),
+      ...(min !== undefined ? { min } : {}),
+      ...(max !== undefined ? { max } : {}),
+      ...(unit ? { unit } : {}),
       themeable: name === 'color' || name === 'fontFamily',
       required: false,
-      description: (field as { description?: string }).description ?? '',
+      description,
     })
   }
-  return derived.length ? [...entry.props, ...derived] : entry.props
+  return [...curated, ...derived]
 }
 
 /** The catalog — RAW entries enriched with the live fidelity rating + the
