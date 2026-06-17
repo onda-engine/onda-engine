@@ -214,6 +214,17 @@ export interface ManifestEntry {
   [key: string]: unknown
 }
 
+/** A capability the engine advertises (camera moves, finishes/LUTs, effects,
+ *  audio, …) — for the agent's planning. (A subset; extra fields may be present.) */
+export interface Capability {
+  id: string
+  [key: string]: unknown
+}
+
+/** The capability catalog — what the engine can do, beyond the component list.
+ *  Imported from `@onda/components/manifest`. */
+export const CAPABILITIES: Capability[]
+
 /** The component manifest — the agent's vocabulary (names + prop schemas +
  *  fidelity/occlusion classes). Imported from `@onda/components/manifest`. */
 export const MANIFEST: ManifestEntry[]
