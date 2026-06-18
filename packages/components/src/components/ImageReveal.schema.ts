@@ -9,10 +9,10 @@ import { timeSchema } from '../time.js'
 export const imageRevealSchema = z.object({
   src: z.string().describe('Image URL or path (resolved at render time).'),
   motion: z
-    .enum(['blur', 'fade', 'scale', 'wipe'])
+    .enum(['blur', 'fade', 'scale', 'wipe', 'none'])
     .default('blur')
     .describe(
-      "Which motion fingerprint the entrance uses: 'blur' soft-to-sharp focus pull, 'fade' opacity, 'scale' center-pivot grow, or 'wipe' left-to-right reveal.",
+      "Which motion fingerprint the entrance uses: 'blur' soft-to-sharp focus pull, 'fade' opacity, 'scale' center-pivot grow, 'wipe' left-to-right reveal, or 'none' to place the image with no entrance (held still — for logos and precise product stills).",
     ),
   blurAmount: z
     .number()

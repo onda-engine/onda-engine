@@ -4459,9 +4459,9 @@ const RAW: RawEntry[] = [
     category: 'Media',
     title: 'Image Reveal',
     description:
-      'An image that enters with a signature motion fingerprint \u2014 blur focus-pull, fade, center-pivot scale, or left-to-right wipe.',
+      'An image that enters with a signature motion fingerprint \u2014 blur focus-pull, fade, center-pivot scale, or left-to-right wipe \u2014 or held still with motion:"none".',
     pickWhen:
-      'Use to bring a photo or image onscreen with a polished entrance \u2014 hero photos, product shots, or any image that should reveal rather than pop in. Default fills the whole composition; pass width/height/x/y to place a sized image.',
+      'Use to bring a photo or image onscreen with a polished entrance \u2014 hero photos, product shots, or any image that should reveal rather than pop in. For a logo or precise still that should NOT drift or reveal, pass motion:"none" (a held image with this component\'s box/fit/rounded-corner ergonomics). Default fills the whole composition; pass width/height/x/y to place a sized image.',
     composes: [],
     sceneRole: 'media',
     occlusion: 'full_frame',
@@ -4487,10 +4487,10 @@ const RAW: RawEntry[] = [
         role: 'enum',
         themeable: false,
         required: false,
-        enumValues: ['blur', 'fade', 'scale', 'wipe'],
+        enumValues: ['blur', 'fade', 'scale', 'wipe', 'none'],
         default: "'blur'",
         description:
-          "Which motion fingerprint the entrance uses: 'blur' soft-to-sharp focus pull, 'fade' opacity, 'scale' center-pivot grow, or 'wipe' left-to-right reveal.",
+          "Which motion fingerprint the entrance uses: 'blur' soft-to-sharp focus pull, 'fade' opacity, 'scale' center-pivot grow, 'wipe' left-to-right reveal, or 'none' to place the image with no entrance (held still — for logos and precise product stills).",
       },
       {
         name: 'blurAmount',
