@@ -14,7 +14,7 @@ ONDA is an early-stage **Rust workspace** with a TypeScript/React authoring laye
 ## 1. Clone and install
 
 ```bash
-git clone https://github.com/degueba/onda-engine
+git clone https://github.com/onda-engine/onda-engine
 cd onda-engine
 pnpm install
 ```

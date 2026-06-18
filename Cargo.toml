@@ -40,9 +40,9 @@ members = [
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.80"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/degueba/onda-engine"
-homepage = "https://github.com/degueba/onda-engine"
+license = "FSL-1.1-ALv2"
+repository = "https://github.com/onda-engine/onda-engine"
+homepage = "https://github.com/onda-engine/onda-engine"
 authors = ["The ONDA Engine contributors"]
 
 # Shared dependency versions. Resolved/pinned at build time; bump in one place.

@@ -2,8 +2,8 @@
   "name": "onda-engine",
   "version": "0.0.0",
   "private": true,
-  "description": "The open-source motion graphics engine. GPU-native, scene-graph-first, framework-agnostic.",
-  "license": "MIT OR Apache-2.0",
+  "description": "The source-available motion graphics engine. GPU-native, scene-graph-first, framework-agnostic.",
+  "license": "FSL-1.1-ALv2",
   "type": "module",
   "packageManager": "pnpm@10.5.0",
   "engines": {

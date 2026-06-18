@@ -2,7 +2,7 @@
 title: "What is ONDA?"
 ---
 
-ONDA is an **open-source, GPU-native, browser-free motion-graphics engine in Rust**.
+ONDA is a **source-available, GPU-native, browser-free motion-graphics engine in Rust**.
 
 > Motion graphics at GPU speed. No browser.
 

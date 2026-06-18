@@ -2,7 +2,7 @@
   "name": "@onda-engine/components",
   "version": "0.2.0",
   "description": "The Onda motion language — a Remotion-shaped choreography + component library for @onda-engine/react. Ported from ondajs.",
-  "license": "MIT OR Apache-2.0",
+  "license": "FSL-1.1-ALv2",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

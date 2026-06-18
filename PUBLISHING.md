@@ -41,5 +41,5 @@ Notes:
 
 The packages are **private** today (`access: "restricted"` + private repo). To open them:
 
-1. **Decide the license first.** The repo declares `MIT OR Apache-2.0`, but the root `LICENSE` is MIT-only with a personal copyright — reconcile that. (Strategy notes recommend *source-available*, e.g. a Remotion-style company license, for the engine **core**; permissive is fine for the leaf component/format layer.) Add a `NOTICE` for the MPL-2.0 deps (`symphonia`, `usvg`).
+1. **License: decided — FSL-1.1-ALv2** (Functional Source License, Apache-2.0 future). The whole workspace is source-available: the root `LICENSE` holds the FSL text, every `package.json` + the Cargo workspace declare `FSL-1.1-ALv2`, `LICENSE-APACHE` is the 2-year future-license target, and `NOTICE.md` covers the MPL-2.0 deps (`symphonia`, `usvg`). The competing-use carve-out protects Studio; relaxing to Apache/MIT later stays possible, tightening does not. **Still open:** put external contributors on a CLA/DCO before accepting PRs (so the dual-license/commercial-exception right is retained).
 2. Flip `"access": "public"` in `.changeset/config.json` (and/or publish to public npm under a claimable scope — note GitHub Packages requires the scope to match the org, hence `@onda-engine`).

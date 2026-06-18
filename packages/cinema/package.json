@@ -2,7 +2,7 @@
   "name": "@onda-engine/cinema",
   "version": "0.1.1",
   "description": "Render a timeline composition payload (scenes/tracks/entries + choreography + transitions) to an @onda-engine/react element — the spec→engine renderer ONDA Studio uses instead of its Remotion renderer.",
-  "license": "MIT OR Apache-2.0",
+  "license": "FSL-1.1-ALv2",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

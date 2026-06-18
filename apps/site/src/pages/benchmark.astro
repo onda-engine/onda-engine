@@ -5,7 +5,7 @@
 // apples-to-apples render of an equivalent 1080p composition on one machine,
 // scaled from a trivial scene (1 cluster / 6 nodes) to a complex one (40
 // clusters / 201 nodes). Higher fps is better.
-const REPO = 'https://github.com/degueba/onda-engine'
+const REPO = 'https://github.com/onda-engine/onda-engine'
 const BENCH = `${REPO}/tree/main/apps/benchmark`
 const STUDIO_URL = 'https://studio.onda.video'
 const year = new Date().getFullYear()
@@ -374,7 +374,7 @@ const maxes = Object.fromEntries(charts.map((c) => [c.id, maxOf(c.rows)]))
         <section class="cta" aria-labelledby="cta-title">
           <div class="container cta__inner">
             <h2 id="cta-title" class="cta__title">Render your first frame without a browser</h2>
-            <p class="cta__sub">Clone the repo, write a composition, ship a video. It's all open source.</p>
+            <p class="cta__sub">Clone the repo, write a composition, ship a video. The source is all public.</p>
             <a class="btn btn--primary btn--lg" href="/guide/getting-started">Get started</a>
           </div>
         </section>
@@ -408,12 +408,12 @@ const maxes = Object.fromEntries(charts.map((c) => [c.id, maxOf(c.rows)]))
           </nav>
         </div>
         <div class="container footer__bottom">
-          <p>© {year} ONDA. Open source under <strong>MIT OR Apache-2.0</strong>.</p>
-          <a href={REPO} rel="noopener">github.com/degueba/onda-engine</a>
+          <p>© {year} ONDA. Source-available under <strong>FSL-1.1-Apache-2.0</strong>.</p>
+          <a href={REPO} rel="noopener">github.com/onda-engine/onda-engine</a>
         </div>
         <div class="container footer__legal">
           <p>
-            ONDA Engine is an independent, open-source project — not affiliated with, endorsed by,
+            ONDA Engine is an independent, source-available project — not affiliated with, endorsed by,
             or sponsored by Remotion GmbH or Adobe Inc. “Remotion” is a trademark of Remotion GmbH.
             “Adobe” and “After Effects” are trademarks of Adobe Inc. All other product names and
             logos are the property of their respective owners and are used here for identification

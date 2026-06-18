@@ -6,7 +6,7 @@
 
 **Author motion graphics in React. Render them natively on the GPU — no headless browser, no Chromium.**
 
-[![License](https://img.shields.io/badge/license-MIT_OR_Apache--2.0-d96b82?style=flat-square&labelColor=0e0e12)](#license)
+[![License](https://img.shields.io/badge/license-FSL--1.1--Apache--2.0-d96b82?style=flat-square&labelColor=0e0e12)](#license)
 [![Rust](https://img.shields.io/badge/Rust-stable-d96b82?style=flat-square&labelColor=0e0e12&logo=rust&logoColor=f2f2f4)](#build)
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-preview-d96b82?style=flat-square&labelColor=0e0e12&logo=webassembly&logoColor=f2f2f4)](#how-it-works)
 [![Renderer](https://img.shields.io/badge/renderer-Vello_GPU-d96b82?style=flat-square&labelColor=0e0e12)](#how-it-works)
@@ -181,7 +181,7 @@ scripts/build-embed-kit.sh                 # → dist/embed-kit/  (this platform
 scripts/build-embed-kit.sh --skip-binary   # JS/d.ts/wasm only (no cargo build)
 ```
 
-The CI **[Release workflow](.github/workflows/release.yml)** builds a linux `x86_64` embed kit on every `v*` tag, smoke-tests it on headless Vulkan (lavapipe), and attaches the tarball to a **[GitHub Release](https://github.com/degueba/onda-engine/releases)**. Drop the output into the host app and import it by path — **no Rust toolchain or engine source required on the deploy side.**
+The CI **[Release workflow](.github/workflows/release.yml)** builds a linux `x86_64` embed kit on every `v*` tag, smoke-tests it on headless Vulkan (lavapipe), and attaches the tarball to a **[GitHub Release](https://github.com/onda-engine/onda-engine/releases)**. Drop the output into the host app and import it by path — **no Rust toolchain or engine source required on the deploy side.**
 
 <br/>
 
@@ -196,7 +196,7 @@ Pre-1.0 — the engine powers a production studio, but the public API isn't froz
 
 ## License
 
-Dual-licensed under **[MIT](LICENSE-MIT)** or **[Apache-2.0](LICENSE-APACHE)**, at your option. _(Licensing is being finalized ahead of any public release — see [PUBLISHING.md](PUBLISHING.md).)_
+Source-available under the **[Functional Source License](LICENSE)** (FSL-1.1-Apache-2.0): read, run, self-host, modify, and build non-competing products freely — the one restriction is shipping a competing product. Each release converts to **[Apache-2.0](LICENSE-APACHE)** two years after it ships. Third-party notices are in **[NOTICE.md](NOTICE.md)**.
 
 <br/>
 
