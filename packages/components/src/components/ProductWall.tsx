@@ -10,7 +10,14 @@
 //! Backend: `<Image>` renders on both backends and the camera/entrance are plain
 //! transforms — no GPU-only features, so it degrades cleanly.
 
-import { Group, Image, Rect, interpolate, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
+import {
+  Group,
+  Image,
+  Rect,
+  interpolate,
+  useCurrentFrame,
+  useVideoConfig,
+} from '@onda-engine/react'
 import { useStaggeredEntrance } from '../hooks.js'
 import { STAGGER } from '../motion.js'
 import { useTheme } from '../theme.js'

@@ -31,7 +31,14 @@
 //!    composition center), matching how the other ported components place
 //!    themselves.
 
-import { Group, Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
+import {
+  Group,
+  Text,
+  interpolate,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from '@onda-engine/react'
 import { HOUSE_EASE } from '../easing.js'
 import { SPRING_SMOOTH } from '../motion.js'
 import { measureText, useTextMetricsReady } from '../text-metrics.js'

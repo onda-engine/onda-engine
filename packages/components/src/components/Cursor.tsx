@@ -31,7 +31,14 @@
 //! dark edge stroke (`#08080a`) for definition, which is the load-bearing part of
 //! the original look.
 
-import { Ellipse, Group, Path, interpolate, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
+import {
+  Ellipse,
+  Group,
+  Path,
+  interpolate,
+  useCurrentFrame,
+  useVideoConfig,
+} from '@onda-engine/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
