@@ -458,6 +458,19 @@ export const GALLERY: GalleryItem[] = [
     themed: true,
   },
   {
+    name: 'CardShowcase',
+    category: 'Cards',
+    blurb:
+      'a tilted grid of cards that separates on diagonals and converges to a centered brand reveal — a fintech/brand product showcase',
+    props: {
+      brand: 'Lumen',
+      network: 'VISA',
+      heroColor: '#3D2BE0',
+      tierColors: ['#111114', '#F3F3F6', '#8E93A1', '#5B3EE0'],
+      duration: '8s',
+    },
+  },
+  {
     name: 'TitleCard',
     category: 'Cards',
     blurb: 'a centered title with an optional subtitle, each fading in with a',
