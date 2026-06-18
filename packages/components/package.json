@@ -1,7 +1,7 @@
 {
   "name": "@onda-engine/components",
-  "version": "0.0.0",
-  "description": "The Onda motion language \u2014 a Remotion-shaped choreography + component library for @onda-engine/react. Ported from ondajs.",
+  "version": "0.1.0",
+  "description": "The Onda motion language — a Remotion-shaped choreography + component library for @onda-engine/react. Ported from ondajs.",
   "license": "MIT OR Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -16,7 +16,9 @@
       "default": "./dist/manifest.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -33,5 +35,14 @@
     "@types/node": "^22.10.2",
     "@types/react": "^19.2.0",
     "vitest": "^2.1.8"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onda-engine/onda-engine.git",
+    "directory": "packages/components"
   }
 }
