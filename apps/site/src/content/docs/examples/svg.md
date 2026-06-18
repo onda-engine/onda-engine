@@ -6,7 +6,7 @@ Use SVG documents in JSX. `<Svg>` takes either inline `markup` (self-contained) 
 
 ```tsx
 import { readFileSync, writeFileSync } from 'node:fs'
-import { Composition, Rect, Svg, Text, renderToSceneJSON } from '@onda/react'
+import { Composition, Rect, Svg, Text, renderToSceneJSON } from '@onda-engine/react'
 
 // One badge by inline markup (self-contained)...
 const inlineBadge = readFileSync(new URL('./assets/badge.svg', import.meta.url), 'utf8')
@@ -33,7 +33,7 @@ console.log(`wrote ${out}`)
 Write the scene JSON **next to the SVG asset** so the file `src` resolves, then render:
 
 ```bash
-pnpm --filter @onda/react exec tsx examples/svg.tsx examples/assets/svg.json
+pnpm --filter @onda-engine/react exec tsx examples/svg.tsx examples/assets/svg.json
 cargo run -p onda-cli -- render examples/assets/svg.json svg.png
 ```
 

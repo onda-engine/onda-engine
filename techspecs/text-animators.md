@@ -42,7 +42,7 @@ author never sees.
   accurate clusters `{start,end,x,advance}` (`components/src/text-metrics.ts:260`).
 - **Author-time metrics in BOTH runtimes.** `preloadTextMetrics()` initializes the
   wasm engine (`initSync` in Node, async in browser) and is **registered as an
-  engine-warmer** (`text-metrics.ts:350`); `@onda/render`'s `renderToFile` awaits
+  engine-warmer** (`text-metrics.ts:350`); `@onda-engine/render`'s `renderToFile` awaits
   `runEngineWarmers()` **before** the synchronous `renderFramesJSON`, so glyph
   positions are real during the CLI bake — not estimates. `measureText`/`glyphLayout`/
   `fontMetrics` are **synchronous** once warm (safe inside reconciliation loops).
@@ -107,7 +107,7 @@ renderer's drawn glyph x within tolerance.
 `VelloEngine::load_font`); wasm rebuilt — which also surfaced `glyphLayout` /
 `fontMetrics`, **previously absent from the committed `pkg/`**, so Phase 1's kerning
 only began working at runtime after this rebuild. TS `loadFont(data): Promise<string[]>`
-in `text-metrics.ts` (+ exported from `@onda/components`). Verified end-to-end on the
+in `text-metrics.ts` (+ exported from `@onda-engine/components`). Verified end-to-end on the
 production Node warming path: a non-bundled serif (Spectral) measured **549.9 px →
 535.9 px** for the same string *after* `loadFont` (before, it silently fell back to
 the bundled default = the bug). vitest can't warm wasm (`import.meta.resolve`
@@ -116,9 +116,9 @@ contract; the real before/after is the Node proof.
 
 ✅ **Single-source pipeline (2026-06).** Declaring a font once now reaches BOTH
 measure and render automatically — no manual `--font`. `loadFont` retains the bytes
-in a registry in `@onda/react` (`fonts.ts`: `registerFont`/`registeredFonts`/
+in a registry in `@onda-engine/react` (`fonts.ts`: `registerFont`/`registeredFonts`/
 `clearRegisteredFonts`, the same shared-hub pattern as the engine-warmers, FNV-1a
-deduped); `@onda/render`'s `renderToFile` **and** `renderStillToFile` drain the
+deduped); `@onda-engine/render`'s `renderToFile` **and** `renderStillToFile` drain the
 registry after rendering, write the bytes to the temp dir, and append `--font` to
 the `onda` CLI invocation (both subcommands already accept it). So the iteration-loop
 still render and the full export both draw with the same bytes the author-time
@@ -154,7 +154,7 @@ from `\n`); listed as the clean foundation.
 ## Authoring API (the v1 contract — stable across A→B)
 
 ```tsx
-// @onda/components
+// @onda-engine/components
 <TextAnimator
   text="Make it move"
   units="glyph"            // 'glyph' | 'word' | 'line'
@@ -184,7 +184,7 @@ opacity/color/blur. Spaces advance, emit no node. Deterministic (pure fn of fram
 
 - v1 rides existing nodes ⇒ the **render** is already deterministic; lock the **TS
   expansion** with snapshot tests of emitted scene JSON per frame
-  (`@onda/components`), for glyph/word/line and a couple of selector shapes.
+  (`@onda-engine/components`), for glyph/word/line and a couple of selector shapes.
 - A CLI **visual golden** for one kinetic title (`onda render` → PNG), bundled font,
   matching the `renderer-rs/tests/golden.rs` text-fixture pattern.
 - **G4 parity test** (the important one): assert author-time `glyphLayout(customFont)`
@@ -208,7 +208,7 @@ preset/animator** (RTT — judge on native; before/after via exported frames):
 
 ## Phased plan (shippable vertical slices)
 
-- **Phase 1 — correctness + the API** *(Author, M)* — ✅ **DONE** (2026-06; `@onda/
+- **Phase 1 — correctness + the API** *(Author, M)* — ✅ **DONE** (2026-06; `@onda-engine/
   components` build + 94 tests green). G1 (KineticText now uses `glyphLayout` for
   kerning-accurate x), G2 (`<TextAnimator>` selector×animator: units glyph/word/line,
   direction forward/backward/center/edges, channels opacity/x/y/scale/rotate/blur/
@@ -224,8 +224,8 @@ preset/animator** (RTT — judge on native; before/after via exported frames):
   `OndaEngine::loadFont` (into renderer + measurement context), TS `loadFont` exported,
   wasm rebuilt (also restored `glyphLayout`/`fontMetrics` to `pkg/`). Verified
   before/after on the Node path (Spectral: 549.9→535.9 px). **Unblocks kinetic type
-  with any font.** ✅ Single-source DX done: `loadFont` once → `@onda/react` registry
-  → `@onda/render` auto-passes `--font` (still + export). Remaining: Player preview
+  with any font.** ✅ Single-source DX done: `loadFont` once → `@onda-engine/react` registry
+  → `@onda-engine/render` auto-passes `--font` (still + export). Remaining: Player preview
   font load.
 - **Phase 3 — text-on-path** *(Engine+Author, M)*. G5: `layoutOnPath` + `<TextOnPath>`.
 - **Phase 4 — scene-native `TextAnimator`** *(Engine, L, deferred)*. D1: renderer-side

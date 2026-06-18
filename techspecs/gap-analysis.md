@@ -60,7 +60,7 @@ text**; offscreen+readback; single wgpu — the quad+SDF `gpu` crate is retired)
 `typography` (cosmic-text+swash, bundled Open Sans; coverage masks **and**
 per-glyph `layout`) · **`svg`** (`usvg` → flattened `Path` nodes) · `animation`
 (keyframes + easings + springs on opacity/translate/scale) · `cli` (render/export/
-export-frames → png/gif/mp4) · `@onda/react` (reconciler, useCurrentFrame/
+export-frames → png/gif/mp4) · `@onda-engine/react` (reconciler, useCurrentFrame/
 interpolate/spring, `<Sequence>`/`<Series>`/`<Loop>`, renderFrames) · `wasm` (CPU
 engine in browser).
 
@@ -128,9 +128,9 @@ P0 = needed for a credible, fast, correct v1. P1 = parity/quality. P2 = later.
   from_linear}` (sRGB transfer fns); `Lerp for Color` now interpolates in linear
   light (alpha direct). The renderers can adopt the same for correct compositing.
 - **✅ DONE Springs** (mass/stiffness/damping) — `onda_animation::spring` +
-  `@onda/react` `spring()`, frame-keyed/deterministic (semi-implicit Euler),
+  `@onda-engine/react` `spring()`, frame-keyed/deterministic (semi-implicit Euler),
   overshoot for underdamped configs.
-- **✅ DONE Sequences/Series/Loop** — `@onda/react` `<Sequence from durationInFrames>`,
+- **✅ DONE Sequences/Series/Loop** — `@onda-engine/react` `<Sequence from durationInFrames>`,
   `<Series>`/`<Series.Sequence>` (back-to-back), `<Loop>` (frame-context shifting,
   Remotion-style). Still TODO: `<Freeze>`, and a declarative (Rust-side) equivalent.
 - **✅ DONE More easings** — `CubicBezier{x1,y1,x2,y2}` (Rust + TS `cubicBezier()`)

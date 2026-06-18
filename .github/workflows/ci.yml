@@ -2,7 +2,7 @@
 #
 # Three jobs:
 #   rust         — fmt, clippy, workspace tests, golden-frame regression, wasm32 checks.
-#   ts           — pnpm monorepo: build the core packages, biome, @onda/react tests.
+#   ts           — pnpm monorepo: build the core packages, biome, @onda-engine/react tests.
 #   render-smoke — THE production gate: prove the render substrate (headless Linux +
 #                  lavapipe software Vulkan) can drive the Vello GPU backend end-to-end.
 #
@@ -73,7 +73,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # @onda/components dynamic-imports @onda/wasm and @onda/wasm-audio, and tsc
+      # @onda-engine/components dynamic-imports @onda-engine/wasm and @onda-engine/wasm-audio, and tsc
       # resolves their types from pkg/ — which is gitignored. So the TS job needs
       # Rust + wasm-bindgen to mint the wasm pkg/ dirs before the TS builds run.
       - name: Install Rust (stable + wasm32-unknown-unknown)
@@ -103,18 +103,18 @@ jobs:
 
       - name: Build wasm bindings (pkg/)
         run: |
-          pnpm --filter @onda/wasm build
-          pnpm --filter @onda/wasm-audio build
+          pnpm --filter @onda-engine/wasm build
+          pnpm --filter @onda-engine/wasm-audio build
 
       # pnpm runs the selected packages' builds in dependency (topological) order.
       - name: Build core packages
-        run: pnpm --filter @onda/react --filter @onda/components --filter @onda/cinema --filter @onda/render --filter @onda/player build
+        run: pnpm --filter @onda-engine/react --filter @onda-engine/components --filter @onda-engine/cinema --filter @onda-engine/render --filter @onda-engine/player build
 
       - name: biome
         run: pnpm exec biome ci .
 
-      - name: '@onda/react tests'
-        run: pnpm --filter @onda/react test
+      - name: '@onda-engine/react tests'
+        run: pnpm --filter @onda-engine/react test
 
   # Proves the production render substrate: a headless Linux box with NO GPU renders
   # through the Vello (GPU) backend on lavapipe (Mesa's software Vulkan). If this

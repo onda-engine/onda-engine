@@ -21,7 +21,7 @@ scenes look at each point in the transition; a `timing` decides how the
 transition's progress evolves over its duration.
 
 ```tsx
-import { TransitionSeries, iris, linearTiming } from '@onda/react'
+import { TransitionSeries, iris, linearTiming } from '@onda-engine/react'
 
 <TransitionSeries>
   <TransitionSeries.Sequence durationInFrames={50}>
@@ -60,8 +60,8 @@ height }` — return identity at the resting state (entering `progress` 1, exiti
 `progress` 0). For example, a zoom:
 
 ```tsx
-import { Group } from '@onda/react'
-import type { TransitionPresentation } from '@onda/react'
+import { Group } from '@onda-engine/react'
+import type { TransitionPresentation } from '@onda-engine/react'
 
 const zoom = (): TransitionPresentation => (children, { progress, entering }) => {
   const scale = entering ? progress : 1 + progress * 0.2

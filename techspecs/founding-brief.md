@@ -843,12 +843,12 @@ Provide:
 Publish:
 
 ```txt
-@onda/react
-@onda/player
-@onda/render
-@onda/wasm
-@onda/three
-@onda/skia
+@onda-engine/react
+@onda-engine/player
+@onda-engine/render
+@onda-engine/wasm
+@onda-engine/three
+@onda-engine/skia
 ```
 
 Each package must contain:

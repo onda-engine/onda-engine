@@ -7,7 +7,7 @@
 
 ## TL;DR
 
-Today the in-browser Player previews through `@onda/wasm` → the **CPU** reference
+Today the in-browser Player previews through `@onda-engine/wasm` → the **CPU** reference
 renderer (`onda-renderer`): pixel-exact for rects/ellipses/text, but no paths,
 gradients, clips, or AA, and no GPU. The pixel-true GPU output comes from
 `onda-vello` (`VelloRenderer`), which renders headlessly on native wgpu and
@@ -36,7 +36,7 @@ constraints and wasm threading.
     `renderer.render_to_texture(.., &view, &RenderParams { .. AaConfig::Area })`,
     then **`read_back()`** — `copy_texture_to_buffer` (256-byte row padding) +
     `map_async(Read)` + `device.poll(Maintain::Wait)` → `Vec<u8>`.
-- **`@onda/wasm`** (`packages/wasm`): the CPU `onda-renderer` compiled to wasm
+- **`@onda-engine/wasm`** (`packages/wasm`): the CPU `onda-renderer` compiled to wasm
   (`wasm32-unknown-unknown`, `wasm-bindgen --target web`), exposing
   `OndaEngine.render(json) -> RenderedFrame { width, height, pixels }`. This is
   what `<Player>`'s `engine` drawer blits with `putImageData` today.
@@ -57,7 +57,7 @@ So two things are missing for charter-true real-time preview in the browser:
      gates the engine deps), and a new wasm crate (or extend `onda-wasm`) that
      exports a `VelloEngine`.
    - Build with `--target wasm32-unknown-unknown` + `wasm-bindgen --target web`,
-     same toolchain the existing `@onda/wasm` build script uses.
+     same toolchain the existing `@onda-engine/wasm` build script uses.
 
 2. **A canvas surface + swapchain present (replace readback).**
    - Get a `wgpu::Surface` from an `HtmlCanvasElement` (wgpu 22:

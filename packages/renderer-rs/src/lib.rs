@@ -2,7 +2,7 @@
 //!
 //! It walks a [`Scene`] and produces an in-memory RGBA8 [`Framebuffer`] on the
 //! CPU — no GPU — so it renders anywhere (headless servers, CI, browsers without
-//! WebGPU via `@onda/wasm`) and pins down the scene-graph → pixels *contract*
+//! WebGPU via `@onda-engine/wasm`) and pins down the scene-graph → pixels *contract*
 //! (transform/opacity inheritance, src-over compositing, coordinate conventions)
 //! deterministically.
 //!

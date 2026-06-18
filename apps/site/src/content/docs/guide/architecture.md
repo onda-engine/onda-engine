@@ -46,7 +46,7 @@ ONDA's Rust crates live under `packages/*-rs` (and `packages/wasm`). The crates 
 | **`onda-typography`**| Shaping, layout, and glyph rasterization via `cosmic-text` + `swash`. Bundles Open Sans (SIL OFL 1.1) for deterministic, host-independent text; hands back coverage masks and per-glyph layout. |
 | **`onda-renderer`**  | The **CPU reference rasterizer** (tiny-skia): deterministic, dependency-light, the correctness oracle. AA fills/strokes, rounded rects, paths, linear/radial gradients, text, images, and the render-to-texture **effect chain** — byte-identical to Vello; only rotation/clip/blend/3D-tilt deferred to the GPU. Parallel frame rendering via `rayon`. |
 | **`onda-vello`**     | The **GPU-native vector backend** (Vello on `wgpu`): AA fills/strokes, rounded rects, paths, gradients, clips, per-glyph vector text, the effect chain, blend modes, true 3D + extruded solids. Offscreen render + readback. |
-| **`onda-audio`**     | Audio: decode + FFT spectrum + beat/onset detection (`symphonia` + `rustfft`), and a declarative `AudioGraph` **synth**. Shared by browser + native via `@onda/wasm-audio`. |
+| **`onda-audio`**     | Audio: decode + FFT spectrum + beat/onset detection (`symphonia` + `rustfft`), and a declarative `AudioGraph` **synth**. Shared by browser + native via `@onda-engine/wasm-audio`. |
 | **`onda-svg`**       | SVG import: `usvg` → flattened `Path` nodes (`import_svg` / `expand_svg`). |
 | **`onda-cli`**       | The `onda` command-line adapter: `render` / `export` / `export-frames` / `render-frame` / `contact-sheet` / `lint`, backend + encoder selection, GIF/MP4 encoding. |
 | **`onda-wasm`**      | The CPU engine compiled to WebAssembly for the browser. |
@@ -60,7 +60,7 @@ The workspace only includes crates that build. Other directories named in the fo
 
 | Package         | Role |
 | --------------- | ---- |
-| **`@onda/react`** | A custom React renderer (built on `react-reconciler`) that compiles JSX into scene-graph JSON. Provides the components, hooks, `interpolate`/`spring`, `<Sequence>`/`<Series>`/`<Loop>`, and the `renderToScene*` / `renderFrames*` functions. |
+| **`@onda-engine/react`** | A custom React renderer (built on `react-reconciler`) that compiles JSX into scene-graph JSON. Provides the components, hooks, `interpolate`/`spring`, `<Sequence>`/`<Series>`/`<Loop>`, and the `renderToScene*` / `renderFrames*` functions. |
 
 The reconciler maps each component to a host element, then serializes the tree to JSON that round-trips into `onda-scene` exactly (matching field names, snake_case, and the internally-tagged enums). That JSON is what the `onda` CLI renders.
 

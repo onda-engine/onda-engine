@@ -2,13 +2,13 @@
 title: "Render functions"
 ---
 
-These functions turn a React element tree (whose root must be a `<Composition>`) into ONDA scene-graph data — either an in-memory object or a JSON string for the `onda` CLI. They live in `@onda/react` and drive the custom reconciler.
+These functions turn a React element tree (whose root must be a `<Composition>`) into ONDA scene-graph data — either an in-memory object or a JSON string for the `onda` CLI. They live in `@onda-engine/react` and drive the custom reconciler.
 
 ```ts
 import {
   renderFrame, renderToScene, renderFrames,
   renderToSceneJSON, renderFramesJSON,
-} from '@onda/react'
+} from '@onda-engine/react'
 ```
 
 ## `renderFrame`

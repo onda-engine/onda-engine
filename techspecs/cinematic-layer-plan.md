@@ -76,7 +76,7 @@ initiative enriches it into a finishing-ready *plate*.)
 
 Apple/ElevenLabs lean hard on MORPHING. Today only a scene-transition `morph()`
 exists — true element/path morph (magic-move) does NOT. Needs `morphPath(from,to,t)`
-JS helper in `@onda/react` (path-correspondence interp, not naïve d-lerp) — ~zero
+JS helper in `@onda-engine/react` (path-correspondence interp, not naïve d-lerp) — ~zero
 engine change. Camera continuity already exists (the `Camera` primitive). Fold
 both into the cinematic exemplar (media + morphs under one continuous camera).
 

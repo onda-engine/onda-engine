@@ -4,11 +4,11 @@ title: "Examples"
 
 These walkthroughs mirror the real example files in `packages/react/examples/`. Each authors a scene in JSX, emits scene-graph JSON, and renders it with the `onda` CLI.
 
-:::caution[Build `@onda/react` first]
+:::caution[Build `@onda-engine/react` first]
 The examples import the package's built `dist/`. After cloning, or after editing the package source, run:
 
 ```bash
-pnpm --filter @onda/react build
+pnpm --filter @onda-engine/react build
 ```
 :::
 
@@ -23,7 +23,7 @@ Run any of them with the pattern:
 
 ```bash
 # 1. Author → scene-graph JSON
-pnpm --filter @onda/react exec tsx examples/<name>.tsx out.json
+pnpm --filter @onda-engine/react exec tsx examples/<name>.tsx out.json
 # 2. Render with the engine
 cargo run -p onda-cli -- render out.json out.png
 ```

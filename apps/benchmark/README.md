@@ -18,7 +18,7 @@ cargo run --release -p onda-bench -- 120 40    # complex
 pnpm --filter benchmark bench 1                # downloads Chrome Headless Shell on first run
 pnpm --filter benchmark bench 40
 
-# ONDA full export (Vello raster + readback + encode → mp4, via @onda/render)
+# ONDA full export (Vello raster + readback + encode → mp4, via @onda-engine/render)
 pnpm --filter benchmark bench:onda 120 1       # args: <frames> <clusters>; needs a release `onda` build
 pnpm --filter benchmark bench:onda 120 40
 ```
@@ -54,7 +54,7 @@ to reproduce on current versions — results vary by scene, hardware and configu
 The tables above are *raster* throughput. End-to-end — the number a Studio export
 actually costs — adds the GPU→CPU readback **and** the ffmpeg encode (the same
 libx264 both engines use). Measured the same way on the same machine, 120 frames
-@ 1080p, via `@onda/render` (`pnpm --filter benchmark bench:onda`):
+@ 1080p, via `@onda-engine/render` (`pnpm --filter benchmark bench:onda`):
 
 **Trivial — 1 cluster:**
 

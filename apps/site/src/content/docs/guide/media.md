@@ -8,7 +8,7 @@ ONDA draws raster media as first-class scene nodes — composite, grade, blur, m
 ## `<Image>`
 
 ```tsx
-import { Image } from '@onda/react'
+import { Image } from '@onda-engine/react'
 
 <Image src="/plate.jpg" width={1280} height={720} fit="cover" blur={0} />
 ```
@@ -25,7 +25,7 @@ The engine right-sizes the decoded image to its display box, so large source fil
 A video clip on the timeline. At composition frame *f* it shows the source frame at `startFrom + (f / fps) × playbackRate` seconds; the renderer draws that frame like an image.
 
 ```tsx
-import { Video, Sequence } from '@onda/react'
+import { Video, Sequence } from '@onda-engine/react'
 
 <Sequence from={0} durationInFrames={120}>
   <Video

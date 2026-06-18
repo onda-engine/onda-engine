@@ -1,6 +1,6 @@
 # Changesets
 
-This folder is managed by [`@changesets/cli`](https://github.com/changesets/changesets) — the tool that versions and publishes the `@onda/*` packages.
+This folder is managed by [`@changesets/cli`](https://github.com/changesets/changesets) — the tool that versions and publishes the `@onda-engine/*` packages.
 
 To record a change for the next release:
 

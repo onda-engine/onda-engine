@@ -1,0 +1,68 @@
+# Auto-versions + publishes the @onda-engine/* npm packages to the org's GitHub
+# Packages registry via Changesets.
+#
+# Flow:
+#   1. You change the engine and add a changeset (`pnpm changeset` — pick the bump,
+#      write a one-line note).
+#   2. Push/merge to main → this workflow opens (or updates) a "Version Packages" PR
+#      that bumps versions + writes each package's CHANGELOG (your release notes).
+#   3. Merge that PR → this workflow runs again and publishes the bumped packages.
+#
+# Auth is the built-in GITHUB_TOKEN (packages: write on this org) — no PAT to manage.
+# The embed-kit's tag-driven release lives in release.yml (separate; it feeds the
+# backend's render bundle, not these npm packages).
+name: Release packages
+
+on:
+  push:
+    branches: [main]
+
+concurrency: release-packages-${{ github.ref }}
+
+permissions:
+  contents: write # push the version-bump branch + changelog
+  pull-requests: write # open the "Version Packages" PR
+  packages: write # publish to GitHub Packages
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      # `changeset:publish` runs `pnpm -r build`, which builds the wasm packages from
+      # Rust → wasm (cargo + wasm-bindgen) the same way ci.yml does. wasm-bindgen must
+      # match the Cargo.lock pin exactly — keep this in sync with release.yml.
+      - name: Install Rust (stable + wasm32-unknown-unknown)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install wasm-bindgen CLI
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.122
+
+      - uses: pnpm/action-setup@v4 # version from the root package.json "packageManager"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Version PR / publish to GitHub Packages
+        uses: changesets/action@v1
+        with:
+          version: pnpm changeset:version
+          publish: pnpm changeset:publish
+          commit: "chore(release): version @onda-engine packages"
+          title: "chore(release): version @onda-engine packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

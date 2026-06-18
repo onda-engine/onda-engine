@@ -1,7 +1,7 @@
 # ONDA Engine — Claude Code Configuration
 
 Open-source, GPU-native, browser-free motion-graphics engine in Rust. Author
-compositions in React (`@onda/react`) → scene-graph JSON → native GPU renderer
+compositions in React (`@onda-engine/react`) → scene-graph JSON → native GPU renderer
 (Vello) or CPU reference, with a wasm path for in-browser preview. The scene
 graph is the universal language; the renderer is the platform.
 
@@ -28,7 +28,7 @@ graph is the universal language; the renderer is the platform.
 ```bash
 cargo fmt && cargo clippy --all-targets   # Rust
 cargo test -p <crate>                      # per-crate tests
-pnpm --filter @onda/react build && pnpm --filter @onda/react test
+pnpm --filter @onda-engine/react build && pnpm --filter @onda-engine/react test
 pnpm exec biome check --write <paths>      # TS lint/format
 ```
 

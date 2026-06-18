@@ -1,13 +1,13 @@
 # Publishing
 
-The ONDA engine packages are **not published yet** — every `@onda/*` package is at `0.0.0` and the workspace root is `private`. This repo is wired with [Changesets](https://github.com/changesets/changesets) so that *if/when* you decide to publish, it's a deliberate, versioned, one-command flow. **Nothing publishes automatically.**
+The ONDA engine packages are **not published yet** — every `@onda-engine/*` package is at `0.0.0` and the workspace root is `private`. This repo is wired with [Changesets](https://github.com/changesets/changesets) so that *if/when* you decide to publish, it's a deliberate, versioned, one-command flow. **Nothing publishes automatically.**
 
 ## Two distribution paths — don't confuse them
 
 | | What it is | Who consumes it | How it's produced |
 |---|---|---|---|
 | **Embed kit** | A prebuilt **linux** tarball: the bundled `onda-engine.js` + the native `onda` binary + wasm + fonts | **Onda Studio** (and any app embedding the engine at runtime) | Already automated — [`release.yml`](.github/workflows/release.yml) builds it on a `v*` tag, smoke-tests it on lavapipe, and attaches it to a GitHub Release. **No npm involved.** |
-| **npm packages** | `@onda/react`, `@onda/components`, `@onda/cinema`, `@onda/render`, `@onda/player`, `@onda/wasm*` on the npm registry | **External developers** who `npm install` the engine | This document. Only relevant if you go public / open. |
+| **npm packages** | `@onda-engine/react`, `@onda-engine/components`, `@onda-engine/cinema`, `@onda-engine/render`, `@onda-engine/player`, `@onda-engine/wasm*` on the npm registry | **External developers** who `npm install` the engine | This document. Only relevant if you go public / open. |
 
 **The Studio never needs npm** — it vendors the embed kit. npm publishing is purely the "let other people build on the engine" lever, fully decoupled from your own deploy.
 
@@ -41,4 +41,4 @@ pnpm changeset:publish
 Notes:
 - `apps/*` are `private`, so Changesets ignores them.
 - The Rust crates (`packages/*-rs`) are Cargo packages, **not** npm — publish them (if ever) via `cargo publish`, separately.
-- `@onda/*` internal deps use `workspace:*`; Changesets rewrites those to real version ranges at publish time.
+- `@onda-engine/*` internal deps use `workspace:*`; Changesets rewrites those to real version ranges at publish time.

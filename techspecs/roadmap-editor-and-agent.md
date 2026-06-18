@@ -30,7 +30,7 @@ a Studio playbook + an Inspector check.
 
 The user's standing rule (see memory `onda-engine-studio-responsibility-line`):
 
-- **Engine (public, Rust)** = anything a developer importing `@onda/react` would
+- **Engine (public, Rust)** = anything a developer importing `@onda-engine/react` would
   hit: the component library, renderer, layout/placement, animation-timing, and
   every editing _operation_ (silence detection, transcription, matting, cuts).
 - **Studio (private, the moat)** = the agent layer on top: playbooks, treatment

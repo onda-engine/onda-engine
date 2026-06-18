@@ -27,7 +27,7 @@ use onda_typography::{FontContext, StyledRun};
 use onda_vello::VelloRenderer;
 
 /// Set by `--progress`: when true, the Vello render emits a `[onda-progress]{…}`
-/// JSON line per frame on stdout (parsed by the @onda/node bridge for onProgress).
+/// JSON line per frame on stdout (parsed by the @onda-engine/node bridge for onProgress).
 static EMIT_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 // ─── Remote-source materialization ───────────────────────────────────────────
@@ -150,7 +150,7 @@ USAGE:
 
     <scene.json>   a scene graph              (onda-scene JSON)
     <movie.json>   a scene graph + timeline   ({ \"scene\": ..., \"timeline\": ... })
-    <frames.json>  an array of scene graphs   (e.g. @onda/react's renderFrames)
+    <frames.json>  an array of scene graphs   (e.g. @onda-engine/react's renderFrames)
 
     .gif output is pure-Rust and always available; .mp4 needs ffmpeg on PATH.
 
@@ -168,7 +168,7 @@ OPTIONS:
                       hardware encoder if one works on this machine, else
                       libx264 — the portable, deterministic baseline.
     --progress        Emit a `[onda-progress]{...}` JSON line per rendered frame
-                      on stdout (for tools driving the CLI, e.g. @onda/node).
+                      on stdout (for tools driving the CLI, e.g. @onda-engine/node).
     --system-fonts    Use the host's installed fonts instead of the bundled
                       default font (CPU backend only; output then depends on
                       the machine).
@@ -1222,7 +1222,7 @@ fn export_command(args: &[String]) -> Result<()> {
     )
 }
 
-/// Encode pre-rendered, per-frame scenes (e.g. emitted by @onda/react's
+/// Encode pre-rendered, per-frame scenes (e.g. emitted by @onda-engine/react's
 /// `renderFrames`) to a video. Input is a JSON array of scene graphs.
 fn export_frames_command(args: &[String]) -> Result<()> {
     let Options {
@@ -2858,7 +2858,7 @@ mod tests {
 
     #[test]
     fn renders_a_pre_evaluated_frame_sequence() {
-        // Two distinct scenes (a "flipbook"), as @onda/react's renderFrames emits.
+        // Two distinct scenes (a "flipbook"), as @onda-engine/react's renderFrames emits.
         let frames_json = r#"[
             {
                 "composition": { "width": 8, "height": 8, "fps": 12.0, "duration_in_frames": 2 },

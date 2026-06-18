@@ -12,7 +12,7 @@ plan.md` (the gaps). OFF by default → existing comps + goldens byte-identical.
 Add `linear: bool` to `scene-rs` `Composition` (`#[serde(default)]` → old JSON +
 goldens unchanged; bool keeps `Copy`). Update `Composition::new` (keep the 4-arg
 signature; default `linear:false`) + add `with_linear(bool)`; fix any struct literals
-(grep `Composition {`). `@onda/react`: an optional `linear` prop on `<Composition>` →
+(grep `Composition {`). `@onda-engine/react`: an optional `linear` prop on `<Composition>` →
 emit it only when true. When false the renderer takes today's exact path.
 
 ## The linear chain (in `build_effect_texture`, flag ON)

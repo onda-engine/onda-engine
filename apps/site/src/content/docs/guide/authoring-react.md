@@ -2,7 +2,7 @@
 title: "Authoring with React"
 ---
 
-`@onda/react` is a custom React renderer (built on `react-reconciler`). You write JSX exactly as you would in Remotion; instead of mounting to the DOM, the reconciler walks your tree and emits ONDA **scene-graph JSON**. That JSON is what the Rust engine renders.
+`@onda-engine/react` is a custom React renderer (built on `react-reconciler`). You write JSX exactly as you would in Remotion; instead of mounting to the DOM, the reconciler walks your tree and emits ONDA **scene-graph JSON**. That JSON is what the Rust engine renders.
 
 ```txt
 Your JSX  →  custom React reconciler  →  scene-graph JSON  →  onda CLI  →  frame(s)
@@ -17,7 +17,7 @@ There are two shapes of output, matching the two CLI commands:
 
 ```tsx
 import { writeFileSync } from 'node:fs'
-import { Composition, Rect, Text, renderToSceneJSON } from '@onda/react'
+import { Composition, Rect, Text, renderToSceneJSON } from '@onda-engine/react'
 
 const scene = (
   <Composition width={1200} height={360} fps={30} durationInFrames={1}>
@@ -35,8 +35,8 @@ writeFileSync('out.json', renderToSceneJSON(scene))
 cargo run -p onda-cli -- render out.json out.png
 ```
 
-:::caution[Rebuild `@onda/react` before running `tsx` examples]
-Examples import the package's built `dist/`. Run `pnpm --filter @onda/react build` after cloning or after editing the package source, or imports of `@onda/react` will fail to resolve.
+:::caution[Rebuild `@onda-engine/react` before running `tsx` examples]
+Examples import the package's built `dist/`. Run `pnpm --filter @onda-engine/react build` after cloning or after editing the package source, or imports of `@onda-engine/react` will fail to resolve.
 :::
 
 ## Components
@@ -164,7 +164,7 @@ A video clip. At composition frame *f* it shows the source frame at
 `<Image>`. The author layer only declares which source frame each frame wants —
 decoding happens downstream:
 
-- **Browser preview** (`@onda/player`) decodes the frame with an off-screen
+- **Browser preview** (`@onda-engine/player`) decodes the frame with an off-screen
   `<video>` (WebCodecs-class), so no Chromium is needed to *export*.
 - **`onda export`** decodes natively via ffmpeg (build the CLI with
   `--features video`).
@@ -172,7 +172,7 @@ decoding happens downstream:
 Props: `src`, `startFrom` (seconds trimmed off the head, default 0),
 `playbackRate` (default 1), the same `width`/`height`/`fit` box as `<Image>`, and
 `previewFallback` (see below). Pair with `<Sequence>` to place a clip on the
-timeline. The higher-level `<VideoClip>` (in `@onda/components`) wraps this with a
+timeline. The higher-level `<VideoClip>` (in `@onda-engine/components`) wraps this with a
 fade-in/out envelope and optional cinematic letterbox.
 
 #### Sources & CORS — preview vs. export
@@ -235,7 +235,7 @@ fill={{ r: 0.4, g: 0.8, b: 1, a: 0 }}
 `linearGradient(start, end, stops)` and `radialGradient(center, radius, stops)` build a `GradientInput`. Points are `[x, y]` tuples or `{ x, y }`. Coordinates are in the **shape's local space**. Stop offsets are 0..1.
 
 ```tsx
-import { linearGradient, radialGradient } from '@onda/react'
+import { linearGradient, radialGradient } from '@onda-engine/react'
 
 <Rect
   width={360}
@@ -268,7 +268,7 @@ Gradients render on the GPU backend. On the CPU backend, a gradient falls back t
 `clipRect(width, height, cornerRadius?)`, `clipEllipse(width, height)`, and `clipPath(d)` build a `ClipInput` for the `clip` prop. The node and its subtree are clipped to that geometry, in local space.
 
 ```tsx
-import { clipRect } from '@onda/react'
+import { clipRect } from '@onda-engine/react'
 
 <Group x={40} y={120} clip={clipRect(150, 50, 12)}>
   <Text x={6} y={-8} fontSize={72} color="#3ce69a">CLIP</Text>
@@ -282,7 +282,7 @@ Clipping is a GPU-backend feature; the CPU backend ignores it.
 Components are **pure functions of the current frame** (Remotion's model). Read the frame with `useCurrentFrame()` and compute props from it; the engine renders the tree once per frame.
 
 ```tsx
-import { Text, interpolate, Easing, useCurrentFrame } from '@onda/react'
+import { Text, interpolate, Easing, useCurrentFrame } from '@onda-engine/react'
 
 function Title() {
   const frame = useCurrentFrame()

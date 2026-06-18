@@ -6,7 +6,7 @@ The simplest scene: a dark backdrop, a colored underline rect, and a line of tex
 
 ```tsx
 import { writeFileSync } from 'node:fs'
-import { Composition, Rect, Text, renderToSceneJSON } from '@onda/react'
+import { Composition, Rect, Text, renderToSceneJSON } from '@onda-engine/react'
 
 const scene = (
   <Composition width={1200} height={360} fps={30} durationInFrames={1}>
@@ -27,7 +27,7 @@ console.log(`wrote ${out}`)
 
 ```bash
 # Author the scene-graph JSON
-pnpm --filter @onda/react exec tsx examples/hello.tsx out.json
+pnpm --filter @onda-engine/react exec tsx examples/hello.tsx out.json
 
 # Render it to a PNG (GPU by default; falls back to CPU if no GPU)
 cargo run -p onda-cli -- render out.json out.png

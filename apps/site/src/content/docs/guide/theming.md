@@ -3,7 +3,7 @@ title: "Theming & brand kit"
 ---
 
 A **theme** is a small set of brand tokens — colors, fonts, a logo — that the
-`@onda/components` library reads for its defaults. Set it once and every themed
+`@onda-engine/components` library reads for its defaults. Set it once and every themed
 component comes out on-brand, without threading `color`/`fontFamily` props
 through your whole composition.
 
@@ -22,7 +22,7 @@ Wrap your scene in a `ThemeProvider`. Themed components below it pick up the
 brand kit; an explicit prop on a component always wins over the theme.
 
 ```tsx
-import { ThemeProvider, TitleCard, BarChart } from '@onda/components'
+import { ThemeProvider, TitleCard, BarChart } from '@onda-engine/components'
 
 const theme = {
   accent: '#3b82f6',
