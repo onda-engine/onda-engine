@@ -32,8 +32,12 @@ import { useTheme } from '../theme.js'
 import type { TimeInput } from '../time.js'
 
 /** Which entrance fingerprint the image uses. `'blur'` is the ondajs default —
- *  a real soft→sharp focus pull via the engine's `Image.blur` gaussian. */
-export type ImageRevealMotion = 'blur' | 'fade' | 'scale' | 'wipe'
+ *  a real soft→sharp focus pull via the engine's `Image.blur` gaussian.
+ *  `'none'` skips the entrance entirely: the image is placed and held still
+ *  (the bare `<Image>` primitive, but with this component's box / fit /
+ *  rounded-corner ergonomics) — for logos and precise product stills that
+ *  shouldn't drift or reveal. */
+export type ImageRevealMotion = 'blur' | 'fade' | 'scale' | 'wipe' | 'none'
 
 /** How the image fills its box. Both require `srcWidth`/`srcHeight` to differ
  *  from a plain stretch — see the file doc comment. */
@@ -99,6 +103,16 @@ export function ImageReveal({
   // The image, fitted into the box by the renderer (it measures the decoded
   // pixels). The wrapping group's clip crops `cover`; `contain` letterboxes.
   const image = <Image src={src} width={boxW} height={boxH} fit={fit} />
+
+  if (motion === 'none') {
+    // No entrance — the image is simply placed and held (full opacity, no
+    // keyframes). Still clipped to the box so `fit`/`cornerRadius` apply.
+    return (
+      <Group x={x} y={y} clip={clipRect(boxW, boxH, cornerRadius)}>
+        {image}
+      </Group>
+    )
+  }
 
   if (motion === 'blur') {
     // Soft→sharp focus pull: the decoded image carries a gaussian sigma that

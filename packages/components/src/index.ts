@@ -186,6 +186,7 @@ export { BrowserFrame, type BrowserFrameProps } from './components/BrowserFrame.
 export { Button, type ButtonProps } from './components/Button.js'
 export { Callout, type CalloutProps, type CalloutDirection } from './components/Callout.js'
 export { CameraShake, type CameraShakeProps } from './components/CameraShake.js'
+export { CardShowcase, type CardShowcaseProps } from './components/CardShowcase.js'
 export { Captions, type CaptionsProps, type CaptionEntry } from './components/Captions.js'
 export { ChapterCard, type ChapterCardProps } from './components/ChapterCard.js'
 export { CodeBlock, type CodeBlockProps } from './components/CodeBlock.js'
