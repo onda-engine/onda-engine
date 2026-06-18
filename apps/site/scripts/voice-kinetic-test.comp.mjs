@@ -1,5 +1,13 @@
 import { GrainOverlay, KineticText, MeshGradient, Vignette } from '@onda-engine/components'
-import { Camera, Composition, Group, Path, Rect, interpolate, useCurrentFrame } from '@onda-engine/react'
+import {
+  Camera,
+  Composition,
+  Group,
+  Path,
+  Rect,
+  interpolate,
+  useCurrentFrame,
+} from '@onda-engine/react'
 // VOICE — kinetic test (the re-direction: motion, glow, camera, continuity).
 // The voice as a living luminous waveform-spectrum that never stops flowing, a
 // camera pushing through it, kinetic type rising out of the flow. ~16s.
