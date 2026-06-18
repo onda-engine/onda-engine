@@ -1,13 +1,24 @@
 {
   "name": "@onda-engine/wasm-audio",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "ONDA audio analysis (decode + FFT spectrum) compiled to WebAssembly — drives audio-reactive visuals in the browser, identical to the native export.",
   "license": "MIT OR Apache-2.0",
   "type": "module",
   "main": "./pkg/onda_wasm_audio.js",
   "types": "./pkg/onda_wasm_audio.d.ts",
-  "files": ["pkg"],
+  "files": [
+    "pkg"
+  ],
   "scripts": {
     "build": "cargo build -p onda-wasm-audio --target wasm32-unknown-unknown --release && wasm-bindgen ../../target/wasm32-unknown-unknown/release/onda_wasm_audio.wasm --out-dir pkg --target web"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onda-engine/onda-engine.git",
+    "directory": "packages/wasm-audio"
   }
 }
