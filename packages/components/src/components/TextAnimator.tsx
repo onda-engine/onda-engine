@@ -31,7 +31,7 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { useFittedFontSize } from '../bounds.js'
 import { HOUSE_EASE } from '../easing.js'
 import { LINE_RATIO, layoutGlyphLine, lineStartX, lineTopY } from '../glyph-line.js'

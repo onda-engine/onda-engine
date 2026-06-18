@@ -1,10 +1,10 @@
 // Time a full ONDA export of the equivalent 1080p composition (Vello raster +
-// readback + ffmpeg encode → mp4) via @onda/render — the engine-side analog of
+// readback + ffmpeg encode → mp4) via @onda-engine/render — the engine-side analog of
 // bench.mjs's Remotion render, for an apples-to-apples full-pipeline compare.
 //   node bench-onda.mjs [frames] [clusters]   (clusters scales scene complexity)
 import { fileURLToPath } from 'node:url'
-import { Composition, Ellipse, Group, Rect, Text } from '@onda/react'
-import { renderToFile } from '@onda/render'
+import { Composition, Ellipse, Group, Rect, Text } from '@onda-engine/react'
+import { renderToFile } from '@onda-engine/render'
 import { createElement as h } from 'react'
 
 const frames = Number(process.argv[2] ?? 120)

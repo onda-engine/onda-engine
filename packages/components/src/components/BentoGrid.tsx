@@ -23,7 +23,7 @@
 //! Vello/GPU backend; the CPU reference collapses it to its first (transparent)
 //! stop, so the sheen simply vanishes there — the card still reads correctly.
 
-import { Group, Rect, Text, linearGradient, useVideoConfig } from '@onda/react'
+import { Group, Rect, Text, linearGradient, useVideoConfig } from '@onda-engine/react'
 import { useStaggeredEntrance } from '../hooks.js'
 import { STAGGER } from '../motion.js'
 import type { TextStyleProps } from '../text-style.js'

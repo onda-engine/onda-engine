@@ -1,4 +1,4 @@
-import { MaskReveal } from '@onda/components'
+import { MaskReveal } from '@onda-engine/components'
 import {
   Composition,
   Easing,
@@ -10,10 +10,10 @@ import {
   interpolate,
   linearGradient,
   useCurrentFrame,
-} from '@onda/react'
+} from '@onda-engine/react'
 // mask-reveal-demo.comp.mjs — four text MASK / REVEAL techniques in one video,
 // the moves motion designers reach for (clip wipe, mask-up, track matte, animated
-// clip). Pure @onda/react + @onda/components — proof the engine does this today.
+// clip). Pure @onda-engine/react + @onda-engine/components — proof the engine does this today.
 //
 //   node apps/site/scripts/render-comp.mjs --comp apps/site/scripts/mask-reveal-demo.comp.mjs \
 //        --out /tmp/onda-mask-reveal.mp4 --width 1280 --height 720 --fps 30 --backend vello --no-build

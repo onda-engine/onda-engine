@@ -11,7 +11,7 @@
 //! flow; here a pure fade is the faithful, layout-safe equivalent. See
 //! `approximations` in the port notes.
 
-import { AbsoluteFill, Flex, Text, useVideoConfig } from '@onda/react'
+import { AbsoluteFill, Flex, Text, useVideoConfig } from '@onda-engine/react'
 import { STAGGER, staggerFrames } from '../motion.js'
 import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'

@@ -1,4 +1,4 @@
-import type { Scene } from '@onda/react'
+import type { Scene } from '@onda-engine/react'
 import { describe, expect, it, vi } from 'vitest'
 import { cssColor, drawScene } from './canvas-renderer.js'
 

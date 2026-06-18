@@ -1,4 +1,4 @@
-import { defaultTheme } from '@onda/components'
+import { defaultTheme } from '@onda-engine/components'
 import type { CSSProperties, ReactElement } from 'react'
 import { CopyButton } from './CopyButton.js'
 import { themeSnippet } from './snippet.js'

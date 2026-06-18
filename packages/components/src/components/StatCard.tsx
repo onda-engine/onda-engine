@@ -2,7 +2,7 @@
 //! accent bar. Stacked and centered by the engine's layout pass (taffy) via an
 //! `<AbsoluteFill>` + `<Flex>` column; each part fades in on a stagger.
 
-import { AbsoluteFill, Flex, Rect, Text, useVideoConfig } from '@onda/react'
+import { AbsoluteFill, Flex, Rect, Text, useVideoConfig } from '@onda-engine/react'
 import { DURATION, staggerFrames } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
 import { type TextStyleProps, applyTextCase } from '../text-style.js'

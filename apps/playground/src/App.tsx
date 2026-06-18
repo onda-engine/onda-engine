@@ -1,4 +1,4 @@
-import { Player } from '@onda/player'
+import { Player } from '@onda-engine/player'
 import {
   Composition,
   Ellipse,
@@ -13,11 +13,11 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
-import initCpu, { OndaEngine } from '@onda/wasm'
-import initVello, { VelloEngine } from '@onda/wasm-vello'
-import velloWasmUrl from '@onda/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
-import cpuWasmUrl from '@onda/wasm/pkg/onda_wasm_bg.wasm?url'
+} from '@onda-engine/react'
+import initCpu, { OndaEngine } from '@onda-engine/wasm'
+import initVello, { VelloEngine } from '@onda-engine/wasm-vello'
+import velloWasmUrl from '@onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
+import cpuWasmUrl from '@onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
 import { type ReactElement, useEffect, useMemo, useState } from 'react'
 
 const W = 1280
@@ -26,7 +26,7 @@ const H = 480
 /** The bundled font families, selectable live in the playground. Open Sans
  *  ships Regular only; IBM Plex Sans ships Regular/Bold/Italic, so weight and
  *  italic only visibly change with it. Load more via `onda render --font` (CLI)
- *  or `@onda/react`'s font props. */
+ *  or `@onda-engine/react`'s font props. */
 const FAMILIES = ['IBM Plex Sans', 'Open Sans'] as const
 
 /** The font the demo's text renders in — driven by the picker. */
@@ -221,7 +221,7 @@ function OndaMark(): ReactElement {
 
 const CODE = `import { Composition, Rect, Text, Path,
   linearGradient, clipRect, spring, interpolate,
-  useCurrentFrame } from '@onda/react'
+  useCurrentFrame } from '@onda-engine/react'
 
 const grow = spring({ frame, fps })
 
@@ -278,7 +278,7 @@ export function App(): ReactElement {
       </h1>
       <p style={styles.lede}>
         A real-time preview of a composition authored in{' '}
-        <code style={styles.code}>@onda/react</code> — Text, a vector{' '}
+        <code style={styles.code}>@onda-engine/react</code> — Text, a vector{' '}
         <code style={styles.code}>&lt;Path&gt;</code>, a gradient underline that wipes in through a
         clip mask, all animated with <code style={styles.code}>spring</code> and{' '}
         <code style={styles.code}>interpolate</code> over frames. Rendered live by the GPU engine

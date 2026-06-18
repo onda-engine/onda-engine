@@ -1,4 +1,4 @@
-import { Composition, Group, Rect, Text, renderFrame } from '@onda/react'
+import { Composition, Group, Rect, Text, renderFrame } from '@onda-engine/react'
 import { createElement as h } from 'react'
 import { describe, expect, it } from 'vitest'
 import { divergenceReport, matchesExport } from './divergence.js'

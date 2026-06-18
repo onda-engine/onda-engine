@@ -4,8 +4,8 @@ import { spawnSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { preloadTextMetrics } from '@onda/components'
-import { renderFrame, runEngineWarmers } from '@onda/react'
+import { preloadTextMetrics } from '@onda-engine/components'
+import { renderFrame, runEngineWarmers } from '@onda-engine/react'
 
 const REPO = '/Users/rodrigosilva/dev/onda-engine'
 const COMP = path.join(REPO, 'apps/site/scripts/flows-full.comp.mjs')

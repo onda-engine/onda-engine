@@ -5,11 +5,11 @@
 //! `<Audio>` node plays that kick, synced to the timeline, so the punch lands on the
 //! beat. Press play (it's unmuted) to see and hear it.
 
-import { beatPulse, framesSinceBeat } from '@onda/components'
-import { Player } from '@onda/player'
-import { Audio, Composition, Ellipse, Rect, Text, useCurrentFrame } from '@onda/react'
-import velloWasmUrl from '@onda/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
-import cpuWasmUrl from '@onda/wasm/pkg/onda_wasm_bg.wasm?url'
+import { beatPulse, framesSinceBeat } from '@onda-engine/components'
+import { Player } from '@onda-engine/player'
+import { Audio, Composition, Ellipse, Rect, Text, useCurrentFrame } from '@onda-engine/react'
+import velloWasmUrl from '@onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
+import cpuWasmUrl from '@onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
 import {
   type CSSProperties,
   type ReactElement,
@@ -108,12 +108,12 @@ function useEngine() {
     let cancelled = false
     ;(async () => {
       try {
-        const { default: initVello, VelloEngine } = await import('@onda/wasm-vello')
+        const { default: initVello, VelloEngine } = await import('@onda-engine/wasm-vello')
         await initVello({ module_or_path: velloWasmUrl })
         const e = await VelloEngine.create()
         if (!cancelled) setGpu(e)
       } catch {
-        const { default: initCpu, OndaEngine } = await import('@onda/wasm')
+        const { default: initCpu, OndaEngine } = await import('@onda-engine/wasm')
         await initCpu({ module_or_path: cpuWasmUrl })
         if (!cancelled) setCpu(new OndaEngine())
       }

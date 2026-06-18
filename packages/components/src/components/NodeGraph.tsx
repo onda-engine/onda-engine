@@ -5,7 +5,7 @@
 //!
 //! Everything is a pure function of `useCurrentFrame()` and a seed (§1). The
 //! seeded fly-in directions and connection-pulse phases are reproduced with
-//! `random('${seed}-...')` sub-seeds — `@onda/react`'s `random` returns one
+//! `random('${seed}-...')` sub-seeds — `@onda-engine/react`'s `random` returns one
 //! value per seed (not a stateful generator like ondajs's `seededRandom`), so
 //! each draw gets a distinct, stable sub-seed in the same fixed order.
 //!
@@ -42,7 +42,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
   variantSeed,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION, SPRING_SMOOTH, staggerFrames } from '../motion.js'
 import { type TextStyleProps, applyTextCase } from '../text-style.js'

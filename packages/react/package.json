@@ -1,5 +1,5 @@
 {
-  "name": "@onda/react",
+  "name": "@onda-engine/react",
   "version": "0.0.0",
   "description": "Write React, get an ONDA scene graph. A custom React renderer that compiles JSX into the engine's scene-graph JSON.",
   "license": "MIT OR Apache-2.0",

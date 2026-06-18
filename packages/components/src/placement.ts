@@ -24,7 +24,7 @@
 //! components that consume `placement` themselves; every component migrated to
 //! this contract must be on that list, or the bridge shifts it a second time.
 
-import { Group, useVideoConfig } from '@onda/react'
+import { Group, useVideoConfig } from '@onda-engine/react'
 import type { ReactNode } from 'react'
 import { Fragment, createElement } from 'react'
 import { z } from 'zod'

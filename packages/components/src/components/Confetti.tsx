@@ -26,7 +26,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
   variantSeed,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { HOUSE_EASE } from '../easing.js'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'

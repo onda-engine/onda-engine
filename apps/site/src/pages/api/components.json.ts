@@ -3,7 +3,7 @@ import {
   ENGINE_CAPABILITIES,
   FIDELITY_SUMMARY,
   RECOMMENDED_PALETTE,
-} from '@onda/components'
+} from '@onda-engine/components'
 import type { APIRoute } from 'astro'
 import { AUTHORING } from '../../components/authoring.js'
 import { COMPONENT_PROPS } from '../../components/component-props.js'
@@ -11,13 +11,13 @@ import { GALLERY } from '../../components/gallery-data.js'
 import { usageSnippet } from '../../components/snippet.js'
 import { THEME_TOKENS } from '../../components/theme-spec.js'
 
-// Machine-readable spec of @onda/components for ONDA Studio (and any LLM): every
+// Machine-readable spec of @onda-engine/components for ONDA Studio (and any LLM): every
 // component's props (name/type/required/description — the description carries the
 // theme-token default), a canonical usage snippet, its engine render FIDELITY
 // (so the agent can prefer first-class, engine-native components and avoid ones
 // that degrade or need the GPU), the theme token shape, the engine capability
 // statement, and a composition-authoring guide. Generated at build time from the
-// SAME source as the live gallery + @onda/components fidelity, so it can't drift.
+// SAME source as the live gallery + @onda-engine/components fidelity, so it can't drift.
 // Served static at /api/components.json.
 export const prerender = true
 
@@ -36,16 +36,16 @@ export const GET: APIRoute = () => {
       themeable: !!g.themed,
       wrapsChildren: !!g.child,
       previewNote: g.note ?? null,
-      import: `import { ${g.name} } from '@onda/components'`,
+      import: `import { ${g.name} } from '@onda-engine/components'`,
       usage: usageSnippet({ name: g.name, props: g.props, theme: {}, child: g.child }),
       props: COMPONENT_PROPS[g.name] ?? [],
     }
   })
 
   const body = {
-    library: '@onda/components',
+    library: '@onda-engine/components',
     description:
-      'Scene-graph React motion components for @onda/react. Compose them, export to scene-graph JSON, and render on the GPU (Vello) or CPU. A single <ThemeProvider theme={…}> brand kit re-skins a whole composition; an explicit prop on a component always overrides the theme.',
+      'Scene-graph React motion components for @onda-engine/react. Compose them, export to scene-graph JSON, and render on the GPU (Vello) or CPU. A single <ThemeProvider theme={…}> brand kit re-skins a whole composition; an explicit prop on a component always overrides the theme.',
     count: components.length,
     themeableCount: components.filter((c) => c.themeable).length,
     // Pick first: the engine's strengths + what NOT to author for, the fidelity

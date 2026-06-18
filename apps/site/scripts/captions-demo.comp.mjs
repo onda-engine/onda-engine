@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
-import { Captions, loadFont, preloadTextMetrics } from '@onda/components'
-import { Composition, Group, Video, renderFramesJSON } from '@onda/react'
+import { Captions, loadFont, preloadTextMetrics } from '@onda-engine/components'
+import { Composition, Group, Video, renderFramesJSON } from '@onda-engine/react'
 import { createElement as h } from 'react'
 
 const W = 640,

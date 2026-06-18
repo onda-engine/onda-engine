@@ -21,7 +21,7 @@
 //! GPU-only effect; the CPU output is a flat fill of `from` (the meaningful
 //! color, deliberately the first stop).
 
-import { Rect, linearGradient, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Rect, linearGradient, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 

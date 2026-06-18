@@ -19,7 +19,7 @@
 //! there the cursor inherits `color` rather than `cursorColor`. GPU is the
 //! primary path, so this is an acceptable degradation.
 
-import { Text, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Text, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { useFittedFontSize } from '../bounds.js'
 import { useTextReveal } from '../hooks.js'
 import { DURATION } from '../motion.js'

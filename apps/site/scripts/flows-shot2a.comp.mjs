@@ -1,6 +1,6 @@
-import { AudioClip } from '@onda/components'
-import { fontMetrics, glyphLayout, measureText } from '@onda/components'
-import { Composition, Group, Rect, Text, useCurrentFrame } from '@onda/react'
+import { AudioClip } from '@onda-engine/components'
+import { fontMetrics, glyphLayout, measureText } from '@onda-engine/components'
+import { Composition, Group, Rect, Text, useCurrentFrame } from '@onda-engine/react'
 // FLOWS AGENT — shot 2A (6.3–9s): the huge "capabilities" line scrolling horizontally
 // as it types, on light-gray, with a HEAT gradient (yellow/orange near the cursor →
 // dark gray as letters scroll left). Pure ONDA. (ref @6.3-9s, native-fps read.)

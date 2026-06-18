@@ -30,7 +30,7 @@
 //!   is NOT a layout child — drop it directly in a scene; do not place it inside a
 //!   `<Flex>`/`<AbsoluteFill>` and also rely on its own x/y.
 
-import { Group, Path, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Path, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { entryFade, entryFadeRise, entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'

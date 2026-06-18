@@ -24,7 +24,7 @@ import {
   radialGradient,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { createElement as h } from 'react'
 
 // Bricolage Grotesque 96pt — the typographic family the engine reports for every

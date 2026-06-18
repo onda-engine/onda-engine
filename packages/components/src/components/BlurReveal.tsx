@@ -21,7 +21,7 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import type { ReactNode } from 'react'
 import { useFittedFontSize } from '../bounds.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'

@@ -630,7 +630,7 @@ export interface AudioProps {
 /** A non-visual audio clip on the timeline. It draws nothing — the player plays
  *  it during preview (and export muxes it). Place it anywhere in the tree; `start`
  *  sets when it begins (seconds), `startAt` trims into the source, `volume`
- *  scales its gain. The higher-level `<AudioClip>` (`@onda/components`) wraps this
+ *  scales its gain. The higher-level `<AudioClip>` (`@onda-engine/components`) wraps this
  *  with a fade envelope. */
 export function Audio(props: AudioProps) {
   return createElement('onda-audio', props)

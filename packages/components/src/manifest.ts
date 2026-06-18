@@ -127,7 +127,7 @@ export interface PropMeta {
 export interface ManifestEntry {
   /** kebab-case slug — the scene-graph `component` value. */
   slug: string
-  /** PascalCase component name — the `@onda/components` export. */
+  /** PascalCase component name — the `@onda-engine/components` export. */
   name: string
   /** Grouping for the catalog/agent (Text, Data, Media, …). */
   category: string
@@ -9123,7 +9123,7 @@ const RAW: RawEntry[] = [
     sceneRole: 'block',
     occlusion: 'centered',
     example: {
-      command: 'pnpm add @onda/react',
+      command: 'pnpm add @onda-engine/react',
       output: ['\u2713 resolved 42 packages', '\u2713 linked dependencies', 'Done in 1.2s'],
       prompt: '$',
       title: 'zsh',

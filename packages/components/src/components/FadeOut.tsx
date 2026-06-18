@@ -1,7 +1,7 @@
 //! FadeOut — opacity 1 → 0 on the house ease. The exit counterpart to FadeIn;
 //! `delay` is when the exit begins. Layout-safe (opacity only).
 
-import { Group, useCurrentFrame } from '@onda/react'
+import { Group, useCurrentFrame } from '@onda-engine/react'
 import type { ReactNode } from 'react'
 import { exitFade } from '../choreography.js'
 import { DURATION } from '../motion.js'

@@ -25,7 +25,7 @@
 //!    measures text at render time but a pure frame→scene function can't read
 //!    those measurements back, so cell width is estimated like `Marquee`
 //!    (`fontSize * CELL_W`). A monospace stack keeps the estimate honest.
-//!  - Filler glyphs are seeded with `random(seed + …)` from `@onda/react`
+//!  - Filler glyphs are seeded with `random(seed + …)` from `@onda-engine/react`
 //!    (deterministic, §1) so the spin is identical every render. ondajs uses a
 //!    `seededRandom(seed)` *generator* pulled `reelLength` times; here each
 //!    filler gets a distinct composite seed — same spirit, same determinism.
@@ -55,7 +55,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
   variantSeed,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { fitMaxWidth } from '../bounds.js'
 import { layoutGlyphLine } from '../glyph-line.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'

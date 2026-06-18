@@ -12,7 +12,7 @@
 //! proportional — falling back to a glyph-count estimate only until the engine
 //! warms in the browser.
 
-import { Group, Text, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Text, clipRect, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { measureText, useTextMetricsReady } from '../text-metrics.js'
 import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'

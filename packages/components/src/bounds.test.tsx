@@ -1,4 +1,4 @@
-import { Composition, type Scene, renderFrame } from '@onda/react'
+import { Composition, type Scene, renderFrame } from '@onda-engine/react'
 import { createElement as h } from 'react'
 import { describe, expect, it } from 'vitest'
 import { fitFontSize, fitMaxWidth } from './bounds.js'

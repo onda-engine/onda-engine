@@ -9,7 +9,7 @@
 //! and the exit is the entrance reversed (same curve). Pair it with a centered
 //! title (e.g. <SplitLockup>) sitting in the exclusion zone.
 
-import { Group, Image, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Image, clipRect, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { type TimeInput, framesOf } from '../time.js'
 
 export interface MoodboardProps {

@@ -1,15 +1,15 @@
 //! Audio analysis for audio-reactive components (e.g. {@link AudioVisualizer}).
 //!
-//! Lazily loads `@onda/wasm-audio` — the SAME decode + FFT the native `onda
+//! Lazily loads `@onda-engine/wasm-audio` — the SAME decode + FFT the native `onda
 //! export` runs — decodes an audio file once, and exposes a per-frame spectrum.
 //! Async + cached + shared across components; callers fall back to procedural
 //! data until it's ready, so the composition never blocks. Browser only (the
 //! export path warms the cache separately before the synchronous frame render).
 
-import { useVideoConfig } from '@onda/react'
+import { useVideoConfig } from '@onda-engine/react'
 import { useEffect, useState } from 'react'
 
-/** `@onda/wasm-audio`'s `Beats` handle — beat/onset/tempo analysis in frame units. */
+/** `@onda-engine/wasm-audio`'s `Beats` handle — beat/onset/tempo analysis in frame units. */
 export interface BeatsHandle {
   readonly tempo: number
   readonly beats: Uint32Array
@@ -30,7 +30,7 @@ export interface Beats {
   onsetEnv: Float32Array
 }
 
-/** Minimal shape of `@onda/wasm-audio`'s `AudioAnalyzer` — kept local so this
+/** Minimal shape of `@onda-engine/wasm-audio`'s `AudioAnalyzer` — kept local so this
  *  file doesn't hard-depend on the generated wasm types at build time. */
 export interface AudioAnalyzer {
   /** Per-frame spectrum: flat, frame-major (`frames * bands`), each `0..1`,
@@ -59,7 +59,7 @@ let modulePromise: Promise<WasmAudio> | null = null
 function loadModule(): Promise<WasmAudio> {
   if (!modulePromise) {
     modulePromise = (async () => {
-      const mod = (await import('@onda/wasm-audio')) as unknown as WasmAudio
+      const mod = (await import('@onda-engine/wasm-audio')) as unknown as WasmAudio
       await mod.default()
       return mod
     })()

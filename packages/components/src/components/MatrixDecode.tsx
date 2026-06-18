@@ -7,7 +7,7 @@
 //! every char scrambles for `scrambleDuration` frames before it lands.
 //!
 //! Determinism (HARD RULE 1): the flicker is a pure function of frame. Each
-//! scramble glyph is picked with `random(seed)` from '@onda/react' (no
+//! scramble glyph is picked with `random(seed)` from '@onda-engine/react' (no
 //! `Math.random`, no wall clock), keyed by char index + a frame BUCKET
 //! (`floor(local / scrambleSpeed)`) so the glyph swaps every `scrambleSpeed`
 //! frames rather than every frame — same flicker cadence as ondajs.
@@ -36,8 +36,8 @@
 //!    concatenated text in the node's base `color`, so there the scramble accent
 //!    is lost. GPU is the primary path.
 
-import { Text, random, useCurrentFrame, useVideoConfig, variantSeed } from '@onda/react'
-import type { TextRunInput } from '@onda/react'
+import { Text, random, useCurrentFrame, useVideoConfig, variantSeed } from '@onda-engine/react'
+import type { TextRunInput } from '@onda-engine/react'
 import { useFittedFontSize } from '../bounds.js'
 import { LINE_RATIO, layoutGlyphLine } from '../glyph-line.js'
 import { type Placement, usePlacement } from '../placement.js'

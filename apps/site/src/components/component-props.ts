@@ -179,7 +179,7 @@ export const COMPONENT_PROPS: Record<string, PropSpec[]> = {
       required: false,
       type: 'string',
       description:
-        'Audio file URL to drive the bars with REAL frequency data (decoded + FFT’d by @onda/wasm-audio — identical spectra in preview and export). Omit for the built-in procedural animation. Browser preview needs same-origin/CORS; `onda export` accepts any direct URL.',
+        'Audio file URL to drive the bars with REAL frequency data (decoded + FFT’d by @onda-engine/wasm-audio — identical spectra in preview and export). Omit for the built-in procedural animation. Browser preview needs same-origin/CORS; `onda export` accepts any direct URL.',
     },
     {
       name: 'type',

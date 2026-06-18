@@ -1,4 +1,4 @@
-import { GrainOverlay, MeshGradient, Spotlight, Vignette } from '@onda/components'
+import { GrainOverlay, MeshGradient, Spotlight, Vignette } from '@onda-engine/components'
 import {
   AbsoluteFill,
   Composition,
@@ -8,7 +8,7 @@ import {
   Text,
   interpolate,
   useCurrentFrame,
-} from '@onda/react'
+} from '@onda-engine/react'
 // THE LONG NOTE — pilot (opening ~75s, Chapter 1 + into Chapter 2).
 // Soft dark gradient-field; words-on-screen as narration; cut to an implied breath
 // tempo (no audio). Built from techspecs/voice-film-the-long-note.md.

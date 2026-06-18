@@ -11,7 +11,7 @@
 //! Layout notes vs the ondajs (CSS) original:
 //!  - ondajs lays the field out with `display: flex` + `Surface` and lets the
 //!    DOM measure the value text so the caret sits exactly after the last glyph.
-//!    `@onda/react` has no author-time text metrics, so the visible value width
+//!    `@onda-engine/react` has no author-time text metrics, so the visible value width
 //!    is ESTIMATED from `glyphCount * fontSize * AVG_CHAR_W` and the caret Rect
 //!    is placed at that x. The estimate need only be roughly proportional — the
 //!    caret reads as "at the typing edge". (See `approximations`.)
@@ -24,7 +24,7 @@
 //!    engine primitive; the label renders without extra tracking and the focus
 //!    ring is approximated by a low-alpha accent stroke just outside the border.
 
-import { Flex, Group, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Flex, Group, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { useTextReveal } from '../hooks.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { type TextStyleProps, applyTextCase } from '../text-style.js'

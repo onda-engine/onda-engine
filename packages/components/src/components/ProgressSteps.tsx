@@ -21,7 +21,7 @@
 //!   AT the dot center (scene scale pivots on the Group's local origin), with the
 //!   ellipse offset by -r so it stays concentric with the dot at every scale.
 
-import { Ellipse, Group, Rect, Text, interpolate, useVideoConfig } from '@onda/react'
+import { Ellipse, Group, Rect, Text, interpolate, useVideoConfig } from '@onda-engine/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import type { TextStyleProps } from '../text-style.js'

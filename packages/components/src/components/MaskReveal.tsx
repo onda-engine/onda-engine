@@ -3,14 +3,14 @@
 //! opacity fade. The moving edge IS the fingerprint. Ported from ondajs.
 //!
 //! In ondajs the text is fully painted from frame 0 and a CSS `clip-path` inset
-//! shrinks from 100% → 0% along the chosen side. `@onda/react` expresses the same
+//! shrinks from 100% → 0% along the chosen side. `@onda-engine/react` expresses the same
 //! shape with a `<Group clip={clipRect(w, h)}>` whose clip RECTANGLE grows from 0
 //! → full. `clipRect` is anchored at the node's LOCAL ORIGIN (0,0) and takes no
 //! offset, so:
 //!   - `left`/`top`  (reveal grows away from the origin) clip directly;
 //!   - `right`/`bottom` (reveal grows toward the origin) need the shift-clip-
 //!     shift-back trick (outer Group offsets, inner Group clips at the origin and
-//!     offsets back) — the same approach `@onda/react`'s `wipe` transition uses.
+//!     offsets back) — the same approach `@onda-engine/react`'s `wipe` transition uses.
 //!
 //! `direction` names the side the content appears to come IN from (mirrors
 //! `SlideIn`): the mask sits on the OPPOSITE side and retreats toward `direction`,
@@ -24,7 +24,7 @@
 //! origin-relative (like `SlideIn`/`Underline`): position it via a parent `x`/`y`
 //! or an `<AbsoluteFill>` rather than as a measured `<Flex>` child.
 
-import { Group, Text, clipRect, useVideoConfig } from '@onda/react'
+import { Group, Text, clipRect, useVideoConfig } from '@onda-engine/react'
 import type { ReactNode } from 'react'
 import { fitFontSize, fitMaxWidth } from '../bounds.js'
 import { useSpringValue } from '../hooks.js'

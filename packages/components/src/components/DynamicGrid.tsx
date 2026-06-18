@@ -35,7 +35,7 @@ import {
   radialGradient,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { useTheme } from '../theme.js'
 
 export interface DynamicGridProps {

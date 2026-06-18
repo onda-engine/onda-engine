@@ -1,4 +1,4 @@
-//! `@onda/components` — the Onda motion language for `@onda/react`.
+//! `@onda-engine/components` — the Onda motion language for `@onda-engine/react`.
 //!
 //! A Remotion-shaped choreography vocabulary + component library, ported from
 //! ondajs. Author with these instead of re-deriving translate-fade math: the

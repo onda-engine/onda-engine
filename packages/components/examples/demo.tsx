@@ -1,5 +1,5 @@
 /** @jsxRuntime automatic @jsxImportSource react */
-//! Generic demo harness — render any @onda/components component by name, on a
+//! Generic demo harness — render any @onda-engine/components component by name, on a
 //! dark background, to scene-graph JSON for `onda render`.
 //!
 //!   tsx demo.tsx <Name> <frame> '<propsJSON>'  >  scene.json
@@ -8,8 +8,8 @@
 //! Wrapper components (FadeIn / RotateIn / …) receive a sample <Text> child so
 //! there is something to animate; self-rendering components ignore it.
 
-import * as Lib from '@onda/components'
-import { Composition, Rect, Text, renderFrame } from '@onda/react'
+import * as Lib from '@onda-engine/components'
+import { Composition, Rect, Text, renderFrame } from '@onda-engine/react'
 import { createElement as h } from 'react'
 
 const W = 1280

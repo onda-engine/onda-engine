@@ -1,5 +1,5 @@
 {
-  "name": "@onda/wasm-vello",
+  "name": "@onda-engine/wasm-vello",
   "version": "0.0.0",
   "description": "The ONDA Vello (GPU) renderer compiled to WebAssembly — Vello in the browser over WebGPU (no DOM, no Chromium).",
   "license": "MIT OR Apache-2.0",

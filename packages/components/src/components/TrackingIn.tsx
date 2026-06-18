@@ -19,7 +19,7 @@
 //! is enabled this is a nod — a faint, wider-tracked ghost of the line layered
 //! behind the crisp text, fading out as it settles — not a true Gaussian blur.
 
-import { Group, Text, useVideoConfig } from '@onda/react'
+import { Group, Text, useVideoConfig } from '@onda-engine/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'

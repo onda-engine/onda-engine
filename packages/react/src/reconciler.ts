@@ -571,7 +571,7 @@ function toNode(node: HostNode): SceneNode {
 
     default:
       throw new Error(
-        `renderToScene: unsupported element type "${node.type}". Only ONDA primitives (Group/Rect/Ellipse/Path/Text/Image/Video/Svg) are valid. DOM elements like <div>/<span> and custom types are not rendered — use @onda/react primitives only.`,
+        `renderToScene: unsupported element type "${node.type}". Only ONDA primitives (Group/Rect/Ellipse/Path/Text/Image/Video/Svg) are valid. DOM elements like <div>/<span> and custom types are not rendered — use @onda-engine/react primitives only.`,
       )
   }
 }

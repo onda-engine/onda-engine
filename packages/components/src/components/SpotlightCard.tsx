@@ -34,7 +34,7 @@
 //! - The drifting glow is a GPU-only soft reveal (the CPU reference collapses a
 //!   gradient to its first stop — see `<Spotlight>`).
 
-import { Group, Rect, Text, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Rect, Text, clipRect, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION, staggerFrames } from '../motion.js'
 import { type TextStyleProps, applyTextCase } from '../text-style.js'

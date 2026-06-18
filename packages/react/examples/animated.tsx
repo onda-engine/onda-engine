@@ -3,7 +3,7 @@
 //! current frame. Emits a per-frame array of scene graphs.
 //!
 //! Run:
-//!   pnpm --filter @onda/react exec tsx examples/animated.tsx frames.json
+//!   pnpm --filter @onda-engine/react exec tsx examples/animated.tsx frames.json
 //! then encode it with the engine:
 //!   cargo run -p onda-cli -- export-frames frames.json out.mp4
 
@@ -16,7 +16,7 @@ import {
   interpolate,
   renderFramesJSON,
   useCurrentFrame,
-} from '@onda/react'
+} from '@onda-engine/react'
 
 function Title() {
   const frame = useCurrentFrame()

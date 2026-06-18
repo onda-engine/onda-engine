@@ -31,7 +31,7 @@
 //! - The requested `width` is capped so the full device height stays within
 //!   ~92% of the composition height; an oversized request is shrunk to fit.
 
-import { Group, Image, Rect, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Image, Rect, clipRect, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import type { ReactNode } from 'react'
 import { entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'

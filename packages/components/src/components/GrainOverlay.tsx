@@ -13,7 +13,7 @@
 //! Rendered on the GPU (Vello): the overlay blend is a vector-backend feature, so
 //! grain is `gpu_only` (the CPU reference composites the noise src-over).
 
-import { Image, useCurrentFrame, useVideoConfig, variantSeed } from '@onda/react'
+import { Image, useCurrentFrame, useVideoConfig, variantSeed } from '@onda-engine/react'
 import { useTheme } from '../theme.js'
 import { type TimeInput, framesOf } from '../time.js'
 

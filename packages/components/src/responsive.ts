@@ -7,7 +7,7 @@
 //! anchors, so one master composition adapts to 16:9 / 4:3 / 1:1 / 9:16 with no
 //! hand-built per-format variants.
 //!
-//! Pure math, no React — shared by the @onda/cinema EXPORT and the Studio live
+//! Pure math, no React — shared by the @onda-engine/cinema EXPORT and the Studio live
 //! PREVIEW so the two can't drift (the same contract as ./keyframes-sampler).
 
 import type { PosKey, ValKey } from './keyframes-sampler.js'

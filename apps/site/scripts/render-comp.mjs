@@ -6,9 +6,9 @@
 // <video>. No browser, no per-frame React in the page.
 //
 // Pipeline:
-//   1. Build a React element tree (root <Composition>) with @onda/react.
+//   1. Build a React element tree (root <Composition>) with @onda-engine/react.
 //   2. await runEngineWarmers()  — loads any async engine assets (e.g. the wasm
-//      text-measurement module @onda/components registers) so components bake
+//      text-measurement module @onda-engine/components registers) so components bake
 //      exact values instead of estimates. A no-op when nothing's registered.
 //   3. renderFramesJSON(element) -> a JSON string: Scene[], one scene per frame.
 //      fps + durationInFrames are read from the <Composition> props.
@@ -30,7 +30,7 @@
 //   Pass --comp <module>. The module's DEFAULT export is a factory:
 //
 //       import { createElement as h } from 'react'
-//       import { Composition, Rect /* ... */ } from '@onda/react'
+//       import { Composition, Rect /* ... */ } from '@onda-engine/react'
 //       export default function hero({ fps, durationInFrames, width, height }) {
 //         return h(Composition, { width, height, fps, durationInFrames },
 //           /* ...children... */)
@@ -69,7 +69,7 @@ import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { preloadTextMetrics } from '@onda/components'
+import { preloadTextMetrics } from '@onda-engine/components'
 import {
   Composition,
   Easing,
@@ -83,7 +83,7 @@ import {
   runEngineWarmers,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { createElement as h } from 'react'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -213,8 +213,8 @@ Flags: --demo --comp --out --fps --duration --width --height --backend
 
 // ---- the built-in demo composition -----------------------------------------
 // A full-screen gradient backdrop + a centered "ONDA" wordmark + an accent bar
-// that sweeps across, plus a subtle pulse on the wordmark. Pure @onda/react —
-// no @onda/components — so no warmer is required (the warmer call below is still
+// that sweeps across, plus a subtle pulse on the wordmark. Pure @onda-engine/react —
+// no @onda-engine/components — so no warmer is required (the warmer call below is still
 // made, and is simply a no-op here).
 
 function DemoScene() {

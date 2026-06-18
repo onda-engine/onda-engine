@@ -18,7 +18,7 @@
 //! grade is a per-pixel remap, no blur), so FilmGrade is `both`-backend and
 //! engine-native — not a CSS-filter approximation.
 
-import { Group } from '@onda/react'
+import { Group } from '@onda-engine/react'
 import type { ReactNode } from 'react'
 import { useTheme } from '../theme.js'
 

@@ -1,9 +1,9 @@
 /** @jsxRuntime automatic @jsxImportSource react */
 //! The ONDA flagship promo — a ~26s, 7-scene story authored entirely from
-//! `@onda/components` on `@onda/react`, sequenced with `<TransitionSeries>`.
+//! `@onda-engine/components` on `@onda-engine/react`, sequenced with `<TransitionSeries>`.
 //! Renders to MP4 through the GPU engine with NO browser anywhere:
 //!
-//!   pnpm --filter @onda/react exec tsx packages/components/examples/render-promo.tsx /tmp/promo-frames.json
+//!   pnpm --filter @onda-engine/react exec tsx packages/components/examples/render-promo.tsx /tmp/promo-frames.json
 //!   onda export-frames /tmp/promo-frames.json /tmp/promo.mp4 --backend vello
 //!
 //! This is the thesis made tangible: a real, multi-scene motion-graphics video
@@ -19,7 +19,7 @@ import {
   StatCard,
   TitleCard,
   Vignette,
-} from '@onda/components'
+} from '@onda-engine/components'
 import {
   Composition,
   Group,
@@ -30,7 +30,7 @@ import {
   slide,
   springTiming,
   wipe,
-} from '@onda/react'
+} from '@onda-engine/react'
 
 const W = 1920
 const H = 1080

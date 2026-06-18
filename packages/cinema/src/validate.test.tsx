@@ -1,6 +1,6 @@
 //! The agent-grade linter: the fix-it feedback an MCP agent self-corrects against.
 
-import { COMPONENT_FIDELITY } from '@onda/components'
+import { COMPONENT_FIDELITY } from '@onda-engine/components'
 import { describe, expect, it } from 'vitest'
 import { validateComposition } from './index.js'
 import type { CompositionPayload, Entry } from './types.js'

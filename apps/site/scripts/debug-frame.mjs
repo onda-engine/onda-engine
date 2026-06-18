@@ -1,5 +1,5 @@
-import { fontMetrics } from '@onda/components'
-import { Composition, Group, Rect, Text } from '@onda/react'
+import { fontMetrics } from '@onda-engine/components'
+import { Composition, Group, Rect, Text } from '@onda-engine/react'
 import { createElement as h } from 'react'
 
 const SIZE = 290,

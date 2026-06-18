@@ -1,4 +1,4 @@
-import { Composition, type Scene, Sequence, renderFrame } from '@onda/react'
+import { Composition, type Scene, Sequence, renderFrame } from '@onda-engine/react'
 import { createElement as h } from 'react'
 import { describe, expect, it } from 'vitest'
 import { KineticText } from './components/KineticText.js'

@@ -13,7 +13,7 @@
 //!    hosts) rather than via `Number.toLocaleString`, which is locale-data
 //!    dependent. Toggle with `useGrouping`.
 
-import { Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { useFittedFontSize } from '../bounds.js'
 import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH, SPRING_SNAPPY } from '../motion.js'

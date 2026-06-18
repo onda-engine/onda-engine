@@ -1,4 +1,4 @@
-import type { Scene } from '@onda/react'
+import type { Scene } from '@onda-engine/react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { type RenderEngine, engineDrawer } from './engine-drawer.js'
 

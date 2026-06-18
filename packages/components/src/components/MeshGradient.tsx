@@ -31,7 +31,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
   variantSeed,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { useTheme } from '../theme.js'
 
 /** Default palette — drifts over the near-black canvas (matches ondajs). */

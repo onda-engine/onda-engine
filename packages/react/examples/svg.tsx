@@ -5,12 +5,12 @@
 //! `onda-svg`, so it renders through the GPU (Vello) backend.
 //!
 //! Run (write the scene JSON next to the SVG asset so `src` resolves):
-//!   pnpm --filter @onda/react exec tsx examples/svg.tsx examples/assets/svg.json
+//!   pnpm --filter @onda-engine/react exec tsx examples/svg.tsx examples/assets/svg.json
 //! then render it:
 //!   cargo run -p onda-cli -- render examples/assets/svg.json svg.png
 
 import { readFileSync, writeFileSync } from 'node:fs'
-import { Composition, Rect, Svg, Text, renderToSceneJSON } from '@onda/react'
+import { Composition, Rect, Svg, Text, renderToSceneJSON } from '@onda-engine/react'
 
 // One badge by inline markup (self-contained)...
 const inlineBadge = readFileSync(new URL('./assets/badge.svg', import.meta.url), 'utf8')

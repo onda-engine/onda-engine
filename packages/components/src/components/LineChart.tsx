@@ -37,7 +37,7 @@ import {
   interpolate,
   linearGradient,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { useSceneProgress } from '../hooks.js'
 import { useTheme } from '../theme.js'
 import type { TimeInput } from '../time.js'

@@ -10,7 +10,7 @@
 //! overshoot) and the disassemble is the SAME curve reversed (ease-in), so the
 //! exit reads as the entrance run backwards, not a different move.
 
-import { Group, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Text, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { layoutGlyphLine, lineStartX, lineTopY } from '../glyph-line.js'
 import { useTextMetricsReady } from '../text-metrics.js'
 import { useTheme } from '../theme.js'

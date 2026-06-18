@@ -1,6 +1,6 @@
 //! Keyframe sampling — the per-channel interpolation + cubic-bezier easing shared
 //! by the `Keyframes` component (this package), the cinema EXPORT choreography
-//! (@onda/cinema), and the Studio live-preview renderer. ONE implementation, so
+//! (@onda-engine/cinema), and the Studio live-preview renderer. ONE implementation, so
 //! preview == export by construction (no twin to drift). Pure math, no React.
 
 export type Ease =

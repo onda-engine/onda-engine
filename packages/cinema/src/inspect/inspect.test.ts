@@ -4,7 +4,7 @@
 
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { preloadTextMetrics } from '@onda/components'
+import { preloadTextMetrics } from '@onda-engine/components'
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { CompositionPayload, Entry } from '../types.js'
 import { inspect } from './index.js'

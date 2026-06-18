@@ -1,4 +1,4 @@
-// @onda/wasm-vello — the ONDA Vello (GPU) renderer for the browser.
+// @onda-engine/wasm-vello — the ONDA Vello (GPU) renderer for the browser.
 //
 // This wrapper applies a small WebGPU compatibility shim, then re-exports the
 // wasm-bindgen bindings from ./pkg. Import this (the package entry), not ./pkg
