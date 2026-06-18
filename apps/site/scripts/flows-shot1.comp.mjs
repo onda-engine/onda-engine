@@ -1,4 +1,4 @@
-import { measureText } from '@onda/components'
+import { measureText } from '@onda-engine/components'
 import {
   AbsoluteFill,
   Composition,
@@ -10,7 +10,7 @@ import {
   fbmGradient,
   interpolate,
   useCurrentFrame,
-} from '@onda/react'
+} from '@onda-engine/react'
 // FLOWS AGENT — replication, shot 1 (0–6.3s). v3: title "Flows Agent" (together,
 // title-case), FADE-IN TYPING (each glyph fades in as it types, with a cursor),
 // bigger card matching the reference crop. Cloud palette sampled via palettegen.

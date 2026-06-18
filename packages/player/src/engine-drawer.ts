@@ -1,4 +1,4 @@
-//! Bridge the **real** ONDA renderer (the `@onda/wasm` `OndaEngine`) into a
+//! Bridge the **real** ONDA renderer (the `@onda-engine/wasm` `OndaEngine`) into a
 //! `<Player>` {@link FrameDrawer}.
 //!
 //! The wasm engine is the same Rust renderer `onda export` uses (cosmic-text +
@@ -7,14 +7,14 @@
 //! DOM, no Chromium. This is the charter-true preview path; the Canvas2D
 //! {@link drawScene} renderer is the dependency-free fallback.
 //!
-//! To keep `@onda/player` free of a hard dependency on `@onda/wasm`, the engine
+//! To keep `@onda-engine/player` free of a hard dependency on `@onda-engine/wasm`, the engine
 //! is accepted *structurally*: any object exposing `render(json) -> RenderedFrame`
 //! works. The app owns wasm init and constructs the engine.
 
-import type { Scene } from '@onda/react'
+import type { Scene } from '@onda-engine/react'
 import type { FrameDrawer } from './canvas-renderer.js'
 
-/** A rendered frame as returned by `@onda/wasm`'s `OndaEngine.render`: a flat
+/** A rendered frame as returned by `@onda-engine/wasm`'s `OndaEngine.render`: a flat
  *  straight-alpha RGBA8 buffer plus dimensions. */
 export interface RenderedFrame {
   readonly width: number
@@ -22,7 +22,7 @@ export interface RenderedFrame {
   readonly pixels: Uint8Array | Uint8ClampedArray
 }
 
-/** The minimal shape of `@onda/wasm`'s `OndaEngine` the player needs. Structural
+/** The minimal shape of `@onda-engine/wasm`'s `OndaEngine` the player needs. Structural
  *  typing avoids a build/runtime dependency on the wasm package. */
 export interface RenderEngine {
   /** Rasterize a scene-graph JSON document to RGBA8 pixels. */
@@ -31,12 +31,12 @@ export interface RenderEngine {
 
 /**
  * Build a {@link FrameDrawer} that paints each frame with the real ONDA engine
- * (`@onda/wasm`). Construct the engine once and memoize the returned drawer:
+ * (`@onda-engine/wasm`). Construct the engine once and memoize the returned drawer:
  *
  * ```tsx
- * import { OndaEngine, default as initWasm } from '@onda/wasm'
- * import wasmUrl from '@onda/wasm/pkg/onda_wasm_bg.wasm?url'
- * import { Player, engineDrawer } from '@onda/player'
+ * import { OndaEngine, default as initWasm } from '@onda-engine/wasm'
+ * import wasmUrl from '@onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
+ * import { Player, engineDrawer } from '@onda-engine/player'
  *
  * await initWasm(wasmUrl)
  * const engine = new OndaEngine()

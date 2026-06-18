@@ -27,7 +27,7 @@
 //!    CPU the sweep is invisible — the sine opacity pulse on the bars carries the
 //!    "loading" liveliness there.
 
-import { Group, Rect, clipRect, linearGradient, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Rect, clipRect, linearGradient, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { entryFadeRise } from '../choreography.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'

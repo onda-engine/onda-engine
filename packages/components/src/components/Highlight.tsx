@@ -22,7 +22,7 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'

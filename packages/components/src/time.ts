@@ -10,7 +10,7 @@
 //! - `'12f'`   → frames, explicit;
 //! - `'1:30'`  → minutes:seconds.
 //!
-//! The grammar mirrors `@onda/cinema`'s `timeSpecToSeconds` EXCEPT for the bare
+//! The grammar mirrors `@onda-engine/cinema`'s `timeSpecToSeconds` EXCEPT for the bare
 //! number, which stays frames here because that is what component props have
 //! always meant. Parse once at the top of a component with {@link framesOf}
 //! (fps in hand from `useVideoConfig`), then do frame math as usual.

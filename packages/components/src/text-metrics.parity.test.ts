@@ -1,11 +1,11 @@
-import { clearRegisteredFonts, registeredFonts } from '@onda/react'
+import { clearRegisteredFonts, registeredFonts } from '@onda-engine/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { glyphLayout, loadFont } from './text-metrics.js'
 
 // G4 — custom-font author-time↔render parity.
 //
 // vitest's transform env does NOT warm the real wasm engine (production warms it
-// via @onda/render's engine-warmer, in the browser and in the Node export bake).
+// via @onda-engine/render's engine-warmer, in the browser and in the Node export bake).
 // So these lock only the GRACEFUL CONTRACT that holds when the engine is cold:
 // loadFont / glyphLayout never throw and degrade to the estimate, so a custom
 // font never breaks a composition.
@@ -29,7 +29,7 @@ describe('loadFont — graceful contract (engine cold)', () => {
 describe('loadFont — single-source registry (render harness pickup)', () => {
   afterEach(() => clearRegisteredFonts())
 
-  it('retains the bytes for @onda/render even when the engine is cold', async () => {
+  it('retains the bytes for @onda-engine/render even when the engine is cold', async () => {
     // registerFont runs synchronously inside loadFont (before the async engine
     // load), so the render harness gets the font regardless of warmth.
     clearRegisteredFonts()

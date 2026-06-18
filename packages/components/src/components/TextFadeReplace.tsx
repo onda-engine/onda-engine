@@ -27,7 +27,7 @@
 //!  - `<Text>` is single-line (no wrap) — `from`/`to` are expected to be short
 //!    phrases (taglines / value props), matching the ondajs use case.
 
-import { AbsoluteFill, Group, Text, useCurrentFrame } from '@onda/react'
+import { AbsoluteFill, Group, Text, useCurrentFrame } from '@onda-engine/react'
 import { stateSwap } from '../choreography.js'
 import { DURATION } from '../motion.js'
 import { type TextStyleProps, applyTextCase } from '../text-style.js'

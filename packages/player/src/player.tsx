@@ -1,9 +1,9 @@
 //! `<Player>` — an interactive, accessible preview of an ONDA composition.
 //!
-//! Renders each visible frame from `@onda/react`'s `renderFrame` (so what you
+//! Renders each visible frame from `@onda-engine/react`'s `renderFrame` (so what you
 //! scrub is the real per-frame scene graph) and paints it to a canvas. By
 //! default it paints with the **real ONDA engine** when one is supplied (the
-//! `@onda/wasm` `OndaEngine`, pixel-identical to `onda export`), and otherwise
+//! `@onda-engine/wasm` `OndaEngine`, pixel-identical to `onda export`), and otherwise
 //! falls back to the dependency-free Canvas2D preview.
 //!
 //! Controls are fully keyboard-accessible (Space = play/pause, ←/→ = step,
@@ -11,7 +11,7 @@
 //! brand tokens (see `assets/brand/BRAND.md`). All non-essential motion respects
 //! `prefers-reduced-motion`.
 
-import { registeredFonts, renderFrame } from '@onda/react'
+import { registeredFonts, renderFrame } from '@onda-engine/react'
 import {
   type CSSProperties,
   type KeyboardEvent,
@@ -32,16 +32,16 @@ import { type RenderEngine, engineDrawer } from './engine-drawer.js'
 import { applyResolvedImages, collectImageUrls, imageResolved, resolveImageUrl } from './images.js'
 import { collectVideoOverlays, resolveVideoFrames } from './video.js'
 
-/** An async, GPU renderer — structurally `@onda/wasm-vello`'s `VelloEngine`.
+/** An async, GPU renderer — structurally `@onda-engine/wasm-vello`'s `VelloEngine`.
  *  This is the pixel-exact, full-feature path (paths/gradients/clips/AA), so the
- *  Player prefers it. Accepted structurally so `@onda/player` needn't depend on
- *  `@onda/wasm-vello`. */
+ *  Player prefers it. Accepted structurally so `@onda-engine/player` needn't depend on
+ *  `@onda-engine/wasm-vello`. */
 export interface GpuEngine {
   render(sceneJson: string): Promise<{ width: number; height: number; pixels: Uint8Array }>
   /** Optional: load a custom font (`.ttf`/`.otf` bytes) so the live preview draws
-   *  with the same fonts the export will. `@onda/wasm-vello`'s `VelloEngine` exposes
-   *  `load_font`; `@onda/wasm`'s `OndaEngine` exposes `loadFont` — the Player drains
-   *  the `@onda/react` font registry into whichever exists. */
+   *  with the same fonts the export will. `@onda-engine/wasm-vello`'s `VelloEngine` exposes
+   *  `load_font`; `@onda-engine/wasm`'s `OndaEngine` exposes `loadFont` — the Player drains
+   *  the `@onda-engine/react` font registry into whichever exists. */
   loadFont?(data: Uint8Array): unknown
   load_font?(data: Uint8Array): unknown
 }
@@ -53,12 +53,12 @@ export interface GpuEngine {
 const enginesRendering = new WeakSet<object>()
 
 // How many registered fonts have been loaded into each engine (keyed on the
-// engine instance). The `@onda/react` font registry is append-only, so we load
+// engine instance). The `@onda-engine/react` font registry is append-only, so we load
 // only the newly-registered tail into an engine, once — never re-loading a font
 // or per frame. Module-level so it survives remounts that reuse an engine.
 const engineFontCount = new WeakMap<object, number>()
 
-/** Drain any not-yet-loaded fonts from the `@onda/react` registry into `engine`
+/** Drain any not-yet-loaded fonts from the `@onda-engine/react` registry into `engine`
  *  (whichever of `loadFont`/`load_font` it exposes), so a composition's custom
  *  fonts render in the live preview, matching export. Cheap to call before every
  *  paint: a no-op once the engine is caught up. Safe inside the per-engine render
@@ -83,7 +83,7 @@ function ensureFontsLoaded(engine: object): void {
 }
 
 export interface PlayerProps {
-  /** A `<Composition>` element (from `@onda/react`). */
+  /** A `<Composition>` element (from `@onda-engine/react`). */
   composition: ReactElement
   /** Start playing on mount. Default `true`. */
   autoPlay?: boolean
@@ -101,7 +101,7 @@ export interface PlayerProps {
   draw?: FrameDrawer
   /** The GPU (Vello/WebGPU) renderer — preferred when present (see {@link GpuEngine}). */
   gpuEngine?: GpuEngine
-  /** The CPU renderer (`@onda/wasm`'s `OndaEngine`) — fallback when there's no GPU. */
+  /** The CPU renderer (`@onda-engine/wasm`'s `OndaEngine`) — fallback when there's no GPU. */
   engine?: RenderEngine
   /** Show a small backend indicator (WebGPU/CPU/Canvas2D). Default `true`. */
   showStatus?: boolean
@@ -189,7 +189,7 @@ export interface PlayerHandle {
  *
  * @example
  * ```tsx
- * import { Player } from '@onda/player'
+ * import { Player } from '@onda-engine/player'
  * <Player composition={<Composition …>…</Composition>} engine={ondaEngine} />
  * ```
  */

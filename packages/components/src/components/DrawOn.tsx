@@ -3,7 +3,7 @@
 //!
 //! ondajs strokes the path in with `@remotion/paths`' `evolvePath`, which turns a
 //! 0→1 spring progress into the `stroke-dasharray`/`stroke-dashoffset` pair that
-//! reveals the line from its start to its end. `@onda/react` has no stroke-dash
+//! reveals the line from its start to its end. `@onda-engine/react` has no stroke-dash
 //! animation, so this is APPROXIMATED with a **clip wipe**: the fully-stroked
 //! `<Path>` is masked by a `clipRect` whose width grows 0 → full across the path's
 //! bounding box on the house spring (`SPRING_SMOOTH`, no overshoot — the same
@@ -23,7 +23,7 @@
 //! component applies neither, so no centering caveat applies — the path renders in
 //! its own coordinate space exactly as authored.
 
-import { Group, Path, clipRect } from '@onda/react'
+import { Group, Path, clipRect } from '@onda-engine/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'

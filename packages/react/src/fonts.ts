@@ -1,12 +1,12 @@
 //! Font registry — the single source for a composition's custom fonts.
 //!
-//! An author declares a font ONCE (via `@onda/components`' `loadFont`, which loads
+//! An author declares a font ONCE (via `@onda-engine/components`' `loadFont`, which loads
 //! it into the author-time measurement engine AND calls `registerFont` here). The
-//! render harness (`@onda/render`) then drains this registry, materializes the
+//! render harness (`@onda-engine/render`) then drains this registry, materializes the
 //! bytes to temp files, and hands them to the `onda` CLI (`--font`) — so the font
 //! used to MEASURE the text (glyph placement) is the same one the renderer DRAWS,
 //! with no separate flag. Same hub pattern as the engine-warmer registry: bytes
-//! flow through `@onda/react`, so neither `@onda/components` nor `@onda/render`
+//! flow through `@onda-engine/react`, so neither `@onda-engine/components` nor `@onda-engine/render`
 //! depends on the other.
 
 const fonts: Uint8Array[] = []

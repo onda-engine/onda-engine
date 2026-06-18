@@ -1,4 +1,4 @@
-import { Composition, type Scene, type SceneNode, renderFrame } from '@onda/react'
+import { Composition, type Scene, type SceneNode, renderFrame } from '@onda-engine/react'
 import { describe, expect, it } from 'vitest'
 import { TextAnimator } from './TextAnimator.js'
 

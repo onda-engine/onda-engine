@@ -1,4 +1,4 @@
-import type { Theme } from '@onda/components'
+import type { Theme } from '@onda-engine/components'
 
 // Turn the gallery's live state (the configured theme + a component's props)
 // into copyable code. This is what makes the configurator a code generator: edit
@@ -32,7 +32,7 @@ export function themeObjectCode(theme: Partial<Theme>, indent = ''): string {
 
 /** A standalone, copyable `const theme = {…}` block (the brand-kit artifact). */
 export function themeSnippet(theme: Partial<Theme>): string {
-  return `import type { Theme } from '@onda/components'\n\nconst theme: Partial<Theme> = ${themeObjectCode(theme)}`
+  return `import type { Theme } from '@onda-engine/components'\n\nconst theme: Partial<Theme> = ${themeObjectCode(theme)}`
 }
 
 /** Render one JSX attribute. Booleans use the JSX shorthand for `true`. */
@@ -74,11 +74,11 @@ export interface SnippetInput {
 export function usageSnippet({ name, props, theme, child = false }: SnippetInput): string {
   const hasTheme = Object.keys(theme).length > 0
   if (!hasTheme) {
-    return `import { ${name} } from '@onda/components'\n\n${elementCode(name, props, child, '')}`
+    return `import { ${name} } from '@onda-engine/components'\n\n${elementCode(name, props, child, '')}`
   }
   const el = elementCode(name, props, child, '  ')
   return [
-    `import { ThemeProvider, ${name} } from '@onda/components'`,
+    `import { ThemeProvider, ${name} } from '@onda-engine/components'`,
     '',
     `const theme = ${themeObjectCode(theme)}`,
     '',

@@ -37,7 +37,7 @@ import {
   linearGradient,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION } from '../motion.js'
 import { measureText, useTextMetricsReady } from '../text-metrics.js'

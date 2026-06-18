@@ -2,7 +2,7 @@
 //! Usage: tsx render.tsx <title|stat> <frame>  >  scene.json
 //! Then:  onda render scene.json out.png --backend vello
 
-import { renderFrame } from '@onda/react'
+import { renderFrame } from '@onda-engine/react'
 import { StatScene, TitleScene } from './showcase.js'
 
 const which = process.argv[2] ?? 'title'

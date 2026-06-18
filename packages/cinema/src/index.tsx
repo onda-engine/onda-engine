@@ -1,12 +1,12 @@
-//! `@onda/cinema` — turn a timeline composition payload into an `@onda/react`
+//! `@onda-engine/cinema` — turn a timeline composition payload into an `@onda-engine/react`
 //! scene. This is the spec→engine renderer ONDA Studio uses in place of its
 //! Remotion `composition-renderer`: scenes play through a `<TransitionSeries>`,
 //! tracks layer as `<AbsoluteFill>`s, and each entry is a registry component
 //! wrapped in its choreography — applied as numeric `Motion` on a `<Group>`
 //! (the engine transform), not CSS.
 
-import * as Components from '@onda/components'
-import type { KeyframeTracks, Motion, Theme } from '@onda/components'
+import * as Components from '@onda-engine/components'
+import type { KeyframeTracks, Motion, Theme } from '@onda-engine/components'
 import {
   AbsoluteFill,
   Camera,
@@ -48,7 +48,7 @@ import {
   wipe,
   zoom,
   zoomBlur,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { type ComponentType, type ReactElement, cloneElement, createElement } from 'react'
 import { PROP_ALIASES, SELF_ANCHORING, adaptProps, placementOffset } from './props.js'
 import {
@@ -97,7 +97,7 @@ const exitStart = (p: Record<string, unknown>, dur: number, exitDur: number): nu
 
 type PatternFn = (frame: number, fps: number, p: Record<string, unknown>, dur: number) => Motion
 
-/** Choreography by name — calls the `@onda/components` pattern (returns scene
+/** Choreography by name — calls the `@onda-engine/components` pattern (returns scene
  *  `Motion`). Mirrors Studio's `CHOREOGRAPHY` map but on the engine model. */
 const CHOREOGRAPHY: Record<string, PatternFn> = {
   // Direct-manipulation keyframe animation (the Studio editor). Shares the sampler
@@ -255,13 +255,13 @@ const isComponent = (v: unknown): v is ComponentType<Record<string, unknown>> =>
   typeof v === 'function'
 
 // Slug-derived names (PascalCase of the ondajs/Studio slug) that differ from the
-// `@onda/components` export name. The bridge accepts the slug name so existing
+// `@onda-engine/components` export name. The bridge accepts the slug name so existing
 // agent payloads resolve; the canonical `@onda` name also works.
 const NAME_ALIASES: Record<string, string> = {
   RgbGlitchText: 'RgbGlitch', // ondajs `rgb-glitch-text` → @onda `RgbGlitch`
 }
 
-/** Default registry: every PascalCase `@onda/components` export (the components),
+/** Default registry: every PascalCase `@onda-engine/components` export (the components),
  *  plus slug-name aliases for the few that were renamed in the port. */
 function defaultRegistry(): Registry {
   const reg: Registry = {}
@@ -288,7 +288,7 @@ function errorPlaceholder(name: string): ReactElement {
   )
 }
 
-// ── Entry / track / scene → @onda/react ──────────────────────────────────────
+// ── Entry / track / scene → @onda-engine/react ──────────────────────────────────────
 
 interface AnimatedProps {
   component: string
@@ -457,7 +457,7 @@ function EntrySlot({
   )
 }
 
-// Overlay containers MUST be plain <Group>s, not <AbsoluteFill>s. `@onda/react`'s
+// Overlay containers MUST be plain <Group>s, not <AbsoluteFill>s. `@onda-engine/react`'s
 // AbsoluteFill is a flex column (it lays children out top-to-bottom), not a
 // Remotion-style absolutely-positioned overlay — so sibling tracks/entries would
 // STACK and consume each other's space instead of overlapping. A plain Group
@@ -716,7 +716,7 @@ function planMorphs(
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export interface BuildOptions {
-  /** Component lookup. Default: every `@onda/components` component. */
+  /** Component lookup. Default: every `@onda-engine/components` component. */
   registry?: Registry
 }
 
@@ -735,8 +735,8 @@ function brandToTheme(brand: Brand): Partial<Theme> {
 }
 
 /**
- * Build an `@onda/react` `<Composition>` from a timeline payload. Pass the
- * result to `@onda/render`'s `renderToFile` (export) or `<Player>` (preview).
+ * Build an `@onda-engine/react` `<Composition>` from a timeline payload. Pass the
+ * result to `@onda-engine/render`'s `renderToFile` (export) or `<Player>` (preview).
  */
 /** Scene-level FIT — when a scene declares the canvas its content was AUTHORED for
  *  (designWidth/designHeight) and it differs from the output, uniformly scale +

@@ -6,7 +6,7 @@
 //! Colors and font default to the active {@link useTheme} (text / textMuted /
 //! heading family); pass explicit props to override.
 
-import { AbsoluteFill, Flex, Text, useVideoConfig } from '@onda/react'
+import { AbsoluteFill, Flex, Text, useVideoConfig } from '@onda-engine/react'
 import { useFittedFontSize } from '../bounds.js'
 import { DURATION, staggerFrames } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'

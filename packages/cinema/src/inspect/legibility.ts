@@ -9,7 +9,7 @@
 //!    alpha-composited); an image/video behind yields an `info` — contrast is
 //!    unverifiable analytically.
 
-import { manifestEntry } from '@onda/components'
+import { manifestEntry } from '@onda-engine/components'
 import type { Brand } from '../types.js'
 import { type Rgb, contrastRatio, parseColor } from './color.js'
 import {

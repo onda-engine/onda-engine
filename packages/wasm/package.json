@@ -1,5 +1,5 @@
 {
-  "name": "@onda/wasm",
+  "name": "@onda-engine/wasm",
   "version": "0.0.0",
   "description": "The ONDA renderer compiled to WebAssembly — the real native engine in the browser (no DOM, no Chromium).",
   "license": "MIT OR Apache-2.0",

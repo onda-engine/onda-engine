@@ -3,7 +3,7 @@
 //! The reference render is the native Vello GPU export ('export'). Three other
 //! backends draw the same scene JSON with documented gaps:
 //!
-//! - `preview-webgpu` — `@onda/wasm-vello` in the browser. Runs the SAME
+//! - `preview-webgpu` — `@onda-engine/wasm-vello` in the browser. Runs the SAME
 //!   renderer (per-node effects AND the composition `finish` chain are applied
 //!   — `LinearFinish` is a pure texture→texture compute chain that runs
 //!   identically on native and web). Remaining gaps: `lightWrap` (export/
@@ -11,7 +11,7 @@
 //!   gradient), the `linear` HDR pipeline (gamma fallback), and composition
 //!   motion blur (export-time temporal supersampling — a live player renders
 //!   single frames).
-//! - `preview-cpu` / `native-cpu` — the CPU reference (tiny-skia; `@onda/wasm`
+//! - `preview-cpu` / `native-cpu` — the CPU reference (tiny-skia; `@onda-engine/wasm`
 //!   in the browser, `--backend cpu` natively). Faithful for fills/strokes/
 //!   gradients/paths/text, but: no rotation, no clip, blend modes composite
 //!   normal, no video decode, per-run text colors collapse to the base style,
@@ -25,7 +25,7 @@
 //! `ENGINE_CAPABILITIES` in fidelity.ts; component-level capability lives in
 //! `COMPONENT_FIDELITY.backend` ('gpu_only').
 
-import type { Scene } from '@onda/react'
+import type { Scene } from '@onda-engine/react'
 
 /** The render backends a scene can be judged on. `'export'` is the reference. */
 export type RenderBackend = 'export' | 'preview-webgpu' | 'preview-cpu' | 'native-cpu'

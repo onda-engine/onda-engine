@@ -33,7 +33,7 @@ import {
   radialGradient,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { createElement as h } from 'react'
 
 const TAU = Math.PI * 2

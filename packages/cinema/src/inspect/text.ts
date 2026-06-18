@@ -1,12 +1,12 @@
 //! Text extraction — what does this entry SAY, at what size, in what color?
 //!
-//! Driven by the `@onda/components` manifest (per-prop semantic roles), so the
+//! Driven by the `@onda-engine/components` manifest (per-prop semantic roles), so the
 //! inspector knows each component's text props + defaults without hardcoding
 //! eighty dialects. A `TextBlock` is one string a viewer reads: content +
 //! resolved px font size + resolved color + the measurement options needed to
 //! reproduce the component's own metrics.
 
-import { type ManifestEntry, type PropMeta, manifestEntry } from '@onda/components'
+import { type ManifestEntry, type PropMeta, manifestEntry } from '@onda-engine/components'
 import type { ResolvedEntry } from './resolve.js'
 
 /** Brand-resolved theme colors the blocks fall back to. */

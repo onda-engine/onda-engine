@@ -1,5 +1,5 @@
 {
-  "name": "@onda/preview",
+  "name": "@onda-engine/preview",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,12 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@onda/cinema": "workspace:*",
-    "@onda/components": "workspace:*",
-    "@onda/player": "workspace:*",
-    "@onda/react": "workspace:*",
-    "@onda/wasm": "workspace:*",
-    "@onda/wasm-vello": "workspace:*",
+    "@onda-engine/cinema": "workspace:*",
+    "@onda-engine/components": "workspace:*",
+    "@onda-engine/player": "workspace:*",
+    "@onda-engine/react": "workspace:*",
+    "@onda-engine/wasm": "workspace:*",
+    "@onda-engine/wasm-vello": "workspace:*",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

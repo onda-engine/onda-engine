@@ -1,7 +1,7 @@
 //! Real text measurement for components that must size to the *actual* text —
 //! Highlight's accent bar, Underline, Button padding, InputField's caret, etc.
 //!
-//! Backed by `@onda/wasm`'s `OndaEngine.measureText` — the SAME cosmic-text
+//! Backed by `@onda-engine/wasm`'s `OndaEngine.measureText` — the SAME cosmic-text
 //! shaping the engine draws with — so a bar/underline hugs the text exactly
 //! instead of the old glyph-count guess (`length * fontSize * 0.56`), which is
 //! wrong for proportional fonts.
@@ -11,12 +11,12 @@
 //!   back to the estimate until ready, and re-renders when it is.
 //! - **Node export**: `preloadTextMetrics()` warms the engine before the
 //!   synchronous `renderFramesJSON`, so `measureText` returns real metrics
-//!   during the bake (`@onda/render` calls it; the CLI stays text-agnostic).
+//!   during the bake (`@onda-engine/render` calls it; the CLI stays text-agnostic).
 //!
 //! `measureText` is always synchronous and never throws: real metrics when the
 //! engine is warm, the estimate otherwise — so a composition never blocks.
 
-import { registerEngineWarmer, registerFont } from '@onda/react'
+import { registerEngineWarmer, registerFont } from '@onda-engine/react'
 import { useEffect, useState } from 'react'
 
 export interface TextMetrics {
@@ -87,7 +87,7 @@ export interface GlyphInfo {
   advance: number
 }
 
-/** Minimal shape of `@onda/wasm` we use — kept local so this file doesn't
+/** Minimal shape of `@onda-engine/wasm` we use — kept local so this file doesn't
  *  hard-depend on the generated wasm types at build time. */
 interface OndaEngineLike {
   measureText(
@@ -135,7 +135,7 @@ function estimate(content: string, fontSize: number, letterSpacing = 0): TextMet
   }
 }
 
-/** Load + init `@onda/wasm` once and build the shared engine. Idempotent. In the
+/** Load + init `@onda-engine/wasm` once and build the shared engine. Idempotent. In the
  *  browser the wasm auto-locates next to its JS; in Node we read the bytes and
  *  `initSync` (the auto-locate is browser-only). */
 export function preloadTextMetrics(): Promise<void> {
@@ -143,7 +143,7 @@ export function preloadTextMetrics(): Promise<void> {
   if (!loadPromise) {
     loadPromise = (async () => {
       try {
-        const mod = (await import('@onda/wasm')) as unknown as WasmModule
+        const mod = (await import('@onda-engine/wasm')) as unknown as WasmModule
         if (typeof window === 'undefined') {
           // Node: explicit bytes. `node:` imports are @vite-ignored so the
           // browser bundle never tries to include them.
@@ -151,14 +151,14 @@ export function preloadTextMetrics(): Promise<void> {
           // `ONDA_WASM_PATH` overrides where the `.wasm` is read from — required
           // when a bundler INLINES the JS glue (e.g. the vendored ONDA Studio
           // bundle), where `import.meta.resolve` can't locate the adjacent file.
-          // Falls back to auto-locating next to the resolved `@onda/wasm` JS.
+          // Falls back to auto-locating next to the resolved `@onda-engine/wasm` JS.
           const override = process.env.ONDA_WASM_PATH
           let wasmBytes: BufferSource
           if (override) {
             wasmBytes = readFileSync(override)
           } else {
             const { fileURLToPath } = await import(/* @vite-ignore */ 'node:url')
-            const jsUrl = import.meta.resolve('@onda/wasm')
+            const jsUrl = import.meta.resolve('@onda-engine/wasm')
             const wasmUrl = new URL('./onda_wasm_bg.wasm', jsUrl)
             wasmBytes = readFileSync(fileURLToPath(wasmUrl))
           }
@@ -376,7 +376,7 @@ export function useTextMetricsReady(): boolean {
  *  same family twice is harmless. Awaits engine init; never throws (logs + returns
  *  `[]` if the engine is unavailable or the bytes don't parse). */
 export async function loadFont(data: Uint8Array): Promise<string[]> {
-  // Single source: retain the bytes so `@onda/render` hands the SAME font to the
+  // Single source: retain the bytes so `@onda-engine/render` hands the SAME font to the
   // renderer (`--font`) — no separate flag. Synchronous + before the async engine
   // load, so the registration lands the instant `loadFont` is called.
   registerFont(data)
@@ -395,7 +395,7 @@ export async function loadFont(data: Uint8Array): Promise<string[]> {
   }
 }
 
-// Register with @onda/react so `@onda/render` warms the engine before a (sync)
+// Register with @onda-engine/react so `@onda-engine/render` warms the engine before a (sync)
 // export render — components bake real metrics into exported frames, not the
-// estimate. Importing @onda/components is enough; no caller setup.
+// estimate. Importing @onda-engine/components is enough; no caller setup.
 registerEngineWarmer(preloadTextMetrics)

@@ -1,7 +1,7 @@
 //! FadeIn — pure opacity reveal (no motion). Layout-safe: applies only opacity,
 //! so it composes cleanly as a child of a `<Flex>`/`<AbsoluteFill>` layout.
 
-import { Group, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import type { ReactNode } from 'react'
 import { entryFade } from '../choreography.js'
 import { DURATION } from '../motion.js'

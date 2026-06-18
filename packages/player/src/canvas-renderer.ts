@@ -13,16 +13,16 @@
 //!     browser's Canvas2D, not Vello.
 //!
 //! The pixel-exact output is `onda render` / `onda export`, and in the browser
-//! the {@link @onda/wasm} `OndaEngine` (the real Rust renderer compiled to wasm).
+//! the {@link @onda-engine/wasm} `OndaEngine` (the real Rust renderer compiled to wasm).
 //! Prefer that drawer in `<Player>` when it is available; this Canvas2D renderer
 //! is the graceful fallback. A WebGPU *present* path (see `WEBGPU.md`) is the
 //! planned way to make in-browser preview == export at real-time speed.
 
-import type { Color, Gradient, Scene, SceneNode, ShapeGeometry } from '@onda/react'
+import type { Color, Gradient, Scene, SceneNode, ShapeGeometry } from '@onda-engine/react'
 
 /** Paints a scene onto a 2D context. The default is {@link drawScene}; the
  *  playground and `<Player>` swap in a WASM-engine drawer (real renderer →
- *  `putImageData`) when `@onda/wasm` is present. */
+ *  `putImageData`) when `@onda-engine/wasm` is present. */
 export type FrameDrawer = (ctx: CanvasRenderingContext2D, scene: Scene) => void
 
 /** Draw `scene` onto `ctx`, clearing first. The context should be sized to the
@@ -114,7 +114,7 @@ function drawShape(
   pendingPath = null
   geometryPath(ctx, shape.geometry)
 
-  // A gradient paint takes precedence over a solid fill (mirrors @onda/react).
+  // A gradient paint takes precedence over a solid fill (mirrors @onda-engine/react).
   const paint = shape.gradient
     ? gradientStyle(ctx, shape.geometry, shape.gradient)
     : shape.fill

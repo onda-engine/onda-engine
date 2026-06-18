@@ -4,12 +4,12 @@
 //! 1. Two FOCAL entrances beginning within the 250ms attention window
 //!    (attentional blink: a second target 200–500ms after a first is routinely
 //!    missed — Raymond, Shapiro & Arnell 1992; see constants.ts).
-//! 2. An entrance whose settle (the `@onda/components` settleTime registry —
+//! 2. An entrance whose settle (the `@onda-engine/components` settleTime registry —
 //!    the same formulas the components run) outlives the entry's visible
 //!    window: the move is cut off mid-flight.
 //! 3. A scene transition longer than the 0.6s budget.
 
-import { manifestEntry, settleTime } from '@onda/components'
+import { manifestEntry, settleTime } from '@onda-engine/components'
 import { FOCAL_COLLISION_WINDOW_SECONDS, TRANSITION_BUDGET_SECONDS } from './constants.js'
 import type { Check, Violation } from './report.js'
 

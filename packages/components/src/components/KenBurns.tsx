@@ -21,7 +21,7 @@
 //! sub-region; the engine has no equivalent layout primitive here, so this port
 //! always fills the full composition (the ondajs default, `placement` omitted).
 
-import { Group, Image, interpolate, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Image, interpolate, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { type TimeInput, framesOf } from '../time.js'
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const

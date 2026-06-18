@@ -29,7 +29,7 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'
 import type { TextStyleProps } from '../text-style.js'

@@ -7,7 +7,7 @@
 //! (matching ondajs's CSS `transform-origin: center` for centered content), so a
 //! centered element settles in place rather than swinging about its top-left.
 
-import { Group, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import type { ReactNode } from 'react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { type TimeInput, framesOf } from '../time.js'

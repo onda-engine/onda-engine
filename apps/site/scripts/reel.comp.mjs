@@ -1,4 +1,4 @@
-import { beatPulse } from '@onda/components'
+import { beatPulse } from '@onda-engine/components'
 import {
   Audio,
   Center,
@@ -8,7 +8,7 @@ import {
   fbmGradient,
   renderFramesJSON,
   useCurrentFrame,
-} from '@onda/react'
+} from '@onda-engine/react'
 // "MADE TO MOVE" — a kinetic-typography reel (16:9, 6.4s). Bold words slam on the beat
 // over a fluid fBm gradient, with RGB-split + grain; engine-scored 128-BPM track.
 import { createElement as h } from 'react'

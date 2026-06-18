@@ -1,4 +1,4 @@
-import { Composition, Path, Rect, fbmGradient } from '@onda/react'
+import { Composition, Path, Rect, fbmGradient } from '@onda-engine/react'
 // lightwrap-test.comp.mjs — a synthetic proof for the LightWrap effect: a bright,
 // colorful fBm backdrop with a dark subject cut-out over it. With light-wrap ON the
 // subject's edges pick up the background light (reads "shot in"); OFF it's a flat

@@ -99,7 +99,7 @@ export default defineConfig({
           ],
         },
         {
-          label: '@onda/react',
+          label: '@onda-engine/react',
           items: [
             { label: 'Components', link: '/api/react' },
             { label: 'Hooks', link: '/api/hooks' },
@@ -127,25 +127,25 @@ export default defineConfig({
         },
       ],
     }),
-    // React islands — for live @onda/react + @onda/player demos (client-only).
+    // React islands — for live @onda-engine/react + @onda-engine/player demos (client-only).
     react(),
     // MDX — lets doc pages embed React islands (e.g. the live player demo).
     mdx(),
   ],
   vite: {
-    // Serve the workspace @onda/* packages straight from source — don't let Vite
+    // Serve the workspace @onda-engine/* packages straight from source — don't let Vite
     // pre-bundle them into node_modules/.vite. Otherwise a rebuild of e.g.
-    // @onda/player isn't reliably picked up (a stale optimized copy lingers), so
+    // @onda-engine/player isn't reliably picked up (a stale optimized copy lingers), so
     // engine/player fixes silently don't appear in the dev preview.
     optimizeDeps: {
       exclude: [
-        '@onda/player',
-        '@onda/react',
-        '@onda/cinema',
-        '@onda/components',
-        '@onda/wasm',
-        '@onda/wasm-vello',
-        '@onda/wasm-audio',
+        '@onda-engine/player',
+        '@onda-engine/react',
+        '@onda-engine/cinema',
+        '@onda-engine/components',
+        '@onda-engine/wasm',
+        '@onda-engine/wasm-vello',
+        '@onda-engine/wasm-audio',
       ],
     },
   },

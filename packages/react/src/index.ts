@@ -1,4 +1,4 @@
-//! `@onda/react` — write React, get an ONDA scene graph.
+//! `@onda-engine/react` — write React, get an ONDA scene graph.
 
 export { parseColor, interpolateColors, type ColorInput } from './color.js'
 export {

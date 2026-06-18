@@ -37,8 +37,8 @@ import {
   radialGradient,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
-import type { TextRunInput } from '@onda/react'
+} from '@onda-engine/react'
+import type { TextRunInput } from '@onda-engine/react'
 import { useStaggeredEntrance, useTextReveal } from '../hooks.js'
 import { STAGGER } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'

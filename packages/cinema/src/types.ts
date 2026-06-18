@@ -1,18 +1,18 @@
 //! The timeline composition payload — the document an agent (ONDA Studio) emits
-//! and `buildComposition` turns into an @onda/react scene. Structural mirror of
+//! and `buildComposition` turns into an @onda-engine/react scene. Structural mirror of
 //! Studio's `composition.ts` schema (kept as plain types; validation is
 //! `validateComposition`).
 
 /** A time: seconds (number) or a spec string — `"2s"`, `"500ms"`, `"0:02"`, `"90f"`. */
 export type TimeSpec = string | number
 
-/** An entry's motion: an `@onda/components` choreography pattern name + params. */
+/** An entry's motion: an `@onda-engine/components` choreography pattern name + params. */
 export interface EntryAnimation {
   pattern: string
   params?: Record<string, unknown>
 }
 
-/** Per-entry cinematic EFFECTS — the same sugar props @onda/react's `<Group>`
+/** Per-entry cinematic EFFECTS — the same sugar props @onda-engine/react's `<Group>`
  *  accepts (each maps 1:1 to the engine `Effect` enum). The renderer spreads
  *  these onto a wrapping `<Group>` so they render on Vello in EXPORT (twin of the
  *  Studio preview renderer's `entryEffectsSchema`). */

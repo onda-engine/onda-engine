@@ -15,8 +15,8 @@ export default defineConfig({
   resolve: {
     dedupe: ['react', 'react-dom', 'react-reconciler'],
     alias: {
-      '@onda/react': fileURLToPath(new URL('../../packages/react/src/index.ts', import.meta.url)),
-      '@onda/player': fileURLToPath(new URL('../../packages/player/src/index.ts', import.meta.url)),
+      '@onda-engine/react': fileURLToPath(new URL('../../packages/react/src/index.ts', import.meta.url)),
+      '@onda-engine/player': fileURLToPath(new URL('../../packages/player/src/index.ts', import.meta.url)),
     },
   },
 })

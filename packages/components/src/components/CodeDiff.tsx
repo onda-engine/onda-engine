@@ -27,7 +27,7 @@
 //!  - Engine `<Text>` is single-line (no auto-wrap) — pre-split any line that
 //!    would exceed the panel width.
 
-import { Ellipse, Group, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Ellipse, Group, Rect, Text, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { entryFadeRise } from '../choreography.js'
 import { DURATION, STAGGER, staggerFrames } from '../motion.js'
 import type { TextStyleProps } from '../text-style.js'

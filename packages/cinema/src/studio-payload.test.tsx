@@ -1,12 +1,12 @@
 //! Regression guard for the Studio→engine prop bridge: real ONDA Studio payloads
 //! use semantic SIZE ROLES (`"hero"`, `"subheading"`) and boolean `accent`, which
-//! the `@onda/components` ports don't take natively. `adaptProps` (in index.tsx)
+//! the `@onda-engine/components` ports don't take natively. `adaptProps` (in index.tsx)
 //! resolves roles to canvas-aware px and aliases prop names; StatCard accepts a
 //! boolean `accent`. Without these, a real payload either renders at default
 //! sizes, crashes (boolean fed to `fill`), or emits NaN→`null` that the Rust f32
 //! scene parser rejects. These tests lock that translation in.
 
-import { renderFramesJSON } from '@onda/react'
+import { renderFramesJSON } from '@onda-engine/react'
 import { describe, expect, it } from 'vitest'
 import { buildComposition } from './index.js'
 import type { CompositionPayload } from './types.js'

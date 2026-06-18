@@ -1,4 +1,4 @@
-import { Composition, Easing, Group, Image, Text, interpolate, useCurrentFrame } from '@onda/react'
+import { Composition, Easing, Group, Image, Text, interpolate, useCurrentFrame } from '@onda-engine/react'
 // shut-up.comp.mjs — text BEHIND the subject: original photo as the backdrop,
 // big bold type, then the auto-segmented cutout on top so the type sits behind him.
 import { createElement as h } from 'react'

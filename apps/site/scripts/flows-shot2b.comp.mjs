@@ -1,4 +1,4 @@
-import { measureText } from '@onda/components'
+import { measureText } from '@onda-engine/components'
 import {
   Composition,
   Ellipse,
@@ -8,7 +8,7 @@ import {
   Text,
   interpolate,
   useCurrentFrame,
-} from '@onda/react'
+} from '@onda-engine/react'
 // FLOWS AGENT — shot 2B (~9–16s, the keynote frame): the MODEL PICKER. A vertical
 // slot-machine list of AI models scrolls to land on the selected one (Veo, bold) with
 // a purple icon chip + connector line. The agent "choosing the best model." Light-gray

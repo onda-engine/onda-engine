@@ -1,12 +1,12 @@
 //! AudioClip — audio scheduling for a composition. Ported from ondajs.
 //!
-//! Emits a non-visual `<Audio>` node (`@onda/react`): the player plays it during
+//! Emits a non-visual `<Audio>` node (`@onda-engine/react`): the player plays it during
 //! preview (synced to play/pause + scrub, with the player's volume), and it rides
 //! in the scene graph so export can mux it. v1 wires `src` + `startAt` (source
 //! trim) + `volume`/`gainDb`; the fade envelope, `loop`, `endAt`, and
 //! `playbackRate` are accepted for API parity but not yet applied to playback.
 
-import { Audio, useVideoConfig } from '@onda/react'
+import { Audio, useVideoConfig } from '@onda-engine/react'
 import type { TimeInput } from '../time.js'
 
 /** Time spec — seconds (number) or a string like `"0:04"`, `"30s"`, `"500ms"`, `"90f"`. */

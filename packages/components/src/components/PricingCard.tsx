@@ -34,7 +34,7 @@ import {
   radialGradient,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { entryFade, entryFadeRise } from '../choreography.js'
 import { DURATION, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'

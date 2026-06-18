@@ -1,7 +1,7 @@
-//! `@onda/player` — interactive, accessible preview of ONDA compositions.
+//! `@onda-engine/player` — interactive, accessible preview of ONDA compositions.
 //!
 //! `<Player>` previews through the **real** ONDA renderer when given an `engine`
-//! (`@onda/wasm`'s `OndaEngine`, pixel-identical to `onda export`), and otherwise
+//! (`@onda-engine/wasm`'s `OndaEngine`, pixel-identical to `onda export`), and otherwise
 //! falls back to the dependency-free Canvas2D {@link drawScene} preview.
 
 export { cssColor, drawScene, type FrameDrawer } from './canvas-renderer.js'

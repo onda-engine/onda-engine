@@ -6,7 +6,7 @@
 //! exist to remove the `const frame = useCurrentFrame()` + interpolate
 //! boilerplate every component otherwise repeats.
 
-import { interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { type Motion, entryFade, entryFadeRise, entryScale, entrySlide } from './choreography.js'
 import { HOUSE_EASE } from './easing.js'
 import { DURATION, SPRING_SMOOTH, SPRING_SNAPPY, STAGGER, staggerFrames } from './motion.js'

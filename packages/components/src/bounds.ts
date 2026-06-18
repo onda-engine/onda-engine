@@ -17,7 +17,7 @@
 //! come from the glyph-count estimate — the fit then re-resolves when real
 //! metrics arrive (the same contract as `useTextMetrics`).
 
-import { useVideoConfig } from '@onda/react'
+import { useVideoConfig } from '@onda-engine/react'
 import { SAFE_MARGIN } from './placement.js'
 import { type MeasureOpts, measureText, useTextMetricsReady } from './text-metrics.js'
 

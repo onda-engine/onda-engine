@@ -1,7 +1,7 @@
 {
-  "name": "@onda/cinema",
+  "name": "@onda-engine/cinema",
   "version": "0.0.0",
-  "description": "Render a timeline composition payload (scenes/tracks/entries + choreography + transitions) to an @onda/react element \u2014 the spec\u2192engine renderer ONDA Studio uses instead of its Remotion renderer.",
+  "description": "Render a timeline composition payload (scenes/tracks/entries + choreography + transitions) to an @onda-engine/react element \u2014 the spec\u2192engine renderer ONDA Studio uses instead of its Remotion renderer.",
   "license": "MIT OR Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,8 +22,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@onda/components": "workspace:*",
-    "@onda/react": "workspace:*"
+    "@onda-engine/components": "workspace:*",
+    "@onda-engine/react": "workspace:*"
   },
   "peerDependencies": {
     "react": "^19.2.0"

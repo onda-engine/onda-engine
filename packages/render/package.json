@@ -1,7 +1,7 @@
 {
-  "name": "@onda/render",
+  "name": "@onda-engine/render",
   "version": "0.0.0",
-  "description": "Render @onda/react compositions to a video/still file via the ONDA engine \u2014 the no-Chromium equivalent of Remotion's renderMedia.",
+  "description": "Render @onda-engine/react compositions to a video/still file via the ONDA engine \u2014 the no-Chromium equivalent of Remotion's renderMedia.",
   "license": "MIT OR Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -19,7 +19,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@onda/react": "workspace:*"
+    "@onda-engine/react": "workspace:*"
   },
   "peerDependencies": {
     "react": "^19.2.0"

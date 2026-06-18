@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// onda-inspect — run the @onda/cinema INSPECTOR over a composition payload.
+// onda-inspect — run the @onda-engine/cinema INSPECTOR over a composition payload.
 //
 //   onda-inspect <composition.json> [--format 9:16] [--frames 12,80] [--json]
 //
@@ -54,7 +54,7 @@ try {
 
 // Warm the engine's text metrics so overflow widths are shaped (cosmic-text),
 // not the glyph-count estimate. Never throws — estimates are the fallback.
-const { preloadTextMetrics } = await import('@onda/components')
+const { preloadTextMetrics } = await import('@onda-engine/components')
 await preloadTextMetrics()
 const { inspect, validateComposition } = await import('../dist/index.js')
 

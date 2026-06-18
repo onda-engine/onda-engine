@@ -1,7 +1,7 @@
 //! Named motion patterns — the Onda choreography vocabulary.
 //!
 //! Ported from ondajs (`lib/choreography.ts`). Each helper is a pure function of
-//! frame/fps. The one change for `@onda/react`: where ondajs returns a CSS
+//! frame/fps. The one change for `@onda-engine/react`: where ondajs returns a CSS
 //! `{ opacity, transform }` to spread onto a `<div>`, these return a numeric
 //! {@link Motion} (`{ opacity, x, y, scaleX, scaleY }`) to spread onto a scene
 //! node (`<Group>`) — no string parsing, and it composes with the GPU transform.
@@ -14,7 +14,7 @@
 //!
 //! All patterns accept `delay` so callers can stagger via `staggerFrames(index)`.
 
-import { interpolate, spring } from '@onda/react'
+import { interpolate, spring } from '@onda-engine/react'
 import { HOUSE_EASE } from './easing.js'
 import { DURATION, OVERSHOOT, SPRING_SMOOTH } from './motion.js'
 import { type TimeInput, framesOf } from './time.js'

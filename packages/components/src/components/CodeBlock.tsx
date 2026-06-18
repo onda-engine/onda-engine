@@ -32,8 +32,8 @@
 //!   travels its default 12px (ondajs requested 6px). The difference is
 //!   visually negligible and the cascade reads identically.
 
-import { Ellipse, Group, Rect, Text, useVideoConfig } from '@onda/react'
-import type { TextRunInput } from '@onda/react'
+import { Ellipse, Group, Rect, Text, useVideoConfig } from '@onda-engine/react'
+import type { TextRunInput } from '@onda-engine/react'
 import { useStaggeredEntrance } from '../hooks.js'
 import type { TextStyleProps } from '../text-style.js'
 import { useTheme } from '../theme.js'

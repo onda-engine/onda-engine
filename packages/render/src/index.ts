@@ -1,4 +1,4 @@
-//! `@onda/render` — render `@onda/react` compositions to a file via the ONDA
+//! `@onda-engine/render` — render `@onda-engine/react` compositions to a file via the ONDA
 //! engine. The no-Chromium equivalent of Remotion's `renderMedia`: the scene
 //! graph is generated in-process (`renderFramesJSON`) and handed to the `onda`
 //! CLI, which rasterizes on the GPU (Vello) and encodes with ffmpeg.
@@ -13,7 +13,7 @@ import {
   renderFrame,
   renderFramesJSON,
   runEngineWarmers,
-} from '@onda/react'
+} from '@onda-engine/react'
 import type { ReactElement } from 'react'
 
 export type Backend = 'auto' | 'vello' | 'cpu'

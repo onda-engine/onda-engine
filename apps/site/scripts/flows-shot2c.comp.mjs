@@ -1,4 +1,4 @@
-import { measureText } from '@onda/components'
+import { measureText } from '@onda-engine/components'
 import {
   Composition,
   Ellipse,
@@ -9,7 +9,7 @@ import {
   Text,
   interpolate,
   useCurrentFrame,
-} from '@onda/react'
+} from '@onda-engine/react'
 // FLOWS AGENT — shot 2C (~21–25s): the generated AD reveal. A big hero photo card
 // settles in on the right (the runner/shoe ad) with the agent prompt card floating
 // over its left ("Update this image using @image0"). Light-gray world (continuous

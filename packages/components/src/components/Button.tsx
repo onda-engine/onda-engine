@@ -30,7 +30,7 @@
 //!   sized to your label, or accept the small offset on very long labels.
 //! - The ghost transparent fill uses `'#00000000'` (the engine has no `none`).
 
-import { Group, Rect, Text, interpolate, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Rect, Text, interpolate, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { entryFadeRise } from '../choreography.js'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION } from '../motion.js'

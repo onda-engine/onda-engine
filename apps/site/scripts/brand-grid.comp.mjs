@@ -19,7 +19,7 @@ import {
   fbmGradient,
   linearGradient,
   radialGradient,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { createElement as h } from 'react'
 
 const FONT = 'Bricolage Grotesque 96pt'

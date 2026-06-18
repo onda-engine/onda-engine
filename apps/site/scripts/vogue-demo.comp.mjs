@@ -2,7 +2,7 @@
 // model, magazine-style. Three layers: original photo → masthead type → the
 // onda-segment cutout back on top (so the letters pass behind her).
 import { writeFileSync } from 'node:fs'
-import { Composition, Group, Image, Text, renderFrame } from '@onda/react'
+import { Composition, Group, Image, Text, renderFrame } from '@onda-engine/react'
 import { createElement as h } from 'react'
 
 const W = 768

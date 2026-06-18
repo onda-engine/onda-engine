@@ -25,7 +25,7 @@
 //! variant nests an inner group at the box CENTER and draws the image offset by
 //! −w/2,−h/2, so it grows from the middle rather than the top-left corner.
 
-import { Group, Image, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Image, clipRect, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { entryFade, entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'

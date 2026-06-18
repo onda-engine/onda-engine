@@ -39,7 +39,7 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, PlacementShift } from '../placement.js'
 import { type TextStyleProps, applyTextCase } from '../text-style.js'

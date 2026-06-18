@@ -3,7 +3,7 @@
 //! type reads — "not too white, not too dark." A light scrim lifts a dark photo;
 //! a dark scrim deepens a bright one. The point isn't to show the picture
 //! perfectly — it's legibility.
-import { Rect, interpolate, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Rect, interpolate, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 
 export interface ScrimProps {
   /** Veil color (hex). Default white — lifts a busy photo so dark text reads. */

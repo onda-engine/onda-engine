@@ -12,10 +12,10 @@
 //! "will this read?" — both deterministic, both agent-correctable.
 //!
 //! Text widths use the engine's cosmic-text metrics; call
-//! `preloadTextMetrics()` (from `@onda/components`) before inspecting in Node
+//! `preloadTextMetrics()` (from `@onda-engine/components`) before inspecting in Node
 //! for shaped widths instead of the glyph-count estimate.
 
-import { defaultTheme } from '@onda/components'
+import { defaultTheme } from '@onda-engine/components'
 import type { CompositionPayload } from '../types.js'
 import { checkCollisions } from './collisions.js'
 import { SAFE_AREAS, inferFormat } from './constants.js'

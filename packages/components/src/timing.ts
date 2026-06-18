@@ -19,7 +19,7 @@
 //! All registry inputs accept {@link TimeInput} (frames or '0.5s' strings),
 //! parsed with the same grammar the components use.
 
-import { useVideoConfig } from '@onda/react'
+import { useVideoConfig } from '@onda-engine/react'
 import { DURATION, STAGGER } from './motion.js'
 import { type TimeInput, framesOf } from './time.js'
 

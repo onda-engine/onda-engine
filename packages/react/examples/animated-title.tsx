@@ -1,5 +1,5 @@
 /** @jsxRuntime automatic @jsxImportSource react */
-//! Spike: a kinetic per-glyph TITLE REVEAL authored in @onda/react and rendered
+//! Spike: a kinetic per-glyph TITLE REVEAL authored in @onda-engine/react and rendered
 //! by the ONDA engine (no Chromium). Proves the library-authoring recipe for a
 //! real *motion-graphics* component using only existing primitives — and it's
 //! exactly where ONDA out-classes Remotion: a per-glyph reveal is N DOM nodes
@@ -7,7 +7,7 @@
 //! GPU pass here.
 //!
 //! Run:
-//!   pnpm --filter @onda/react exec tsx examples/animated-title.tsx frames.json
+//!   pnpm --filter @onda-engine/react exec tsx examples/animated-title.tsx frames.json
 //! then encode with the engine (no browser anywhere):
 //!   cargo run -p onda-cli -- export-frames frames.json title.mp4 --backend vello
 
@@ -25,7 +25,7 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 
 const W = 1280
 const H = 480

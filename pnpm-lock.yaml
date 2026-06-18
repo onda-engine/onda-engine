@@ -20,10 +20,10 @@ importers:
 
   apps/benchmark:
     dependencies:
-      '@onda/react':
+      '@onda-engine/react':
         specifier: workspace:*
         version: link:../../packages/react
-      '@onda/render':
+      '@onda-engine/render':
         specifier: workspace:*
         version: link:../../packages/render
       '@remotion/bundler':
@@ -44,16 +44,16 @@ importers:
 
   apps/playground:
     dependencies:
-      '@onda/player':
+      '@onda-engine/player':
         specifier: workspace:*
         version: link:../../packages/player
-      '@onda/react':
+      '@onda-engine/react':
         specifier: workspace:*
         version: link:../../packages/react
-      '@onda/wasm':
+      '@onda-engine/wasm':
         specifier: workspace:*
         version: link:../../packages/wasm
-      '@onda/wasm-vello':
+      '@onda-engine/wasm-vello':
         specifier: workspace:*
         version: link:../../packages/wasm-vello
       react:
@@ -84,22 +84,22 @@ importers:
 
   apps/preview:
     dependencies:
-      '@onda/cinema':
+      '@onda-engine/cinema':
         specifier: workspace:*
         version: link:../../packages/cinema
-      '@onda/components':
+      '@onda-engine/components':
         specifier: workspace:*
         version: link:../../packages/components
-      '@onda/player':
+      '@onda-engine/player':
         specifier: workspace:*
         version: link:../../packages/player
-      '@onda/react':
+      '@onda-engine/react':
         specifier: workspace:*
         version: link:../../packages/react
-      '@onda/wasm':
+      '@onda-engine/wasm':
         specifier: workspace:*
         version: link:../../packages/wasm
-      '@onda/wasm-vello':
+      '@onda-engine/wasm-vello':
         specifier: workspace:*
         version: link:../../packages/wasm-vello
       react:
@@ -136,19 +136,19 @@ importers:
       '@astrojs/starlight':
         specifier: ^0.39.2
         version: 0.39.2(astro@6.4.2(@types/node@24.12.4)(rollup@4.61.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(typescript@5.9.3)
-      '@onda/components':
+      '@onda-engine/components':
         specifier: workspace:^
         version: link:../../packages/components
-      '@onda/player':
+      '@onda-engine/player':
         specifier: workspace:^
         version: link:../../packages/player
-      '@onda/react':
+      '@onda-engine/react':
         specifier: workspace:^
         version: link:../../packages/react
-      '@onda/wasm':
+      '@onda-engine/wasm':
         specifier: workspace:^
         version: link:../../packages/wasm
-      '@onda/wasm-vello':
+      '@onda-engine/wasm-vello':
         specifier: workspace:^
         version: link:../../packages/wasm-vello
       astro:
@@ -182,10 +182,10 @@ importers:
 
   packages/cinema:
     dependencies:
-      '@onda/components':
+      '@onda-engine/components':
         specifier: workspace:*
         version: link:../components
-      '@onda/react':
+      '@onda-engine/react':
         specifier: workspace:*
         version: link:../react
     devDependencies:
@@ -201,13 +201,13 @@ importers:
 
   packages/components:
     dependencies:
-      '@onda/react':
+      '@onda-engine/react':
         specifier: workspace:*
         version: link:../react
-      '@onda/wasm':
+      '@onda-engine/wasm':
         specifier: workspace:*
         version: link:../wasm
-      '@onda/wasm-audio':
+      '@onda-engine/wasm-audio':
         specifier: workspace:*
         version: link:../wasm-audio
       react:
@@ -229,7 +229,7 @@ importers:
 
   packages/player:
     dependencies:
-      '@onda/react':
+      '@onda-engine/react':
         specifier: workspace:*
         version: link:../react
     devDependencies:
@@ -276,7 +276,7 @@ importers:
 
   packages/render:
     dependencies:
-      '@onda/react':
+      '@onda-engine/react':
         specifier: workspace:*
         version: link:../react
     devDependencies:

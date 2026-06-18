@@ -26,7 +26,7 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { useTheme } from '../theme.js'
 

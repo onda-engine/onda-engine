@@ -41,7 +41,7 @@ import {
   clipRect,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import type { ReactNode } from 'react'
 import { entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'

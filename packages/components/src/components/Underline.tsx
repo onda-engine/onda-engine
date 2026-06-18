@@ -4,7 +4,7 @@
 //! earned-color moments — reserved for emphasis. Ported from ondajs.
 //!
 //! Layout: ondajs renders a `position: relative` inline-block and sizes the
-//! rule as a `%` of the DOM-measured text width. `@onda/react` has no
+//! rule as a `%` of the DOM-measured text width. `@onda-engine/react` has no
 //! author-time text metrics, so the assembly is hand-laid inside a centered
 //! `<Group>` (the ProgressBar pattern): the rule is positioned ABSOLUTELY at an
 //! explicit `y` below the text and its width animates every frame. An animated
@@ -20,7 +20,7 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { entryFade } from '../choreography.js'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { useTextMetrics } from '../text-metrics.js'

@@ -2,7 +2,7 @@
 //! Ported from ondajs (`audio-visualizer`) and expanded with multiple render
 //! styles via the `type` prop: `bars`, `mirrored`, `waveform`, `radial`, `dots`.
 //!
-//! Pass `src` to drive the bars with REAL audio: `@onda/wasm-audio` decodes the
+//! Pass `src` to drive the bars with REAL audio: `@onda-engine/wasm-audio` decodes the
 //! file and computes a per-frame FFT spectrum — the same analysis the native
 //! `onda export` runs, so preview and export match. Without `src` (or while the
 //! audio loads) it falls back to a deterministic PROCEDURAL spectrum: value noise
@@ -32,7 +32,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
   variantSeed,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { type ReactElement, useMemo } from 'react'
 import { useAudioData } from '../audio.js'
 import { useSpringValue } from '../hooks.js'
@@ -56,7 +56,7 @@ export interface AudioVisualizerProps {
   type?: AudioVisualizerType
   /**
    * Audio file URL to drive the bars with REAL frequency data (decoded + FFT'd by
-   * `@onda/wasm-audio` — identical spectra in preview and export). Omit for the
+   * `@onda-engine/wasm-audio` — identical spectra in preview and export). Omit for the
    * built-in procedural animation. For the browser preview the source must be
    * same-origin or CORS-enabled; `onda export` accepts any direct URL. When set,
    * the player also PLAYS the audio (use the volume/mute control to silence it).
@@ -165,7 +165,7 @@ export function AudioVisualizer({
     Array.isArray(color) && color.length > 1 ? bottomColor : withAlpha(topColor, 0x4d)
 
   // The amplitudes (0..1, low→high) every style renders from. With `src`, these
-  // are REAL FFT magnitudes (decoded + analyzed by @onda/wasm-audio, cached for
+  // are REAL FFT magnitudes (decoded + analyzed by @onda-engine/wasm-audio, cached for
   // the whole clip and indexed by frame); otherwise a deterministic procedural
   // spectrum. While the audio loads, the procedural fallback keeps it live.
   const audio = useAudioData(src)

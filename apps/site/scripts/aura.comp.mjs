@@ -10,7 +10,7 @@ import {
   radialGradient,
   renderFramesJSON,
   useCurrentFrame,
-} from '@onda/react'
+} from '@onda-engine/react'
 // AURA — a cinematic fragrance teaser (1080×1920, 9s). Real media + custom fonts + 3D
 // + beat-synced motion + the cinematic finish, assembled by the ONDA engine.
 // Render: node scripts/aura.comp.mjs > frames.json ; onda export-frames frames.json out.mp4 --font ... --backend vello

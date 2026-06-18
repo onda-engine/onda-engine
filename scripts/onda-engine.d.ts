@@ -5,7 +5,7 @@
 // every export of .vendor-entry.mjs — if the entry gains an export, add it HERE
 // (the bundle's consumers type-check against this file, not the package dists).
 //
-// The bundle inlines React 18 + the @onda/* packages (bun build --target node
+// The bundle inlines React 18 + the @onda-engine/* packages (bun build --target node
 // --format esm), so it is self-contained and isolated from the consumer's own
 // React. Composition elements are deliberately opaque (`CompositionElement`):
 // they're created by `buildComposition` and consumed by `renderToFile` /
@@ -16,14 +16,14 @@
 // `onda_wasm_bg.wasm` (text metrics) ship next to this file; `$ONDA_BIN`
 // overrides the binary path. See manifest.json for the bundle's version/SHA.
 
-/** An @onda/react `<Composition>` element built by {@link buildComposition}.
+/** An @onda-engine/react `<Composition>` element built by {@link buildComposition}.
  *  Opaque on purpose — pass it to renderToFile / renderStillToFile. */
 export type CompositionElement = unknown
 
-// ── @onda/cinema ────────────────────────────────────────────────────────────
+// ── @onda-engine/cinema ────────────────────────────────────────────────────────────
 
 export interface BuildOptions {
-  /** Component lookup. Default: every `@onda/components` component. */
+  /** Component lookup. Default: every `@onda-engine/components` component. */
   registry?: Record<string, unknown>
 }
 
@@ -35,7 +35,7 @@ export interface Diagnostic {
   message: string
 }
 
-/** Build an `@onda/react` `<Composition>` from a timeline payload. Pass the
+/** Build an `@onda-engine/react` `<Composition>` from a timeline payload. Pass the
  *  result to `renderToFile` (export) or `renderStillToFile` (still). */
 export function buildComposition(payload: unknown, opts?: BuildOptions): CompositionElement
 
@@ -81,7 +81,7 @@ export interface InspectReport {
  *  Never blocks — enforcement policy belongs to the caller. */
 export function inspect(payload: unknown, opts?: InspectOptions): InspectReport
 
-// ── @onda/render ────────────────────────────────────────────────────────────
+// ── @onda-engine/render ────────────────────────────────────────────────────────────
 
 export type Backend = 'auto' | 'vello' | 'cpu'
 export type Encoder = 'auto' | 'videotoolbox' | 'nvenc' | 'qsv' | 'libx264'
@@ -126,7 +126,7 @@ export function renderStillToFile(
   options: RenderStillOptions,
 ): Promise<void>
 
-// ── @onda/react ─────────────────────────────────────────────────────────────
+// ── @onda-engine/react ─────────────────────────────────────────────────────────────
 
 /** Register raw `.ttf`/`.otf` bytes with the RENDERER (serialized into the
  *  scene graph for the engine to draw with). Does NOT feed the author-time
@@ -147,7 +147,7 @@ export function renderFrameRangeJSON(
   space?: number,
 ): string
 
-// ── @onda/components ────────────────────────────────────────────────────────
+// ── @onda-engine/components ────────────────────────────────────────────────────────
 
 /** Load a custom font (`.ttf`/`.otf` bytes) into the author-time measurement
  *  engine so `measureText`-driven layout (centering, glyph placement) is
@@ -222,9 +222,9 @@ export interface Capability {
 }
 
 /** The capability catalog — what the engine can do, beyond the component list.
- *  Imported from `@onda/components/manifest`. */
+ *  Imported from `@onda-engine/components/manifest`. */
 export const CAPABILITIES: Capability[]
 
 /** The component manifest — the agent's vocabulary (names + prop schemas +
- *  fidelity/occlusion classes). Imported from `@onda/components/manifest`. */
+ *  fidelity/occlusion classes). Imported from `@onda-engine/components/manifest`. */
 export const MANIFEST: ManifestEntry[]

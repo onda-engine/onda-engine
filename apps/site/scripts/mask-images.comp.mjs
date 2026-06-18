@@ -1,4 +1,4 @@
-import { MaskReveal } from '@onda/components'
+import { MaskReveal } from '@onda-engine/components'
 import {
   Composition,
   Easing,
@@ -10,7 +10,7 @@ import {
   interpolate,
   linearGradient,
   useCurrentFrame,
-} from '@onda/react'
+} from '@onda-engine/react'
 // mask-images.comp.mjs — the two IMAGE-based reveals that read clearly: a photo
 // revealed THROUGH type (track matte), and text BEHIND a person (a cutout layered
 // over the type). Real assets, native render. PERSON/PERSON_W/PERSON_H overridable

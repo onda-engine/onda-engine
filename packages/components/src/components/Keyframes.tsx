@@ -19,7 +19,7 @@ import {
   Text,
   clipRect,
   useCurrentFrame,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { type PosKey, type ValKey, sampleKeyframes } from '../keyframes-sampler.js'
 import { type Theme, useTheme } from '../theme.js'
 
@@ -88,6 +88,12 @@ export type KeyframesContent =
   | KeyframesEllipseContent
   | KeyframesPathContent
 
+/** A keyframe on the path-`d` MORPH track: the `content.kind:"path"` `d` at frame `at`. */
+export interface DMorphKey {
+  at: number
+  d: string
+}
+
 export interface KeyframesProps {
   position?: PosKey[]
   opacity?: ValKey[]
@@ -97,7 +103,48 @@ export interface KeyframesProps {
   /** Non-uniform vertical scale — wins over `scale`. */
   scaleY?: ValKey[]
   rotation?: ValKey[]
+  /** Path-`d` MORPH track — interpolates a `content.kind:"path"` element's `d` across
+   *  keyframes so the SHAPE itself transforms (a wave reforming, a logo morphing). The
+   *  forms must share segment structure (same command sequence) → numeric lerp with
+   *  ease-in-out, exactly like CSS `d:path()`. Ignored for non-path content. */
+  morph?: DMorphKey[]
   content: KeyframesContent
+}
+
+// ── Path-`d` morph: interpolate two same-structure SVG `d` strings number-by-number
+// (keep command letters, lerp the coordinates). Mismatched structure → step (no crash).
+const PATH_TOKENS = /[a-zA-Z]|-?\d*\.?\d+/g
+function lerpPathD(a: string, b: string, t: number): string {
+  const ta = a.match(PATH_TOKENS)
+  const tb = b.match(PATH_TOKENS)
+  if (!ta || !tb || ta.length !== tb.length) return t < 0.5 ? a : b
+  return ta
+    .map((tok, i) =>
+      /[a-zA-Z]/.test(tok)
+        ? tok
+        : (Number(tok) + (Number(tb[i]) - Number(tok)) * t).toFixed(3),
+    )
+    .join(' ')
+}
+function easeInOut(t: number): number {
+  return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2
+}
+function sampleMorph(keys: DMorphKey[], frame: number): string {
+  const first = keys[0]
+  if (!first) return ''
+  const last = keys[keys.length - 1]
+  if (keys.length === 1 || !last || frame <= first.at) return first.d
+  if (frame >= last.at) return last.d
+  let i = 0
+  while (i < keys.length - 1) {
+    const next = keys[i + 1]
+    if (!next || next.at > frame) break
+    i++
+  }
+  const a = keys[i]
+  const b = keys[i + 1]
+  if (!a || !b) return first.d
+  return lerpPathD(a.d, b.d, easeInOut((frame - a.at) / (b.at - a.at)))
 }
 
 // Brand-token names a color/stroke can reference instead of a literal hex — they
@@ -147,6 +194,7 @@ export function Keyframes({
   scaleX,
   scaleY,
   rotation,
+  morph,
   content,
 }: KeyframesProps) {
   const frame = useCurrentFrame()
@@ -197,9 +245,10 @@ export function Keyframes({
       </Group>
     )
   } else if (content.kind === 'path') {
+    const pathD = morph && morph.length > 0 ? sampleMorph(morph, frame) : content.d
     inner = (
       <Group x={-(content.anchorX ?? 0)} y={-(content.anchorY ?? 0)}>
-        <Path d={content.d} {...paint(content, theme, theme.surface)} />
+        <Path d={pathD} {...paint(content, theme, theme.surface)} />
       </Group>
     )
   } else {

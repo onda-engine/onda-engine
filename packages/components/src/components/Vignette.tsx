@@ -14,7 +14,7 @@
 //! edge stop's alpha rather than applied as a layer opacity (the engine
 //! equivalent, since scene nodes have no separate compositing-layer opacity).
 
-import { Rect, radialGradient, useVideoConfig } from '@onda/react'
+import { Rect, radialGradient, useVideoConfig } from '@onda-engine/react'
 import { useTheme } from '../theme.js'
 
 export interface VignetteProps {

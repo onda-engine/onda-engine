@@ -29,7 +29,7 @@
 //! glyphs are drawn offset by -halfWidth). Title/rule widths are ESTIMATED from
 //! glyph count × font size (no author-time text metrics) — see Underline.
 
-import { Group, Path, Text, spring, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Path, Text, spring, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 import { estimatePathLength } from '../path-length.js'
 import { type TextStyleProps, applyTextCase } from '../text-style.js'

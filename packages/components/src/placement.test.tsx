@@ -1,4 +1,4 @@
-import { Composition, renderFrame } from '@onda/react'
+import { Composition, renderFrame } from '@onda-engine/react'
 import { createElement as h } from 'react'
 import { describe, expect, it } from 'vitest'
 import { Button } from './components/Button.js'

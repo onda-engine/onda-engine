@@ -15,7 +15,7 @@ import {
   isPlacement,
   measureText,
   resolvePlacement,
-} from '@onda/components'
+} from '@onda-engine/components'
 import type { Check, Violation } from './report.js'
 import { WRAPPING_COMPONENTS, textBlocks } from './text.js'
 

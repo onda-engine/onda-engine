@@ -6,7 +6,7 @@ import {
   Text,
   fbmGradient,
   useCurrentFrame,
-} from '@onda/react'
+} from '@onda-engine/react'
 // FLOWS AGENT — replication, shot 1 (the title on the warm cloud gradient).
 // Matching ElevenLabs' opening frame (refs/flows-agent.mp4 @ ~1.5s). The cloud
 // gradient is ONDA's fBm gradient; grain is the Effect::Grain pass; type is the

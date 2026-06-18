@@ -6,7 +6,7 @@
 //! that simply DRAWS ON (no shape change) prefer `<DrawOn>`; reach for PathMorph
 //! when the line/shape itself MORPHS.
 //!
-//! Closed shapes morph via `@onda/react`'s `morphPath` (flubber — point
+//! Closed shapes morph via `@onda-engine/react`'s `morphPath` (flubber — point
 //! CORRESPONDENCE so the fill never tears). Open paths use a per-number lerp so the
 //! stroke stays OPEN (flubber re-closes its output into a ring). Feed two `d`
 //! strings in the SAME coordinate space; it animates the in-between over
@@ -14,7 +14,7 @@
 //!
 //! Backend caveat: like `<Path>`, this renders on the Vello/GPU backend; the CPU
 //! reference degrades (no path fills).
-import { Group, Path, interpolate, morphPath, useCurrentFrame } from '@onda/react'
+import { Group, Path, interpolate, morphPath, useCurrentFrame } from '@onda-engine/react'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'
 

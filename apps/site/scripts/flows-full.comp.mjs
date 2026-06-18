@@ -1,4 +1,4 @@
-import { AudioClip, fontMetrics, glyphLayout, measureText } from '@onda/components'
+import { AudioClip, fontMetrics, glyphLayout, measureText } from '@onda-engine/components'
 import {
   Camera,
   Composition,
@@ -12,7 +12,7 @@ import {
   interpolate,
   spring,
   useCurrentFrame,
-} from '@onda/react'
+} from '@onda-engine/react'
 // FLOWS AGENT — 49s replication v3 (reference-verified scene content)
 // 0-2s:   Intro  — gradient + "Flows" → " Agent" types + sub-caption
 // 2-6s:   Prompt — input card slides up, "10-second product ad…" types
@@ -45,7 +45,7 @@ const easeOut = (t) => 1 - (1 - t) ** 3
 const fadeIn = (f, s, e) => easeOut(prg(f, s, e))
 const fadeOut = (f, s, e) => 1 - easeOut(prg(f, s, e))
 
-// Spring configs — house presets (matching @onda/components motion tokens)
+// Spring configs — house presets (matching @onda-engine/components motion tokens)
 const SPRING_SMOOTH = { damping: 200, stiffness: 100, mass: 1 } // overdamped, no bounce
 const SPRING_SNAPPY = { damping: 120, stiffness: 180, mass: 1 } // decisive, still overdamped
 // sp(frame, startFrame, durationInFrames, config?) → 0..1 spring value

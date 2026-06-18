@@ -13,7 +13,7 @@
 //! Backend caveat: video decode + scale/opacity render on the Vello/GPU backend
 //! (the player's default); the CPU reference rasterizer skips video frames.
 
-import { Group, Rect, Video, clipRect, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, Rect, Video, clipRect, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { entryFade, exitFade } from '../choreography.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'

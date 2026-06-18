@@ -31,7 +31,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
   variantSeed,
-} from '@onda/react'
+} from '@onda-engine/react'
 import type { ReactNode } from 'react'
 import { DURATION } from '../motion.js'
 import { type TimeInput, framesOf } from '../time.js'

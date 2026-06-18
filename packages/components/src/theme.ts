@@ -1,4 +1,4 @@
-//! Theme — brand tokens shared across @onda/components.
+//! Theme — brand tokens shared across @onda-engine/components.
 //!
 //! Set once with `<ThemeProvider theme={…}>` and every themed component reads its
 //! color/font defaults from it; an explicit prop on a component always wins. This

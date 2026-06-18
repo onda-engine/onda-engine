@@ -13,7 +13,7 @@
 //! composition. Everything is positioned with explicit x/y (not `<Flex>`) so the
 //! per-frame size change of the ring can't make a layout container reflow/jiggle.
 
-import { Ellipse, Group, Text, interpolate, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Ellipse, Group, Text, interpolate, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { useTextMetrics } from '../text-metrics.js'
 import type { TextStyleProps } from '../text-style.js'
 import { useTheme } from '../theme.js'

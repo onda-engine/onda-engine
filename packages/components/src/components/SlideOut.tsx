@@ -2,7 +2,7 @@
 //! names where the element leaves toward (`'down'` drops it). Place absolutely
 //! (it applies a translate the layout pass would otherwise own).
 
-import { Group, useCurrentFrame } from '@onda/react'
+import { Group, useCurrentFrame } from '@onda-engine/react'
 import type { ReactNode } from 'react'
 import { exitSlide } from '../choreography.js'
 import { DURATION } from '../motion.js'

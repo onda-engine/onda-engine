@@ -1,5 +1,5 @@
 {
-  "name": "@onda/player",
+  "name": "@onda-engine/player",
   "version": "0.0.0",
   "description": "Interactive <Player> for ONDA compositions \u2014 a real-time Canvas2D preview of the scene graph with playback controls.",
   "license": "MIT OR Apache-2.0",
@@ -19,7 +19,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@onda/react": "workspace:*"
+    "@onda-engine/react": "workspace:*"
   },
   "peerDependencies": {
     "react": "^19.2.0"

@@ -5,7 +5,7 @@
 //! (matching ondajs's CSS `transform-origin: center` for centered content), so a
 //! centered element grows in place instead of drifting toward its top-left.
 
-import { Group, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import type { ReactNode } from 'react'
 import { entryScale } from '../choreography.js'
 import { DURATION } from '../motion.js'

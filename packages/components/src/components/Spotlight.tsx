@@ -14,7 +14,7 @@
 //! reference rasterizer collapses a gradient to its first stop (the solid light
 //! color), so the soft reveal is a GPU-only effect.
 
-import { Rect, radialGradient, useVideoConfig } from '@onda/react'
+import { Rect, radialGradient, useVideoConfig } from '@onda-engine/react'
 import { useSpringValue } from '../hooks.js'
 import { DURATION } from '../motion.js'
 import { useTheme } from '../theme.js'

@@ -1,9 +1,9 @@
-import { type CompositionPayload, buildComposition } from '@onda/cinema'
-import { Player } from '@onda/player'
-import initCpu, { OndaEngine } from '@onda/wasm'
-import initVello, { VelloEngine } from '@onda/wasm-vello'
-import velloWasmUrl from '@onda/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
-import cpuWasmUrl from '@onda/wasm/pkg/onda_wasm_bg.wasm?url'
+import { type CompositionPayload, buildComposition } from '@onda-engine/cinema'
+import { Player } from '@onda-engine/player'
+import initCpu, { OndaEngine } from '@onda-engine/wasm'
+import initVello, { VelloEngine } from '@onda-engine/wasm-vello'
+import velloWasmUrl from '@onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
+import cpuWasmUrl from '@onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 // Where the composition payload lives. RELATIVE to the served app (NOT root-
@@ -119,8 +119,8 @@ export function App(): ReactElement {
 
   const { payload } = loaded
 
-  // Build the `@onda/react` element from the payload (default registry pulls in
-  // every `@onda/components` component). Guarded so a malformed payload renders
+  // Build the `@onda-engine/react` element from the payload (default registry pulls in
+  // every `@onda-engine/components` component). Guarded so a malformed payload renders
   // the empty state instead of crashing the whole preview.
   const composition = useMemo<ReactElement | null>(() => {
     if (!hasScenes(payload)) return null

@@ -21,7 +21,7 @@
 //! and per-item visibility is driven by the staggered local frame fed into
 //! `entryFadeRise`, so frame N is correct with zero knowledge of frame N-1.
 
-import { AbsoluteFill, Flex, Group, Text, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { AbsoluteFill, Flex, Group, Text, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import { entryFadeRise } from '../choreography.js'
 import { DURATION, STAGGER, staggerFrames } from '../motion.js'
 import type { TextStyleProps } from '../text-style.js'

@@ -3,7 +3,7 @@
 //! `onda export-frames`). Usage: tsx render-promo.tsx <out.json>
 
 import { writeFileSync } from 'node:fs'
-import { renderFramesJSON } from '@onda/react'
+import { renderFramesJSON } from '@onda-engine/react'
 import { Promo } from './promo.js'
 
 const out = process.argv[2] ?? '/tmp/promo-frames.json'

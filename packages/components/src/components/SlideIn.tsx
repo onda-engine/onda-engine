@@ -5,7 +5,7 @@
 //! parent, or inside an `<AbsoluteFill>`) rather than as a measured `<Flex>`
 //! child, where the layout pass owns translation.
 
-import { Group, useCurrentFrame, useVideoConfig } from '@onda/react'
+import { Group, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
 import type { ReactNode } from 'react'
 import { entrySlide } from '../choreography.js'
 import { DURATION } from '../motion.js'

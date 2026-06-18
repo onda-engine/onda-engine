@@ -42,7 +42,7 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda/react'
+} from '@onda-engine/react'
 import { entryFade, entryScale } from '../choreography.js'
 import { HOUSE_EASE } from '../easing.js'
 import { DURATION, SPRING_SMOOTH, staggerFrames } from '../motion.js'

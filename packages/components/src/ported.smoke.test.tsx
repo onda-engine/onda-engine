@@ -1,4 +1,4 @@
-import { Composition, type Scene, Text, renderFrame } from '@onda/react'
+import { Composition, type Scene, Text, renderFrame } from '@onda-engine/react'
 import type { FunctionComponent } from 'react'
 import { createElement as h } from 'react'
 import { describe, expect, it } from 'vitest'
@@ -249,7 +249,7 @@ const CASES: { name: string; frame: number; props: Record<string, unknown> }[] =
     name: 'CodeBlock',
     frame: 40,
     props: {
-      code: "import { motion } from '@onda/react';\n\nexport const Hero = () => {\n  const x = 100; // accent demo\n  return <Group x={x}>Hello</Group>;\n};",
+      code: "import { motion } from '@onda-engine/react';\n\nexport const Hero = () => {\n  const x = 100; // accent demo\n  return <Group x={x}>Hello</Group>;\n};",
       title: 'hero.tsx',
       chrome: true,
       revealLines: true,
