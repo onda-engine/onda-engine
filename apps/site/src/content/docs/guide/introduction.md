@@ -44,7 +44,7 @@ To stay honest, these are explicitly **not** implemented today (and so are not d
 - **CSS-style layout / flexbox**, variable-font axes, OpenType feature controls, and color/emoji glyphs.
 - The **CPU backend** matches Vello for fills, strokes, gradients and paths, but does **not** apply rotation or clipping, or decode video — those remain GPU-only. See [Backends](/guide/backends).
 
-For the full picture of where ONDA stands against Remotion and the Rust rendering state of the art, see the gap analysis in the repository (`techspecs/gap-analysis.md`).
+For the full picture of where ONDA stands against Remotion and the Rust rendering state of the art, see [Why not Remotion?](/guide/why-onda).
 
 ## Where to go next
 

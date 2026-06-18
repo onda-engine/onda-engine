@@ -18,8 +18,8 @@
 //!
 //! Determinism: every value is a pure function of `frame` (springs are frame-keyed),
 //! so the same frame renders identically every run — in preview and in export.
-//! Custom fonts: until author-time font loading lands (techspecs/text-animators.md
-//! G4), positions are accurate only for the BUNDLED families; a custom `fontFamily`
+//! Custom fonts: until author-time font loading lands, positions are accurate only
+//! for the BUNDLED families; a custom `fontFamily`
 //! measures against the default and may drift from the render.
 
 import {
