@@ -31,7 +31,14 @@
 //! ondajs original tightened by `-0.02em`); the measured width is tracking-aware
 //! so the three copies stay aligned.
 
-import { Group, Text, random, useCurrentFrame, useVideoConfig, variantSeed } from '@onda-engine/react'
+import {
+  Group,
+  Text,
+  random,
+  useCurrentFrame,
+  useVideoConfig,
+  variantSeed,
+} from '@onda-engine/react'
 import { useTextMetrics } from '../text-metrics.js'
 import { type TextStyleProps, applyTextCase } from '../text-style.js'
 import { useTheme } from '../theme.js'

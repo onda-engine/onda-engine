@@ -16,7 +16,14 @@
 //! middle. NO clip — the Image is fit to its own box and the whole reveal is one
 //! unit, sidestepping the renderer's clip-occludes-later-siblings issue.
 
-import { Group, Image, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
+import {
+  Group,
+  Image,
+  interpolate,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from '@onda-engine/react'
 import { DURATION, SPRING_SMOOTH } from '../motion.js'
 
 const CLAMP = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const

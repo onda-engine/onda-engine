@@ -15,7 +15,14 @@
 //! - `wave`  — a gentle sine translateY that ripples across glyphs + fade; the
 //!             ripple phase is the glyph index, so the wave travels the line.
 
-import { Group, Text, interpolate, spring, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
+import {
+  Group,
+  Text,
+  interpolate,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from '@onda-engine/react'
 import { useFittedFontSize } from '../bounds.js'
 import { LINE_RATIO, layoutGlyphLine, lineStartX, lineTopY } from '../glyph-line.js'
 import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'

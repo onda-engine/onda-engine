@@ -75,14 +75,20 @@ export function CardShowcase({
     shift = v * tDecel + v * (tStop - tDecel) * (u - (u * u) / 2) // velocity → 0
   }
   // rotate the whole group right to flat (un-tilt) while it's still sliding
-  const rotation = interpolate(frame, [0, 0.5 * D, 0.76 * D], [tilt, tilt, 0], { easing: ss, ...CLAMP })
+  const rotation = interpolate(frame, [0, 0.5 * D, 0.76 * D], [tilt, tilt, 0], {
+    easing: ss,
+    ...CLAMP,
+  })
   const zoom = interpolate(frame, [0, 0.2 * D, D], [1.06, 1.1, 1.0], { easing: ss, ...CLAMP })
   // the middle row parts to open a center gap (after it's flat) — wide enough to
   // fully clear the logo (a centered card pushed by `gap` clears ~gap−CARD_W/2 each side)
   const gap = interpolate(frame, [0.83 * D, 0.95 * D], [0, 620], { easing: ss, ...CLAMP })
   // logo pop + fade into the gap
   const logoOp = interpolate(frame, [0.86 * D, 0.97 * D], [0, 1], CLAMP)
-  const logoScale = interpolate(frame, [0.86 * D, 0.93 * D, D], [0.55, 1.08, 1.0], { easing: ss, ...CLAMP })
+  const logoScale = interpolate(frame, [0.86 * D, 0.93 * D, D], [0.55, 1.08, 1.0], {
+    easing: ss,
+    ...CLAMP,
+  })
 
   const rowDir = [1, -1, 1] // top → right, middle → left, bottom → right
   const cards: { x: number; y: number; ci: number; key: string }[] = []
@@ -113,14 +119,42 @@ export function CardShowcase({
           const inkMuted = hero ? heroTextColor : isLight ? '#7A7A85' : '#FFFFFF8C'
           return (
             <Group key={key} x={x} y={y}>
-              <Rect x={-CARD_W / 2} y={-CARD_H / 2} width={CARD_W} height={CARD_H} cornerRadius={RADIUS} fill={col} />
-              <Text x={CARD_W / 2 - 150} y={-CARD_H / 2 + 34} fontSize={38} fontWeight={800} fontFamily={family} color={inkBig}>
+              <Rect
+                x={-CARD_W / 2}
+                y={-CARD_H / 2}
+                width={CARD_W}
+                height={CARD_H}
+                cornerRadius={RADIUS}
+                fill={col}
+              />
+              <Text
+                x={CARD_W / 2 - 150}
+                y={-CARD_H / 2 + 34}
+                fontSize={38}
+                fontWeight={800}
+                fontFamily={family}
+                color={inkBig}
+              >
                 {network}
               </Text>
-              <Text x={-CARD_W / 2 + 42} y={-26} fontSize={26} fontWeight={600} fontFamily={family} color={inkMuted}>
+              <Text
+                x={-CARD_W / 2 + 42}
+                y={-26}
+                fontSize={26}
+                fontWeight={600}
+                fontFamily={family}
+                color={inkMuted}
+              >
                 {cardNumber}
               </Text>
-              <Text x={-CARD_W / 2 + 38} y={CARD_H / 2 - 132} fontSize={hero ? 112 : 96} fontWeight={800} fontFamily={family} color={inkBig}>
+              <Text
+                x={-CARD_W / 2 + 38}
+                y={CARD_H / 2 - 132}
+                fontSize={hero ? 112 : 96}
+                fontWeight={800}
+                fontFamily={family}
+                color={inkBig}
+              >
                 {brand}
               </Text>
             </Group>
@@ -129,7 +163,14 @@ export function CardShowcase({
       </Group>
       {logo && logoOp > 0.001 ? (
         <Group originX={cx} originY={cy} scaleX={logoScale} scaleY={logoScale} opacity={logoOp}>
-          <Text x={logoX} y={cy - LOGO * 0.6} fontSize={LOGO} fontWeight={900} fontFamily={family} color={logoCol}>
+          <Text
+            x={logoX}
+            y={cy - LOGO * 0.6}
+            fontSize={LOGO}
+            fontWeight={900}
+            fontFamily={family}
+            color={logoCol}
+          >
             {logo}
           </Text>
         </Group>

@@ -24,7 +24,14 @@
 //!  - ondajs's `placement` (canvas-fraction sub-region) is not modeled; this port
 //!    always fills the composition, which is the original's default behavior.
 
-import { Group, Image, clipRect, interpolate, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
+import {
+  Group,
+  Image,
+  clipRect,
+  interpolate,
+  useCurrentFrame,
+  useVideoConfig,
+} from '@onda-engine/react'
 import { type TimeInput, framesOf } from '../time.js'
 
 /** One drifting image layer. */

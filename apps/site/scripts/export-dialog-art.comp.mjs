@@ -4,7 +4,15 @@
 // + grain. Regenerate: node apps/site/scripts/export-dialog-art.comp.mjs &&
 //   target/release/onda render /tmp/export-dialog-art.json /tmp/export-dialog-art.png --backend vello
 import { writeFileSync } from 'node:fs'
-import { Composition, Ellipse, Group, Image, Rect, linearGradient, renderFrame } from '@onda-engine/react'
+import {
+  Composition,
+  Ellipse,
+  Group,
+  Image,
+  Rect,
+  linearGradient,
+  renderFrame,
+} from '@onda-engine/react'
 import { createElement as h } from 'react'
 
 const W = 1024

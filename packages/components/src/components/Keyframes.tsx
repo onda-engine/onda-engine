@@ -120,9 +120,7 @@ function lerpPathD(a: string, b: string, t: number): string {
   if (!ta || !tb || ta.length !== tb.length) return t < 0.5 ? a : b
   return ta
     .map((tok, i) =>
-      /[a-zA-Z]/.test(tok)
-        ? tok
-        : (Number(tok) + (Number(tb[i]) - Number(tok)) * t).toFixed(3),
+      /[a-zA-Z]/.test(tok) ? tok : (Number(tok) + (Number(tb[i]) - Number(tok)) * t).toFixed(3),
     )
     .join(' ')
 }
