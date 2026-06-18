@@ -7,7 +7,7 @@ ONDA is an early-stage **Rust workspace** with a TypeScript/React authoring laye
 ## Prerequisites
 
 - **Rust** (stable, ≥ 1.80) with `cargo` — for the engine and the `onda` CLI.
-- **Node.js** (≥ 20) and **pnpm** (the repo pins `pnpm@10.5.0`) — for `@onda/react` authoring.
+- **Node.js** (≥ 20) and **pnpm** (the repo pins `pnpm@10.5.0`) — for `@onda-engine/react` authoring.
 - **ffmpeg** on your `PATH` — *only* if you want to export MP4. Animated GIF export is pure Rust and needs no external tools.
 - A **GPU** for the Vello backend. Without one, ONDA falls back to the deterministic CPU backend.
 
@@ -69,23 +69,23 @@ You'll see something like `rendered scene.json -> out.png (640x360, vello backen
 
 ## 4. Author with React instead
 
-Hand-writing JSON gets old fast. `@onda/react` lets you write JSX and emit the same JSON. The example files live in `packages/react/examples/`.
+Hand-writing JSON gets old fast. `@onda-engine/react` lets you write JSX and emit the same JSON. The example files live in `packages/react/examples/`.
 
-:::caution[Rebuild `@onda/react` before running examples]
-The examples import the package's built output (`@onda/react` → `dist/`). After cloning, or after editing the package source, build it first:
+:::caution[Rebuild `@onda-engine/react` before running examples]
+The examples import the package's built output (`@onda-engine/react` → `dist/`). After cloning, or after editing the package source, build it first:
 
 ```bash
-pnpm --filter @onda/react build
+pnpm --filter @onda-engine/react build
 ```
 
-The `tsx` examples will fail to resolve `@onda/react` until `dist/` exists.
+The `tsx` examples will fail to resolve `@onda-engine/react` until `dist/` exists.
 :::
 
 Then run an example. It writes a scene-graph JSON file, which you render with the CLI:
 
 ```bash
 # Author a still scene → scene-graph JSON
-pnpm --filter @onda/react exec tsx examples/hello.tsx out.json
+pnpm --filter @onda-engine/react exec tsx examples/hello.tsx out.json
 
 # Render it through the engine
 cargo run -p onda-cli -- render out.json out.png
@@ -94,7 +94,7 @@ cargo run -p onda-cli -- render out.json out.png
 For an animation, an example emits an array of per-frame scenes that the CLI encodes to a video:
 
 ```bash
-pnpm --filter @onda/react exec tsx examples/animated.tsx frames.json
+pnpm --filter @onda-engine/react exec tsx examples/animated.tsx frames.json
 cargo run -p onda-cli -- export-frames frames.json out.mp4
 # or, with no external tools:
 cargo run -p onda-cli -- export-frames frames.json out.gif

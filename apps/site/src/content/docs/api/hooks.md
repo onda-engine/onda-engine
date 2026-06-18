@@ -2,7 +2,7 @@
 title: "Hooks"
 ---
 
-`@onda/react` components are pure functions of the current frame. These hooks give a component access to the frame and the composition's config. They must be called inside a `<Composition>` that is being rendered by one of the [render functions](/api/render) — otherwise they throw.
+`@onda-engine/react` components are pure functions of the current frame. These hooks give a component access to the frame and the composition's config. They must be called inside a `<Composition>` that is being rendered by one of the [render functions](/api/render) — otherwise they throw.
 
 ## `useCurrentFrame()`
 
@@ -13,7 +13,7 @@ function useCurrentFrame(): number
 ```
 
 ```tsx
-import { Text, interpolate, useCurrentFrame } from '@onda/react'
+import { Text, interpolate, useCurrentFrame } from '@onda-engine/react'
 
 function FadeIn() {
   const frame = useCurrentFrame()
@@ -40,7 +40,7 @@ function useVideoConfig(): VideoConfig
 ```
 
 ```tsx
-import { useCurrentFrame, useVideoConfig, spring } from '@onda/react'
+import { useCurrentFrame, useVideoConfig, spring } from '@onda-engine/react'
 
 function Pop() {
   const frame = useCurrentFrame()

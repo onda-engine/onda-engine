@@ -2,7 +2,7 @@
 title: "Scene-graph JSON"
 ---
 
-The scene graph is plain JSON. This is the exact representation the Rust engine (`onda-scene`) deserializes, and the format `@onda/react` emits. You can hand-write it, generate it from an AI, or produce it from React — it all renders the same way.
+The scene graph is plain JSON. This is the exact representation the Rust engine (`onda-scene`) deserializes, and the format `@onda-engine/react` emits. You can hand-write it, generate it from an AI, or produce it from React — it all renders the same way.
 
 Field names are **snake_case**; enums are **internally tagged** (a discriminant field like `"type"`, `"shape"`, or `"gradient"`).
 

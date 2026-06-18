@@ -1,11 +1,11 @@
 ---
 title: Live demo
-description: An @onda/react composition rendered live in your browser by the GPU engine.
+description: An @onda-engine/react composition rendered live in your browser by the GPU engine.
 ---
 
 import OndaPlayer from '../../../components/OndaPlayer.tsx'
 
-This isn't a video or a recording — it's an `@onda/react` composition rendered **live, right here in your browser** by the GPU engine (Vello over WebGPU), with a CPU fallback when WebGPU isn't available. It's the very same scene graph that `onda export` would write to a PNG, GIF, or MP4.
+This isn't a video or a recording — it's an `@onda-engine/react` composition rendered **live, right here in your browser** by the GPU engine (Vello over WebGPU), with a CPU fallback when WebGPU isn't available. It's the very same scene graph that `onda export` would write to a PNG, GIF, or MP4.
 
 Press play, drag the scrubber, let it loop. The badge in the corner shows which backend is active.
 
@@ -13,7 +13,7 @@ Press play, drag the scrubber, let it loop. The badge in the corner shows which 
 
 ## How it's built
 
-The scene is plain `@onda/react` — a backdrop, a vector `<Path>` wave, a pulsing `<Ellipse>`, two spring-animated `<Text>` titles played back-to-back with `<Series>`, and a gradient underline that wipes in through a clip mask:
+The scene is plain `@onda-engine/react` — a backdrop, a vector `<Path>` wave, a pulsing `<Ellipse>`, two spring-animated `<Text>` titles played back-to-back with `<Series>`, and a gradient underline that wipes in through a clip mask:
 
 ```tsx
 <Composition width={1280} height={480} fps={30} durationInFrames={150}>

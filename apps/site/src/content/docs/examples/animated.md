@@ -9,7 +9,7 @@ import { writeFileSync } from 'node:fs'
 import {
   Composition, Easing, Rect, Text,
   interpolate, renderFramesJSON, useCurrentFrame,
-} from '@onda/react'
+} from '@onda-engine/react'
 
 function Title() {
   const frame = useCurrentFrame()
@@ -40,7 +40,7 @@ console.log(`wrote ${out}`)
 
 ```bash
 # Author all 30 frames → a JSON array of scene graphs
-pnpm --filter @onda/react exec tsx examples/animated.tsx frames.json
+pnpm --filter @onda-engine/react exec tsx examples/animated.tsx frames.json
 
 # Encode to MP4 (needs ffmpeg on PATH)...
 cargo run -p onda-cli -- export-frames frames.json out.mp4

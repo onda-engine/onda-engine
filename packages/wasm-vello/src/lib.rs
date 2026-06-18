@@ -2,7 +2,7 @@
 //!
 //! This runs the *real* GPU vector renderer — `onda-vello` (Vello 0.3 / wgpu 22)
 //! — in the browser over **WebGPU**, with no DOM and no Chromium. Unlike the CPU
-//! `@onda/wasm` engine, it draws the full vector feature set (anti-aliased
+//! `@onda-engine/wasm` engine, it draws the full vector feature set (anti-aliased
 //! fills + strokes, arbitrary paths, gradients, clip masks, native glyph text),
 //! so an in-browser preview built on it is pixel-identical to
 //! `onda export --backend vello`.

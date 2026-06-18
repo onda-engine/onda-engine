@@ -1,14 +1,14 @@
 ---
-title: "@onda/react — Components"
+title: "@onda-engine/react — Components"
 ---
 
-All components and helpers are imported from `@onda/react`. Each component is a typed wrapper that emits a scene-graph node.
+All components and helpers are imported from `@onda-engine/react`. Each component is a typed wrapper that emits a scene-graph node.
 
 ```tsx
 import {
   Composition, Group, Rect, Ellipse, Path, Text, Image, Video, Svg,
   linearGradient, radialGradient, clipRect, clipEllipse, clipPath, parseColor,
-} from '@onda/react'
+} from '@onda-engine/react'
 ```
 
 ## Shared props
@@ -162,7 +162,7 @@ video`). Renders on the GPU/Vello backend.
 Hex strings accept `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`. Object components are in 0..1.
 
 ```ts
-import { parseColor } from '@onda/react'
+import { parseColor } from '@onda-engine/react'
 parseColor('#3b82f6')          // { r: 0.231..., g: 0.510..., b: 0.964... }
 parseColor({ r: 1, g: 0, b: 0, a: 0.5 })
 ```

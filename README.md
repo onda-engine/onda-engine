@@ -58,7 +58,7 @@ flowchart LR
 Author a composition in React/JSX — the same DX as Remotion (`useCurrentFrame`, `interpolate`, `spring`, `<Sequence>`), compiled to a plain scene-graph JSON the engine renders.
 
 ```tsx
-import { Composition, Rect, Text, linearGradient } from '@onda/react'
+import { Composition, Rect, Text, linearGradient } from '@onda-engine/react'
 
 export const Hello = () => (
   <Composition width={1920} height={1080} fps={30} durationInFrames={90}>
@@ -104,7 +104,7 @@ onda export movie.json out.mp4 --backend vello
 
 ## How it works
 
-A custom React reconciler (`@onda/react`) compiles JSX into scene-graph JSON. `@onda/cinema` compiles a higher-level timeline composition (scenes / entries / choreography) into that scene graph. The `onda` CLI (`cli-rs`) rasterizes a scene and encodes it; `@onda/render` is the Node wrapper that drives the CLI for exports.
+A custom React reconciler (`@onda-engine/react`) compiles JSX into scene-graph JSON. `@onda-engine/cinema` compiles a higher-level timeline composition (scenes / entries / choreography) into that scene graph. The `onda` CLI (`cli-rs`) rasterizes a scene and encodes it; `@onda-engine/render` is the Node wrapper that drives the CLI for exports.
 
 ```mermaid
 flowchart TD
@@ -132,12 +132,12 @@ flowchart TD
 
 | Package | What it is |
 |---|---|
-| `@onda/react` | Custom React reconciler — JSX → scene-graph JSON |
-| `@onda/components` | The motion-graphics component & choreography library (titles, kinetic type, gradients, charts, transitions…) |
-| `@onda/cinema` | Timeline-composition spec → engine scene compiler (choreography, camera, 2.5D depth, finish) |
-| `@onda/render` | Node wrapper that drives the native `onda` CLI to export MP4/PNG |
-| `@onda/player` | In-browser preview surface |
-| `@onda/wasm` · `@onda/wasm-vello` · `@onda/wasm-audio` | WASM bindings (text metrics, raster, audio) for the browser preview path |
+| `@onda-engine/react` | Custom React reconciler — JSX → scene-graph JSON |
+| `@onda-engine/components` | The motion-graphics component & choreography library (titles, kinetic type, gradients, charts, transitions…) |
+| `@onda-engine/cinema` | Timeline-composition spec → engine scene compiler (choreography, camera, 2.5D depth, finish) |
+| `@onda-engine/render` | Node wrapper that drives the native `onda` CLI to export MP4/PNG |
+| `@onda-engine/player` | In-browser preview surface |
+| `@onda-engine/wasm` · `@onda-engine/wasm-vello` · `@onda-engine/wasm-audio` | WASM bindings (text metrics, raster, audio) for the browser preview path |
 
 **Rust** (`packages/*-rs`, Cargo workspace)
 
@@ -190,7 +190,7 @@ The CI **[Release workflow](.github/workflows/release.yml)** builds a linux `x86
 Pre-1.0 — the engine powers a production studio, but the public API isn't frozen and nothing is on npm yet. See **[PUBLISHING.md](PUBLISHING.md)** for the (deliberately deferred) release flow.
 
 - **Quality gates:** CI runs Rust `fmt`/`clippy`/tests + a golden-frame determinism harness, the TS build + Biome, and a headless-Linux **render smoke test** (Vello on lavapipe) — proving server-side rendering on every change.
-- **Roadmap:** published `@onda/*` packages · multi-platform embed kits (macOS / Windows) · richer 3D · docs site at [onda.video](https://onda.video).
+- **Roadmap:** published `@onda-engine/*` packages · multi-platform embed kits (macOS / Windows) · richer 3D · docs site at [onda.video](https://onda.video).
 
 <br/>
 

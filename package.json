@@ -15,7 +15,7 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "changeset": "changeset",
-    "changeset:version": "changeset version",
+    "changeset:version": "changeset version && pnpm install --lockfile-only",
     "changeset:publish": "pnpm -r build && changeset publish"
   },
   "devDependencies": {

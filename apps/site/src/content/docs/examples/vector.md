@@ -9,7 +9,7 @@ import { writeFileSync } from 'node:fs'
 import {
   Composition, Ellipse, Group, Path, Rect, Text,
   clipRect, linearGradient, radialGradient, renderToSceneJSON,
-} from '@onda/react'
+} from '@onda-engine/react'
 
 const STAR = 'M50 0 L61 35 L98 35 L68 57 L79 91 L50 70 L21 91 L32 57 L2 35 L39 35 Z'
 
@@ -70,7 +70,7 @@ console.log(`wrote ${out}`)
 ## Run it
 
 ```bash
-pnpm --filter @onda/react exec tsx examples/vector.tsx vector.json
+pnpm --filter @onda-engine/react exec tsx examples/vector.tsx vector.json
 cargo run -p onda-cli -- render vector.json vector.png
 ```
 

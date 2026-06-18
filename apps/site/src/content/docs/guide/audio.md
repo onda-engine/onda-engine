@@ -10,7 +10,7 @@ Sound is part of the graph, not bolted on. ONDA covers three things: **playing**
 A non-visual node that plays during preview and is **muxed into the MP4** on export (GIF has no audio track).
 
 ```tsx
-import { Audio, Sequence } from '@onda/react'
+import { Audio, Sequence } from '@onda-engine/react'
 
 <Sequence from={30}>
   <Audio src="/score.mp3" start={1} startAt={0.5} volume={0.8} />
@@ -22,14 +22,14 @@ import { Audio, Sequence } from '@onda/react'
 - **`startAt`** — seconds into the source to begin from (trim the head). Default `0`.
 - **`volume`** — linear gain `0..1`. Default `1`.
 
-`@onda/components` wraps this with a fade envelope as `<AudioClip>`.
+`@onda-engine/components` wraps this with a fade envelope as `<AudioClip>`.
 
 ## Audio-reactive motion — cut to the music
 
-`@onda/components` analyses a clip into a **frame-unit beat grid** that is deterministic and identical in preview and export. Drive motion straight from it.
+`@onda-engine/components` analyses a clip into a **frame-unit beat grid** that is deterministic and identical in preview and export. Drive motion straight from it.
 
 ```tsx
-import { useAudioBeats, beatPulse, isBeat } from '@onda/components'
+import { useAudioBeats, beatPulse, isBeat } from '@onda-engine/components'
 
 function Kick({ src }) {
   const frame = useCurrentFrame()
@@ -45,7 +45,7 @@ function Kick({ src }) {
 - **`onsetEnv[frame]`** (`0..1`) — transient energy, for glows and shakes.
 - **`useAudioData(src)`** → the lower-level `AudioAnalyzer` (spectrogram bands) behind a spectrum **`<AudioVisualizer>`**.
 
-Analysis runs through **`@onda/wasm-audio`** (`symphonia` + `rustfft`), so the browser and native export compute **identical** spectra and beat grids.
+Analysis runs through **`@onda-engine/wasm-audio`** (`symphonia` + `rustfft`), so the browser and native export compute **identical** spectra and beat grids.
 
 :::tip[Edited *to* the music]
 `beatPulse` punches on the beat, `isBeat` cuts on it, and `onsetEnv` drives transient glows — the "edited to the track" layer. It's deterministic, so what you punch in preview is exactly what exports.
@@ -71,7 +71,7 @@ cargo run -p onda-cli --example synth_json -- graph.json out.wav
 | Capability | Browser preview | Native export |
 | --- | :---: | :---: |
 | `<Audio>` playback | ✅ plays | ✅ muxed to AAC in MP4 |
-| beats / spectrum (`@onda/wasm-audio`) | ✅ | ✅ (identical) |
+| beats / spectrum (`@onda-engine/wasm-audio`) | ✅ | ✅ (identical) |
 | `AudioGraph` synthesis | ✅ (wasm) | ✅ |
 
 ## See also

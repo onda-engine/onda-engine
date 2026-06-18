@@ -44,10 +44,10 @@ step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 
 # ── 1. TS dists the vendor entry imports (.vendor-entry.mjs → packages/*/dist) ─
 step "Building @onda TS dists (react, components, cinema, render)"
-pnpm --filter @onda/react --filter @onda/components --filter @onda/cinema \
-  --filter @onda/render build
+pnpm --filter @onda-engine/react --filter @onda-engine/components --filter @onda-engine/cinema \
+  --filter @onda-engine/render build
 
-# ── 2. Bundle the vendor entry (React + @onda/* inlined, Node ESM) ───────────
+# ── 2. Bundle the vendor entry (React + @onda-engine/* inlined, Node ESM) ───────────
 step "Bundling .vendor-entry.mjs -> $OUT/onda-engine.js"
 bun build .vendor-entry.mjs --target node --format esm --outfile "$OUT/onda-engine.js"
 
@@ -89,7 +89,7 @@ fi
 WASM="packages/wasm/pkg/onda_wasm_bg.wasm"
 if [[ ! -f "$WASM" ]]; then
   echo "error: $WASM not found — build it first with:" >&2
-  echo "  pnpm --filter @onda/wasm build" >&2
+  echo "  pnpm --filter @onda-engine/wasm build" >&2
   echo "(cargo build -p onda-wasm --target wasm32-unknown-unknown --release + wasm-bindgen)" >&2
   exit 1
 fi

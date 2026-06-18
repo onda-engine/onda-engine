@@ -2,7 +2,7 @@
 title: "Rendering & export"
 ---
 
-The `onda` CLI is the command-line **adapter** for the engine. Per the charter, the scene graph is the universal language and the renderer is the platform; the CLI just turns a scene-graph JSON document into a rendered image or video. Anything that emits that JSON — `@onda/react`, an AI system, a hand-authored file — renders the same way.
+The `onda` CLI is the command-line **adapter** for the engine. Per the charter, the scene graph is the universal language and the renderer is the platform; the CLI just turns a scene-graph JSON document into a rendered image or video. Anything that emits that JSON — `@onda-engine/react`, an AI system, a hand-authored file — renders the same way.
 
 Invoke it via `cargo run -p onda-cli -- <args>`, or call the built binary at `target/release/onda` after `cargo build --release`.
 
@@ -35,14 +35,14 @@ The `movie.json` shape is a scene plus a `timeline` of keyframe animations targe
 
 ### `onda export-frames` — pre-evaluated frames
 
-Encodes a **JSON array of scene graphs** (one per frame) to a video. This is exactly what `@onda/react`'s `renderFramesJSON` emits, so it's the usual path for React-authored animations.
+Encodes a **JSON array of scene graphs** (one per frame) to a video. This is exactly what `@onda-engine/react`'s `renderFramesJSON` emits, so it's the usual path for React-authored animations.
 
 ```bash
 onda export-frames <frames.json> <out.gif|out.mp4> [--backend ...] [--system-fonts]
 ```
 
 ```bash
-pnpm --filter @onda/react exec tsx examples/animated.tsx frames.json
+pnpm --filter @onda-engine/react exec tsx examples/animated.tsx frames.json
 cargo run -p onda-cli -- export-frames frames.json out.mp4
 ```
 

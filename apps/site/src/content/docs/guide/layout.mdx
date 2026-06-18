@@ -18,7 +18,7 @@ Try it — change `direction` / `justify` / `align` and watch a `<Flex>` re-lay-
 `<AbsoluteFill>` fills the whole composition and lays its children out as a column. Combine with `justify`/`align` to center — the idiomatic "title in the middle" container:
 
 ```tsx
-import { AbsoluteFill, Text } from '@onda/react'
+import { AbsoluteFill, Text } from '@onda-engine/react'
 
 ;<AbsoluteFill justify="center" align="center">
   <Text fontSize={96} fontFamily="IBM Plex Sans" fontWeight={700}>
@@ -43,7 +43,7 @@ import { AbsoluteFill, Text } from '@onda/react'
 Plus the usual `NodeProps` (`x`, `y`, …) to place the container itself.
 
 ```tsx
-import { Flex, Rect } from '@onda/react'
+import { Flex, Rect } from '@onda-engine/react'
 
 // A centered row of three pills near the bottom of a 1280-wide canvas.
 ;<Flex x={0} y={408} width={1280} direction="row" justify="center" gap={16}>

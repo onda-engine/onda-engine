@@ -149,7 +149,7 @@ prefer WebP/AVIF/SVG.
 ## Example code (use verbatim-ish in hero/docs)
 
 ```tsx
-import { Composition, Rect, Text, Path, linearGradient } from '@onda/react'
+import { Composition, Rect, Text, Path, linearGradient } from '@onda-engine/react'
 
 export const Hello = () => (
   <Composition width={1920} height={1080} fps={30} durationInFrames={90}>

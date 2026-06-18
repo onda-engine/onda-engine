@@ -37,10 +37,10 @@ Renders an **animated document** — `{ "scene": ..., "timeline": ... }` — to 
 onda export-frames <frames.json> <out.gif|.mp4> [--backend ...] [--system-fonts]
 ```
 
-Encodes a JSON **array of scene graphs** (one per frame) to a video — exactly what `@onda/react`'s `renderFramesJSON` emits. `fps` is read from the first frame's composition.
+Encodes a JSON **array of scene graphs** (one per frame) to a video — exactly what `@onda-engine/react`'s `renderFramesJSON` emits. `fps` is read from the first frame's composition.
 
 ```bash
-pnpm --filter @onda/react exec tsx examples/animated.tsx frames.json
+pnpm --filter @onda-engine/react exec tsx examples/animated.tsx frames.json
 cargo run -p onda-cli -- export-frames frames.json out.mp4
 ```
 

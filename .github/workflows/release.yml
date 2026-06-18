@@ -69,12 +69,12 @@ jobs:
 
       # build-embed-kit.sh requires packages/wasm/pkg/onda_wasm_bg.wasm to exist,
       # and pkg/ is gitignored — mint it the same way the repo does (the package's
-      # own cargo + wasm-bindgen build script). @onda/wasm-audio is built too: the
-      # bun-bundled vendor entry resolves it through @onda/components.
+      # own cargo + wasm-bindgen build script). @onda-engine/wasm-audio is built too: the
+      # bun-bundled vendor entry resolves it through @onda-engine/components.
       - name: Build wasm bindings (pkg/)
         run: |
-          pnpm --filter @onda/wasm build
-          pnpm --filter @onda/wasm-audio build
+          pnpm --filter @onda-engine/wasm build
+          pnpm --filter @onda-engine/wasm-audio build
 
       - name: Build studio bundle
         run: bash scripts/build-embed-kit.sh --out dist/embed-kit
