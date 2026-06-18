@@ -22,6 +22,7 @@ import { browserFrameSchema } from './components/BrowserFrame.schema.js'
 import { buttonSchema } from './components/Button.schema.js'
 import { calloutSchema } from './components/Callout.schema.js'
 import { cameraShakeSchema } from './components/CameraShake.schema.js'
+import { cardShowcaseSchema } from './components/CardShowcase.schema.js'
 import { captionsSchema } from './components/Captions.schema.js'
 import { chapterCardSchema } from './components/ChapterCard.schema.js'
 import { codeBlockSchema } from './components/CodeBlock.schema.js'
@@ -8989,6 +8990,41 @@ const RAW: RawEntry[] = [
       },
     ],
     schema: staggerGroupSchema,
+  },
+  {
+    slug: 'card-showcase',
+    name: 'CardShowcase',
+    category: 'Content',
+    title: 'Card Showcase',
+    description:
+      'A premium card/product showcase: a tilted 3×3 grid of cards (a colored brand HERO in the center + muted tier variants) that settles with a slight zoom, slides its three rows apart on diagonals, then converges to a centered cluster as the middle parts to reveal the brand. Built for fintech/brand/product ads.',
+    pickWhen:
+      'Use to launch a card-based product or a brand (fintech cards, membership tiers, app screens) with a confident, ad-grade reveal that lands on the brand in the center.',
+    composes: [],
+    sceneRole: 'block',
+    occlusion: 'full_frame',
+    example: {
+      brand: 'Lumen',
+      network: 'VISA',
+      heroColor: '#3D2BE0',
+      tierColors: ['#111114', '#F3F3F6', '#8E93A1', '#5B3EE0'],
+      duration: '8s',
+    },
+    props: [
+      { name: 'brand', type: 'string', role: 'text', themeable: false, required: false, default: "'Lumen'", description: 'Brand wordmark shown big on the hero card + as the centered logo.' },
+      { name: 'network', type: 'string', role: 'text', themeable: false, required: false, default: "'VISA'", description: 'Payment-network mark on the hero card (e.g. VISA, Mastercard).' },
+      { name: 'cardNumber', type: 'string', role: 'text', themeable: false, required: false, default: "'···· 3346'", description: 'Masked card number on the hero card.' },
+      { name: 'heroColor', type: 'string', role: 'color', themeable: false, required: false, default: "'#3D2BE0'", description: 'Hero card fill — the brand color.' },
+      { name: 'heroTextColor', type: 'string', role: 'color', themeable: false, required: false, default: "'#EAEAFF'", description: 'Text color on the hero card.' },
+      { name: 'tierColors', type: 'stringArray', role: 'color', themeable: false, required: false, description: 'Palette for the surrounding tier cards (4–6 reads best).' },
+      { name: 'background', type: 'string', role: 'color', themeable: true, required: false, default: "'#ECECEF'", description: 'Canvas behind the cards.' },
+      { name: 'tilt', type: 'number', role: 'number', themeable: false, required: false, default: '-22', unit: 'deg', description: 'Grid tilt in degrees; rotates to 0 (flat) at the end.' },
+      { name: 'speed', type: 'number', role: 'number', themeable: false, required: false, default: '320', description: 'Slide speed in px/sec.' },
+      { name: 'logo', type: 'string', role: 'text', themeable: false, required: false, default: "''", description: 'Center logo text revealed at the end (e.g. a brand). Empty = none.' },
+      { name: 'logoColor', type: 'string', role: 'color', themeable: false, required: false, description: 'Logo color (default: heroColor).' },
+      { name: 'duration', type: 'int', role: 'durationFrames', themeable: false, required: false, default: "'10s'", description: "Total length of the choreography. Accepts frames or a time string ('10s', '600f')." },
+    ],
+    schema: cardShowcaseSchema,
   },
   {
     slug: 'stat-card',
