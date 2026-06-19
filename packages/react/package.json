@@ -2,7 +2,7 @@
   "name": "@onda-engine/react",
   "version": "0.1.0",
   "description": "Write React, get an ONDA scene graph. A custom React renderer that compiles JSX into the engine's scene-graph JSON.",
-  "license": "MIT OR Apache-2.0",
+  "license": "FSL-1.1-ALv2",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

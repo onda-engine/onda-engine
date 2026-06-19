@@ -2,7 +2,7 @@
   "name": "@onda-engine/render",
   "version": "0.1.0",
   "description": "Render @onda-engine/react compositions to a video/still file via the ONDA engine — the no-Chromium equivalent of Remotion's renderMedia.",
-  "license": "MIT OR Apache-2.0",
+  "license": "FSL-1.1-ALv2",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

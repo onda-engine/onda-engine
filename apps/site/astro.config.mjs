@@ -7,7 +7,7 @@ import { defineConfig } from 'astro/config'
 // (Starlight, src/content/docs/**). Static output: `astro build` -> ./dist,
 // hostable on any static host (Cloudflare Pages / Netlify / Vercel) with no
 // server. Branding follows assets/brand/BRAND.md (onda.video-aligned).
-const REPO = 'https://github.com/degueba/onda-engine'
+const REPO = 'https://github.com/onda-engine/onda-engine'
 
 export default defineConfig({
   site: 'https://onda.video',
@@ -21,7 +21,7 @@ export default defineConfig({
     starlight({
       title: 'ONDA',
       description:
-        'Motion graphics at GPU speed. No browser. An open-source, GPU-native motion-graphics engine in Rust.',
+        'Motion graphics at GPU speed. No browser. A source-available, GPU-native motion-graphics engine in Rust.',
       logo: { src: './src/assets/onda-mark.svg' },
       favicon: '/favicon.svg',
       customCss: ['./src/styles/brand.css'],

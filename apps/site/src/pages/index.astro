@@ -8,7 +8,7 @@
 // Proof — then a credibility strip, the Studio upsell, and the CTA. The proof
 // numbers are synced to the repo benchmark (apps/benchmark/README.md): the
 // honest measured multiples, with 100× labelled as the architectural target.
-const REPO = 'https://github.com/degueba/onda-engine'
+const REPO = 'https://github.com/onda-engine/onda-engine'
 const BENCH = `${REPO}/tree/main/apps/benchmark`
 // ONDA Studio — the hosted product on top of the open engine. Point this at the
 // live app (or a waitlist) when it ships; it's the only off-site, paid CTA.
@@ -24,7 +24,7 @@ const year = new Date().getFullYear()
     <title>ONDA — Motion graphics at GPU speed. No browser.</title>
     <meta
       name="description"
-      content="ONDA is an open-source, GPU-native, browser-free motion-graphics engine in Rust. Author in React, render through a native GPU pipeline — no Chromium anywhere."
+      content="ONDA is a source-available, GPU-native, browser-free motion-graphics engine in Rust. Author in React, render through a native GPU pipeline — no Chromium anywhere."
     />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#0e0e12" />
@@ -41,7 +41,7 @@ const year = new Date().getFullYear()
     <meta property="og:title" content="ONDA — Motion graphics at GPU speed. No browser." />
     <meta
       property="og:description"
-      content="Open-source, GPU-native, browser-free motion-graphics engine in Rust. Author in React; render through a native GPU pipeline."
+      content="Source-available, GPU-native, browser-free motion-graphics engine in Rust. Author in React; render through a native GPU pipeline."
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -288,7 +288,7 @@ const year = new Date().getFullYear()
               </li>
             </ul>
             <div class="features__note">
-              <p>Built on a Rust workspace, fully open source under <strong>MIT OR Apache-2.0</strong>. <a href="/guide/introduction">Read the docs →</a></p>
+              <p>Built on a Rust workspace, source-available under <strong>FSL-1.1-Apache-2.0</strong>. <a href="/guide/introduction">Read the docs →</a></p>
             </div>
           </div>
         </section>
@@ -379,8 +379,8 @@ const year = new Date().getFullYear()
           <div class="container creds__inner">
             <ul class="creds__list" role="list">
               <li class="creds__item">
-                <span class="creds__k">MIT OR Apache-2.0</span>
-                <span class="creds__v">Permissive, dual-licensed</span>
+                <span class="creds__k">FSL-1.1-Apache-2.0</span>
+                <span class="creds__v">Source-available · Apache-2.0 in 2 yrs</span>
               </li>
               <li class="creds__item">
                 <span class="creds__k">Pure Rust</span>
@@ -414,15 +414,15 @@ const year = new Date().getFullYear()
                   You've met the engine. <span class="accent-text">Meet its director.</span>
                 </h2>
                 <p class="section__lede studio__lede">
-                  Studio is the hosted AI director on top of the open engine: describe the film,
+                  Studio is the hosted AI director on top of the same engine: describe the film,
                   and it authors the composition, the cut, the grade, and the score — then renders
                   it through <strong>the exact pipeline on this page</strong>. Same scene graph,
-                  same deterministic frames. The engine stays free and open source; Studio is for
+                  same deterministic frames. The engine stays free to use and source-available; Studio is for
                   the days you'd rather direct than build.
                 </p>
                 <div class="studio__actions">
                   <a class="btn btn--studio" href={STUDIO_URL} rel="noopener">Direct your first film →</a>
-                  <span class="studio__note">Engine: open source, forever. Studio: hosted, on top.</span>
+                  <span class="studio__note">Engine: source-available, free to self-host. Studio: hosted, on top.</span>
                 </div>
               </div>
 
@@ -452,7 +452,7 @@ const year = new Date().getFullYear()
             <h2 id="cta-title" class="cta__title">Render your first frame without a browser</h2>
             <p class="cta__sub">
               <code>cargo</code> + <code>pnpm</code> and you're rendering in minutes. Clone,
-              compose, export — all open source.
+              compose, export — the source is all public.
             </p>
             <a class="btn btn--primary btn--lg" href="/guide/getting-started">Get started</a>
           </div>
@@ -487,12 +487,12 @@ const year = new Date().getFullYear()
           </nav>
         </div>
         <div class="container footer__bottom">
-          <p>© {year} ONDA. Open source under <strong>MIT OR Apache-2.0</strong>.</p>
-          <a href={REPO} rel="noopener">github.com/degueba/onda-engine</a>
+          <p>© {year} ONDA. Source-available under <strong>FSL-1.1-Apache-2.0</strong>.</p>
+          <a href={REPO} rel="noopener">github.com/onda-engine/onda-engine</a>
         </div>
         <div class="container footer__legal">
           <p>
-            ONDA Engine is an independent open-source project. It is not affiliated with, endorsed
+            ONDA Engine is an independent, source-available project. It is not affiliated with, endorsed
             by, or sponsored by Remotion GmbH or Adobe Inc. “Remotion” is a trademark of Remotion
             GmbH; “Adobe” and “After Effects” are trademarks of Adobe Inc. Third-party names are
             used for identification and comparison only. Performance comparisons are based on our

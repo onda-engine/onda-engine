@@ -2,7 +2,7 @@
   "name": "@onda-engine/wasm-audio",
   "version": "0.1.0",
   "description": "ONDA audio analysis (decode + FFT spectrum) compiled to WebAssembly — drives audio-reactive visuals in the browser, identical to the native export.",
-  "license": "MIT OR Apache-2.0",
+  "license": "FSL-1.1-ALv2",
   "type": "module",
   "main": "./pkg/onda_wasm_audio.js",
   "types": "./pkg/onda_wasm_audio.d.ts",

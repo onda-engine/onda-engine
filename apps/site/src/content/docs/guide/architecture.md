@@ -70,4 +70,4 @@ The reconciler maps each component to a host element, then serializes the tree t
 - **Concurrency** — one process with shared GPU buffers (vs a full browser per worker) means far higher render concurrency per machine.
 - **AI-native** — because the scene graph is plain JSON, a prompt can produce a scene directly, without generating source code.
 
-For where this stands against Remotion and the Rust rendering state of the art, see [Why not Remotion?](/guide/why-onda) and the repository's `techspecs/gap-analysis.md`.
+For where this stands against Remotion and the Rust rendering state of the art, see [Why not Remotion?](/guide/why-onda).

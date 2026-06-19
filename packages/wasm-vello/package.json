@@ -2,7 +2,7 @@
   "name": "@onda-engine/wasm-vello",
   "version": "0.1.0",
   "description": "The ONDA Vello (GPU) renderer compiled to WebAssembly — Vello in the browser over WebGPU (no DOM, no Chromium).",
-  "license": "MIT OR Apache-2.0",
+  "license": "FSL-1.1-ALv2",
   "type": "module",
   "main": "./index.js",
   "types": "./index.d.ts",

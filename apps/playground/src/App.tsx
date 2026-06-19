@@ -347,8 +347,8 @@ export function App(): ReactElement {
       </section>
 
       <footer style={styles.footer}>
-        Open source · MIT / Apache-2.0 ·{' '}
-        <a style={styles.link} href="https://github.com/degueba/onda-engine">
+        Source-available · FSL-1.1-Apache-2.0 ·{' '}
+        <a style={styles.link} href="https://github.com/onda-engine/onda-engine">
           GitHub
         </a>
       </footer>
