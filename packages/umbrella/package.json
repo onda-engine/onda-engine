@@ -72,7 +72,12 @@
     },
     "./wasm-vello/*": "./dist/wasm-vello/*"
   },
-  "files": ["dist", "README.md", "LICENSE", "LICENSE-APACHE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "LICENSE-APACHE"
+  ],
   "scripts": {
     "build": "tsup",
     "clean": "rm -rf dist",
