@@ -45,7 +45,8 @@ export default defineConfig({
   esbuildPlugins: [rewriteInternalScope],
   // Real third-party deps stay external (declared in package.json deps/peers).
   external: ['react', 'react-dom', 'react/jsx-runtime', 'react-reconciler', 'flubber', 'zod'],
-  // Copy the prebuilt wasm artifacts in beside the JS so each `.wasm` ships
-  // adjacent to its wasm-bindgen glue (the browser auto-locate contract).
-  onSuccess: 'node scripts/copy-wasm.mjs',
+  // NOTE: the wasm artifacts are copied in by a SEPARATE post-build step
+  // (`tsup && node scripts/copy-wasm.mjs` in package.json), NOT via `onSuccess`.
+  // onSuccess races the parallel DTS build, which then wipes the copied wasm
+  // `.d.ts` files it doesn't own — so the copy must run strictly after tsup exits.
 })
