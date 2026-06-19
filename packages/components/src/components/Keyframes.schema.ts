@@ -51,26 +51,55 @@ const gradientSchema = z
   ])
   .describe('Gradient fill (linear/radial/fbm) used when `src` is absent — wins over `color`.')
 
+// ── Slot binding ──────────────────────────────────────────────────────────────
+// A NAMED, optional convenience layer for re-skinning a template into a FAMILY — it does
+// NOT restrict editing. Any field is still freely settable to a plain literal (the agent
+// edits ANYTHING directly), and the motion keyframes are edited as tracks; slots just add
+// a shareable handle on top. A slot-bound field carries: `slot` (the binding id —
+// elements may SHARE one, so one set_slot recolors/resizes them together); `default` (the
+// original literal, rendered until something sets `value`, so a converted template is
+// byte-identical); and `value` (the override, which wins). For a color, value/default is
+// ANY string: a brand-token name ("accent" → recolors with the brand) OR a literal hex
+// ("#00ff00" → fixed). NOT limited to brand tokens.
+const slotRef = <T extends z.ZodTypeAny>(inner: T) =>
+  z.object({
+    slot: z
+      .string()
+      .describe('Slot binding id — the handle set_slot targets; fills may share one.'),
+    default: inner.describe(
+      'Original literal — rendered when the slot is unset (keeps the template byte-identical).',
+    ),
+    value: inner
+      .optional()
+      .describe('Override value (set_slot) — wins over `default` when present.'),
+  })
+/** A field that accepts a literal value OR a `{slot}` binding that can override it. */
+const slottable = <T extends z.ZodTypeAny>(inner: T) => z.union([inner, slotRef(inner)])
+
 const imageContent = z.object({
   kind: z.literal('image'),
-  src: z
-    .string()
+  src: slottable(z.string())
     .optional()
     .describe(
-      'Tile image source (editable — swap for your own). Omit for a `gradient`/`color` fill.',
+      'Tile image source (editable — swap for your own, or bind a `{slot}`). Omit for a `gradient`/`color` fill.',
     ),
-  gradient: gradientSchema.optional(),
-  color: z
-    .string()
+  gradient: slottable(gradientSchema).optional(),
+  color: slottable(z.string())
     .optional()
     .describe(
-      'Solid fill (hex) used when neither `src` nor `gradient` is set; falls back to theme surface.',
+      'Solid fill — a hex, a brand-token name, or a `{slot}`; used when neither `src` nor `gradient` is set; falls back to theme surface.',
     ),
-  width: z.number(),
-  height: z.number(),
-  cornerRadius: z.number().optional(),
-  stroke: z.string().optional().describe('Outline color (hex) — for a stroked/outline rect.'),
-  strokeWidth: z.number().optional(),
+  width: slottable(z.number()).describe('Width (px) — a literal or a `{slot}` (resize).'),
+  height: slottable(z.number()).describe('Height (px) — a literal or a `{slot}` (resize).'),
+  cornerRadius: slottable(z.number())
+    .optional()
+    .describe('Corner rounding (px) — a literal or a `{slot}`.'),
+  stroke: slottable(z.string())
+    .optional()
+    .describe('Outline color (hex/token/`{slot}`) — for a stroked/outline rect.'),
+  strokeWidth: slottable(z.number())
+    .optional()
+    .describe('Outline thickness (px) — a literal or a `{slot}`.'),
   anchorX: z.number().optional().describe('Pivot in content space (default tile center).'),
   anchorY: z.number().optional(),
 })
@@ -78,32 +107,42 @@ const imageContent = z.object({
 // `image` content with a `color`/`gradient` + no `src`; `line` is a thin rect.)
 const ellipseContent = z.object({
   kind: z.literal('ellipse'),
-  width: z.number(),
-  height: z.number(),
-  color: z.string().optional().describe('Fill (hex). Omit + use `stroke` for a ring.'),
-  gradient: gradientSchema.optional(),
-  stroke: z.string().optional(),
-  strokeWidth: z.number().optional(),
+  width: slottable(z.number()).describe('Width (px) — a literal or a `{slot}` (resize).'),
+  height: slottable(z.number()).describe('Height (px) — a literal or a `{slot}` (resize).'),
+  color: slottable(z.string())
+    .optional()
+    .describe('Fill (hex/token/`{slot}`). Omit + use `stroke` for a ring.'),
+  gradient: slottable(gradientSchema).optional(),
+  stroke: slottable(z.string()).optional(),
+  strokeWidth: slottable(z.number())
+    .optional()
+    .describe('Outline thickness (px) — a literal or a `{slot}`.'),
   anchorX: z.number().optional().describe('Pivot (default ellipse center).'),
   anchorY: z.number().optional(),
 })
 const pathContent = z.object({
   kind: z.literal('path'),
   d: z.string().describe('SVG path data in local space (e.g. "M0 0 L100 0 Z"). Native/GPU render.'),
-  color: z.string().optional().describe('Fill (hex).'),
-  gradient: gradientSchema.optional(),
-  stroke: z.string().optional(),
-  strokeWidth: z.number().optional(),
+  color: slottable(z.string()).optional().describe('Fill (hex/token/`{slot}`).'),
+  gradient: slottable(gradientSchema).optional(),
+  stroke: slottable(z.string()).optional(),
+  strokeWidth: slottable(z.number())
+    .optional()
+    .describe('Outline thickness (px) — a literal or a `{slot}`.'),
   anchorX: z.number().optional().describe('Pivot (default 0,0).'),
   anchorY: z.number().optional(),
 })
 const textContent = z.object({
   kind: z.literal('text'),
-  text: z.string().describe('Line text (editable).'),
-  fontSize: z.number(),
-  color: z.string().optional().describe('Ink (hex); defaults to theme `text`.'),
-  fontFamily: z.string().optional(),
-  fontWeight: z.number().optional(),
+  text: slottable(z.string()).describe('Line text (editable — or bind a `{slot}`).'),
+  fontSize: slottable(z.number()).describe('Text size (px) — a literal or a `{slot}` (resize).'),
+  color: slottable(z.string())
+    .optional()
+    .describe('Ink (hex/token/`{slot}`); defaults to theme `text`.'),
+  fontFamily: slottable(z.string())
+    .optional()
+    .describe('Typeface — a family name or a `{slot}` (the brand font).'),
+  fontWeight: slottable(z.number()).optional().describe('Weight — a literal or a `{slot}`.'),
   letterSpacing: z.number().optional(),
   align: z
     .enum(['left', 'center', 'right'])
