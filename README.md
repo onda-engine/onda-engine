@@ -23,7 +23,7 @@ ONDA turns a **React composition** into a renderer-agnostic **scene graph**, the
 It's the engine behind **[Onda Studio](https://studio.onda.video)** — an AI motion-graphics studio ("Lovable for video") — but it stands on its own as a programmatic-video toolkit.
 
 > [!NOTE]
-> **Pre-1.0.** APIs are unstable and packages are unpublished. The Rust + WASM core is solid (it powers a production studio), but expect breaking changes. ⭐ Star to follow along — the website lands at **[onda.video](https://onda.video)**.
+> **Pre-1.0.** The Rust + WASM core is solid — it powers a production studio — but the public API isn't frozen yet, so expect breaking changes before 1.0. ⭐ Star to follow along; the website lands at **[onda.video](https://onda.video)**.
 
 <br/>
 
@@ -54,6 +54,10 @@ flowchart LR
 <br/>
 
 ## Quickstart
+
+```bash
+npm install @onda-engine/react @onda-engine/components
+```
 
 Author a composition in React/JSX — the same DX as Remotion (`useCurrentFrame`, `interpolate`, `spring`, `<Sequence>`), compiled to a plain scene-graph JSON the engine renders.
 
@@ -126,6 +130,18 @@ flowchart TD
 
 <br/>
 
+## Onda Studio
+
+ONDA is open infrastructure — but you don't have to wire it up yourself. **[Onda Studio](https://studio.onda.video)** is the hosted AI motion-graphics studio built on this exact engine: describe a scene, and an agent composes it, renders it, and ships the MP4 through the same **scene graph → native GPU** pipeline you see here. *"Lovable for video."*
+
+The engine is the foundation; **Studio is the director** — same deterministic frames, it just writes the composition for you. Use the engine directly when you want code-level control; reach for Studio when you'd rather describe than build.
+
+<div align="center">
+  <a href="https://studio.onda.video"><b>Try Onda Studio →</b></a>
+</div>
+
+<br/>
+
 ## Packages
 
 **TypeScript** (`packages/`, pnpm workspace)
@@ -187,10 +203,10 @@ The CI **[Release workflow](.github/workflows/release.yml)** builds a linux `x86
 
 ## Status
 
-Pre-1.0 — the engine powers a production studio, but the public API isn't frozen and nothing is on npm yet. See **[PUBLISHING.md](PUBLISHING.md)** for the (deliberately deferred) release flow.
+Pre-1.0 — the engine powers a production studio, and the `@onda-engine/*` packages publish automatically via [Changesets](.github/workflows/release-packages.yml). The public API isn't frozen yet; see **[PUBLISHING.md](PUBLISHING.md)** for the release flow and the public-registry switch.
 
 - **Quality gates:** CI runs Rust `fmt`/`clippy`/tests + a golden-frame determinism harness, the TS build + Biome, and a headless-Linux **render smoke test** (Vello on lavapipe) — proving server-side rendering on every change.
-- **Roadmap:** published `@onda-engine/*` packages · multi-platform embed kits (macOS / Windows) · richer 3D · docs site at [onda.video](https://onda.video).
+- **Roadmap:** public npm registry · multi-platform embed kits (macOS / Windows) · richer 3D · docs site at [onda.video](https://onda.video).
 
 <br/>
 

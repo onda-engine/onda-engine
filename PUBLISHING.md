@@ -1,6 +1,6 @@
 # Publishing & releasing
 
-The `@onda-engine/*` packages are published — **v0.1.0 on the org's private GitHub Packages** registry (`npm.pkg.github.com`, `access: "restricted"`). Releasing is automated with [Changesets](https://github.com/changesets/changesets): add a changeset, merge the auto-generated "Version Packages" PR, and the packages publish (see [`release-packages.yml`](.github/workflows/release-packages.yml)).
+The `@onda-engine/*` packages are published to the org's **private GitHub Packages** registry (`npm.pkg.github.com`, `access: "restricted"`). Releasing is automated with [Changesets](https://github.com/changesets/changesets): add a changeset, merge the auto-generated "Version Packages" PR, and the packages publish (see [`release-packages.yml`](.github/workflows/release-packages.yml)).
 
 ## Two distribution paths — don't confuse them
 
@@ -37,9 +37,30 @@ Notes:
 - `@onda-engine/*` internal deps use `workspace:*`; Changesets rewrites those to real version ranges at publish time.
 - Publish auth: CI uses the built-in `GITHUB_TOKEN` (`packages: write`); locally it's `NODE_AUTH_TOKEN` (a token with `write:packages`) read from `.npmrc`.
 
-## Going public later
+## Going public
 
-The packages are **private** today (`access: "restricted"` + private repo). To open them:
+The packages are source-available (FSL) but published to a **restricted** registry today. The repo's *source* going public is independent of where the *packages* live — pick one path. Everything else (READMEs, keywords, metadata, license) is already prepared, so this is a config flip plus a one-time scope claim.
 
-1. **License: decided — FSL-1.1-ALv2** (Functional Source License, Apache-2.0 future). The whole workspace is source-available: the root `LICENSE` holds the FSL text, every `package.json` + the Cargo workspace declare `FSL-1.1-ALv2`, `LICENSE-APACHE` is the 2-year future-license target, and `NOTICE.md` covers the MPL-2.0 deps (`symphonia`, `usvg`). The competing-use carve-out protects Studio; relaxing to Apache/MIT later stays possible, tightening does not. **Still open:** put external contributors on a CLA/DCO before accepting PRs (so the dual-license/commercial-exception right is retained).
-2. Flip `"access": "public"` in `.changeset/config.json` (and/or publish to public npm under a claimable scope — note GitHub Packages requires the scope to match the org, hence `@onda-engine`).
+### Option A — keep GitHub Packages, make it public
+
+- Make the repo public; the packages inherit org visibility.
+- Set `"access": "public"` in [`.changeset/config.json`](.changeset/config.json).
+- ⚠️ **Caveat:** even *public* npm packages on GitHub Packages still require a GitHub token to `npm install` (a long-standing GH limitation). Fine for known/internal adopters; an auth wall for the public.
+
+### Option B — publish to public npmjs.com  *(recommended for adoption)*
+
+Frictionless `npm install @onda-engine/...`, no auth. One-time setup, then it's automatic forever:
+
+1. **Claim the scope** — create the `onda-engine` org on [npmjs.com](https://www.npmjs.com) (needs your npm account; only you can do this). Generate an automation token and add it as the `NPM_TOKEN` repo secret.
+2. **Point publishing at npmjs:**
+   - In each `@onda-engine/*` `package.json`, change `publishConfig` to `{ "access": "public" }` (drop the `registry` override so it defaults to `registry.npmjs.org`).
+   - Set `"access": "public"` in `.changeset/config.json`.
+   - In [`release-packages.yml`](.github/workflows/release-packages.yml), set `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` and configure the npmjs registry (drop the GitHub Packages `.npmrc` scope line for the publish step).
+3. **Studio side:** the frontend no longer needs `NODE_AUTH_TOKEN` to install — it pulls from public npmjs. Bump `@onda-engine/components` to `^0.2.x` so prod resolves the current (FSL) major.
+4. **Ship it:** `pnpm changeset` (or reuse a pending one) → merge the Version PR → the packages land on npmjs.
+
+### License (decided — FSL-1.1-ALv2)
+
+Functional Source License, Apache-2.0 future. The whole workspace is source-available: the root `LICENSE` holds the FSL text, every `package.json` + the Cargo workspace declare `FSL-1.1-ALv2`, `LICENSE-APACHE` is the 2-year future-license target, and `NOTICE.md` covers the MPL-2.0 deps (`symphonia`, `usvg`). The competing-use carve-out protects Studio; relaxing to Apache/MIT later stays possible, tightening does not.
+
+**Still open before accepting external PRs:** a CLA/DCO bot (so the dual-license / commercial-exception right is retained), plus `SECURITY.md` / `CONTRIBUTING.md` and branch protection on `main`.

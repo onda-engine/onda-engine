@@ -2,7 +2,28 @@
   "name": "@onda-engine/react",
   "version": "0.1.1",
   "description": "Write React, get an ONDA scene graph. A custom React renderer that compiles JSX into the engine's scene-graph JSON.",
+  "keywords": [
+    "onda",
+    "motion-graphics",
+    "programmatic-video",
+    "video",
+    "react",
+    "react-renderer",
+    "react-reconciler",
+    "scene-graph",
+    "gpu",
+    "remotion-alternative",
+    "animation"
+  ],
+  "homepage": "https://onda.video",
+  "bugs": "https://github.com/onda-engine/onda-engine/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onda-engine/onda-engine.git",
+    "directory": "packages/react"
+  },
   "license": "FSL-1.1-ALv2",
+  "author": "Rodrigo Botelho",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -34,10 +55,5 @@
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/onda-engine/onda-engine.git",
-    "directory": "packages/react"
   }
 }

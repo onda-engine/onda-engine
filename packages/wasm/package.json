@@ -1,8 +1,27 @@
 {
   "name": "@onda-engine/wasm",
   "version": "0.1.1",
-  "description": "The ONDA renderer compiled to WebAssembly — the real native engine in the browser (no DOM, no Chromium).",
+  "description": "The ONDA renderer compiled to WebAssembly \u2014 the real native engine in the browser (no DOM, no Chromium).",
+  "keywords": [
+    "onda",
+    "motion-graphics",
+    "programmatic-video",
+    "video",
+    "wasm",
+    "webassembly",
+    "text-metrics",
+    "browser",
+    "preview"
+  ],
+  "homepage": "https://onda.video",
+  "bugs": "https://github.com/onda-engine/onda-engine/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onda-engine/onda-engine.git",
+    "directory": "packages/wasm"
+  },
   "license": "FSL-1.1-ALv2",
+  "author": "Rodrigo Botelho",
   "type": "module",
   "main": "./pkg/onda_wasm.js",
   "types": "./pkg/onda_wasm.d.ts",
@@ -13,10 +32,5 @@
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/onda-engine/onda-engine.git",
-    "directory": "packages/wasm"
   }
 }

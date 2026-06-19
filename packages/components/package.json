@@ -1,8 +1,28 @@
 {
   "name": "@onda-engine/components",
   "version": "0.2.1",
-  "description": "The Onda motion language — a Remotion-shaped choreography + component library for @onda-engine/react. Ported from ondajs.",
+  "description": "The Onda motion language \u2014 a Remotion-shaped choreography + component library for @onda-engine/react. Ported from ondajs.",
+  "keywords": [
+    "onda",
+    "motion-graphics",
+    "programmatic-video",
+    "video",
+    "react",
+    "components",
+    "kinetic-typography",
+    "transitions",
+    "data-visualization",
+    "animation"
+  ],
+  "homepage": "https://onda.video",
+  "bugs": "https://github.com/onda-engine/onda-engine/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onda-engine/onda-engine.git",
+    "directory": "packages/components"
+  },
   "license": "FSL-1.1-ALv2",
+  "author": "Rodrigo Botelho",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -37,10 +57,5 @@
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/onda-engine/onda-engine.git",
-    "directory": "packages/components"
   }
 }

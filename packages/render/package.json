@@ -1,8 +1,28 @@
 {
   "name": "@onda-engine/render",
   "version": "0.1.1",
-  "description": "Render @onda-engine/react compositions to a video/still file via the ONDA engine — the no-Chromium equivalent of Remotion's renderMedia.",
+  "description": "Render @onda-engine/react compositions to a video/still file via the ONDA engine \u2014 the no-Chromium equivalent of Remotion's renderMedia.",
+  "keywords": [
+    "onda",
+    "motion-graphics",
+    "programmatic-video",
+    "video",
+    "render",
+    "mp4",
+    "ffmpeg",
+    "headless",
+    "server-side-rendering",
+    "remotion-alternative"
+  ],
+  "homepage": "https://onda.video",
+  "bugs": "https://github.com/onda-engine/onda-engine/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onda-engine/onda-engine.git",
+    "directory": "packages/render"
+  },
   "license": "FSL-1.1-ALv2",
+  "author": "Rodrigo Botelho",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -33,10 +53,5 @@
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/onda-engine/onda-engine.git",
-    "directory": "packages/render"
   }
 }

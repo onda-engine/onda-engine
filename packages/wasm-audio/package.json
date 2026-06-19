@@ -1,8 +1,28 @@
 {
   "name": "@onda-engine/wasm-audio",
   "version": "0.1.1",
-  "description": "ONDA audio analysis (decode + FFT spectrum) compiled to WebAssembly — drives audio-reactive visuals in the browser, identical to the native export.",
+  "description": "ONDA audio analysis (decode + FFT spectrum) compiled to WebAssembly \u2014 drives audio-reactive visuals in the browser, identical to the native export.",
+  "keywords": [
+    "onda",
+    "motion-graphics",
+    "programmatic-video",
+    "video",
+    "wasm",
+    "webassembly",
+    "audio",
+    "fft",
+    "spectrum",
+    "beat-detection"
+  ],
+  "homepage": "https://onda.video",
+  "bugs": "https://github.com/onda-engine/onda-engine/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onda-engine/onda-engine.git",
+    "directory": "packages/wasm-audio"
+  },
   "license": "FSL-1.1-ALv2",
+  "author": "Rodrigo Botelho",
   "type": "module",
   "main": "./pkg/onda_wasm_audio.js",
   "types": "./pkg/onda_wasm_audio.d.ts",
@@ -13,10 +33,5 @@
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/onda-engine/onda-engine.git",
-    "directory": "packages/wasm-audio"
   }
 }
