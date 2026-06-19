@@ -79,7 +79,7 @@
     "LICENSE-APACHE"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node scripts/copy-wasm.mjs",
     "clean": "rm -rf dist",
     "prepack": "pnpm run build"
   },
