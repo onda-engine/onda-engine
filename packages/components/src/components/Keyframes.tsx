@@ -20,6 +20,7 @@ import {
   clipRect,
   useCurrentFrame,
 } from '@onda-engine/react'
+import { LINE_RATIO, layoutGlyphLine, lineStartX } from '../glyph-line.js'
 import { type PosKey, type ValKey, sampleKeyframes } from '../keyframes-sampler.js'
 import { type Theme, useTheme } from '../theme.js'
 
@@ -77,7 +78,21 @@ export interface KeyframesTextContent {
   fontFamily?: string
   fontWeight?: number
   letterSpacing?: number
-  /** Pivot in content space (defaults to top-left 0,0). */
+  /** Horizontal alignment of the text about its `position` x. `'left'` (default,
+   *  and the legacy behaviour) anchors the LEFT edge at the position; `'center'`
+   *  measures the rendered text and centres it on the position; `'right'` ends at
+   *  it. When set, it OVERRIDES `anchorX` (the engine computes the pivot). This is
+   *  what lets the agent "centre this text" on a raw-positioned Keyframes element. */
+  align?: 'left' | 'center' | 'right'
+  /** Vertical alignment of the text about its `position` y. `'top'` (default, the
+   *  legacy behaviour) anchors the TOP of the line box at the position; `'middle'`
+   *  centres it vertically; `'bottom'` anchors the bottom edge. When set, it
+   *  OVERRIDES `anchorY`. Combine with `align` for the full 9-point grid — e.g.
+   *  `align:'right' + vAlign:'top'` = top-right corner, `align:'center' +
+   *  vAlign:'middle'` = dead-centre on the position. */
+  vAlign?: 'top' | 'middle' | 'bottom'
+  /** Pivot in content space (defaults to top-left 0,0). `anchorX` ignored when
+   *  `align` is set; `anchorY` ignored when `vAlign` is set. */
   anchorX?: number
   anchorY?: number
 }
@@ -250,13 +265,32 @@ export function Keyframes({
       </Group>
     )
   } else {
+    const fontFamily = content.fontFamily ?? theme.headingFamily ?? theme.fontFamily
+    // Horizontal: `align` measures the rendered line and anchors left/centre/right
+    // edge on the position (overriding anchorX); unset → legacy anchorX pivot.
+    let textX = -(content.anchorX ?? 0)
+    if (content.align) {
+      const { width } = layoutGlyphLine(content.text, content.fontSize, {
+        fontFamily,
+        fontWeight: content.fontWeight ?? 400,
+        letterSpacing: content.letterSpacing,
+      })
+      textX = lineStartX(content.align, 0, width)
+    }
+    // Vertical: the Text node's y is the TOP of the line box (height = fontSize ×
+    // LINE_RATIO), so anchoring mirrors the horizontal formula; unset → anchorY.
+    let textY = -(content.anchorY ?? 0)
+    if (content.vAlign) {
+      const h = content.fontSize * LINE_RATIO
+      textY = content.vAlign === 'middle' ? -h / 2 : content.vAlign === 'bottom' ? -h : 0
+    }
     inner = (
       <Text
-        x={-(content.anchorX ?? 0)}
-        y={-(content.anchorY ?? 0)}
+        x={textX}
+        y={textY}
         fontSize={content.fontSize}
         color={resolveColor(content.color, theme) ?? theme.text}
-        fontFamily={content.fontFamily ?? theme.headingFamily ?? theme.fontFamily}
+        fontFamily={fontFamily}
         fontWeight={content.fontWeight ?? 400}
         letterSpacing={content.letterSpacing}
       >

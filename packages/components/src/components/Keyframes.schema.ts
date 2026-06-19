@@ -105,6 +105,18 @@ const textContent = z.object({
   fontFamily: z.string().optional(),
   fontWeight: z.number().optional(),
   letterSpacing: z.number().optional(),
+  align: z
+    .enum(['left', 'center', 'right'])
+    .optional()
+    .describe(
+      'Horizontal alignment about the position x — "left" (default) anchors the left edge, "center" centres the measured line, "right" ends at it. OVERRIDES anchorX. Combine with vAlign for corners.',
+    ),
+  vAlign: z
+    .enum(['top', 'middle', 'bottom'])
+    .optional()
+    .describe(
+      'Vertical alignment about the position y — "top" (default), "middle" (centred), "bottom". OVERRIDES anchorY. e.g. align:"right"+vAlign:"top" = top-right corner.',
+    ),
   anchorX: z.number().optional().describe('Pivot in content space (default top-left 0,0).'),
   anchorY: z.number().optional(),
 })
