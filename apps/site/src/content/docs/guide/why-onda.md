@@ -61,4 +61,4 @@ So: lead with the **measured per-thread multiple and the trajectory**; claim 100
 
 Speed is the easy structural win; **DX parity is the moat and the open risk**. Remotion gets all of CSS/flexbox, a mature Studio, and a Player for free. ONDA today has the reconciler, the animation primitives, the vector renderer, a cinematic effects stack, and native media — but not CSS-style layout or a hosted Studio. See [What is ONDA?](/guide/introduction) for the precise list of what exists.
 
-*Numbers above are from the repository's benchmark suite (`apps/benchmark`) and `techspecs/gap-analysis.md`. No performance claims without benchmarks.*
+*Numbers above are from the repository's benchmark suite (`apps/benchmark`). No performance claims without benchmarks.*

@@ -11,7 +11,7 @@ import {
 } from '@onda-engine/react'
 // THE LONG NOTE — pilot (opening ~75s, Chapter 1 + into Chapter 2).
 // Soft dark gradient-field; words-on-screen as narration; cut to an implied breath
-// tempo (no audio). Built from techspecs/voice-film-the-long-note.md.
+// tempo (no audio). Built from an internal motion study.
 //
 // Render (native export is the hero deliverable):
 //   node apps/site/scripts/render-comp.mjs --comp ./apps/site/scripts/voice-film-pilot.comp.mjs \

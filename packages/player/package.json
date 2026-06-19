@@ -2,7 +2,7 @@
   "name": "@onda-engine/player",
   "version": "0.1.0",
   "description": "Interactive <Player> for ONDA compositions — a real-time Canvas2D preview of the scene graph with playback controls.",
-  "license": "MIT OR Apache-2.0",
+  "license": "FSL-1.1-ALv2",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

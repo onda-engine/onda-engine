@@ -111,7 +111,7 @@ function Scene() {
   const wordSize = Math.round(H * 0.22)
   const wordX = Math.round(W / 2 - wordSize * 1.18)
   const subSize = Math.round(H * 0.028)
-  const subText = 'The GPU-native motion engine — open source'
+  const subText = 'The GPU-native motion engine — source-available'
   const subX = Math.round(W / 2 - subText.length * subSize * 0.245)
 
   return [

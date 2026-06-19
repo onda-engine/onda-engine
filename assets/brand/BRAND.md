@@ -9,7 +9,7 @@ favor clarity and precision over decoration. Do not look generic.
 
 ## Positioning & voice
 
-ONDA is an **open-source, GPU-native, browser-free motion-graphics engine in Rust**.
+ONDA is a **source-available, GPU-native, browser-free motion-graphics engine in Rust**.
 Tagline candidates: *"Motion graphics at GPU speed. No browser."* / *"Programmatic
 video, without Chromium."*
 
@@ -143,8 +143,8 @@ prefer WebP/AVIF/SVG.
 - **Import SVG:** `<Svg src=… | markup=…>` (logos/icons) expands to vector nodes.
 - **Export:** PNG / GIF / MP4 via the `onda` CLI (`render` / `export` /
   `export-frames`, `--backend auto|vello|cpu`).
-- **Rust workspace** (open source, MIT/Apache-2.0). Repo:
-  `https://github.com/degueba/onda-engine`.
+- **Rust workspace** (source-available, FSL-1.1-Apache-2.0). Repo:
+  `https://github.com/onda-engine/onda-engine`.
 
 ## Example code (use verbatim-ish in hero/docs)
 

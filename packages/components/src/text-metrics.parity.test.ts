@@ -12,8 +12,7 @@ import { glyphLayout, loadFont } from './text-metrics.js'
 //
 // The REAL behavior — measurement actually changes after loadFont, matching the
 // render for a non-bundled font — is proven against the production Node warming
-// path (a before/after width delta for the Spectral serif). See
-// techspecs/text-animators.md (G4) for the verification.
+// path (a before/after width delta for the Spectral serif).
 describe('loadFont — graceful contract (engine cold)', () => {
   it('is exported, async, and resolves to a string[] without throwing on bad bytes', async () => {
     const families = await loadFont(new Uint8Array([0, 1, 2, 3])) // not a valid font

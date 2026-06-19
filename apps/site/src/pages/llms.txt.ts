@@ -15,7 +15,7 @@ export const GET: APIRoute = () => {
 
   const txt = `# ONDA
 
-> Open-source, GPU-native motion-graphics engine in Rust. Author compositions in React (\`@onda-engine/react\`) → scene-graph JSON → a native GPU renderer (Vello) or a CPU reference, with a wasm path for in-browser preview. \`@onda-engine/components\` is a ${total}-component motion library; a single \`<ThemeProvider theme={…}>\` brand kit re-skins a whole composition (${themeable} of ${total} components are themeable).
+> Source-available, GPU-native motion-graphics engine in Rust. Author compositions in React (\`@onda-engine/react\`) → scene-graph JSON → a native GPU renderer (Vello) or a CPU reference, with a wasm path for in-browser preview. \`@onda-engine/components\` is a ${total}-component motion library; a single \`<ThemeProvider theme={…}>\` brand kit re-skins a whole composition (${themeable} of ${total} components are themeable).
 
 The scene graph is the universal language; the renderer is the platform. Components are pure React that emit scene nodes — no DOM, no browser at render time.
 

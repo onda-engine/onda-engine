@@ -107,8 +107,7 @@ graphics-bound — measured here at **~3.8–8.5×** depending on the scene and 
 The headline **100×** is the *architectural* target, not a single-scene multiple:
 it comes from the things this microbenchmark doesn't capture — cold-start (ONDA
 ~ms vs Chromium launch + bundle + warmup), a real-time swapchain present (the GPU
-number here is readback-bound), and offloading video/codec work. See
-`techspecs/gap-analysis.md` for that path.
+number here is readback-bound), and offloading video/codec work.
 
 Notes: ONDA numbers are steady-state (one warm-up). The GPU number is offscreen
 render + full CPU readback per frame; a present path is faster. Numbers vary a

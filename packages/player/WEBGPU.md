@@ -1,7 +1,7 @@
 # Real-time WebGPU present for the ONDA Player
 
 > Status: **assessment / not yet built.** This is the P0 "readback → present"
-> item from `techspecs/gap-analysis.md` (§A and §F-3), scoped for the embeddable
+> item, scoped for the embeddable
 > `<Player>`. Grounded in the actual code: `packages/vello-rs` (Vello 0.3 / wgpu
 > 22) and `packages/wasm` (the wasm engine the Player previews through today).
 
