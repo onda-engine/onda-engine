@@ -1,8 +1,27 @@
 {
   "name": "@onda-engine/player",
   "version": "0.1.1",
-  "description": "Interactive <Player> for ONDA compositions — a real-time Canvas2D preview of the scene graph with playback controls.",
+  "description": "Interactive <Player> for ONDA compositions \u2014 a real-time Canvas2D preview of the scene graph with playback controls.",
+  "keywords": [
+    "onda",
+    "motion-graphics",
+    "programmatic-video",
+    "video",
+    "player",
+    "preview",
+    "react",
+    "wasm",
+    "webgpu"
+  ],
+  "homepage": "https://onda.video",
+  "bugs": "https://github.com/onda-engine/onda-engine/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onda-engine/onda-engine.git",
+    "directory": "packages/player"
+  },
   "license": "FSL-1.1-ALv2",
+  "author": "Rodrigo Botelho",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -32,10 +51,5 @@
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/onda-engine/onda-engine.git",
-    "directory": "packages/player"
   }
 }

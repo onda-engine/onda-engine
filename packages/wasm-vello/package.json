@@ -1,8 +1,29 @@
 {
   "name": "@onda-engine/wasm-vello",
   "version": "0.1.1",
-  "description": "The ONDA Vello (GPU) renderer compiled to WebAssembly — Vello in the browser over WebGPU (no DOM, no Chromium).",
+  "description": "The ONDA Vello (GPU) renderer compiled to WebAssembly \u2014 Vello in the browser over WebGPU (no DOM, no Chromium).",
+  "keywords": [
+    "onda",
+    "motion-graphics",
+    "programmatic-video",
+    "video",
+    "wasm",
+    "webassembly",
+    "vello",
+    "webgpu",
+    "gpu",
+    "renderer",
+    "browser"
+  ],
+  "homepage": "https://onda.video",
+  "bugs": "https://github.com/onda-engine/onda-engine/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onda-engine/onda-engine.git",
+    "directory": "packages/wasm-vello"
+  },
   "license": "FSL-1.1-ALv2",
+  "author": "Rodrigo Botelho",
   "type": "module",
   "main": "./index.js",
   "types": "./index.d.ts",
@@ -13,10 +34,5 @@
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/onda-engine/onda-engine.git",
-    "directory": "packages/wasm-vello"
   }
 }

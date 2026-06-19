@@ -1,8 +1,27 @@
 {
   "name": "@onda-engine/cinema",
   "version": "0.1.2",
-  "description": "Render a timeline composition payload (scenes/tracks/entries + choreography + transitions) to an @onda-engine/react element — the spec→engine renderer ONDA Studio uses instead of its Remotion renderer.",
+  "description": "Render a timeline composition payload (scenes/tracks/entries + choreography + transitions) to an @onda-engine/react element \u2014 the spec\u2192engine renderer ONDA Studio uses instead of its Remotion renderer.",
+  "keywords": [
+    "onda",
+    "motion-graphics",
+    "programmatic-video",
+    "video",
+    "timeline",
+    "composition",
+    "choreography",
+    "scene-graph",
+    "camera"
+  ],
+  "homepage": "https://onda.video",
+  "bugs": "https://github.com/onda-engine/onda-engine/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onda-engine/onda-engine.git",
+    "directory": "packages/cinema"
+  },
   "license": "FSL-1.1-ALv2",
+  "author": "Rodrigo Botelho",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -36,10 +55,5 @@
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/onda-engine/onda-engine.git",
-    "directory": "packages/cinema"
   }
 }
