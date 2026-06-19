@@ -29,20 +29,48 @@ import { type Theme, useTheme } from '../theme.js'
 // here so existing `import { PosKey } from './components/Keyframes'` keeps working.
 export type { Ease, PosKey, ValKey } from '../keyframes-sampler.js'
 
+// ── Slot binding ──────────────────────────────────────────────────────────────
+// A fill can be SLOT-BOUND: an override handle (`slot`) carrying the original literal
+// (`default`, rendered when unset → byte-identical) and an optional `value` override
+// (wins). The renderer only needs `value ?? default`; `slot` is the id the studio/agent
+// targets, and multiple fills may share one. For a color T is a string — a brand token
+// OR a literal hex; the renderer never constrains a slot value to brand tokens.
+export interface SlotRef<T> {
+  slot: string
+  default: T
+  value?: T
+}
+export type Slottable<T> = T | SlotRef<T>
+function isSlotRef<T>(v: Slottable<T> | undefined): v is SlotRef<T> {
+  return typeof v === 'object' && v !== null && 'slot' in v && 'default' in v
+}
+/** The effective value of a slottable field: the override (`value`) if set, else `default`.
+ *  Overloaded so a REQUIRED field (e.g. `width`) resolves to `T`, an optional one to `T | undefined`. */
+export function slotValue<T>(v: Slottable<T>): T
+export function slotValue<T>(v: Slottable<T> | undefined): T | undefined
+export function slotValue<T>(v: Slottable<T> | undefined): T | undefined {
+  if (v === undefined) return undefined
+  return isSlotRef(v) ? (v.value ?? v.default) : v
+}
+
 export interface KeyframesImageContent {
   kind: 'image'
-  /** Image source. Omit for a `gradient`/`color` placeholder to swap for an image. */
-  src?: string
-  /** Gradient fill (linear/radial/fbm) used when `src` is absent — wins over `color`. */
-  gradient?: GradientInput
-  /** Solid fill (hex) used when neither `src` nor `gradient` is set. Defaults to the theme surface. */
-  color?: string
-  /** Outline color (hex) — for a stroked/outline rect. */
-  stroke?: string
-  strokeWidth?: number
-  width: number
-  height: number
-  cornerRadius?: number
+  /** Image source — a literal URL or a `{slot}` to swap. Omit for a `gradient`/`color` placeholder. */
+  src?: Slottable<string>
+  /** Gradient fill (linear/radial/fbm or a `{slot}`) used when `src` is absent — wins over `color`. */
+  gradient?: Slottable<GradientInput>
+  /** Solid fill — a hex, a brand-token name, or a `{slot}`; used when neither `src` nor `gradient` is set. Defaults to the theme surface. */
+  color?: Slottable<string>
+  /** Outline color (hex/token/`{slot}`) — for a stroked/outline rect. */
+  stroke?: Slottable<string>
+  /** Outline thickness (px) — a literal or a `{slot}`. */
+  strokeWidth?: Slottable<number>
+  /** Width (px) — a literal or a `{slot}` (resize). */
+  width: Slottable<number>
+  /** Height (px) — a literal or a `{slot}` (resize). */
+  height: Slottable<number>
+  /** Corner rounding (px) — a literal or a `{slot}`. */
+  cornerRadius?: Slottable<number>
   /** Pivot in content space (defaults to the tile CENTER). */
   anchorX?: number
   anchorY?: number
@@ -50,12 +78,12 @@ export interface KeyframesImageContent {
 /** An ellipse/ring leaf — fill via `color`/`gradient`, or `stroke` only for a ring. */
 export interface KeyframesEllipseContent {
   kind: 'ellipse'
-  width: number
-  height: number
-  color?: string
-  gradient?: GradientInput
-  stroke?: string
-  strokeWidth?: number
+  width: Slottable<number>
+  height: Slottable<number>
+  color?: Slottable<string>
+  gradient?: Slottable<GradientInput>
+  stroke?: Slottable<string>
+  strokeWidth?: Slottable<number>
   anchorX?: number
   anchorY?: number
 }
@@ -63,20 +91,23 @@ export interface KeyframesEllipseContent {
 export interface KeyframesPathContent {
   kind: 'path'
   d: string
-  color?: string
-  gradient?: GradientInput
-  stroke?: string
-  strokeWidth?: number
+  color?: Slottable<string>
+  gradient?: Slottable<GradientInput>
+  stroke?: Slottable<string>
+  strokeWidth?: Slottable<number>
   anchorX?: number
   anchorY?: number
 }
 export interface KeyframesTextContent {
   kind: 'text'
-  text: string
-  fontSize: number
-  color?: string
-  fontFamily?: string
-  fontWeight?: number
+  text: Slottable<string>
+  /** Text size (px) — a literal or a `{slot}` (resize). */
+  fontSize: Slottable<number>
+  color?: Slottable<string>
+  /** Typeface — a literal family name or a `{slot}` (the brand `font`). */
+  fontFamily?: Slottable<string>
+  /** Weight — a literal or a `{slot}`. */
+  fontWeight?: Slottable<number>
   letterSpacing?: number
   /** Horizontal alignment of the text about its `position` x. `'left'` (default,
    *  and the legacy behaviour) anchors the LEFT edge at the position; `'center'`
@@ -172,30 +203,37 @@ const THEME_TOKENS = [
   'surface',
   'border',
 ] as const
-export function resolveColor(c: string | undefined, theme: Theme): string | undefined {
-  if (!c) return c
-  return (THEME_TOKENS as readonly string[]).includes(c)
-    ? (theme as unknown as Record<string, string>)[c]
-    : c
+export function resolveColor(c: Slottable<string> | undefined, theme: Theme): string | undefined {
+  const s = slotValue(c)
+  if (!s) return s
+  return (THEME_TOKENS as readonly string[]).includes(s)
+    ? (theme as unknown as Record<string, string>)[s]
+    : s
 }
 
 /** Build paint props (fill/gradient/stroke) for a shape leaf. `stroke`-only (no
  *  color/gradient) yields a ring; `fallbackFill` applies only when nothing else is set.
  *  `color`/`stroke` may be a brand-token name (resolved via the theme). */
 function paint(
-  c: { color?: string; gradient?: GradientInput; stroke?: string; strokeWidth?: number },
+  c: {
+    color?: Slottable<string>
+    gradient?: Slottable<GradientInput>
+    stroke?: Slottable<string>
+    strokeWidth?: Slottable<number>
+  },
   theme: Theme,
   fallbackFill?: string,
 ): Record<string, unknown> {
   const p: Record<string, unknown> = {}
   const color = resolveColor(c.color, theme)
   const stroke = resolveColor(c.stroke, theme)
-  if (c.gradient) p.gradient = c.gradient
+  const gradient = slotValue(c.gradient)
+  if (gradient) p.gradient = gradient
   else if (color) p.fill = color
   else if (fallbackFill && !stroke) p.fill = fallbackFill
   if (stroke) {
     p.stroke = stroke
-    p.strokeWidth = c.strokeWidth ?? 2
+    p.strokeWidth = slotValue(c.strokeWidth) ?? 2
   }
   return p
 }
@@ -224,37 +262,35 @@ export function Keyframes({
 
   let inner: React.ReactNode
   if (content.kind === 'image') {
-    const ax = content.anchorX ?? content.width / 2
-    const ay = content.anchorY ?? content.height / 2
-    inner = content.src ? (
-      <Group
-        x={-ax}
-        y={-ay}
-        clip={clipRect(content.width, content.height, content.cornerRadius ?? 0)}
-      >
-        <Image src={content.src} width={content.width} height={content.height} fit="cover" />
+    const width = slotValue(content.width)
+    const height = slotValue(content.height)
+    const cornerRadius = slotValue(content.cornerRadius) ?? 0
+    const ax = content.anchorX ?? width / 2
+    const ay = content.anchorY ?? height / 2
+    const src = slotValue(content.src)
+    inner = src ? (
+      <Group x={-ax} y={-ay} clip={clipRect(width, height, cornerRadius)}>
+        <Image src={src} width={width} height={height} fit="cover" />
       </Group>
     ) : (
       // No image yet → a gradient/solid/outline placeholder card to swap an image into.
       <Group x={-ax} y={-ay}>
         <Rect
-          width={content.width}
-          height={content.height}
-          cornerRadius={content.cornerRadius ?? 0}
+          width={width}
+          height={height}
+          cornerRadius={cornerRadius}
           {...paint(content, theme, theme.surface)}
         />
       </Group>
     )
   } else if (content.kind === 'ellipse') {
-    const ax = content.anchorX ?? content.width / 2
-    const ay = content.anchorY ?? content.height / 2
+    const width = slotValue(content.width)
+    const height = slotValue(content.height)
+    const ax = content.anchorX ?? width / 2
+    const ay = content.anchorY ?? height / 2
     inner = (
       <Group x={-ax} y={-ay}>
-        <Ellipse
-          width={content.width}
-          height={content.height}
-          {...paint(content, theme, theme.surface)}
-        />
+        <Ellipse width={width} height={height} {...paint(content, theme, theme.surface)} />
       </Group>
     )
   } else if (content.kind === 'path') {
@@ -265,14 +301,17 @@ export function Keyframes({
       </Group>
     )
   } else {
-    const fontFamily = content.fontFamily ?? theme.headingFamily ?? theme.fontFamily
+    const fontFamily = slotValue(content.fontFamily) ?? theme.headingFamily ?? theme.fontFamily
+    const fontWeight = slotValue(content.fontWeight) ?? 400
+    const fontSize = slotValue(content.fontSize)
+    const text = slotValue(content.text) ?? ''
     // Horizontal: `align` measures the rendered line and anchors left/centre/right
     // edge on the position (overriding anchorX); unset → legacy anchorX pivot.
     let textX = -(content.anchorX ?? 0)
     if (content.align) {
-      const { width } = layoutGlyphLine(content.text, content.fontSize, {
+      const { width } = layoutGlyphLine(text, fontSize, {
         fontFamily,
-        fontWeight: content.fontWeight ?? 400,
+        fontWeight,
         letterSpacing: content.letterSpacing,
       })
       textX = lineStartX(content.align, 0, width)
@@ -281,20 +320,20 @@ export function Keyframes({
     // LINE_RATIO), so anchoring mirrors the horizontal formula; unset → anchorY.
     let textY = -(content.anchorY ?? 0)
     if (content.vAlign) {
-      const h = content.fontSize * LINE_RATIO
+      const h = fontSize * LINE_RATIO
       textY = content.vAlign === 'middle' ? -h / 2 : content.vAlign === 'bottom' ? -h : 0
     }
     inner = (
       <Text
         x={textX}
         y={textY}
-        fontSize={content.fontSize}
+        fontSize={fontSize}
         color={resolveColor(content.color, theme) ?? theme.text}
         fontFamily={fontFamily}
-        fontWeight={content.fontWeight ?? 400}
+        fontWeight={fontWeight}
         letterSpacing={content.letterSpacing}
       >
-        {content.text}
+        {text}
       </Text>
     )
   }
