@@ -6,9 +6,7 @@
   "type": "module",
   "main": "./pkg/onda_wasm_audio.js",
   "types": "./pkg/onda_wasm_audio.d.ts",
-  "files": [
-    "pkg"
-  ],
+  "files": ["pkg"],
   "scripts": {
     "build": "cargo build -p onda-wasm-audio --target wasm32-unknown-unknown --release && wasm-bindgen ../../target/wasm32-unknown-unknown/release/onda_wasm_audio.wasm --out-dir pkg --target web"
   },

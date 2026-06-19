@@ -6,11 +6,7 @@
   "type": "module",
   "main": "./index.js",
   "types": "./index.d.ts",
-  "files": [
-    "index.js",
-    "index.d.ts",
-    "pkg"
-  ],
+  "files": ["index.js", "index.d.ts", "pkg"],
   "scripts": {
     "build": "cargo build -p onda-wasm-vello --target wasm32-unknown-unknown --release && wasm-bindgen ../../target/wasm32-unknown-unknown/release/onda_wasm_vello.wasm --out-dir pkg --target web"
   },
