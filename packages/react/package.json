@@ -1,6 +1,6 @@
 {
   "name": "@onda-engine/react",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Write React, get an ONDA scene graph. A custom React renderer that compiles JSX into the engine's scene-graph JSON.",
   "license": "FSL-1.1-ALv2",
   "type": "module",
@@ -12,7 +12,9 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",

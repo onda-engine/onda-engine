@@ -1,12 +1,14 @@
 {
   "name": "@onda-engine/wasm",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The ONDA renderer compiled to WebAssembly — the real native engine in the browser (no DOM, no Chromium).",
   "license": "FSL-1.1-ALv2",
   "type": "module",
   "main": "./pkg/onda_wasm.js",
   "types": "./pkg/onda_wasm.d.ts",
-  "files": ["pkg"],
+  "files": [
+    "pkg"
+  ],
   "scripts": {
     "build": "cargo build -p onda-wasm --target wasm32-unknown-unknown --release && wasm-bindgen ../../target/wasm32-unknown-unknown/release/onda_wasm.wasm --out-dir pkg --target web"
   },
