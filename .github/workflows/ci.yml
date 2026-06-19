@@ -105,10 +105,19 @@ jobs:
         run: |
           pnpm --filter @onda-engine/wasm build
           pnpm --filter @onda-engine/wasm-audio build
+          pnpm --filter @onda-engine/wasm-vello build
 
       # pnpm runs the selected packages' builds in dependency (topological) order.
       - name: Build core packages
         run: pnpm --filter @onda-engine/react --filter @onda-engine/components --filter @onda-engine/cinema --filter @onda-engine/render --filter @onda-engine/player build
+
+      # Build the published umbrella (tsup bundle + wasm copy) and prove it WOULD
+      # publish cleanly — a continuous safety net so a release can never be the
+      # first time we discover the package is broken. No registry auth needed.
+      - name: Build + dry-run publish onda-engine
+        run: |
+          pnpm --filter onda-engine build
+          pnpm --filter onda-engine publish --dry-run --no-git-checks
 
       - name: biome
         run: pnpm exec biome ci .

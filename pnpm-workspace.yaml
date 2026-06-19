@@ -1,4 +1,5 @@
 packages:
+  - "packages/umbrella"
   - "packages/react"
   - "packages/components"
   - "packages/player"

@@ -1,0 +1,91 @@
+# Releases the `onda-engine` umbrella package to PUBLIC npm.
+#
+# Flow (Release Please + Conventional Commits — no changeset files):
+#   1. You merge normal commits to main (feat: / fix: / feat!: drive the bump).
+#   2. This opens/updates a "release" PR that bumps packages/umbrella/package.json
+#      + writes its CHANGELOG from the commits.
+#   3. Merge that PR → Release Please tags `onda-engine-v<version>` + cuts a GitHub
+#      Release, and the `publish` job builds the engine and pushes the tarball to npm.
+#
+# Manual publish: run this workflow via "Run workflow" (workflow_dispatch) to publish
+# whatever version is in package.json right now — used to CLAIM the npm name the first
+# time and to validate the CI build→publish path end-to-end.
+#
+# Tags are `onda-engine-v*` so they never collide with the embed-kit's `v*` tags
+# (release.yml). The scoped @onda-engine/* packages are NOT published here.
+name: Release (npm)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why a manual publish (e.g. claim the name / re-run)"
+        required: false
+
+concurrency: release-npm-${{ github.ref }}
+
+permissions:
+  contents: write # release-please pushes the release branch + tag
+  pull-requests: write # release-please opens the release PR
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release-please:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.rp.outputs.releases_created }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: rp
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    needs: [release-please]
+    # Publish on a real release (merged release PR) OR a manual dispatch. `always()`
+    # lets this run even when release-please is skipped (the dispatch path).
+    if: |
+      always() &&
+      ((github.event_name == 'push' && needs.release-please.outputs.release_created == 'true') ||
+       github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      # The umbrella bundles the wasm cores, so its build needs all three wasm
+      # packages minted from Rust → wasm (cargo + wasm-bindgen) first. wasm-bindgen
+      # must match the Cargo.lock pin exactly — keep in sync with ci.yml / release.yml.
+      - name: Install Rust (stable + wasm32-unknown-unknown)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install wasm-bindgen CLI
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.122
+
+      - uses: pnpm/action-setup@v4 # version from root package.json "packageManager"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      # Topological: wasm (cargo) → JS packages (tsc) → umbrella (tsup + wasm copy).
+      - name: Build engine + umbrella
+        run: pnpm -r build
+
+      - name: Publish onda-engine to npm
+        run: pnpm --filter onda-engine publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
