@@ -1,7 +1,7 @@
 {
   "name": "@onda-engine/cinema",
-  "version": "0.1.2",
-  "description": "Render a timeline composition payload (scenes/tracks/entries + choreography + transitions) to an @onda-engine/react element \u2014 the spec\u2192engine renderer ONDA Studio uses instead of its Remotion renderer.",
+  "version": "0.1.3",
+  "description": "Render a timeline composition payload (scenes/tracks/entries + choreography + transitions) to an @onda-engine/react element — the spec→engine renderer ONDA Studio uses instead of its Remotion renderer.",
   "keywords": [
     "onda",
     "motion-graphics",
