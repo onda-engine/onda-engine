@@ -1,6 +1,6 @@
-# @onda-engine/cinema
+# @onda-engine/wasm-audio
 
-## 0.1.2
+## 0.1.1
 
 ### Patch Changes
 
@@ -12,14 +12,3 @@
   converts to Apache-2.0 two years after publication. This patch republishes the
   packages so consumers (incl. ONDA Studio's CI/prod build) pull the correct
   license.
-
-- Updated dependencies [12c3b02]
-  - @onda-engine/components@0.2.1
-  - @onda-engine/react@0.1.1
-
-## 0.1.1
-
-### Patch Changes
-
-- Updated dependencies [d2cdfba]
-  - @onda-engine/components@0.2.0

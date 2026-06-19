@@ -1,6 +1,6 @@
-# @onda-engine/cinema
+# @onda-engine/player
 
-## 0.1.2
+## 0.1.1
 
 ### Patch Changes
 
@@ -14,12 +14,4 @@
   license.
 
 - Updated dependencies [12c3b02]
-  - @onda-engine/components@0.2.1
   - @onda-engine/react@0.1.1
-
-## 0.1.1
-
-### Patch Changes
-
-- Updated dependencies [d2cdfba]
-  - @onda-engine/components@0.2.0

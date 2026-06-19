@@ -1,6 +1,6 @@
 {
   "name": "@onda-engine/player",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Interactive <Player> for ONDA compositions — a real-time Canvas2D preview of the scene graph with playback controls.",
   "license": "FSL-1.1-ALv2",
   "type": "module",
@@ -12,7 +12,9 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
