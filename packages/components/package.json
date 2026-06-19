@@ -1,7 +1,7 @@
 {
   "name": "@onda-engine/components",
-  "version": "0.2.1",
-  "description": "The Onda motion language \u2014 a Remotion-shaped choreography + component library for @onda-engine/react. Ported from ondajs.",
+  "version": "0.3.0",
+  "description": "The Onda motion language — a Remotion-shaped choreography + component library for @onda-engine/react. Ported from ondajs.",
   "keywords": [
     "onda",
     "motion-graphics",
