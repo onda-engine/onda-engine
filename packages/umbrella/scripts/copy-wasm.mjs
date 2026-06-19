@@ -59,4 +59,5 @@ for (const file of readdirSync(dist)) {
     patched++
   }
 }
-if (patched > 0) console.log(`[onda-engine] repointed import.meta.resolve scope in ${patched} file(s)`)
+if (patched > 0)
+  console.log(`[onda-engine] repointed import.meta.resolve scope in ${patched} file(s)`)
