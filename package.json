@@ -1,5 +1,5 @@
 {
-  "name": "onda-engine",
+  "name": "onda-engine-workspace",
   "version": "0.0.0",
   "description": "The source-available motion graphics engine. GPU-native, scene-graph-first, framework-agnostic.",
   "keywords": [
@@ -30,13 +30,10 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "changeset": "changeset",
-    "changeset:version": "changeset version && pnpm install --lockfile-only && pnpm format",
-    "changeset:publish": "pnpm -r build && changeset publish"
+    "publish:npm": "pnpm -r build && pnpm --filter onda-engine publish --no-git-checks"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
-    "@changesets/cli": "^2.27.7",
     "typescript": "^5.7.2"
   },
   "private": true,

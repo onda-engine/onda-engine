@@ -1,0 +1,108 @@
+{
+  "name": "onda-engine",
+  "version": "0.1.0",
+  "description": "The source-available motion graphics engine — GPU-native, scene-graph-first, framework-agnostic. One install for the whole engine: React renderer, motion-language components, player, renderer, and the wasm core.",
+  "keywords": [
+    "onda",
+    "motion-graphics",
+    "programmatic-video",
+    "video",
+    "gpu",
+    "vello",
+    "wasm",
+    "scene-graph",
+    "remotion-alternative",
+    "react",
+    "animation"
+  ],
+  "homepage": "https://onda.video",
+  "bugs": "https://github.com/onda-engine/onda-engine/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onda-engine/onda-engine.git",
+    "directory": "packages/umbrella"
+  },
+  "license": "FSL-1.1-ALv2",
+  "author": "Rodrigo Botelho",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./components": {
+      "types": "./dist/components.d.ts",
+      "default": "./dist/components.js"
+    },
+    "./components/manifest": {
+      "types": "./dist/components-manifest.d.ts",
+      "default": "./dist/components-manifest.js"
+    },
+    "./player": {
+      "types": "./dist/player.d.ts",
+      "default": "./dist/player.js"
+    },
+    "./render": {
+      "types": "./dist/render.d.ts",
+      "default": "./dist/render.js"
+    },
+    "./cinema": {
+      "types": "./dist/cinema.d.ts",
+      "default": "./dist/cinema.js"
+    },
+    "./wasm": {
+      "types": "./dist/wasm/pkg/onda_wasm.d.ts",
+      "default": "./dist/wasm/pkg/onda_wasm.js"
+    },
+    "./wasm/*": "./dist/wasm/*",
+    "./wasm-audio": {
+      "types": "./dist/wasm-audio/pkg/onda_wasm_audio.d.ts",
+      "default": "./dist/wasm-audio/pkg/onda_wasm_audio.js"
+    },
+    "./wasm-audio/*": "./dist/wasm-audio/*",
+    "./wasm-vello": {
+      "types": "./dist/wasm-vello/index.d.ts",
+      "default": "./dist/wasm-vello/index.js"
+    },
+    "./wasm-vello/*": "./dist/wasm-vello/*"
+  },
+  "files": ["dist", "README.md", "LICENSE", "LICENSE-APACHE"],
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "prepack": "pnpm run build"
+  },
+  "dependencies": {
+    "flubber": "^0.4.2",
+    "react-reconciler": "^0.33.0",
+    "zod": "^3.25.76"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0"
+  },
+  "devDependencies": {
+    "@onda-engine/cinema": "workspace:*",
+    "@onda-engine/components": "workspace:*",
+    "@onda-engine/player": "workspace:*",
+    "@onda-engine/react": "workspace:*",
+    "@onda-engine/render": "workspace:*",
+    "@onda-engine/wasm": "workspace:*",
+    "@onda-engine/wasm-audio": "workspace:*",
+    "@onda-engine/wasm-vello": "workspace:*",
+    "@types/flubber": "^0.4.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.2.0",
+    "@types/react-reconciler": "^0.33.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

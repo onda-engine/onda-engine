@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "$comment": "Single published artifact: the `onda-engine` umbrella → public npm. Version + CHANGELOG are derived from Conventional Commits. The scoped @onda-engine/* packages are build inputs, not published here.",
+  "packages": {
+    "packages/umbrella": {
+      "release-type": "node",
+      "package-name": "onda-engine",
+      "component": "onda-engine",
+      "include-component-in-tag": true,
+      "changelog-path": "CHANGELOG.md"
+    }
+  },
+  "separator": "-"
+}
