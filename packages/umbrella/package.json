@@ -1,6 +1,6 @@
 {
   "name": "onda-engine",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The source-available motion graphics engine — GPU-native, scene-graph-first, framework-agnostic. One install for the whole engine: React renderer, motion-language components, player, renderer, and the wasm core.",
   "keywords": [
     "onda",
