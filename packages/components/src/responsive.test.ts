@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { entryDesignAnchor, responsiveEntryTransform } from './responsive.js'
+import {
+  entryDesignAnchor,
+  isFullBleed,
+  responsiveCoverTransform,
+  responsiveEntryTransform,
+} from './responsive.js'
 
 const DESIGN = { width: 1600, height: 1200 }
 
@@ -73,5 +78,55 @@ describe('responsiveEntryTransform', () => {
     // Gap from the far edges (1600-1520=80, 1200-1140=60) is preserved, scaled.
     expect(t.x + 1520 * t.scale).toBeCloseTo(1080 - 80 * s, 4)
     expect(t.y + 1140 * t.scale).toBeCloseTo(1920 - 60 * s, 4)
+  })
+})
+
+describe('isFullBleed', () => {
+  it('flags an image/video plate that covers (≈) the whole design canvas', () => {
+    expect(isFullBleed({ content: { kind: 'image', width: 1600, height: 1200 } }, DESIGN)).toBe(
+      true,
+    )
+    expect(isFullBleed({ content: { kind: 'video', width: 1600, height: 1200 } }, DESIGN)).toBe(
+      true,
+    )
+    // A half-size content scaled 2× still covers the canvas.
+    expect(
+      isFullBleed(
+        { content: { kind: 'image', width: 800, height: 600 }, scale: [{ at: 0, v: 2 }] },
+        DESIGN,
+      ),
+    ).toBe(true)
+  })
+
+  it('does NOT flag small tiles, text, or content covering only one axis', () => {
+    expect(isFullBleed({ content: { kind: 'image', width: 400, height: 300 } }, DESIGN)).toBe(false)
+    expect(isFullBleed({ content: { kind: 'text', text: 'Hi' } }, DESIGN)).toBe(false)
+    // Wide banner: covers the width but not the height → not full-bleed.
+    expect(isFullBleed({ content: { kind: 'image', width: 1600, height: 200 } }, DESIGN)).toBe(
+      false,
+    )
+    expect(isFullBleed(undefined, DESIGN)).toBe(false)
+  })
+})
+
+describe('responsiveCoverTransform', () => {
+  it('is identity when the canvas already matches', () => {
+    expect(responsiveCoverTransform(DESIGN, DESIGN)).toEqual({ x: 0, y: 0, scale: 1 })
+  })
+
+  it('scales a background by the LARGER axis ratio (cover) and centres it — no dead space', () => {
+    // 4:3 (1600×1200) → 9:16 (1080×1920). FIT would use min ratio (0.675) and leave the plate
+    // as a 1080×810 band with 555px of dead space top+bottom. COVER uses the max ratio so the
+    // plate fills the full 1920 height (overflowing the width instead).
+    const out = { width: 1080, height: 1920 }
+    const s = Math.max(1080 / 1600, 1920 / 1200) // = 1.6
+    const t = responsiveCoverTransform(DESIGN, out)
+    expect(t.scale).toBeCloseTo(s, 5)
+    // The scaled plate covers BOTH axes (≥ output on each).
+    expect(DESIGN.width * t.scale).toBeGreaterThanOrEqual(out.width - 1e-6)
+    expect(DESIGN.height * t.scale).toBeGreaterThanOrEqual(out.height - 1e-6)
+    // The design canvas centre lands on the output centre.
+    expect(t.x + (DESIGN.width / 2) * t.scale).toBeCloseTo(out.width / 2, 4)
+    expect(t.y + (DESIGN.height / 2) * t.scale).toBeCloseTo(out.height / 2, 4)
   })
 })
