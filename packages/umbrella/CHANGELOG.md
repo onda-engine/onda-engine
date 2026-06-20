@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/onda-engine/onda-engine/compare/onda-engine-v0.1.1...onda-engine-v0.2.0) (2026-06-20)
+
+
+### Features
+
+* **components:** cover full-bleed backgrounds on magic-reframe ([#21](https://github.com/onda-engine/onda-engine/issues/21)) ([873db3b](https://github.com/onda-engine/onda-engine/commit/873db3b))
+
+
+### Bug Fixes
+
+* **react:** parseColor never throws — parse CSS colors, degrade unknown to transparent ([#21](https://github.com/onda-engine/onda-engine/issues/21)) ([873db3b](https://github.com/onda-engine/onda-engine/commit/873db3b))
+
 ## [0.1.1](https://github.com/onda-engine/onda-engine/compare/onda-engine-v0.1.0...onda-engine-v0.1.1) (2026-06-19)
 
 
