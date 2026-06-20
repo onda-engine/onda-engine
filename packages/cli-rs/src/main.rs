@@ -1775,7 +1775,8 @@ fn text_label(text: &Text) -> String {
 /// Collect the soundtrack from a pre-evaluated frame sequence: every
 /// `NodeKind::Audio` node in the first frame (audio nodes are static across
 /// frames). Skips non-file srcs (http/data URIs) — the native mux decodes from
-/// disk, so URL audio is a follow-up. `start_at` (source trim) isn't applied yet.
+/// disk, so URL audio is a follow-up. `start_at` (source-head trim) is carried
+/// through and applied by the mix.
 fn collect_audio_tracks(scenes: &[Scene], fps: f32) -> Vec<AudioTrack> {
     let mut tracks = Vec::new();
     let Some(first) = scenes.first() else {
@@ -1791,6 +1792,7 @@ fn collect_audio_tracks(scenes: &[Scene], fps: f32) -> Vec<AudioTrack> {
                 out.push(AudioTrack {
                     src: a.src.clone(),
                     start_frame: (a.start * fps).round().max(0.0) as u32,
+                    start_at: a.start_at,
                     volume: a.volume,
                 });
             } else {
@@ -1907,7 +1909,10 @@ fn build_audio_wav(audio: &AudioMux, fps: f32) -> Result<std::path::PathBuf> {
     let mix_tracks: Vec<onda_audio::MixTrack> = decoded
         .iter()
         .zip(audio.tracks)
-        .map(|(buf, t)| onda_audio::MixTrack::new(buf, t.start_frame as f32 / fps, t.volume))
+        .map(|(buf, t)| {
+            onda_audio::MixTrack::new(buf, t.start_frame as f32 / fps, t.volume)
+                .with_source_in(t.start_at)
+        })
         .collect();
     let mixed = onda_audio::mix(&mix_tracks, audio.duration_secs, RATE);
 

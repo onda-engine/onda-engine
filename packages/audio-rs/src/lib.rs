@@ -184,12 +184,15 @@ fn decode_stream(mss: MediaSourceStream, hint: Hint) -> Result<AudioBuffer, Audi
     })
 }
 
-/// A clip placed in a [`mix`]: its audio, when it starts (seconds), and a gain
-/// multiplier (1.0 = unchanged).
+/// A clip placed in a [`mix`]: its audio, when it starts on the timeline
+/// (seconds), how far into the source to begin (`source_in_secs`, trims the
+/// head), and a gain multiplier (1.0 = unchanged).
 pub struct MixTrack<'a> {
     pub buffer: &'a AudioBuffer,
     pub start_secs: f32,
     pub volume: f32,
+    /// Seconds into the source to begin reading (trim the head). Default 0.
+    pub source_in_secs: f32,
 }
 
 impl<'a> MixTrack<'a> {
@@ -198,14 +201,22 @@ impl<'a> MixTrack<'a> {
             buffer,
             start_secs,
             volume,
+            source_in_secs: 0.0,
         }
+    }
+
+    /// Builder: skip the first `secs` of the source (trim the head). Negative
+    /// values are clamped to 0.
+    pub fn with_source_in(mut self, secs: f32) -> Self {
+        self.source_in_secs = secs.max(0.0);
+        self
     }
 }
 
 /// Mix clips into a single **stereo** buffer of exactly `duration_secs` at
-/// `sample_rate`. Each clip is gain-scaled, resampled (linear) to the target
-/// rate, down/up-mixed to stereo, placed at its start offset, summed, and the
-/// result is clamped to `-1..=1`.
+/// `sample_rate`. Each clip is read from its `source_in_secs` point (head trim),
+/// gain-scaled, resampled (linear) to the target rate, down/up-mixed to stereo,
+/// placed at its start offset, summed, and the result is clamped to `-1..=1`.
 pub fn mix(tracks: &[MixTrack], duration_secs: f32, sample_rate: u32) -> AudioBuffer {
     let rate = sample_rate.max(1);
     let total_frames = (duration_secs.max(0.0) * rate as f32).round() as usize;
@@ -223,9 +234,11 @@ pub fn mix(tracks: &[MixTrack], duration_secs: f32, sample_rate: u32) -> AudioBu
         }
         // Source frames advanced per output frame.
         let step = src.sample_rate as f32 / rate as f32;
+        // Head trim: where in the source (in source frames) reading begins.
+        let src_in_off = track.source_in_secs.max(0.0) * src.sample_rate as f32;
 
         for out_frame in 0..(total_frames - start_frame) {
-            let src_pos = out_frame as f32 * step;
+            let src_pos = src_in_off + out_frame as f32 * step;
             let i = src_pos as usize;
             if i >= src_frames {
                 break;
@@ -363,6 +376,41 @@ mod tests {
         let tail: f32 = mixed.samples[48_000..].iter().map(|s| s.abs()).sum();
         assert!(head < 1.0, "expected silence before the offset, got {head}");
         assert!(tail > 100.0, "expected signal after the offset, got {tail}");
+    }
+
+    #[test]
+    fn mix_trims_source_head_with_source_in() {
+        // Source: 0.5s of silence followed by 0.5s of tone.
+        let rate = 48_000;
+        let half = rate as usize / 2;
+        let mut samples = vec![0.0f32; half];
+        samples
+            .extend((0..half).map(|i| (2.0 * PI * 440.0 * (i as f32 / rate as f32)).sin() * 0.5));
+        let src = AudioBuffer {
+            sample_rate: rate,
+            channels: 1,
+            samples,
+        };
+
+        // Trimming the silent 0.5s head → the mixed 0.5s window is signal from frame 0.
+        let trimmed = mix(
+            &[MixTrack::new(&src, 0.0, 1.0).with_source_in(0.5)],
+            0.5,
+            rate,
+        );
+        let energy: f32 = trimmed.samples.iter().map(|s| s.abs()).sum();
+        assert!(
+            energy > 100.0,
+            "source-in should skip the silent head, got {energy}"
+        );
+
+        // Control: without source-in, the same window reads the silent head.
+        let untrimmed = mix(&[MixTrack::new(&src, 0.0, 1.0)], 0.5, rate);
+        let head: f32 = untrimmed.samples.iter().map(|s| s.abs()).sum();
+        assert!(
+            head < 1.0,
+            "without source-in the head is silent, got {head}"
+        );
     }
 
     #[test]
