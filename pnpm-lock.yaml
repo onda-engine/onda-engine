@@ -109,27 +109,15 @@ importers:
       '@astrojs/starlight':
         specifier: ^0.39.2
         version: 0.39.2(astro@6.4.2(@types/node@24.12.4)(rollup@4.61.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(typescript@5.9.3)
-      '@onda-engine/components':
-        specifier: workspace:^
-        version: link:../../packages/components
-      '@onda-engine/player':
-        specifier: workspace:^
-        version: link:../../packages/player
-      '@onda-engine/react':
-        specifier: workspace:^
-        version: link:../../packages/react
-      '@onda-engine/wasm':
-        specifier: workspace:^
-        version: link:../../packages/wasm
-      '@onda-engine/wasm-vello':
-        specifier: workspace:^
-        version: link:../../packages/wasm-vello
       astro:
         specifier: ^6.4.2
         version: 6.4.2(@types/node@24.12.4)(rollup@4.61.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
       motion:
         specifier: ^12.40.0
         version: 12.40.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      onda-engine:
+        specifier: npm:onda-engine@^0.1.1
+        version: 0.1.1(react@19.2.7)
       react:
         specifier: ^19.2.0
         version: 19.2.7

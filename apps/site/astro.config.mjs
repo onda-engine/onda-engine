@@ -133,20 +133,17 @@ export default defineConfig({
     mdx(),
   ],
   vite: {
-    // Serve the workspace @onda-engine/* packages straight from source — don't let Vite
-    // pre-bundle them into node_modules/.vite. Otherwise a rebuild of e.g.
-    // @onda-engine/player isn't reliably picked up (a stale optimized copy lingers), so
-    // engine/player fixes silently don't appear in the dev preview.
-    optimizeDeps: {
-      exclude: [
-        '@onda-engine/player',
-        '@onda-engine/react',
-        '@onda-engine/cinema',
-        '@onda-engine/components',
-        '@onda-engine/wasm',
-        '@onda-engine/wasm-vello',
-        '@onda-engine/wasm-audio',
-      ],
+    resolve: {
+      // Source and docs import the scoped `@onda-engine/*` names, but those
+      // packages aren't published — the engine ships as the single `onda-engine`
+      // umbrella (wasm cores bundled; the gitignored pkg/ is minted in CI). Alias
+      // the scoped specifiers onto the umbrella's subpath exports so the site
+      // builds on Vercel with no Rust toolchain. The regex also covers the deep
+      // `?url` wasm asset imports.
+      alias: [{ find: /^@onda-engine\/(.*)$/, replacement: 'onda-engine/$1' }],
     },
+    // Don't pre-bundle the wasm-bearing umbrella — esbuild dep-optimization can
+    // mangle its `new URL(..., import.meta.url)` wasm loading in dev.
+    optimizeDeps: { exclude: ['onda-engine'] },
   },
 })
