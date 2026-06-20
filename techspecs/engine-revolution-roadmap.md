@@ -150,3 +150,30 @@ Enforced dependencies: **keyframe tracks before motion-blur** (analytic velocity
 5. **Native per-glyph text atom (Wave 2 flagship).** `glyphs: Vec<GlyphTransform>` on the Text node + an unopinionated stagger builder.
 
 > **Guardrails:** judge every cinematic/motion result on the **native Vello render** — CPU ref and WebGPU preview legitimately diverge on rotation, non-Normal blend, true 3D, fBm, and the linear/HDR finish ("preview lies"). Keep wasm32 building at every step (browser preview is a core path). And the permanent line: **the engine emits numbers and applies the instruction it's handed — it never decides which grade, which cut, or whether it reads. That judgment is the moat.**
+
+---
+
+## 7. Compatibility & template migration (hard guardrail — gates every scene-graph change)
+
+**Existing templates must never break.** Verified-safe-by-construction, then defended by a golden gate.
+
+Why we start safe:
+- The engine renders a **per-frame static scene snapshot**. Templates are authored *frame-driven* (`@onda/react`: `useCurrentFrame` + `interpolate`/`spring` emit a static `Scene` per frame); the scene graph carries **no** animation state today. (`animation-rs` has `Track`/`Keyframe`/`Timeline`, but it's a separate eval path that *emits* Scenes — not embedded in stored templates.)
+- `scene-rs` deserialization is **tolerant**: no `#[serde(deny_unknown_fields)]` anywhere; heavy `#[serde(default)]`. Old JSON → defaults for missing fields; newer JSON → extra fields ignored by older engines.
+
+Discipline (every change obeys all four):
+1. **Additive only.** New capability = a new `Option<…>` field (`#[serde(default)]`) or a new `NodeKind` variant. Never a required field; never `deny_unknown_fields`.
+2. **Never change existing semantics/defaults.** `Video.time`, opacity/transform/blend defaults — frozen. The NLE timeline is a **new** `Clip`/`Track`/`Timeline` node path *on top of* `Video`, **not** a rewrite of `Video.time`. *(This corrects the §6 wording "rewiring the decoder off the single `Video.time`" — add the clip resolver alongside it; leave `Video.time` intact.)*
+3. **Declarative tracks are opt-in.** `anim: Option<Vec<PropertyTrack>>` is a new optional path; frame-driven templates keep emitting snapshots and render identically. **Motion blur uses finite-difference between adjacent snapshots** when a layer has no track → needs no template change.
+4. **K1 stays flag-gated, default off.** The `Rgba16Float` path must not alter any existing template's output; CPU stays the 8-bit byte-oracle; golden frames byte-identical with the flag off.
+
+Empirical guarantee — **the golden gate:** extend `renderer-rs/tests/golden` with a corpus of **real, representative templates**; every scene-graph PR must produce **byte-identical CPU output** (perceptually-identical GPU) for that corpus before merge. This is what actually proves "templates didn't break."
+
+Cheap insurance — **add a `version` stamp to `Scene` now** (it has none): an optional, defaulted field, additive, so any future migration has a hook.
+
+Migration "little by little" (only when a template should *adopt* a new representation, or if a break is ever forced):
+1. **Read-time auto-upgrade** in the engine: deserialize old → upgrade in-memory → render. Old templates never break across representation changes; keep old readers for ≥N releases.
+2. **Per-template re-save migrator** (Studio-side — templates live in the Studio DB, not this repo): per template → load → migrate JSON → render old vs new → **golden-diff (must match within tolerance)** → only then re-save. Batched, flag-gated, newest-first, reversible. **Never big-bang.**
+3. Track migration status per template; un-migrated templates keep rendering on the old path.
+
+Open input needed (Studio-side): the template **storage format** decides whether the migrator is engine-side JSON or Studio-side composition-model — see the handoff question.
