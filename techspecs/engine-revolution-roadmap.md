@@ -108,6 +108,8 @@ Enforced dependencies: **keyframe tracks before motion-blur** (analytic velocity
 
 > **There is no defensive "Wave 0."** The earlier "close the `inspect()` leak first" item is dropped — under the corrected moat principle it's not a leak. The lead is capability.
 
+> **Post-Studio-inspection reprioritization:** the Studio `CompositionPayload` already carries `scenes → tracks → entries` with per-entry `animate`, plus `motionBlur`/`dof`/`finish`/`linear`/`camera`, all **baked to per-frame snapshots** by `buildComposition`. So the engine-level **keyframe-track primitive is *not* a template unblocker** (templates already animate; per-layer motion blur can use finite-difference between snapshots). Its value is developer-facing (engine-as-product) + payload efficiency — keep it, but it drops out of the critical path. The genuinely uncovered **"video editing for sure"** gap is **real-footage NLE** — the `Video` node is still one-frame-at-one-`time`, and Studio's `tracks` are *component timing*, not footage cut/trim/retime. **Net lead: real-footage NLE + per-glyph text + the `start_at` audio fix + K1 float**; treat keyframe-tracks as engine-as-product, not Wave-1-critical.
+
 ### Wave 1 — Substrates everything plugs into (start here)
 1. **Generic keyframe-any-property tracks** — connective tissue: shrinks scene-JSON, gives analytic velocity for motion blur, cheaper wasm preview, lets the agent express motion as data. Cheapest high-leverage primitive (lev 5 / cost 2). **The #1 first move.**
 2. **NLE timeline substrate (core)** — Clip/Track/EDL + time-remap + hard cuts + flatten-at-*t*. The "video editing for sure" wedge; substrate under every Track-B bet. Core needs no RTT.
@@ -157,6 +159,14 @@ Enforced dependencies: **keyframe tracks before motion-blur** (analytic velocity
 
 **Existing templates must never break.** Verified-safe-by-construction, then defended by a golden gate.
 
+**Verified storage model (inspected `onda-studio`, read-only):** templates are a **Studio composition model**, *not* raw scene-graph JSON. Each is a `CompositionPayload` (JSONB in `templates`/`compositions`, `backend/src/lib/composition.ts`): `scenes → tracks → entries`, where an entry is `{ component: "KineticText", props: {…}, animate?, effects?, transform3d?, matte?, clip?, morphKey?, at, for }`. Render path = `CompositionPayload → buildComposition()` (in-process React reconciler from the **vendored** `@onda-engine/cinema`) → per-frame scene snapshot → `onda` CLI. **A stored template never contains scene-rs nodes — the scene graph is regenerated each render.**
+
+**Consequence — the real break surfaces (not raw-JSON ones):**
+- Engine `scene-rs` additions (PropertyTrack, Clip/Timeline nodes, per-glyph atom, `motion_blur`) **cannot break stored templates directly** — stored data is component+props, insulated from the scene schema. ✅
+- (1) **Component props contract** — entries reference `component`+`props`; renaming/removing a prop or changing the `buildComposition` prop→node mapping re-renders old templates differently → guard with the existing `adaptProps`/`PROP_ALIASES`/manifest reconciliation; **additive props only**.
+- (2) **Vendored engine bundle** (`vendor/onda/onda-engine.js` + binary + wasm) — engine changes reach templates **only** when the bundle is rebuilt → this is the natural **migration gate**.
+- (3) **`CompositionPayload` schema** — already additive-only; **no `schemaVersion`** today (only `sourceTemplate.version` provenance + row `revision`).
+
 Why we start safe:
 - The engine renders a **per-frame static scene snapshot**. Templates are authored *frame-driven* (`@onda/react`: `useCurrentFrame` + `interpolate`/`spring` emit a static `Scene` per frame); the scene graph carries **no** animation state today. (`animation-rs` has `Track`/`Keyframe`/`Timeline`, but it's a separate eval path that *emits* Scenes — not embedded in stored templates.)
 - `scene-rs` deserialization is **tolerant**: no `#[serde(deny_unknown_fields)]` anywhere; heavy `#[serde(default)]`. Old JSON → defaults for missing fields; newer JSON → extra fields ignored by older engines.
@@ -167,13 +177,11 @@ Discipline (every change obeys all four):
 3. **Declarative tracks are opt-in.** `anim: Option<Vec<PropertyTrack>>` is a new optional path; frame-driven templates keep emitting snapshots and render identically. **Motion blur uses finite-difference between adjacent snapshots** when a layer has no track → needs no template change.
 4. **K1 stays flag-gated, default off.** The `Rgba16Float` path must not alter any existing template's output; CPU stays the 8-bit byte-oracle; golden frames byte-identical with the flag off.
 
-Empirical guarantee — **the golden gate:** extend `renderer-rs/tests/golden` with a corpus of **real, representative templates**; every scene-graph PR must produce **byte-identical CPU output** (perceptually-identical GPU) for that corpus before merge. This is what actually proves "templates didn't break."
+Empirical guarantee — **the golden gate (corpus already exists):** the corpus is the **seed payloads** (`onda-studio/backend/scripts/seed-templates.ts` + showcase payloads in `db/seed.ts`) — real, hand-authored `CompositionPayload`s (~5–10 today). Gate on every **vendor-bundle update** (the moment engine changes reach Studio): render each payload through `buildComposition → onda`, before vs after, assert **byte-identical CPU** (perceptually-identical GPU). Keep `renderer-rs/tests/golden` engine-side for renderer determinism; the Studio-side render-over-seed-payloads test is what actually proves *templates* didn't break (it covers the full props→build→render path).
 
-Cheap insurance — **add a `version` stamp to `Scene` now** (it has none): an optional, defaulted field, additive, so any future migration has a hook.
+Migration "little by little" (Studio-side — the payload is Studio-owned):
+1. Add `schemaVersion` to `CompositionPayload` + a **reader-side adapter** (`composePayloadVersionAdapter()` in `lib/composition.ts`) that upgrades old payloads at load. DB rows stay immutable; old payloads always render.
+2. Optional **background backfill**: per template → load → adapt → render old vs new → **golden-diff** → re-save. Batched, flag-gated, newest-first, reversible. **Never big-bang.**
+3. Pure-renderer changes (e.g. K1 float, default-off) need **no payload migration** — only the golden gate proving identical output.
 
-Migration "little by little" (only when a template should *adopt* a new representation, or if a break is ever forced):
-1. **Read-time auto-upgrade** in the engine: deserialize old → upgrade in-memory → render. Old templates never break across representation changes; keep old readers for ≥N releases.
-2. **Per-template re-save migrator** (Studio-side — templates live in the Studio DB, not this repo): per template → load → migrate JSON → render old vs new → **golden-diff (must match within tolerance)** → only then re-save. Batched, flag-gated, newest-first, reversible. **Never big-bang.**
-3. Track migration status per template; un-migrated templates keep rendering on the old path.
-
-Open input needed (Studio-side): the template **storage format** decides whether the migrator is engine-side JSON or Studio-side composition-model — see the handoff question.
+Engine-side, this still costs almost nothing: keep the additive discipline above, freeze `Video.time`/defaults, and add an optional `version` to `Scene` as belt-and-suspenders. The migration *machinery* lives in Studio (`lib/composition.ts` adapter + the vendor-update render gate) — done in its own worktree when we touch Studio, never on its active branch.
