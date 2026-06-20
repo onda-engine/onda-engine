@@ -1803,6 +1803,39 @@ impl Renderer {
         acc
     }
 
+    /// World-space (scene-root coordinate) axis-aligned bounds of every node that
+    /// carries an `id`, at the scene's current frame. The studio's selection overlay
+    /// uses this so its click/drag boxes sit exactly on what the engine DREW (it
+    /// applied every scene re-frame, layout, and animation transform), instead of
+    /// re-deriving geometry in JS and guessing self-sizing components. Returns
+    /// `(id, x0, y0, x1, y1)` per identified node; an id whose subtree has no
+    /// determinable box (e.g. text with no font loaded) is omitted.
+    pub fn id_bounds(&mut self, scene: &Scene) -> Vec<(u64, f32, f32, f32, f32)> {
+        let mut out = Vec::new();
+        self.collect_id_bounds(&scene.root, Transform::IDENTITY, &mut out);
+        out
+    }
+
+    /// Walk the tree accumulating the parent transform; for each identified node,
+    /// union its whole subtree's bounds (via [`Self::subtree_local_bounds`], which
+    /// applies the node's own transform on top of `parent`) into world space.
+    fn collect_id_bounds(
+        &mut self,
+        node: &Node,
+        parent: Transform,
+        out: &mut Vec<(u64, f32, f32, f32, f32)>,
+    ) {
+        if let Some(id) = node.id {
+            if let Some((x0, y0, x1, y1)) = self.subtree_local_bounds(node, parent) {
+                out.push((id.0, x0, y0, x1, y1));
+            }
+        }
+        let transform = parent.then(&node.transform);
+        for child in &node.children {
+            self.collect_id_bounds(child, transform, out);
+        }
+    }
+
     /// Local-space bounds of an effect node's CAPTURED subtree — exactly what
     /// [`Self::draw_subtree_local`] draws: the effect node's own kind at IDENTITY
     /// (its own transform is applied only at composite-back, NOT inside the
@@ -2455,6 +2488,34 @@ mod tests {
         let fb = render(&Scene::new(comp(4, 3)));
         assert_eq!((fb.width(), fb.height()), (4, 3));
         assert!(fb.as_bytes().iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn id_bounds_reports_world_space_box_through_parent_transforms() {
+        // A 100×50 rect (id 7) translated (10,20), nested in a group translated (5,5):
+        // world box = (5+10, 5+20) sized 100×50 → (15,25)..(115,75).
+        let translate = |x: f32, y: f32| Transform {
+            translate: Vec2::new(x, y),
+            ..Transform::IDENTITY
+        };
+        let shape = Node::shape(Shape::rect(Size::new(100.0, 50.0)).with_fill(Color::WHITE))
+            .with_transform(translate(10.0, 20.0))
+            .with_id(7);
+        let root = Node::group()
+            .with_transform(translate(5.0, 5.0))
+            .with_child(shape);
+        let scene = Scene::new(comp(200, 200)).with_root(root);
+
+        let bounds = Renderer::with_default_font().id_bounds(&scene);
+        assert_eq!(bounds.len(), 1, "exactly one identified node");
+        let (id, x0, y0, x1, y1) = bounds[0];
+        assert_eq!(id, 7);
+        // ≤1px slack for the AA/stroke fringe subtree_local_bounds adds (imperceptible
+        // for a selection box; the world-space placement is what matters).
+        assert!((x0 - 15.0).abs() <= 1.5, "x0={x0}");
+        assert!((y0 - 25.0).abs() <= 1.5, "y0={y0}");
+        assert!((x1 - 115.0).abs() <= 1.5, "x1={x1}");
+        assert!((y1 - 75.0).abs() <= 1.5, "y1={y1}");
     }
 
     #[test]
