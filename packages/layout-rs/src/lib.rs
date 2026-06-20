@@ -179,18 +179,16 @@ fn intrinsic_size(
         NodeKind::Audio(_) => Size::ZERO,
         // A plain container's box is the extent of its (already-positioned)
         // children — the bounding box from the local origin.
-        NodeKind::Group | NodeKind::Svg(_) => {
-            children
-                .iter()
-                .zip(child_sizes)
-                .fold(Size::ZERO, |acc, (child, size)| {
-                    let t = child.transform.translate;
-                    Size::new(
-                        acc.width.max(t.x + size.width),
-                        acc.height.max(t.y + size.height),
-                    )
-                })
-        }
+        NodeKind::Group | NodeKind::Svg(_) | NodeKind::Timeline(_) => children
+            .iter()
+            .zip(child_sizes)
+            .fold(Size::ZERO, |acc, (child, size)| {
+                let t = child.transform.translate;
+                Size::new(
+                    acc.width.max(t.x + size.width),
+                    acc.height.max(t.y + size.height),
+                )
+            }),
     }
 }
 

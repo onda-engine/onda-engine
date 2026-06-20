@@ -1133,6 +1133,9 @@ impl Renderer {
             // SVG nodes are expanded to shapes (onda-svg) before rendering; the
             // CPU backend can't draw paths anyway, so an unexpanded one is a no-op.
             NodeKind::Svg(_) => {}
+            // Timeline lanes are flattened to a Video by `resolve_timeline` before
+            // rendering (like Svg); an unresolved one is a no-op.
+            NodeKind::Timeline(_) => {}
         }
 
         for child in &node.children {
@@ -1735,7 +1738,7 @@ impl Renderer {
                 transform,
                 opacity,
             ),
-            NodeKind::Audio(_) | NodeKind::Svg(_) => {}
+            NodeKind::Audio(_) | NodeKind::Svg(_) | NodeKind::Timeline(_) => {}
         }
         // Children render through the normal path so nested effects still apply.
         for child in &node.children {

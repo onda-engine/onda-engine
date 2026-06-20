@@ -866,7 +866,10 @@ fn render_frame_command(args: &[String]) -> Result<()> {
 
     // Same pre-passes as `onda render`, so the zoomed frame is faithful.
     let base_dir = Path::new(input).parent().unwrap_or_else(|| Path::new(""));
-    let scene = onda_svg::expand_svg(scene, base_dir).context("expanding <svg> nodes")?;
+    // Flatten any NLE timeline to this frame's active clip before decode.
+    let fps = scene.composition.fps;
+    let scene = onda_scene::resolve_timeline(scene, frame as u32, fps);
+    let scene = onda_svg::expand_svg(&scene, base_dir).context("expanding <svg> nodes")?;
     #[cfg(feature = "video")]
     let scene = onda_video::load_video_frames(&scene).context("decoding video frames")?;
     let scene = onda_image::load_images(&scene, base_dir).context("loading images")?;
@@ -2114,8 +2117,12 @@ fn frames_scenes(json: &str, base_dir: &Path) -> Result<(Vec<Scene>, f32)> {
     // background plate) is decoded ONCE, not per frame (procedural grain + data URIs
     // are excluded — they differ per frame). Big win for image-heavy compositions.
     let mut img_cache = std::collections::HashMap::new();
-    for scene in &raw {
-        let expanded = onda_svg::expand_svg(scene, base_dir).context("expanding <svg> nodes")?;
+    for (i, scene) in raw.iter().enumerate() {
+        // Flatten any NLE timeline to the active clip's Video for THIS frame,
+        // before the decode pre-passes (mirrors <svg> expansion).
+        let resolved = onda_scene::resolve_timeline(scene, i as u32, fps);
+        let expanded =
+            onda_svg::expand_svg(&resolved, base_dir).context("expanding <svg> nodes")?;
         #[cfg(feature = "video")]
         let expanded = video
             .resolve_scene(&expanded)
