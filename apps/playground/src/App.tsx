@@ -1,4 +1,4 @@
-import { Player } from '@onda-engine/player'
+import { Player } from 'onda-engine/player'
 import {
   Composition,
   Ellipse,
@@ -13,11 +13,11 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda-engine/react'
-import initCpu, { OndaEngine } from '@onda-engine/wasm'
-import initVello, { VelloEngine } from '@onda-engine/wasm-vello'
-import velloWasmUrl from '@onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
-import cpuWasmUrl from '@onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
+} from 'onda-engine/react'
+import initCpu, { OndaEngine } from 'onda-engine/wasm'
+import initVello, { VelloEngine } from 'onda-engine/wasm-vello'
+import velloWasmUrl from 'onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
+import cpuWasmUrl from 'onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
 import { type ReactElement, useEffect, useMemo, useState } from 'react'
 
 const W = 1280

@@ -41,18 +41,9 @@ importers:
 
   apps/playground:
     dependencies:
-      '@onda-engine/player':
-        specifier: workspace:*
-        version: link:../../packages/player
-      '@onda-engine/react':
-        specifier: workspace:*
-        version: link:../../packages/react
-      '@onda-engine/wasm':
-        specifier: workspace:*
-        version: link:../../packages/wasm
-      '@onda-engine/wasm-vello':
-        specifier: workspace:*
-        version: link:../../packages/wasm-vello
+      onda-engine:
+        specifier: npm:onda-engine@^0.1.1
+        version: 0.1.1(react@19.2.7)
       react:
         specifier: ^19.2.0
         version: 19.2.7
