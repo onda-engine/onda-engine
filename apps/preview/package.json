@@ -9,12 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@onda-engine/cinema": "workspace:*",
-    "@onda-engine/components": "workspace:*",
-    "@onda-engine/player": "workspace:*",
-    "@onda-engine/react": "workspace:*",
-    "@onda-engine/wasm": "workspace:*",
-    "@onda-engine/wasm-vello": "workspace:*",
+    "onda-engine": "npm:onda-engine@^0.1.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
