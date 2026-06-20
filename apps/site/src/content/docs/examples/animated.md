@@ -9,7 +9,7 @@ import { writeFileSync } from 'node:fs'
 import {
   Composition, Easing, Rect, Text,
   interpolate, renderFramesJSON, useCurrentFrame,
-} from '@onda-engine/react'
+} from 'onda-engine/react'
 
 function Title() {
   const frame = useCurrentFrame()

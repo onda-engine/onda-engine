@@ -6,7 +6,7 @@ The simplest scene: a dark backdrop, a colored underline rect, and a line of tex
 
 ```tsx
 import { writeFileSync } from 'node:fs'
-import { Composition, Rect, Text, renderToSceneJSON } from '@onda-engine/react'
+import { Composition, Rect, Text, renderToSceneJSON } from 'onda-engine/react'
 
 const scene = (
   <Composition width={1200} height={360} fps={30} durationInFrames={1}>

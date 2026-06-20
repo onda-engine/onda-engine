@@ -1,4 +1,4 @@
-import { Player } from '@onda-engine/player'
+import { Player } from 'onda-engine/player'
 import {
   AbsoluteFill,
   Composition,
@@ -11,9 +11,9 @@ import {
   linearTiming,
   slide,
   wipe,
-} from '@onda-engine/react'
-import velloWasmUrl from '@onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
-import cpuWasmUrl from '@onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
+} from 'onda-engine/react'
+import velloWasmUrl from 'onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
+import cpuWasmUrl from 'onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
 import { type CSSProperties, type ReactElement, useEffect, useMemo, useRef, useState } from 'react'
 
 // Interactive, in-docs demos rendered by the real engine (Vello/WebGPU, CPU
@@ -55,12 +55,12 @@ function useEngine() {
     let cancelled = false
     ;(async () => {
       try {
-        const { default: initVello, VelloEngine } = await import('@onda-engine/wasm-vello')
+        const { default: initVello, VelloEngine } = await import('onda-engine/wasm-vello')
         await initVello({ module_or_path: velloWasmUrl })
         const engine = await VelloEngine.create()
         if (!cancelled) setGpu(engine)
       } catch {
-        const { default: initCpu, OndaEngine } = await import('@onda-engine/wasm')
+        const { default: initCpu, OndaEngine } = await import('onda-engine/wasm')
         await initCpu({ module_or_path: cpuWasmUrl })
         const engine = new OndaEngine()
         if (!cancelled) setCpu(engine)

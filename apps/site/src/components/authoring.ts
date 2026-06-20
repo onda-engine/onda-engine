@@ -1,8 +1,8 @@
 //! The composition-authoring contract for an AI agent: how to assemble a
-//! timeline payload (`@onda-engine/cinema` `CompositionPayload`) — the model, timing,
+//! timeline payload (`onda-engine/cinema` `CompositionPayload`) — the model, timing,
 //! placement, size roles, choreography, transitions and brand. Surfaced in
 //! /api/components.json under `authoring` so an agent can author without reading
-//! engine source. Values mirror `@onda-engine/cinema` (placement regions, SIZE_ROLES,
+//! engine source. Values mirror `onda-engine/cinema` (placement regions, SIZE_ROLES,
 //! CHOREOGRAPHY, TRANSITIONS) — keep in sync if those change.
 
 export const AUTHORING = {
@@ -16,7 +16,7 @@ export const AUTHORING = {
     layers:
       'Layer { under?, entries[] } — composition-level clips that span scene cuts; `under:true` = background, else overlay.',
     notes:
-      'Component NAMES are the @onda-engine/components exports (see `components`). Prefer `recommendedPalette` (first-class). One <ThemeProvider> via `brand` re-skins everything; an explicit prop overrides.',
+      'Component NAMES are the onda-engine/components exports (see `components`). Prefer `recommendedPalette` (first-class). One <ThemeProvider> via `brand` re-skins everything; an explicit prop overrides.',
   },
   timing: {
     spec: "TimeSpec = seconds (number) OR a string: '2s', '500ms', '0:02' (m:ss), '90f' (frames).",

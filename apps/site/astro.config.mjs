@@ -99,7 +99,7 @@ export default defineConfig({
           ],
         },
         {
-          label: '@onda-engine/react',
+          label: 'onda-engine/react',
           items: [
             { label: 'Components', link: '/api/react' },
             { label: 'Hooks', link: '/api/hooks' },
@@ -127,23 +127,16 @@ export default defineConfig({
         },
       ],
     }),
-    // React islands — for live @onda-engine/react + @onda-engine/player demos (client-only).
+    // React islands — for live onda-engine/react + onda-engine/player demos (client-only).
     react(),
     // MDX — lets doc pages embed React islands (e.g. the live player demo).
     mdx(),
   ],
   vite: {
-    resolve: {
-      // Source and docs import the scoped `@onda-engine/*` names, but those
-      // packages aren't published — the engine ships as the single `onda-engine`
-      // umbrella (wasm cores bundled; the gitignored pkg/ is minted in CI). Alias
-      // the scoped specifiers onto the umbrella's subpath exports so the site
-      // builds on Vercel with no Rust toolchain. The regex also covers the deep
-      // `?url` wasm asset imports.
-      alias: [{ find: /^@onda-engine\/(.*)$/, replacement: 'onda-engine/$1' }],
-    },
-    // Don't pre-bundle the wasm-bearing umbrella — esbuild dep-optimization can
-    // mangle its `new URL(..., import.meta.url)` wasm loading in dev.
+    // The site consumes the published `onda-engine` umbrella (wasm cores bundled;
+    // the gitignored pkg/ is minted in CI), exactly like any npm consumer — so it
+    // builds on Vercel with no Rust toolchain. Don't pre-bundle it: esbuild
+    // dep-optimization can mangle its `new URL(..., import.meta.url)` wasm loading.
     optimizeDeps: { exclude: ['onda-engine'] },
   },
 })

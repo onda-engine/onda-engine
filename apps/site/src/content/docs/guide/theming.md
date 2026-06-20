@@ -22,7 +22,7 @@ Wrap your scene in a `ThemeProvider`. Themed components below it pick up the
 brand kit; an explicit prop on a component always wins over the theme.
 
 ```tsx
-import { ThemeProvider, TitleCard, BarChart } from '@onda-engine/components'
+import { ThemeProvider, TitleCard, BarChart } from 'onda-engine/components'
 
 const theme = {
   accent: '#3b82f6',

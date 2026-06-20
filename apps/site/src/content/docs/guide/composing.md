@@ -120,7 +120,7 @@ layer's center on its world point. Omit `camera` fields to get a default camera 
 frames `z = 0` to fill the comp.
 
 ```tsx
-import { Scene3D } from '@onda-engine/react'
+import { Scene3D } from 'onda-engine/react'
 
 <Scene3D camera={{ position: [960, 540, -1400], target: [960, 540, 0], fov: 45 }}>
   <Card position3d={[640, 540, 250]} rotation3d={[0, 55, 0]} />   {/* yawed, behind */}
@@ -248,7 +248,7 @@ Drive any property with the pure helper **`beatPulse(frame, beats, decay)`** —
 punch that fires on each beat — so an element **hits on the beat**:
 
 ```tsx
-import { useAudioBeats, beatPulse, isBeat } from '@onda-engine/components'
+import { useAudioBeats, beatPulse, isBeat } from 'onda-engine/components'
 
 function Kick() {
   const frame = useCurrentFrame()
@@ -274,7 +274,7 @@ beat, punch on the kick, drop text on a transient.
 ### Clips
 
 ```ts
-import { clipRect, clipEllipse, clipPath } from '@onda-engine/react'
+import { clipRect, clipEllipse, clipPath } from 'onda-engine/react'
 <Group clip={clipRect(300, 100, 12)}> … </Group>
 ```
 
@@ -285,7 +285,7 @@ Clip regions are in the **node's local space**. GPU only — the CPU backend ign
 ## Animation
 
 ```ts
-import { spring, interpolate, Easing, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
+import { spring, interpolate, Easing, useCurrentFrame, useVideoConfig } from 'onda-engine/react'
 ```
 
 ### `useCurrentFrame()`
@@ -336,7 +336,7 @@ interpolate(frame, [0, 30], [0, 1], {
 ## Timeline
 
 ```ts
-import { Sequence, Loop, Series, TransitionSeries } from '@onda-engine/react'
+import { Sequence, Loop, Series, TransitionSeries } from 'onda-engine/react'
 ```
 
 ### `<Sequence from={N} durationInFrames={D}>`
@@ -373,7 +373,7 @@ Sequences auto-stacked — no need to calculate cumulative offsets. Each
 Like `<Series>` but with animated transitions between segments.
 
 ```tsx
-import { TransitionSeries, crossFade, springTiming } from '@onda-engine/react'
+import { TransitionSeries, crossFade, springTiming } from 'onda-engine/react'
 
 <TransitionSeries>
   <TransitionSeries.Sequence durationInFrames={60}>
@@ -401,7 +401,7 @@ import { TransitionSeries, crossFade, springTiming } from '@onda-engine/react'
 lands at the canvas center, scaled by `zoom`.
 
 ```tsx
-import { Camera } from '@onda-engine/react'
+import { Camera } from 'onda-engine/react'
 
 <Camera focusX={960} focusY={540} zoom={1.5} rotate={0}>
   {/* world-space content */}
@@ -452,7 +452,7 @@ one line so you don't hand-code enter/exit math.
 ### Motion vocabulary (pure functions, no JSX needed)
 
 ```ts
-import { entryScale, entryFade, entryFadeRise, entrySlide, exitFade, stateSwap } from '@onda-engine/components'
+import { entryScale, entryFade, entryFadeRise, entrySlide, exitFade, stateSwap } from 'onda-engine/components'
 
 const { opacity, scaleX, scaleY } = entryScale({ frame, fps, delay, durationInFrames, from })
 ```
@@ -500,7 +500,7 @@ import { createElement as h } from 'react'
 import {
   Composition, Group, Rect, Ellipse, Path, Text, Image,
   Camera, Sequence, spring, interpolate, useCurrentFrame,
-} from '@onda-engine/react'
+} from 'onda-engine/react'
 
 const FPS = 30
 const W = 1280, H = 720

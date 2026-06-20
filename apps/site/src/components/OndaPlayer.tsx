@@ -1,4 +1,4 @@
-import { Player } from '@onda-engine/player'
+import { Player } from 'onda-engine/player'
 import {
   Composition,
   Ellipse,
@@ -14,12 +14,12 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
-} from '@onda-engine/react'
-import velloWasmUrl from '@onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
-import cpuWasmUrl from '@onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
+} from 'onda-engine/react'
+import velloWasmUrl from 'onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
+import cpuWasmUrl from 'onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
 import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react'
 
-// The wasm engine modules (@onda-engine/wasm-vello runs a WebGPU shim at import time)
+// The wasm engine modules (onda-engine/wasm-vello runs a WebGPU shim at import time)
 // are loaded dynamically inside the effect so this island is safe to SSR.
 
 // A live ONDA composition, rendered by the real engine (Vello over WebGPU, with
@@ -174,13 +174,13 @@ export default function OndaPlayer(): ReactElement {
     let cancelled = false
     ;(async () => {
       try {
-        const { default: initVello, VelloEngine } = await import('@onda-engine/wasm-vello')
+        const { default: initVello, VelloEngine } = await import('onda-engine/wasm-vello')
         await initVello({ module_or_path: velloWasmUrl })
         const engine = await VelloEngine.create()
         if (!cancelled) setGpu(engine)
       } catch {
         // No WebGPU here — fall back to the CPU engine.
-        const { default: initCpu, OndaEngine } = await import('@onda-engine/wasm')
+        const { default: initCpu, OndaEngine } = await import('onda-engine/wasm')
         await initCpu({ module_or_path: cpuWasmUrl })
         const engine = new OndaEngine()
         if (!cancelled) setCpu(engine)

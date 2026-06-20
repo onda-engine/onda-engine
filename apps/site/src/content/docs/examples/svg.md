@@ -6,7 +6,7 @@ Use SVG documents in JSX. `<Svg>` takes either inline `markup` (self-contained) 
 
 ```tsx
 import { readFileSync, writeFileSync } from 'node:fs'
-import { Composition, Rect, Svg, Text, renderToSceneJSON } from '@onda-engine/react'
+import { Composition, Rect, Svg, Text, renderToSceneJSON } from 'onda-engine/react'
 
 // One badge by inline markup (self-contained)...
 const inlineBadge = readFileSync(new URL('./assets/badge.svg', import.meta.url), 'utf8')

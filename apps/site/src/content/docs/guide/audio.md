@@ -10,7 +10,7 @@ Sound is part of the graph, not bolted on. ONDA covers three things: **playing**
 A non-visual node that plays during preview and is **muxed into the MP4** on export (GIF has no audio track).
 
 ```tsx
-import { Audio, Sequence } from '@onda-engine/react'
+import { Audio, Sequence } from 'onda-engine/react'
 
 <Sequence from={30}>
   <Audio src="/score.mp3" start={1} startAt={0.5} volume={0.8} />
@@ -29,7 +29,7 @@ import { Audio, Sequence } from '@onda-engine/react'
 `@onda-engine/components` analyses a clip into a **frame-unit beat grid** that is deterministic and identical in preview and export. Drive motion straight from it.
 
 ```tsx
-import { useAudioBeats, beatPulse, isBeat } from '@onda-engine/components'
+import { useAudioBeats, beatPulse, isBeat } from 'onda-engine/components'
 
 function Kick({ src }) {
   const frame = useCurrentFrame()

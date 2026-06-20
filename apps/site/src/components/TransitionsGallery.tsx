@@ -1,4 +1,4 @@
-import { Player } from '@onda-engine/player'
+import { Player } from 'onda-engine/player'
 import {
   AbsoluteFill,
   Composition,
@@ -18,9 +18,9 @@ import {
   slide,
   wipe,
   zoom,
-} from '@onda-engine/react'
-import velloWasmUrl from '@onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
-import cpuWasmUrl from '@onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
+} from 'onda-engine/react'
+import velloWasmUrl from 'onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
+import cpuWasmUrl from 'onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
 import {
   type CSSProperties,
   type ReactElement,
@@ -32,7 +32,7 @@ import {
 } from 'react'
 import { CodeBlock } from './CodeBlock.js'
 
-// The transitions showcase — every @onda-engine/react TransitionSeries presentation,
+// The transitions showcase — every onda-engine/react TransitionSeries presentation,
 // played A→B live by the real engine (Vello/WebGPU, CPU fallback), with the
 // copyable usage code. Mounted client-only so wasm/WebGPU never touches SSR.
 
@@ -127,7 +127,7 @@ function scene(label: string, fill: string): ReactElement {
 
 function snippetFor(t: TransitionDef): string {
   return [
-    `import { TransitionSeries, ${t.name}, linearTiming } from '@onda-engine/react'`,
+    `import { TransitionSeries, ${t.name}, linearTiming } from 'onda-engine/react'`,
     '',
     '<TransitionSeries>',
     '  <TransitionSeries.Sequence durationInFrames={50}>',
@@ -173,12 +173,12 @@ function useEngine() {
     let cancelled = false
     ;(async () => {
       try {
-        const { default: initVello, VelloEngine } = await import('@onda-engine/wasm-vello')
+        const { default: initVello, VelloEngine } = await import('onda-engine/wasm-vello')
         await initVello({ module_or_path: velloWasmUrl })
         const e = await VelloEngine.create()
         if (!cancelled) setGpu(e)
       } catch {
-        const { default: initCpu, OndaEngine } = await import('@onda-engine/wasm')
+        const { default: initCpu, OndaEngine } = await import('onda-engine/wasm')
         await initCpu({ module_or_path: cpuWasmUrl })
         if (!cancelled) setCpu(new OndaEngine())
       }

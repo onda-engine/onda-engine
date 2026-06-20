@@ -1,4 +1,4 @@
-import { type Theme, defaultTheme } from '@onda-engine/components'
+import { type Theme, defaultTheme } from 'onda-engine/components'
 import { create } from 'zustand'
 
 // Editable theme state for the gallery's config panel (Zustand). The panel

@@ -17,7 +17,7 @@ There are two shapes of output, matching the two CLI commands:
 
 ```tsx
 import { writeFileSync } from 'node:fs'
-import { Composition, Rect, Text, renderToSceneJSON } from '@onda-engine/react'
+import { Composition, Rect, Text, renderToSceneJSON } from 'onda-engine/react'
 
 const scene = (
   <Composition width={1200} height={360} fps={30} durationInFrames={1}>
@@ -235,7 +235,7 @@ fill={{ r: 0.4, g: 0.8, b: 1, a: 0 }}
 `linearGradient(start, end, stops)` and `radialGradient(center, radius, stops)` build a `GradientInput`. Points are `[x, y]` tuples or `{ x, y }`. Coordinates are in the **shape's local space**. Stop offsets are 0..1.
 
 ```tsx
-import { linearGradient, radialGradient } from '@onda-engine/react'
+import { linearGradient, radialGradient } from 'onda-engine/react'
 
 <Rect
   width={360}
@@ -268,7 +268,7 @@ Gradients render on the GPU backend. On the CPU backend, a gradient falls back t
 `clipRect(width, height, cornerRadius?)`, `clipEllipse(width, height)`, and `clipPath(d)` build a `ClipInput` for the `clip` prop. The node and its subtree are clipped to that geometry, in local space.
 
 ```tsx
-import { clipRect } from '@onda-engine/react'
+import { clipRect } from 'onda-engine/react'
 
 <Group x={40} y={120} clip={clipRect(150, 50, 12)}>
   <Text x={6} y={-8} fontSize={72} color="#3ce69a">CLIP</Text>
@@ -282,7 +282,7 @@ Clipping is a GPU-backend feature; the CPU backend ignores it.
 Components are **pure functions of the current frame** (Remotion's model). Read the frame with `useCurrentFrame()` and compute props from it; the engine renders the tree once per frame.
 
 ```tsx
-import { Text, interpolate, Easing, useCurrentFrame } from '@onda-engine/react'
+import { Text, interpolate, Easing, useCurrentFrame } from 'onda-engine/react'
 
 function Title() {
   const frame = useCurrentFrame()

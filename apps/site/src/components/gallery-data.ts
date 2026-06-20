@@ -1,4 +1,4 @@
-// Gallery registry: one entry per @onda-engine/components component, with demo props
+// Gallery registry: one entry per onda-engine/components component, with demo props
 // and theming flags. Regenerated from the component sources; avoid hand-edits.
 export interface GalleryItem {
   name: string
@@ -670,7 +670,7 @@ export const GALLERY: GalleryItem[] = [
     category: 'Mockups',
     blurb: 'syntax-highlighted source on a dark rounded panel, revealed',
     props: {
-      code: "import { motion } from '@onda-engine/react';\n\nexport const Hero = () => {\n  const x = 100; // accent demo\n  return <Group x={x}>Hello</Group>;\n};",
+      code: "import { motion } from 'onda-engine/react';\n\nexport const Hero = () => {\n  const x = 100; // accent demo\n  return <Group x={x}>Hello</Group>;\n};",
       title: 'hero.tsx',
       chrome: true,
       revealLines: true,

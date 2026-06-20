@@ -19,7 +19,7 @@ interface SequenceProps {
 ```
 
 ```tsx
-import { Sequence, Text, interpolate, useCurrentFrame } from '@onda-engine/react'
+import { Sequence, Text, interpolate, useCurrentFrame } from 'onda-engine/react'
 
 function Title() {
   const frame = useCurrentFrame() // 0 at the sequence's start
@@ -47,7 +47,7 @@ interface SeriesSequenceProps {
 ```
 
 ```tsx
-import { Series } from '@onda-engine/react'
+import { Series } from 'onda-engine/react'
 
 <Series>
   <Series.Sequence durationInFrames={30}>
@@ -80,7 +80,7 @@ interface LoopProps {
 ```
 
 ```tsx
-import { Loop, Rect, interpolate, useCurrentFrame } from '@onda-engine/react'
+import { Loop, Rect, interpolate, useCurrentFrame } from 'onda-engine/react'
 
 function Pulse() {
   const frame = useCurrentFrame() // cycles 0..29
@@ -111,7 +111,7 @@ import {
   wipe,
   linearTiming,
   springTiming,
-} from '@onda-engine/react'
+} from 'onda-engine/react'
 
 ;<TransitionSeries>
   <TransitionSeries.Sequence durationInFrames={60}>

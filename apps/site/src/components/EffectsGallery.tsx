@@ -1,4 +1,4 @@
-import { Player } from '@onda-engine/player'
+import { Player } from 'onda-engine/player'
 import {
   Composition,
   Ellipse,
@@ -9,9 +9,9 @@ import {
   interpolate,
   linearGradient,
   useCurrentFrame,
-} from '@onda-engine/react'
-import velloWasmUrl from '@onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
-import cpuWasmUrl from '@onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
+} from 'onda-engine/react'
+import velloWasmUrl from 'onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
+import cpuWasmUrl from 'onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
 import {
   type CSSProperties,
   type ReactElement,
@@ -699,12 +699,12 @@ function useEngine() {
     let cancelled = false
     ;(async () => {
       try {
-        const { default: initVello, VelloEngine } = await import('@onda-engine/wasm-vello')
+        const { default: initVello, VelloEngine } = await import('onda-engine/wasm-vello')
         await initVello({ module_or_path: velloWasmUrl })
         const e = await VelloEngine.create()
         if (!cancelled) setGpu(e)
       } catch {
-        const { default: initCpu, OndaEngine } = await import('@onda-engine/wasm')
+        const { default: initCpu, OndaEngine } = await import('onda-engine/wasm')
         await initCpu({ module_or_path: cpuWasmUrl })
         if (!cancelled) setCpu(new OndaEngine())
       }

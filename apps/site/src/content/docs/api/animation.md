@@ -86,7 +86,7 @@ function spring(options: SpringOptions): number
 ```
 
 ```tsx
-import { spring, useCurrentFrame, useVideoConfig } from '@onda-engine/react'
+import { spring, useCurrentFrame, useVideoConfig } from 'onda-engine/react'
 
 function Pop() {
   const frame = useCurrentFrame()
@@ -107,7 +107,7 @@ const y = spring({ frame, fps, from: 200, to: 0 }) // slide up into place
 `random(seed: number | string): number` — a deterministic value in `[0, 1)`. Compositions must render identically every time (same frame → same pixels), so reach for this instead of `Math.random()`.
 
 ```ts
-import { random } from '@onda-engine/react'
+import { random } from 'onda-engine/react'
 const jitter = random(`dot-${i}`) * 10 - 5 // stable per i, every render
 ```
 
@@ -116,7 +116,7 @@ const jitter = random(`dot-${i}`) * 10 - 5 // stable per i, every render
 Smooth, coherent value noise in `[-1, 1]` — seeded and deterministic — for organic motion (drift, wobble, jitter). Scale the inputs to set the frequency; animate a coordinate over `frame` for movement.
 
 ```ts
-import { noise2D } from '@onda-engine/react'
+import { noise2D } from 'onda-engine/react'
 const y = baseY + noise2D('drift', frame * 0.05, 0) * 20
 ```
 

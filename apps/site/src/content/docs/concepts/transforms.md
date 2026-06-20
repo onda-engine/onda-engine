@@ -49,7 +49,7 @@ On the Rust side, opacity is clamped into range.
 A node can carry a **clip** geometry: when set, the node and its entire subtree are clipped to that shape, in the node's local space. The clip geometry is the same `ShapeGeometry` used by shapes — a rect (optionally rounded), an ellipse, or an arbitrary path.
 
 ```tsx
-import { clipRect } from '@onda-engine/react'
+import { clipRect } from 'onda-engine/react'
 
 <Group x={40} y={120} clip={clipRect(150, 50, 12)}>
   <Text x={6} y={-8} fontSize={72} color="#3ce69a">CLIP</Text>

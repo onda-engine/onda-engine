@@ -13,7 +13,7 @@ function useCurrentFrame(): number
 ```
 
 ```tsx
-import { Text, interpolate, useCurrentFrame } from '@onda-engine/react'
+import { Text, interpolate, useCurrentFrame } from 'onda-engine/react'
 
 function FadeIn() {
   const frame = useCurrentFrame()
@@ -40,7 +40,7 @@ function useVideoConfig(): VideoConfig
 ```
 
 ```tsx
-import { useCurrentFrame, useVideoConfig, spring } from '@onda-engine/react'
+import { useCurrentFrame, useVideoConfig, spring } from 'onda-engine/react'
 
 function Pop() {
   const frame = useCurrentFrame()

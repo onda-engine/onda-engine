@@ -7,8 +7,8 @@ import {
   StatCard,
   TitleCard,
   Vignette,
-} from '@onda-engine/components'
-import { Player } from '@onda-engine/player'
+} from 'onda-engine/components'
+import { Player } from 'onda-engine/player'
 import {
   Composition,
   Group,
@@ -19,14 +19,14 @@ import {
   slide,
   springTiming,
   wipe,
-} from '@onda-engine/react'
-import velloWasmUrl from '@onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
-import cpuWasmUrl from '@onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
+} from 'onda-engine/react'
+import velloWasmUrl from 'onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
+import cpuWasmUrl from 'onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
 import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react'
 
 // The ONDA flagship promo — the SAME composition `onda export` renders to MP4,
 // here playing live in the browser via the real engine (Vello over WebGPU, CPU
-// fallback). Built entirely from `@onda-engine/components`: every scene is a library
+// fallback). Built entirely from `onda-engine/components`: every scene is a library
 // component, sequenced with <TransitionSeries>. Mounted client-only so wasm/
 // WebGPU never touches SSR; the engine boots lazily when scrolled into view.
 
@@ -207,13 +207,13 @@ export default function OndaShowcase(): ReactElement {
     let cancelled = false
     ;(async () => {
       try {
-        const { default: initVello, VelloEngine } = await import('@onda-engine/wasm-vello')
+        const { default: initVello, VelloEngine } = await import('onda-engine/wasm-vello')
         await initVello({ module_or_path: velloWasmUrl })
         const engine = await VelloEngine.create()
         if (!cancelled) setGpu(engine)
       } catch {
         // No WebGPU here — fall back to the CPU engine (gradients render flat).
-        const { default: initCpu, OndaEngine } = await import('@onda-engine/wasm')
+        const { default: initCpu, OndaEngine } = await import('onda-engine/wasm')
         await initCpu({ module_or_path: cpuWasmUrl })
         const engine = new OndaEngine()
         if (!cancelled) setCpu(engine)

@@ -10,7 +10,7 @@ The `<Svg>` component takes either inline `markup` or a file `src`:
 
 ```tsx
 import { readFileSync } from 'node:fs'
-import { Composition, Rect, Svg, Text, renderToSceneJSON } from '@onda-engine/react'
+import { Composition, Rect, Svg, Text, renderToSceneJSON } from 'onda-engine/react'
 
 const badge = readFileSync(new URL('./assets/badge.svg', import.meta.url), 'utf8')
 

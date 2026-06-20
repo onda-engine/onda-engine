@@ -2,7 +2,28 @@
 title: "Getting started"
 ---
 
-ONDA is an early-stage **Rust workspace** with a TypeScript/React authoring layer. There is no published npm package or prebuilt binary yet — you build it from source. This page walks through cloning the repo, building the workspace, and rendering your first scene.
+ONDA ships in two pieces: the **`onda-engine` npm package** — author in React, preview live in the browser on the WASM engine, and render headlessly in Node — and the native **`onda` CLI**, built from the Rust workspace, for GPU render/export to PNG/MP4/GIF. Most users start with the npm package; build from source when you want the native CLI or to hack on the engine.
+
+## Install (npm)
+
+```bash
+npm install onda-engine react
+```
+
+`react` (v19) is a peer dependency you provide. Everything else — including the ~11 MB of WASM cores — ships in the package; there's no Rust toolchain or extra registry to configure. Author in React and emit scene-graph JSON:
+
+```tsx
+import { Composition, Rect, Text, renderToSceneJSON } from 'onda-engine/react'
+
+// …author a <Composition>, then turn it into scene-graph JSON:
+const json = renderToSceneJSON(<MyScene />)
+```
+
+Preview it live with `<Player>` from `onda-engine/player`, render to video in Node via `onda-engine/render`, or feed the JSON to the native `onda` CLI (below) for GPU export. See [Authoring with React](/guide/authoring-react) for the full component and hook surface.
+
+## Build from source
+
+Everything below is the **from-source** path — needed for the native `onda` CLI (GPU render/export) or to develop the engine itself.
 
 ## Prerequisites
 

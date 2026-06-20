@@ -1,9 +1,9 @@
-import * as Lib from '@onda-engine/components'
-import type { Theme } from '@onda-engine/components'
-import { Player } from '@onda-engine/player'
-import { AbsoluteFill, Composition, Rect, Text } from '@onda-engine/react'
-import velloWasmUrl from '@onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
-import cpuWasmUrl from '@onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
+import * as Lib from 'onda-engine/components'
+import type { Theme } from 'onda-engine/components'
+import { Player } from 'onda-engine/player'
+import { AbsoluteFill, Composition, Rect, Text } from 'onda-engine/react'
+import velloWasmUrl from 'onda-engine/wasm-vello/pkg/onda_wasm_vello_bg.wasm?url'
+import cpuWasmUrl from 'onda-engine/wasm/pkg/onda_wasm_bg.wasm?url'
 import {
   type CSSProperties,
   type FunctionComponent,
@@ -21,7 +21,7 @@ import { GALLERY, GALLERY_CATEGORIES, type GalleryItem } from './gallery-data.js
 import { usageSnippet } from './snippet.js'
 import { useThemeStore } from './theme-store.js'
 
-// The component gallery — every @onda-engine/components component, rendered live by the
+// The component gallery — every onda-engine/components component, rendered live by the
 // real engine (Vello/WebGPU, CPU fallback). One shared engine + one player; the
 // list on the left swaps which composition plays. Mounted client-only so wasm/
 // WebGPU never touches SSR; boots lazily when scrolled into view.
@@ -167,11 +167,11 @@ function bootEngines() {
   if (!enginesPromise) {
     enginesPromise = (async () => {
       try {
-        const { default: initVello, VelloEngine } = await import('@onda-engine/wasm-vello')
+        const { default: initVello, VelloEngine } = await import('onda-engine/wasm-vello')
         await initVello({ module_or_path: velloWasmUrl })
         return { gpu: await VelloEngine.create(), cpu: null }
       } catch {
-        const { default: initCpu, OndaEngine } = await import('@onda-engine/wasm')
+        const { default: initCpu, OndaEngine } = await import('onda-engine/wasm')
         await initCpu({ module_or_path: cpuWasmUrl })
         return { gpu: null, cpu: new OndaEngine() }
       }

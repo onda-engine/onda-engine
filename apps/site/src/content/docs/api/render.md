@@ -8,7 +8,7 @@ These functions turn a React element tree (whose root must be a `<Composition>`)
 import {
   renderFrame, renderToScene, renderFrames,
   renderToSceneJSON, renderFramesJSON,
-} from '@onda-engine/react'
+} from 'onda-engine/react'
 ```
 
 ## `renderFrame`
