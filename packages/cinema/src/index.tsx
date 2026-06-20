@@ -519,12 +519,15 @@ function SceneTracks({
           const key = entry.id ?? `entry-${ei}`
           const slot = createElement(EntrySlot, { entry, registry, suppress: suppress?.get(entry) })
           if (!responsive) return cloneElement(slot, { key })
-          // Magic Resize: pin this element's design anchor onto the output canvas.
-          const t = Components.responsiveEntryTransform(
-            Components.entryDesignAnchor(entry.props),
-            responsive.design,
-            responsive.out,
-          )
+          // Magic Resize: full-bleed plates COVER the output; everything else pins its design
+          // anchor per-axis and fits — so a background never letterboxes into dead space.
+          const t = Components.isFullBleed(entry.props, responsive.design)
+            ? Components.responsiveCoverTransform(responsive.design, responsive.out)
+            : Components.responsiveEntryTransform(
+                Components.entryDesignAnchor(entry.props),
+                responsive.design,
+                responsive.out,
+              )
           if (t.x === 0 && t.y === 0 && t.scale === 1) return cloneElement(slot, { key })
           return createElement(
             Group,

@@ -28,7 +28,33 @@ export interface ResponsiveTransform {
  *  to PIN to that edge instead of tracking the centre — the outer fifth each side. */
 const EDGE = 0.2
 
+/** An element whose rendered size reaches at least this fraction of BOTH design axes is
+ *  treated as a full-bleed plate (a background) — re-framed by COVER, not the per-element FIT,
+ *  so it keeps filling the frame on an aspect flip instead of letterboxing into dead space. */
+const FULL_BLEED = 0.9
+
 const mean = (ns: number[]): number => (ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : 0)
+
+/** The mean of an element's scale track (default 1) — the uniform size multiplier on its content. */
+function meanScale(props: Record<string, unknown> | undefined): number {
+  const scaleTrack = props?.scale as ValKey[] | undefined
+  return Array.isArray(scaleTrack) && scaleTrack.length ? mean(scaleTrack.map((k) => k.v)) : 1
+}
+
+/** Whether an element is a full-bleed background plate: image/video content whose rendered size
+ *  (content size × scale) covers ≥{@link FULL_BLEED} of BOTH design axes. Such plates must COVER
+ *  the output (scale by the LARGER axis ratio), never FIT it (the smaller ratio) — fitting a
+ *  background on an aspect flip (16:9 → 9:16) shrinks it to a band with dead space top and bottom. */
+export function isFullBleed(props: Record<string, unknown> | undefined, design: Box): boolean {
+  const content = props?.content as { kind?: string; width?: number; height?: number } | undefined
+  if (!content || (content.kind !== 'image' && content.kind !== 'video')) return false
+  if (!content.width || !content.height) return false
+  const s = meanScale(props)
+  return (
+    content.width * s >= FULL_BLEED * design.width &&
+    content.height * s >= FULL_BLEED * design.height
+  )
+}
 
 /** The representative design-space point an element "lives at" — the mean of its
  *  position track, nudged to the visual CENTRE of image content (whose pivot defaults
@@ -81,4 +107,21 @@ export function responsiveEntryTransform(
   const ay = pinAxis(anchor.y, design.height, out.height, s)
   // Place the element's design anchor at (ax, ay) with its content scaled by s.
   return { x: ax - anchor.x * s, y: ay - anchor.y * s, scale: s }
+}
+
+/** COVER re-frame for a full-bleed plate ({@link isFullBleed}): uniformly scale the WHOLE design
+ *  canvas by the LARGER axis ratio and centre it on the output, so the plate keeps filling the
+ *  frame (overflowing the long axis) instead of fitting into a band with dead space. The translate
+ *  is anchor-independent — it just centres the scaled design canvas, preserving every element's
+ *  relative position within that plate. Matching canvas ⇒ identity. */
+export function responsiveCoverTransform(design: Box, out: Box): ResponsiveTransform {
+  if (design.width === out.width && design.height === out.height) {
+    return { x: 0, y: 0, scale: 1 }
+  }
+  const s = Math.max(out.width / design.width, out.height / design.height)
+  return {
+    x: (out.width - design.width * s) / 2,
+    y: (out.height - design.height * s) / 2,
+    scale: s,
+  }
 }

@@ -243,6 +243,8 @@ export {
   type Box,
   type ResponsiveTransform,
   entryDesignAnchor,
+  isFullBleed,
+  responsiveCoverTransform,
   responsiveEntryTransform,
 } from './responsive.js'
 export {
