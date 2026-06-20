@@ -1,9 +1,18 @@
 # Real-footage NLE — node shape (v1 design, for sign-off)
 
-> Status: **design proposal awaiting sign-off** — no code yet. Implements the
-> "video editing for sure" scope from [`engine-revolution-roadmap.md`]. Hard
-> constraint: **additive only**, `Video` semantics frozen, templates unaffected
-> (see the roadmap §7). Sign off on the open questions (§6) before implementation.
+> Status: **v1 core IMPLEMENTED** (commit `f32a502`, branch `feat/engine-revolution`) —
+> all six open questions (§6) went with the recommended defaults. Implements the
+> "video editing for sure" scope from [`engine-revolution-roadmap.md`]. Built
+> additive-only: `Video` frozen, templates unaffected, golden suite green, host
+> (default + `video`) and wasm32 compile, fmt + clippy clean.
+>
+> **Done:** `Clip`/`Timeline` types + `NodeKind::Timeline` + `Node::timeline` +
+> `onda_scene::resolve_timeline` (+ 3 tests); `Timeline` arms in
+> renderer/vello/layout; `resolve_timeline` wired before decode in the CLI
+> per-frame export path and the single `render-frame` path.
+> **Follow-ups:** wasm-preview wiring (so clips show in-browser), a golden
+> fixture clip, cross-clip transitions, clip audio, the `movie_scenes` path, and
+> the Studio exposure path (payload → component → manifest → MCP → planner).
 
 ## 1. The gap
 
