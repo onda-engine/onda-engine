@@ -187,3 +187,25 @@ Migration "little by little" (Studio-side — the payload is Studio-owned):
 Engine-side, this still costs almost nothing: keep the additive discipline above, freeze `Video.time`/defaults, and add an optional `version` to `Scene` as belt-and-suspenders. The migration *machinery* lives in Studio (`lib/composition.ts` adapter + the vendor-update render gate) — done in its own worktree when we touch Studio, never on its active branch.
 
 > **Build-model is frozen unless we deliberately decide otherwise (talk-first).** Redesigning *how templates are built* (the `CompositionPayload` authoring model, the per-frame `buildComposition` bake, or the scene-graph contract) is **out of scope for this roadmap** — every bet here is additive on top of it. Such a redesign is only ever on the table if it's a genuine win **for Studio and the agent** (the same lens as the moat call), and it is a separate, explicit conversation — never folded into a capability PR. Tripwires that would *start* that conversation: (1) the agent can't express/edit at the granularity it needs (e.g. the vision-loop nudging motion by number; per-glyph or per-clip editing the component+props model can't carry); (2) per-frame React baking becomes a real cost/perf bottleneck vs. engine-native declarative eval (ties to Studio unit economics + cheap self-correction renders); (3) real-footage NLE outgrows the additive clips-on-`Video` v1 and a full editorial timeline wants to be the agent's primary authoring surface. Until a tripwire bites: **additive-only.**
+
+---
+
+## 8. Capability isn't done until the agent can use it (exposure checklist)
+
+**The unit of work is *capability + its exposure path*, not capability alone.** A more powerful engine adds zero moat value if the Studio agent can't reach the new capability — that's exactly why "compositions were never premium": engine depth was walled off from the agent (and unknown props were stripped). So every engine capability we ship travels a fixed path, or it's orphaned:
+
+1. **Engine primitive** — the `scene-rs` node/field/effect + renderer support (this repo).
+2. **`CompositionPayload` schema** — the optional field/entry that carries it (Studio `lib/composition.ts`), additive.
+3. **Component + props** — the `@onda-engine/react`/cinema component (or `buildComposition` mapping) that emits it; the manifest the agent reads (`PropMeta`).
+4. **MCP tool** — the agent-facing verb to set it (Studio tool-specs), with gate/confirm where needed.
+5. **Director/planner + taste** — the treatment planner emits it where appropriate, and the agent knows *when* to use it (exemplars/playbooks). This is the closed, moat-bearing half.
+
+A capability that stops at step 1 is invisible to the product. Track each bet against this checklist; "engine PR merged" is not "shipped."
+
+### Where to point attention (priority framing)
+
+- **De-risk first — the golden gate.** Engine-side `renderer-rs/tests/golden` (the determinism oracle; already green) **+** a Studio-side render-the-seed-payloads-and-diff test wired at the **vendor-bundle seam** (the moment engine changes reach Studio). Protects every later change. Engine half is in-repo; Studio half lives in an `onda-studio` worktree.
+- **Headline capability — real-footage NLE.** The genuinely uncovered "video editing" scope; design in `nle-node-shape.md` (awaiting sign-off). Clear of the current `renderer-rs/lib.rs` WIP.
+- **Compounding moat — measurement / agent-vision primitives.** Bounds (`id_bounds`/`elementBounds`), overflow/collision/legibility, color scopes — the engine's unique gift to the agent is letting it *see and self-correct by number*. Hardest to fork (the value is the closed control loop that consumes it). Treat as first-class, not an afterthought.
+- **The seam — engine→Studio vendor pipeline.** Make the rebuild/refresh of `vendor/onda/` reliable and gated, or it bottlenecks the whole initiative.
+- **Sequenced/blocked.** Per-glyph text + per-layer motion blur both edit `renderer-rs/lib.rs` → do them *after* the in-flight `id_bounds` WIP merges to main, to avoid conflicts. Vello 0.7/velato stays Wave 4. Build-model redesign stays talk-first (§7).
