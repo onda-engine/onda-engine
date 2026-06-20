@@ -81,24 +81,9 @@ importers:
 
   apps/preview:
     dependencies:
-      '@onda-engine/cinema':
-        specifier: workspace:*
-        version: link:../../packages/cinema
-      '@onda-engine/components':
-        specifier: workspace:*
-        version: link:../../packages/components
-      '@onda-engine/player':
-        specifier: workspace:*
-        version: link:../../packages/player
-      '@onda-engine/react':
-        specifier: workspace:*
-        version: link:../../packages/react
-      '@onda-engine/wasm':
-        specifier: workspace:*
-        version: link:../../packages/wasm
-      '@onda-engine/wasm-vello':
-        specifier: workspace:*
-        version: link:../../packages/wasm-vello
+      onda-engine:
+        specifier: npm:onda-engine@^0.1.1
+        version: 0.1.1(react@19.2.7)
       react:
         specifier: ^19.2.0
         version: 19.2.7
@@ -2886,6 +2871,11 @@ packages:
 
   ohash@2.0.11:
     resolution: {integrity: sha512-RdR9FQrFwNBNXAr4GixM8YaRZRJ5PUWbKYbE5eOsrwAjJW0q2REGcf79oYPsLyskQCZG1PLN+S/K1V00joZAoQ==}
+
+  onda-engine@0.1.1:
+    resolution: {integrity: sha512-rw/aC3893REQgZ4l6RAizVmjPXTUiGk/31gqe/hELJgBlT1DvvY5fxxahr8KU5j7QRWGEfEKa9R3TRYNMAdUQQ==}
+    peerDependencies:
+      react: ^19.2.0
 
   onetime@5.1.2:
     resolution: {integrity: sha512-kbpaSSGJTWdAY5KPVeMOKXSrPtr8C8C7wodJbcsd51jRnmD+GZu8Y0VoU6Dm5Z4vWr0Ig/1NKuWRKf7j5aaYSg==}
@@ -6813,6 +6803,13 @@ snapshots:
       ufo: 1.6.4
 
   ohash@2.0.11: {}
+
+  onda-engine@0.1.1(react@19.2.7):
+    dependencies:
+      flubber: 0.4.2
+      react: 19.2.7
+      react-reconciler: 0.33.0(react@19.2.7)
+      zod: 3.25.76
 
   onetime@5.1.2:
     dependencies:
