@@ -1,0 +1,32 @@
+# Embed-kit autobump — on every push to main, cut the next `v*` tag IFF the kit's
+# inputs changed (the onda binary's crates, the text-metrics wasm, the vendored TS,
+# or the kit build script). The script then dispatches release.yml on that tag to
+# build + publish the kit tarball. Closes the gap Release-Please leaves (it only
+# versions the npm umbrella, never the Rust/wasm the kit is built from).
+#
+# No PAT needed: the tag is pushed with GITHUB_TOKEN (contents: write) and
+# release.yml is fired via workflow_dispatch (actions: write) — the one event
+# GITHUB_TOKEN is allowed to trigger.
+name: Embed-kit autobump
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write # push the tag
+  actions: write # workflow_dispatch release.yml
+
+concurrency: embed-kit-autobump
+
+jobs:
+  autobump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # full history + tags for the since-last-tag diff
+      - name: Cut + release the embed-kit if its inputs changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/maybe-bump-embed-kit.sh
