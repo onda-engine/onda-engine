@@ -49,9 +49,29 @@ pub struct Composition {
     /// tone-maps once. `None` → the default gamma output. GPU/export only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub finish: Option<Finish>,
+    /// Scene-graph schema version, for forward migration. Absent or `1` = the
+    /// original format; bump only on a breaking scene-graph change, paired with a
+    /// reader-side upgrade. Omitted from JSON at the current default, so existing
+    /// comps serialize byte-identically.
+    #[serde(
+        default = "Composition::default_version",
+        skip_serializing_if = "Composition::is_current_version"
+    )]
+    pub version: u32,
 }
 
 impl Composition {
+    /// The current scene-graph schema version (see [`Composition::version`]).
+    pub const CURRENT_VERSION: u32 = 1;
+
+    fn default_version() -> u32 {
+        Self::CURRENT_VERSION
+    }
+
+    fn is_current_version(v: &u32) -> bool {
+        *v == Self::CURRENT_VERSION
+    }
+
     /// Construct a composition (gamma pipeline; opt into linear via [`with_linear`]).
     pub fn new(width: u32, height: u32, fps: f32, duration_in_frames: u32) -> Self {
         Composition {
@@ -61,6 +81,7 @@ impl Composition {
             duration_in_frames,
             linear: false,
             finish: None,
+            version: Self::CURRENT_VERSION,
         }
     }
 
@@ -2293,6 +2314,24 @@ mod tests {
             }
             other => panic!("expected text node, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn composition_version_defaults_and_is_omitted_at_current() {
+        // The current version is omitted on write (existing comps stay byte-identical).
+        let json = serde_json::to_string(&Composition::new(64, 64, 30.0, 30)).unwrap();
+        assert!(!json.contains("version"), "current version omitted: {json}");
+        // Absent in JSON → defaults to the current version.
+        let back: Composition =
+            serde_json::from_str(r#"{"width":64,"height":64,"fps":30.0,"duration_in_frames":30}"#)
+                .unwrap();
+        assert_eq!(back.version, Composition::CURRENT_VERSION);
+        // A future (bumped) version survives a round-trip.
+        let mut v2 = Composition::new(64, 64, 30.0, 30);
+        v2.version = 2;
+        let back2: Composition =
+            serde_json::from_str(&serde_json::to_string(&v2).unwrap()).unwrap();
+        assert_eq!(back2.version, 2);
     }
 
     #[test]
