@@ -56,6 +56,53 @@ impl AudioBuffer {
             rate => self.frames() as f32 / rate as f32,
         }
     }
+
+    /// Root-mean-square level across all samples (0..≈1) — a loudness proxy.
+    pub fn rms(&self) -> f32 {
+        if self.samples.is_empty() {
+            return 0.0;
+        }
+        let sum_sq: f64 = self.samples.iter().map(|&s| s as f64 * s as f64).sum();
+        (sum_sq / self.samples.len() as f64).sqrt() as f32
+    }
+
+    /// Peak absolute amplitude (0..≈1).
+    pub fn peak(&self) -> f32 {
+        self.samples.iter().fold(0.0f32, |m, &s| m.max(s.abs()))
+    }
+}
+
+/// Per-frame loudness (RMS) envelope: one value per output frame of a
+/// `frame_count` timeline at `fps`, each the RMS of the source window for that
+/// frame (channels averaged to mono). Values are 0..≈1 — a loudness proxy for
+/// ducking, level meters, and loudness-reactive motion. Frames map to time the
+/// same way [`spectrogram`] / [`detect_beats`] do, so loudness lines up with the
+/// visual frames. Deterministic.
+pub fn rms_envelope(buffer: &AudioBuffer, fps: f32, frame_count: usize) -> Vec<f32> {
+    let rate = buffer.sample_rate.max(1) as f32;
+    let channels = buffer.channels.max(1) as usize;
+    let total = buffer.frames();
+    let win = (rate / fps.max(1.0)).max(1.0);
+    (0..frame_count)
+        .map(|n| {
+            let start = (n as f32 * win) as usize;
+            let end = (((n + 1) as f32 * win) as usize).min(total);
+            if start >= end {
+                return 0.0;
+            }
+            let mut sum_sq = 0.0f64;
+            for f in start..end {
+                let base = f * channels;
+                let mut s = 0.0f32;
+                for c in 0..channels {
+                    s += buffer.samples.get(base + c).copied().unwrap_or(0.0);
+                }
+                s /= channels as f32;
+                sum_sq += s as f64 * s as f64;
+            }
+            (sum_sq / (end - start) as f64).sqrt() as f32
+        })
+        .collect()
 }
 
 /// An error decoding or encoding audio.
@@ -411,6 +458,42 @@ mod tests {
             head < 1.0,
             "without source-in the head is silent, got {head}"
         );
+    }
+
+    #[test]
+    fn rms_and_peak_measure_level() {
+        // A 440Hz sine of amplitude 0.5: peak ≈ 0.5, RMS ≈ 0.5/√2 ≈ 0.354.
+        let tone = sine(440.0, 0.5, 48_000);
+        assert!((tone.peak() - 0.5).abs() < 0.02, "peak {}", tone.peak());
+        assert!((tone.rms() - 0.3536).abs() < 0.02, "rms {}", tone.rms());
+        // Silence reads zero.
+        let silence = AudioBuffer {
+            sample_rate: 48_000,
+            channels: 1,
+            samples: vec![0.0; 1000],
+        };
+        assert_eq!(silence.rms(), 0.0);
+        assert_eq!(silence.peak(), 0.0);
+    }
+
+    #[test]
+    fn rms_envelope_tracks_loudness_over_time() {
+        // 1s of silence then 1s of tone, at 30fps → first frames quiet, last loud.
+        let rate = 48_000;
+        let one_sec = rate as usize;
+        let mut samples = vec![0.0f32; one_sec];
+        samples.extend(
+            (0..one_sec).map(|i| (2.0 * PI * 440.0 * (i as f32 / rate as f32)).sin() * 0.5),
+        );
+        let buf = AudioBuffer {
+            sample_rate: rate,
+            channels: 1,
+            samples,
+        };
+        let env = rms_envelope(&buf, 30.0, 60);
+        assert_eq!(env.len(), 60);
+        assert!(env[5] < 0.02, "silent head frame: {}", env[5]);
+        assert!(env[45] > 0.2, "loud tail frame: {}", env[45]);
     }
 
     #[test]
