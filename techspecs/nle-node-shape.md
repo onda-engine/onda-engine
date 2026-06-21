@@ -7,12 +7,16 @@
 > (default + `video`) and wasm32 compile, fmt + clippy clean.
 >
 > **Done:** `Clip`/`Timeline` types + `NodeKind::Timeline` + `Node::timeline` +
-> `onda_scene::resolve_timeline` (+ 3 tests); `Timeline` arms in
+> `onda_scene::resolve_timeline` (+ scene-rs tests); `Timeline` arms in
 > renderer/vello/layout; `resolve_timeline` wired before decode in the CLI
-> per-frame export path and the single `render-frame` path.
-> **Follow-ups:** wasm-preview wiring (so clips show in-browser), a golden
-> fixture clip, cross-clip transitions, clip audio, the `movie_scenes` path, and
-> the Studio exposure path (payload → component → manifest → MCP → planner).
+> per-frame export path and the single `render-frame` path (f32a502).
+> **Completion batch (6c295f1):** video decode is now CLI-default (NLE works with
+> no flag); both wasm crates expose `resolveTimeline(scene_json, frame)` for the
+> preview host; a deterministic renderer test renders a resolved clip's pixels.
+> **Follow-ups:** wire `resolveTimeline` into the TS player decode loop (the
+> preview *consumer*); a golden fixture clip; cross-clip transitions; clip audio;
+> the `movie_scenes` path; and the Studio exposure path (payload → component →
+> manifest → MCP → planner).
 
 ## 1. The gap
 
