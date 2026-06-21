@@ -9,7 +9,9 @@
 //! Empty on non-wasm targets so it never touches the native build.
 #![cfg(target_arch = "wasm32")]
 
-use onda_audio::{decode_from_bytes, detect_beats, spectrogram, AudioBuffer, SpectrumOpts};
+use onda_audio::{
+    decode_from_bytes, detect_beats, rms_envelope, spectrogram, AudioBuffer, SpectrumOpts,
+};
 use wasm_bindgen::prelude::*;
 
 /// Beat / onset / tempo analysis of a clip, all in VIDEO-FRAME units. Returned by
@@ -86,6 +88,14 @@ impl AudioAnalyzer {
             onsets: t.onsets.iter().map(|&o| o as u32).collect(),
             env: t.onset_env,
         }
+    }
+
+    /// Per-frame loudness (RMS) envelope: one `0..≈1` value per frame of a
+    /// `frame_count` timeline at `fps` — for level meters, ducking under a
+    /// voiceover, and loudness-reactive motion. Deterministic — identical to the
+    /// native export.
+    pub fn loudness(&self, fps: f32, frame_count: usize) -> Vec<f32> {
+        rms_envelope(&self.buffer, fps, frame_count)
     }
 
     /// Clip duration in seconds.

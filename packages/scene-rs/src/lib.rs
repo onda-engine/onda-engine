@@ -49,9 +49,29 @@ pub struct Composition {
     /// tone-maps once. `None` → the default gamma output. GPU/export only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub finish: Option<Finish>,
+    /// Scene-graph schema version, for forward migration. Absent or `1` = the
+    /// original format; bump only on a breaking scene-graph change, paired with a
+    /// reader-side upgrade. Omitted from JSON at the current default, so existing
+    /// comps serialize byte-identically.
+    #[serde(
+        default = "Composition::default_version",
+        skip_serializing_if = "Composition::is_current_version"
+    )]
+    pub version: u32,
 }
 
 impl Composition {
+    /// The current scene-graph schema version (see [`Composition::version`]).
+    pub const CURRENT_VERSION: u32 = 1;
+
+    fn default_version() -> u32 {
+        Self::CURRENT_VERSION
+    }
+
+    fn is_current_version(v: &u32) -> bool {
+        *v == Self::CURRENT_VERSION
+    }
+
     /// Construct a composition (gamma pipeline; opt into linear via [`with_linear`]).
     pub fn new(width: u32, height: u32, fps: f32, duration_in_frames: u32) -> Self {
         Composition {
@@ -61,6 +81,7 @@ impl Composition {
             duration_in_frames,
             linear: false,
             finish: None,
+            version: Self::CURRENT_VERSION,
         }
     }
 
@@ -625,6 +646,10 @@ pub enum NodeKind {
     /// vector-capable layer (see the `onda-svg` crate). Renderers that haven't
     /// expanded it draw nothing.
     Svg(Svg),
+    /// An NLE lane: a sequence of [`Clip`]s resolved to the active clip's
+    /// [`Video`] at each frame by [`resolve_timeline`] (a pre-pass), exactly like
+    /// [`NodeKind::Svg`] is expanded by `onda-svg`. Unresolved, it draws nothing.
+    Timeline(Timeline),
 }
 
 impl Node {
@@ -718,6 +743,12 @@ impl Node {
     /// by `onda-svg`. See [`Svg`] for inline markup.
     pub fn svg(src: impl Into<String>) -> Self {
         Node::new(NodeKind::Svg(Svg::from_src(src)))
+    }
+
+    /// An NLE timeline lane of footage [`Clip`]s, resolved to a [`Video`] per
+    /// frame by [`resolve_timeline`]. See [`Timeline`].
+    pub fn timeline(timeline: Timeline) -> Self {
+        Node::new(NodeKind::Timeline(timeline))
     }
 
     /// Builder: assign a stable id.
@@ -1142,6 +1173,153 @@ impl Video {
         self.data = Some(data);
         self
     }
+}
+
+/// A single footage clip on an NLE lane ([`Timeline`]): a `src`, where it sits on
+/// the timeline (`timeline_in`..`timeline_out`, composition seconds), how far into
+/// the source it begins (`source_in`, trims the head), and a playback `speed`. Its
+/// display box mirrors [`Video`]. Resolved to a plain [`Video`] at a frame by
+/// [`resolve_timeline`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Clip {
+    pub src: String,
+    /// Composition time (seconds) where the clip starts on the timeline.
+    pub timeline_in: f32,
+    /// Composition time (seconds) where the clip ends on the timeline.
+    pub timeline_out: f32,
+    /// Seconds into the source to begin from — trims the head (default 0).
+    #[serde(default)]
+    pub source_in: f32,
+    /// Playback rate: 1.0 = realtime, 2.0 = 2× faster, negative = reverse
+    /// (nearest-frame; no interpolation). Default 1.0.
+    #[serde(default = "Clip::default_speed")]
+    pub speed: f32,
+    /// Target box width in px (see [`Video`]). `None` → intrinsic size.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<f32>,
+    /// How the frame is fitted into the box. Defaults to [`ImageFit::Cover`].
+    #[serde(default)]
+    pub fit: ImageFit,
+}
+
+impl Clip {
+    fn default_speed() -> f32 {
+        1.0
+    }
+
+    /// A clip from `src` spanning `timeline_in`..`timeline_out` (composition
+    /// seconds), playing from the source start at realtime speed.
+    pub fn new(src: impl Into<String>, timeline_in: f32, timeline_out: f32) -> Self {
+        Clip {
+            src: src.into(),
+            timeline_in,
+            timeline_out,
+            source_in: 0.0,
+            speed: 1.0,
+            width: None,
+            height: None,
+            fit: ImageFit::default(),
+        }
+    }
+
+    /// Builder: begin `secs` into the source (trim the head). Clamped to ≥ 0.
+    pub fn with_source_in(mut self, secs: f32) -> Self {
+        self.source_in = secs.max(0.0);
+        self
+    }
+
+    /// Builder: set the playback rate (negative = reverse, nearest-frame).
+    pub fn with_speed(mut self, speed: f32) -> Self {
+        self.speed = speed;
+        self
+    }
+
+    /// Builder: set the target box the frame is fitted into (see [`Video`]).
+    pub fn with_box(mut self, width: f32, height: f32, fit: ImageFit) -> Self {
+        self.width = Some(width);
+        self.height = Some(height);
+        self.fit = fit;
+        self
+    }
+
+    /// Source `time` (seconds) to display at composition time `t`:
+    /// `source_in + (t - timeline_in) * speed`, clamped to ≥ 0 (nearest-frame).
+    pub fn source_time(&self, t: f32) -> f32 {
+        (self.source_in + (t - self.timeline_in) * self.speed).max(0.0)
+    }
+
+    /// The [`Video`] this clip resolves to at composition time `t`.
+    pub fn to_video(&self, t: f32) -> Video {
+        Video {
+            src: self.src.clone(),
+            time: self.source_time(t),
+            data: None,
+            width: self.width,
+            height: self.height,
+            fit: self.fit,
+        }
+    }
+}
+
+/// An NLE lane: a sequence of footage [`Clip`]s sharing one display box, resolved
+/// to the active clip's [`Video`] at each frame (hard cuts — later clips win on
+/// overlap). Multiple lanes = multiple [`NodeKind::Timeline`] nodes composited by
+/// the usual node z-order. Resolved by [`resolve_timeline`]; cross-clip
+/// transitions and clip audio are follow-ups.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Timeline {
+    pub clips: Vec<Clip>,
+}
+
+impl Timeline {
+    /// A lane from a set of clips.
+    pub fn new(clips: impl IntoIterator<Item = Clip>) -> Self {
+        Timeline {
+            clips: clips.into_iter().collect(),
+        }
+    }
+
+    /// The clip active at composition time `t` (seconds): the LAST clip whose
+    /// half-open span `[timeline_in, timeline_out)` contains `t` (later clips win
+    /// on overlap — a hard cut). `None` in a gap.
+    pub fn active_clip(&self, t: f32) -> Option<&Clip> {
+        self.clips
+            .iter()
+            .rev()
+            .find(|c| t >= c.timeline_in && t < c.timeline_out)
+    }
+}
+
+/// Flatten every [`Timeline`] node to the plain [`Video`] of its active clip at
+/// composition `frame` (at `fps`), so the renderer and decoder — which only know
+/// [`Video`] — need no timeline awareness. A lane with no active clip becomes an
+/// empty [`NodeKind::Group`] (transparent). All other nodes pass through
+/// unchanged. Run BEFORE the decode pre-pass. Mirrors how `onda-svg` expands
+/// [`NodeKind::Svg`].
+pub fn resolve_timeline(scene: &Scene, frame: u32, fps: f32) -> Scene {
+    let t = frame as f32 / fps.max(1.0);
+    Scene {
+        composition: scene.composition.clone(),
+        root: resolve_timeline_node(&scene.root, t),
+    }
+}
+
+fn resolve_timeline_node(node: &Node, t: f32) -> Node {
+    let mut out = node.clone();
+    if let NodeKind::Timeline(timeline) = &node.kind {
+        out.kind = match timeline.active_clip(t) {
+            Some(clip) => NodeKind::Video(clip.to_video(t)),
+            None => NodeKind::Group,
+        };
+    }
+    out.children = node
+        .children
+        .iter()
+        .map(|c| resolve_timeline_node(c, t))
+        .collect();
+    out
 }
 
 /// A non-visual audio clip on the timeline. Renderers ignore it; it rides in the
@@ -2136,5 +2314,87 @@ mod tests {
             }
             other => panic!("expected text node, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn composition_version_defaults_and_is_omitted_at_current() {
+        // The current version is omitted on write (existing comps stay byte-identical).
+        let json = serde_json::to_string(&Composition::new(64, 64, 30.0, 30)).unwrap();
+        assert!(!json.contains("version"), "current version omitted: {json}");
+        // Absent in JSON → defaults to the current version.
+        let back: Composition =
+            serde_json::from_str(r#"{"width":64,"height":64,"fps":30.0,"duration_in_frames":30}"#)
+                .unwrap();
+        assert_eq!(back.version, Composition::CURRENT_VERSION);
+        // A future (bumped) version survives a round-trip.
+        let mut v2 = Composition::new(64, 64, 30.0, 30);
+        v2.version = 2;
+        let back2: Composition =
+            serde_json::from_str(&serde_json::to_string(&v2).unwrap()).unwrap();
+        assert_eq!(back2.version, 2);
+    }
+
+    #[test]
+    fn timeline_resolves_active_clip_to_video_with_source_time() {
+        // Lane: clip A [0,2)s from source 0; clip B [2,4)s trimmed 10s into source.
+        let tl = Timeline::new([
+            Clip::new("a.mp4", 0.0, 2.0),
+            Clip::new("b.mp4", 2.0, 4.0).with_source_in(10.0),
+        ]);
+        let scene = Scene::new(Composition::new(100, 100, 30.0, 120)).with_root(Node::timeline(tl));
+
+        // Frame 30 → t=1.0s → clip A, source_time = 1.0.
+        match &resolve_timeline(&scene, 30, 30.0).root.kind {
+            NodeKind::Video(v) => {
+                assert_eq!(v.src, "a.mp4");
+                assert!((v.time - 1.0).abs() < 1e-6, "time={}", v.time);
+            }
+            other => panic!("expected Video, got {other:?}"),
+        }
+        // Frame 90 → t=3.0s → clip B, source_time = 10 + (3-2) = 11.0.
+        match &resolve_timeline(&scene, 90, 30.0).root.kind {
+            NodeKind::Video(v) => {
+                assert_eq!(v.src, "b.mp4");
+                assert!((v.time - 11.0).abs() < 1e-6, "time={}", v.time);
+            }
+            other => panic!("expected Video, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn timeline_overlap_is_a_hard_cut_and_gap_is_an_empty_group() {
+        // A [0,1)s and B [0.5,3)s overlap; at t=0.7s the later clip (B) wins.
+        let tl = Timeline::new([Clip::new("a.mp4", 0.0, 1.0), Clip::new("b.mp4", 0.5, 3.0)]);
+        let scene = Scene::new(Composition::new(100, 100, 10.0, 30)).with_root(Node::timeline(tl));
+        match &resolve_timeline(&scene, 7, 10.0).root.kind {
+            NodeKind::Video(v) => assert_eq!(v.src, "b.mp4", "later clip wins on overlap"),
+            other => panic!("expected Video, got {other:?}"),
+        }
+
+        // A lane whose only clip is [0,1)s, asked at t=2.0s → empty group (a gap).
+        let gap = Scene::new(Composition::new(100, 100, 10.0, 30)).with_root(Node::timeline(
+            Timeline::new([Clip::new("a.mp4", 0.0, 1.0)]),
+        ));
+        assert!(
+            matches!(resolve_timeline(&gap, 20, 10.0).root.kind, NodeKind::Group),
+            "a gap should resolve to an empty group"
+        );
+    }
+
+    #[test]
+    fn timeline_round_trips_through_json_and_absent_is_unaffected() {
+        let scene = Scene::new(Composition::new(64, 64, 30.0, 30)).with_root(Node::timeline(
+            Timeline::new([Clip::new("a.mp4", 0.0, 2.0)
+                .with_speed(2.0)
+                .with_source_in(1.0)]),
+        ));
+        let back: Scene = serde_json::from_str(&serde_json::to_string(&scene).unwrap()).unwrap();
+        assert_eq!(scene, back);
+
+        // A scene with no timeline round-trips exactly as before (backward-compat).
+        let plain = Scene::new(Composition::new(64, 64, 30.0, 30)).with_root(Node::group());
+        let plain_back: Scene =
+            serde_json::from_str(&serde_json::to_string(&plain).unwrap()).unwrap();
+        assert_eq!(plain, plain_back);
     }
 }

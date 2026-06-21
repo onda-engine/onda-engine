@@ -230,6 +230,47 @@ impl OndaEngine {
         })
     }
 
+    /// Flatten any NLE timeline to the active clip's plain Video at composition
+    /// `frame`, returning the resolved scene JSON — the same resolution `onda
+    /// export` runs natively. A preview host calls this BEFORE its video-decode
+    /// step (to learn which clip + source-time to seek), then decodes and renders.
+    /// No-op for scenes without a timeline.
+    #[wasm_bindgen(js_name = resolveTimeline)]
+    pub fn resolve_timeline(&self, scene_json: &str, frame: u32) -> Result<String, JsError> {
+        let scene: Scene =
+            serde_json::from_str(scene_json).map_err(|e| JsError::new(&e.to_string()))?;
+        let fps = scene.composition.fps;
+        let resolved = onda_scene::resolve_timeline(&scene, frame, fps);
+        serde_json::to_string(&resolved).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// World-space (canvas-coordinate) bounds of every identified node in a scene —
+    /// the geometry a host's selection overlay needs to put its boxes exactly where
+    /// the engine drew each element (re-frames, layout, and animation transforms all
+    /// already applied). Runs the SAME flex-layout pre-pass as `render` so laid-out
+    /// components report their resolved boxes; skips image decode (bounds use the
+    /// layout box). Returns a flat `Float64Array`: `[id, x, y, width, height, …]`
+    /// (one 5-tuple per identified node). Pair with `render` for the same frame.
+    #[wasm_bindgen(js_name = elementBounds)]
+    pub fn element_bounds(&mut self, scene_json: &str) -> Result<Vec<f64>, JsError> {
+        let mut scene: Scene =
+            serde_json::from_str(scene_json).map_err(|e| JsError::new(&e.to_string()))?;
+        if has_layout(&scene) {
+            let measure = |t: &Text| measure_text(&mut self.fonts.borrow_mut(), t);
+            scene = onda_layout::layout(&scene, &measure);
+        }
+        let bounds = self.renderer.id_bounds(&scene);
+        let mut out = Vec::with_capacity(bounds.len() * 5);
+        for (id, x0, y0, x1, y1) in bounds {
+            out.push(id as f64);
+            out.push(x0 as f64);
+            out.push(y0 as f64);
+            out.push((x1 - x0) as f64);
+            out.push((y1 - y0) as f64);
+        }
+        Ok(out)
+    }
+
     /// Measure `content` at `font_size` (px) with optional family / weight /
     /// italic, returning its [`TextMetricsJs`]. The same shaping the engine draws,
     /// so a component can size underlines/pills/carets to the real text — in both

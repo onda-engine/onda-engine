@@ -34,6 +34,8 @@ Programmatic video today (e.g. Remotion) renders by driving a **headless browser
 
 The scene graph is the universal language; the renderer is the platform. **One composition** drives them all — live browser preview (WebGPU / WASM), native GPU export, or a deterministic CPU reference render.
 
+Beyond synthetic motion graphics, ONDA edits **real footage** — cut, trim, and retime video clips on a timeline, mix and trim audio, and finish with a cinematic effect chain (grade, bloom, grain, light-wrap). It also exposes **measurement** APIs — geometry lint, colour scopes (luma/RGB histograms + clipping), and audio loudness — so a tool or agent can judge a render by the numbers, not by eye.
+
 ## Install
 
 ```bash

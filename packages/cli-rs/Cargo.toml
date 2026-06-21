@@ -52,8 +52,13 @@ anyhow = { workspace = true }
 ureq = "2"
 
 [features]
+# Video decode is ON by default — NLE / <Video> export works out of the box. It
+# only adds the ffmpeg CLI shell-out path + a PNG-decode dep (lean), and never
+# reaches wasm (onda-video is a CLI-only dep). Use `--no-default-features` for the
+# minimal build.
+default = ["video"]
 # Decode <Video> frames during `onda export` (requires the ffmpeg binary at run
-# time — the same one the .mp4 encoder uses). Build with `--features video`.
+# time — the same one the .mp4 encoder uses). On by default; see `default` above.
 video = ["dep:onda-video"]
 # Enable `onda segment <in> <out.png>`: native subject cutout via U²-Net (ONNX
 # Runtime). Off by default so the default + wasm builds don't pull in

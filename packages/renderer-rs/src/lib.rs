@@ -1133,6 +1133,9 @@ impl Renderer {
             // SVG nodes are expanded to shapes (onda-svg) before rendering; the
             // CPU backend can't draw paths anyway, so an unexpanded one is a no-op.
             NodeKind::Svg(_) => {}
+            // Timeline lanes are flattened to a Video by `resolve_timeline` before
+            // rendering (like Svg); an unresolved one is a no-op.
+            NodeKind::Timeline(_) => {}
         }
 
         for child in &node.children {
@@ -1735,7 +1738,7 @@ impl Renderer {
                 transform,
                 opacity,
             ),
-            NodeKind::Audio(_) | NodeKind::Svg(_) => {}
+            NodeKind::Audio(_) | NodeKind::Svg(_) | NodeKind::Timeline(_) => {}
         }
         // Children render through the normal path so nested effects still apply.
         for child in &node.children {
@@ -1801,6 +1804,39 @@ impl Renderer {
             }
         }
         acc
+    }
+
+    /// World-space (scene-root coordinate) axis-aligned bounds of every node that
+    /// carries an `id`, at the scene's current frame. The studio's selection overlay
+    /// uses this so its click/drag boxes sit exactly on what the engine DREW (it
+    /// applied every scene re-frame, layout, and animation transform), instead of
+    /// re-deriving geometry in JS and guessing self-sizing components. Returns
+    /// `(id, x0, y0, x1, y1)` per identified node; an id whose subtree has no
+    /// determinable box (e.g. text with no font loaded) is omitted.
+    pub fn id_bounds(&mut self, scene: &Scene) -> Vec<(u64, f32, f32, f32, f32)> {
+        let mut out = Vec::new();
+        self.collect_id_bounds(&scene.root, Transform::IDENTITY, &mut out);
+        out
+    }
+
+    /// Walk the tree accumulating the parent transform; for each identified node,
+    /// union its whole subtree's bounds (via [`Self::subtree_local_bounds`], which
+    /// applies the node's own transform on top of `parent`) into world space.
+    fn collect_id_bounds(
+        &mut self,
+        node: &Node,
+        parent: Transform,
+        out: &mut Vec<(u64, f32, f32, f32, f32)>,
+    ) {
+        if let Some(id) = node.id {
+            if let Some((x0, y0, x1, y1)) = self.subtree_local_bounds(node, parent) {
+                out.push((id.0, x0, y0, x1, y1));
+            }
+        }
+        let transform = parent.then(&node.transform);
+        for child in &node.children {
+            self.collect_id_bounds(child, transform, out);
+        }
     }
 
     /// Local-space bounds of an effect node's CAPTURED subtree — exactly what
@@ -2458,6 +2494,34 @@ mod tests {
     }
 
     #[test]
+    fn id_bounds_reports_world_space_box_through_parent_transforms() {
+        // A 100×50 rect (id 7) translated (10,20), nested in a group translated (5,5):
+        // world box = (5+10, 5+20) sized 100×50 → (15,25)..(115,75).
+        let translate = |x: f32, y: f32| Transform {
+            translate: Vec2::new(x, y),
+            ..Transform::IDENTITY
+        };
+        let shape = Node::shape(Shape::rect(Size::new(100.0, 50.0)).with_fill(Color::WHITE))
+            .with_transform(translate(10.0, 20.0))
+            .with_id(7);
+        let root = Node::group()
+            .with_transform(translate(5.0, 5.0))
+            .with_child(shape);
+        let scene = Scene::new(comp(200, 200)).with_root(root);
+
+        let bounds = Renderer::with_default_font().id_bounds(&scene);
+        assert_eq!(bounds.len(), 1, "exactly one identified node");
+        let (id, x0, y0, x1, y1) = bounds[0];
+        assert_eq!(id, 7);
+        // ≤1px slack for the AA/stroke fringe subtree_local_bounds adds (imperceptible
+        // for a selection box; the world-space placement is what matters).
+        assert!((x0 - 15.0).abs() <= 1.5, "x0={x0}");
+        assert!((y0 - 25.0).abs() <= 1.5, "y0={y0}");
+        assert!((x1 - 115.0).abs() <= 1.5, "x1={x1}");
+        assert!((y1 - 75.0).abs() <= 1.5, "y1={y1}");
+    }
+
+    #[test]
     fn crop_extracts_subrect_and_clamps_to_bounds() {
         // 4×4 where the red channel encodes x*10 + y, so each pixel is identifiable.
         let mut bytes = vec![0u8; 4 * 4 * 4];
@@ -2765,6 +2829,40 @@ mod tests {
             (0..4).all(|x| fb.pixel(x, 1)[3] == 255),
             "contain fills the middle band"
         );
+    }
+
+    #[test]
+    fn timeline_resolves_then_renders_the_active_clip_pixels() {
+        use onda_scene::{resolve_timeline, Clip, ImageData, ImageFit, Timeline};
+        use std::sync::Arc;
+        // A lane with one clip [0,2)s filling a 4×4 box.
+        let scene = Scene::new(comp(4, 4)).with_root(Node::group().with_child(Node::timeline(
+            Timeline::new([Clip::new("clip.mp4", 0.0, 2.0).with_box(4.0, 4.0, ImageFit::Cover)]),
+        )));
+        // Frame 0 → the Timeline flattens to a Video (decode not yet run).
+        let mut resolved = resolve_timeline(&scene, 0, scene.composition.fps);
+        // Stand in for the decode pre-pass: attach a solid-red 1×1 source.
+        let red = ImageData {
+            width: 1,
+            height: 1,
+            rgba: Arc::new(vec![255, 0, 0, 255]),
+        };
+        match &mut resolved.root.children[0].kind {
+            NodeKind::Video(v) => v.data = Some(red),
+            other => panic!("timeline should resolve to a Video, got {other:?}"),
+        }
+        // The resolved clip fills the 4×4 box with opaque red.
+        let fb = render(&resolved);
+        for y in 0..4 {
+            for x in 0..4 {
+                let p = fb.pixel(x, y);
+                assert_eq!(p[3], 255, "clip should fill ({x},{y})");
+                assert!(
+                    p[0] > 200 && p[1] < 60 && p[2] < 60,
+                    "clip pixel should be red at ({x},{y}): {p:?}"
+                );
+            }
+        }
     }
 
     use onda_scene::Effect;

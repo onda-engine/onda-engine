@@ -366,7 +366,8 @@ fn apply(node: &mut Node, property: &AnimatedProperty, time: f32) {
 }
 
 /// An audio clip placed on a movie's soundtrack: a source file, when it starts
-/// (in frames, at the composition's fps), and a gain multiplier. Plain data —
+/// (in frames, at the composition's fps), how far into the source it begins
+/// (`start_at`, seconds — trims the head), and a gain multiplier. Plain data —
 /// decoding/mixing lives in `onda-audio`, muxing in the CLI.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AudioTrack {
@@ -375,6 +376,9 @@ pub struct AudioTrack {
     /// Frame at which this clip begins playing (default 0).
     #[serde(default)]
     pub start_frame: u32,
+    /// Seconds into the source to begin from — trims the head (default 0).
+    #[serde(default)]
+    pub start_at: f32,
     /// Gain multiplier, 1.0 = unchanged (default 1.0).
     #[serde(default = "AudioTrack::default_volume")]
     pub volume: f32,
@@ -385,11 +389,12 @@ impl AudioTrack {
         1.0
     }
 
-    /// A clip from `src`, starting at frame 0, full volume.
+    /// A clip from `src`, starting at frame 0, full volume, no head trim.
     pub fn new(src: impl Into<String>) -> Self {
         AudioTrack {
             src: src.into(),
             start_frame: 0,
+            start_at: 0.0,
             volume: 1.0,
         }
     }
@@ -397,6 +402,12 @@ impl AudioTrack {
     /// Builder: start at `frame`.
     pub fn with_start_frame(mut self, frame: u32) -> Self {
         self.start_frame = frame;
+        self
+    }
+
+    /// Builder: begin `secs` into the source (trim the head). Clamped to 0.
+    pub fn with_start_at(mut self, secs: f32) -> Self {
+        self.start_at = secs.max(0.0);
         self
     }
 

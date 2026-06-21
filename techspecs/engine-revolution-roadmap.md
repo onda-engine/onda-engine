@@ -1,0 +1,211 @@
+# ONDA Engine — The Revolution Roadmap: Motion Graphics + Video Editing in Service of the Studio Moat
+
+> Status: strategy of record. Supersedes the lost `techspecs/engine-power-vs-ae.md`,
+> `cinematic-layer-plan.md`, `library-north-star.md`, and the keystone/build-order
+> notes (verified absent from the repo and git history — they were never committed;
+> this doc reconstructs the strategy as a *tracked* file so it can't vanish again).
+> Synthesized from a 14-agent workflow (mograph-maximalist, video-editing-NLE,
+> ai-media-compositor, moat-architect lenses), then **corrected on the moat
+> philosophy** per the founder: the moat is *irreproducibility under full engine
+> disclosure*, not secrecy-by-partitioning.
+
+---
+
+## 0. The moat principle (read this first)
+
+**The test for every capability:** *if a competitor had this AND a full copy of the engine, could they replicate the Studio?*
+
+- If **no** → ship it, openly, in the engine, wherever it makes the Studio's life *easiest*. Hiding reproducible mechanism protects nothing and taxes our own velocity. A richer open engine is also a bigger funnel.
+- If **yes** → it's a genuine crown jewel. But everything that passes this test is **not engine code**: it's the eval-tuned agent, the vision-correction **control policy** (the loop that reads metrics, decides what to fix, and converges — `inspect()` is merely its thermometer), the data/taste flywheel (real comps, what worked, embeddings, brand profiles), hosting/billing/distribution/brand, and **iteration velocity**. Every one of those already lives in the Studio product, outside this repo.
+
+**Conclusion: there is essentially nothing in the *engine* worth hiding.** The engine should be fully open and maximally Studio-supporting — including `inspect()`, the component manifest, and the prop-dialect. The moat survives because the irreproducible *system* around the engine was never in the engine to begin with. The earlier "partition the engine into a restricted `studio-kit`" recommendation is **rejected**: it adds friction to Studio development for ~zero real protection (those heuristics are reimplementable in a weekend).
+
+Two things stay Studio-side, and neither is "hidden engine code":
+
+1. **Curated look/asset data** (the "ONDA look" constant stacks, named grades, the curated velato/transition/asset libraries). These live in Studio because they are *curated data/presets* by nature — there's no reason to push them down into a general-purpose engine. Not a secret; an asset.
+2. **Editorial-orchestration product decisions** (`transcript→cut-list`, auto-silence-removal, duck-under-VO automation, roto→composite workflow). These belong in the agent layer because "turn timings into an edit" is a *product decision*, not a rendering primitive — a category line, not a secrecy line.
+
+And the bonus moat to lean *into*: "the scene graph is the universal language; the renderer is the platform." If the ONDA scene-graph becomes the standard way to express agent-driven motion, **adoption itself** is a network-effect moat a forker can't copy. That argues for being *more* generous with the engine, not less.
+
+---
+
+## 1. The revolution thesis
+
+ONDA's revolution is not "After Effects in Rust" and not "Remotion without Chromium" — it is the **first deterministic, GPU-native, agent-drivable compositor that fuses motion graphics with a programmatic NLE under one linear-HDR pipeline**. AE and Resolve own real-footage editing and color but are GUI-bound and non-programmatic; Remotion, Motion Canvas, and Revideo are programmatic but Chromium/canvas-bound, gamma-locked, and have no NLE or color science. ONDA wins the open territory between them: a renderer where *cutting real footage, grading it to a brand palette, landing AI-generated plates so they read as shot, and choreographing kinetic type* are all the same scene-graph emitting deterministic, frame-accurate output an agent can drive by number. The engine's job is to be a **genuinely world-class rendering substrate that is inert without taste** — every primitive it ships is value-less until the Studio agent decides *which* numbers, *which* cut, *whether it reads*. That asymmetry — open mechanism, closed judgment — is what makes a more powerful engine *feed* the moat instead of replicating it.
+
+**Critical correction to the starting hypotheses:** the engine is materially further along than "50–65% of AE." Render-to-texture is **fully implemented** on both backends (the backbone of effects, mattes, 3D, backdrop/light-wrap), the 16-effect chain is fully wired, true 3D layers exist (perspective camera + Depth32Float + extrude), shape booleans/trim/repeater ship via `i_overlay`, and the cinematic Finish already does linear+ACES *math*. The real remaining keystones are narrower and sharper: **(K1) 8-bit storage** (everything is `Rgba8Unorm`; HDR dies between passes — verified 29 hardcoded targets in `effects.rs` alone), **(K3) per-glyph as a library-only hack** (N nodes, not an engine atom), **(K4) no velocity-derived per-layer motion blur**, and **the entire NLE/editorial spine** (a `Video` node is one frame at one `time`; trim/rate/speed live only in React and never reach the scene graph; audio `start_at` source-trim is silently dropped on export — verified in `cli-rs/src/main.rs` `collect_audio_tracks`).
+
+---
+
+## 2. The open / studio boundary (corrected)
+
+The discipline is **open the MECHANISM, keep the DECISION** — but "keep the decision" means it lives in the agent/data/policy layer, *not* that we strip mechanism out of the engine. The engine emits numbers and applies the instruction it's handed (a grade, a cut, an EDL, a CoC blur). It never decides *which*.
+
+| Capability | Layer | One-line reasoning |
+|---|---|---|
+| All rendering primitives: RTT, effect chain, mattes, blend, 3D/extrude, shape ops (trim/bool/repeater) | **engine (open)** | Inert without composition; openness is the funnel |
+| Native per-glyph text atom (`glyphs: Vec<GlyphTransform>` on Text node) | **engine (open)** | Layout math; choreography *recipes* are Studio data |
+| Generic keyframe-any-property tracks (PropertyTrack in scene graph) | **engine (open)** | Data substrate; ship *neutral* defaults only |
+| Velocity-derived per-layer motion blur (`motion_blur: ShutterAngle`) | **engine (open)** | Pure physical correctness; zero taste |
+| NLE timeline substrate (Clip/Track/EDL, time-remap, hard cuts) | **engine (open)** | A serialization format; *which* edit = the agent |
+| Cross-clip footage transitions; per-clip speed ramps/reverse (nearest-frame) | **engine (open)** | Generic blends/curves; *when/how long* = Studio |
+| Native video decode → default + proxy/filmstrip/scrub index | **engine (open)** | Commodity plumbing; shell out to host ffmpeg, don't vendor codecs |
+| ASC-CDL grade node; despill / grain-match / light-wrap (separate nodes) | **engine (open)** | Published optics/physics; the *numbers* are the colorist-agent's taste |
+| Audio waveform/RMS envelope API + **fix `start_at` source-trim** | **engine (open)** | Commodity DSP + a latent correctness bug |
+| Real depth-of-field (CoC bokeh, reuses Depth32Float) | **engine (open)** | Standard rendering primitive |
+| Color scopes as JSON (`onda scopes`) | **engine (open)** | Pure measurement, mirrors the already-open `lint` |
+| HDR / `Rgba16Float` compositing buffer (K1) | **engine (open, flag-gated)** | Float storage is precision, not taste; flag so 8-bit preview stays cheap |
+| Film-emulation finish *primitives* (halation, grain, CA) | **engine (open)** | Open film science; ship neutral no-op defaults, **no named presets** |
+| Vello 0.3→0.7 + velato Lottie/icon render path | **engine (open)** | Lottie is open, velato is OSS |
+| **`inspect()` quality judge + `validateComposition()`** | **engine (open)** | Reimplementable heuristics; hiding taxes Studio for ~zero protection. The *moat is the control loop that uses it*, which is Studio-side |
+| **Components manifest** (roles/occlusion/sceneRole/fidelity metadata) | **engine (open)** | The agent's world-model is more valuable shared (adoption); the agent *intelligence* is the moat, not the schema |
+| **Prop-dialect** (PROP_ALIASES / SELF_ANCHORING / adaptProps) | **engine (open)** | Studio-supporting glue; reimplementable; ship where it's most convenient |
+| Curated "ONDA look" constant stacks; named grades; curated velato/transition/asset libraries | **studio (data, by nature)** | Curated *assets/presets*, not hidden engine code — no reason to push into a general engine |
+| Editorial-orchestration verbs (`auto-edit`/`caption-cut`/`silence-remove`/transcript→cut-list/auto-duck/roto→composite) | **studio (category line)** | "Turn timings into an edit" is a product decision, not a rendering primitive |
+| LLM art-direction taste, MCP toolset, vision-correction **control loop**, data/eval flywheel, hosting/billing/tiers, watermark | **studio (the actual moat)** | Irreproducible system; not in this repo — keep it that way |
+
+---
+
+## 3. Two tracks + shared keystones
+
+Leverage and engineCost on 1–5 scales.
+
+### Shared keystones — unlock BOTH tracks
+
+| Bet | Lev | Cost | dependsOn |
+|---|---|---|---|
+| **Generic keyframe-any-property tracks** (engine evaluates at frame *t*) | 5 | 2 | — |
+| **HDR / `Rgba16Float` compositing buffer (K1)** — float through the whole graph, ACES+LUT once at display-out; flag-gated, CPU stays the 8-bit byte-oracle | 5 | 4 | RTT (done) |
+| **Vello 0.3→0.7 + wgpu upgrade** — lifts blend-depth cap, fixes WebGPU stroked-border artifact, unblocks velato | 3 | 4 | RTT (done) |
+
+Render-to-texture is **already done** — the shared backbone these build on. K1 is the highest-ceiling shared lift: it deepens mograph finish *and* footage color grading with one change.
+
+### Track A — Motion graphics
+
+| Bet | Lev | Cost | dependsOn |
+|---|---|---|---|
+| **Native per-glyph text atom** (+ unopinionated stagger builder) | 5 | 3 | RTT (done) |
+| **Velocity-derived per-layer motion blur** (RTT sub-frame accumulate) | 4 | 3 | keyframe tracks |
+| **Path-morph + keyframeable shape-op suite** (trim/bool/repeater animatable; `Morph{from,to,t}`) | 4 | 3 | keyframe tracks |
+| **velato Lottie/icon/character import** (thin bridge crate → scene subtree) | 3 | 4 | Vello 0.7 |
+| Film-emulation finish primitives; real DoF bokeh | 3–4 | 2–3 | K1 float |
+
+### Track B — Video editing / NLE
+
+| Bet | Lev | Cost | dependsOn |
+|---|---|---|---|
+| **NLE timeline substrate** (Clip/Track/EDL + per-clip time-remap + flatten-at-*t*) | 5 | 4 | — (core needs no RTT) |
+| **Native decode → default + scrub/proxy/filmstrip index** (right-size to display box; cached seek) | 4 | 3–4 | — |
+| **Audio editorial layer** (waveform/RMS + **fix `start_at`** + keyframed gain + duck/fade) | 4 | 2 | timeline (for per-clip) |
+| **ASC-CDL per-clip grade node** (10-param, both backends, `.cdl` round-trip) + grade→LUT bake | 4 | 2 | K1 float, timeline |
+| Cross-clip footage transitions; per-clip speed ramps/reverse; color scopes JSON; despill/grain-match | 3–4 | 2–3 | timeline / K1 |
+
+---
+
+## 4. Sequenced roadmap
+
+Enforced dependencies: **keyframe tracks before motion-blur** (analytic velocity), **K1 float before cinematic-finish / CDL-precision / HDR-bokeh**, **timeline before per-clip grade/retime/transitions**, **decode/proxy before scrub-grade editing**, **Vello 0.7 before velato**, **RTT before blended transitions** (already done).
+
+> **There is no defensive "Wave 0."** The earlier "close the `inspect()` leak first" item is dropped — under the corrected moat principle it's not a leak. The lead is capability.
+
+> **Post-Studio-inspection reprioritization:** the Studio `CompositionPayload` already carries `scenes → tracks → entries` with per-entry `animate`, plus `motionBlur`/`dof`/`finish`/`linear`/`camera`, all **baked to per-frame snapshots** by `buildComposition`. So the engine-level **keyframe-track primitive is *not* a template unblocker** (templates already animate; per-layer motion blur can use finite-difference between snapshots). Its value is developer-facing (engine-as-product) + payload efficiency — keep it, but it drops out of the critical path. The genuinely uncovered **"video editing for sure"** gap is **real-footage NLE** — the `Video` node is still one-frame-at-one-`time`, and Studio's `tracks` are *component timing*, not footage cut/trim/retime. **Net lead: real-footage NLE + per-glyph text + the `start_at` audio fix + K1 float**; treat keyframe-tracks as engine-as-product, not Wave-1-critical.
+
+### Wave 1 — Substrates everything plugs into (start here)
+1. **Generic keyframe-any-property tracks** — connective tissue: shrinks scene-JSON, gives analytic velocity for motion blur, cheaper wasm preview, lets the agent express motion as data. Cheapest high-leverage primitive (lev 5 / cost 2). **The #1 first move.**
+2. **NLE timeline substrate (core)** — Clip/Track/EDL + time-remap + hard cuts + flatten-at-*t*. The "video editing for sure" wedge; substrate under every Track-B bet. Core needs no RTT.
+3. **Native decode → default + proxy/scrub index** — unblocks footage on the default build; makes the agent's vision loop affordable on footage-heavy comps. Shell out to host ffmpeg; native-only, wasm keeps its `<video>` hack.
+
+*(Plus the standalone **`start_at` audio bug fix** — a plain correctness win, lands anytime, no dependencies.)* These are mutually independent and parallelizable.
+
+### Wave 2 — The high-signal capability layer
+4. **Native per-glyph text atom** — the #1 reason hand-authored ONDA looks generic; best effort-to-value ratio in the backlog.
+5. **Velocity-derived per-layer motion blur** — needs keyframe tracks; the "shot vs made-in-a-browser" tell.
+6. **Audio editorial layer** — waveform/keyframed-gain/duck on top of the `start_at` fix + timeline.
+7. **HDR / `Rgba16Float` buffer (K1)** — the shared ceiling-raiser; must precede any cinematic-finish or per-clip-CDL *precision* work. Flag-gate it.
+
+### Wave 3 — Round out both tracks
+8. **ASC-CDL per-clip grade** + **despill / grain-match** nodes (need K1 + timeline).
+9. **Real DoF bokeh** + **film-emulation finish primitives** (need K1).
+10. **Path-morph + keyframeable shape ops** (need keyframe tracks).
+11. **Cross-clip transitions** + **speed ramps/reverse** + **scopes JSON** — round out the NLE verb set.
+
+### Wave 4 — Breadth unlock
+12. **Vello 0.3→0.7**, then **velato** — broad API churn; sequenced last so it doesn't block high-leverage primitives. Collapses the icon/mascot/character-import gap in one integrate-not-rebuild move. **wasm32 must keep building throughout.**
+
+---
+
+## 5. What stays Studio-side (and why — not secrecy)
+
+- **Curated look/asset data** — the tuned "ONDA look" constant stacks, named film-stock/brand grades, the curated velato/transition/asset libraries. Studio-side because they're *curated data*, not because we hide engine code. The engine ships neutral no-op defaults and the math; Studio ships the calibrated numbers as assets.
+- **Editorial-orchestration product verbs** — never `onda auto-edit`/`caption-cut`/`silence-remove` in the open CLI. The open CLI exposes ingredient verbs only (`segment`→png, `transcribe`→word-timing JSON, `speak`→wav). Turning timings/silence/transcripts into edit *decisions* is the agent's job. (Codify in `CLAUDE.md`.)
+- **Heavyweight ML ingredient crates** (segment/transcribe/tts) stay feature-gated + native-only (off the default build) — for build-size/practicality, and the hosted convenient version is a Studio reason-to-pay.
+- **The irreproducible system** — LLM art-direction taste, the MCP toolset, the vision-correction *control loop*, the data/eval flywheel, hosting/billing/tiers, the watermark. Not in this repo; that's the moat.
+
+---
+
+## 6. Near-term next steps (first concrete actions, in priority order)
+
+1. **Generic keyframe primitive (Wave 1, #1).** Promote `animation-rs`'s `Track<T>` + `Easing` + `Spring` to a first-class scene-graph `anim: Option<Vec<PropertyTrack>>` on `Node` in `packages/scene-rs/src/lib.rs`, with an addressable-property-path grammar; have `renderer-rs` + `vello-rs` evaluate tracks at frame *t* internally. Ship *neutral* spring defaults only. Unblocks motion blur + retime and shrinks scene-JSON.
+2. **`start_at` audio source-trim fix** (independent correctness win). In `packages/cli-rs/src/main.rs` (`collect_audio_tracks`/`build_audio_wav`) + `packages/audio-rs/src/lib.rs` `MixTrack`: wire source-in into the mix so trimming a VO/music head works on export.
+3. **NLE timeline substrate (core).** Add `Clip`/`Track`/`Timeline` nodes + a deterministic flatten-at-frame-*t* resolver in `packages/scene-rs/src/lib.rs`, rewiring the decoder off the single `Video.time`. Source-in/out + timeline-in/out + per-clip time-remap track + hard cuts. No RTT for the core; defer blended transitions. Keep editorial heuristics out of `scene-rs`/CLI.
+4. **Decode → default + scrub index.** Move `onda-video` off the off-by-default `video` feature into the default native build (`packages/video-rs/Cargo.toml`, `cli-rs/Cargo.toml`); replace the forward-only PPM pipe in `packages/video-rs/src/lib.rs` with an ffprobe-driven PTS/keyframe index + proxy-on-first-touch + decode-to-display-box right-sizing. Add `onda filmstrip`/`onda proxy`. Native-only; feature-gate libav so wasm32 keeps building.
+5. **Native per-glyph text atom (Wave 2 flagship).** `glyphs: Vec<GlyphTransform>` on the Text node + an unopinionated stagger builder.
+
+> **Guardrails:** judge every cinematic/motion result on the **native Vello render** — CPU ref and WebGPU preview legitimately diverge on rotation, non-Normal blend, true 3D, fBm, and the linear/HDR finish ("preview lies"). Keep wasm32 building at every step (browser preview is a core path). And the permanent line: **the engine emits numbers and applies the instruction it's handed — it never decides which grade, which cut, or whether it reads. That judgment is the moat.**
+
+---
+
+## 7. Compatibility & template migration (hard guardrail — gates every scene-graph change)
+
+**Existing templates must never break.** Verified-safe-by-construction, then defended by a golden gate.
+
+**Verified storage model (inspected `onda-studio`, read-only):** templates are a **Studio composition model**, *not* raw scene-graph JSON. Each is a `CompositionPayload` (JSONB in `templates`/`compositions`, `backend/src/lib/composition.ts`): `scenes → tracks → entries`, where an entry is `{ component: "KineticText", props: {…}, animate?, effects?, transform3d?, matte?, clip?, morphKey?, at, for }`. Render path = `CompositionPayload → buildComposition()` (in-process React reconciler from the **vendored** `@onda-engine/cinema`) → per-frame scene snapshot → `onda` CLI. **A stored template never contains scene-rs nodes — the scene graph is regenerated each render.**
+
+**Consequence — the real break surfaces (not raw-JSON ones):**
+- Engine `scene-rs` additions (PropertyTrack, Clip/Timeline nodes, per-glyph atom, `motion_blur`) **cannot break stored templates directly** — stored data is component+props, insulated from the scene schema. ✅
+- (1) **Component props contract** — entries reference `component`+`props`; renaming/removing a prop or changing the `buildComposition` prop→node mapping re-renders old templates differently → guard with the existing `adaptProps`/`PROP_ALIASES`/manifest reconciliation; **additive props only**.
+- (2) **Vendored engine bundle** (`vendor/onda/onda-engine.js` + binary + wasm) — engine changes reach templates **only** when the bundle is rebuilt → this is the natural **migration gate**.
+- (3) **`CompositionPayload` schema** — already additive-only; **no `schemaVersion`** today (only `sourceTemplate.version` provenance + row `revision`).
+
+Why we start safe:
+- The engine renders a **per-frame static scene snapshot**. Templates are authored *frame-driven* (`@onda/react`: `useCurrentFrame` + `interpolate`/`spring` emit a static `Scene` per frame); the scene graph carries **no** animation state today. (`animation-rs` has `Track`/`Keyframe`/`Timeline`, but it's a separate eval path that *emits* Scenes — not embedded in stored templates.)
+- `scene-rs` deserialization is **tolerant**: no `#[serde(deny_unknown_fields)]` anywhere; heavy `#[serde(default)]`. Old JSON → defaults for missing fields; newer JSON → extra fields ignored by older engines.
+
+Discipline (every change obeys all four):
+1. **Additive only.** New capability = a new `Option<…>` field (`#[serde(default)]`) or a new `NodeKind` variant. Never a required field; never `deny_unknown_fields`.
+2. **Never change existing semantics/defaults.** `Video.time`, opacity/transform/blend defaults — frozen. The NLE timeline is a **new** `Clip`/`Track`/`Timeline` node path *on top of* `Video`, **not** a rewrite of `Video.time`. *(This corrects the §6 wording "rewiring the decoder off the single `Video.time`" — add the clip resolver alongside it; leave `Video.time` intact.)*
+3. **Declarative tracks are opt-in.** `anim: Option<Vec<PropertyTrack>>` is a new optional path; frame-driven templates keep emitting snapshots and render identically. **Motion blur uses finite-difference between adjacent snapshots** when a layer has no track → needs no template change.
+4. **K1 stays flag-gated, default off.** The `Rgba16Float` path must not alter any existing template's output; CPU stays the 8-bit byte-oracle; golden frames byte-identical with the flag off.
+
+Empirical guarantee — **the golden gate (corpus already exists):** the corpus is the **seed payloads** (`onda-studio/backend/scripts/seed-templates.ts` + showcase payloads in `db/seed.ts`) — real, hand-authored `CompositionPayload`s (~5–10 today). Gate on every **vendor-bundle update** (the moment engine changes reach Studio): render each payload through `buildComposition → onda`, before vs after, assert **byte-identical CPU** (perceptually-identical GPU). Keep `renderer-rs/tests/golden` engine-side for renderer determinism; the Studio-side render-over-seed-payloads test is what actually proves *templates* didn't break (it covers the full props→build→render path).
+
+Migration "little by little" (Studio-side — the payload is Studio-owned):
+1. Add `schemaVersion` to `CompositionPayload` + a **reader-side adapter** (`composePayloadVersionAdapter()` in `lib/composition.ts`) that upgrades old payloads at load. DB rows stay immutable; old payloads always render.
+2. Optional **background backfill**: per template → load → adapt → render old vs new → **golden-diff** → re-save. Batched, flag-gated, newest-first, reversible. **Never big-bang.**
+3. Pure-renderer changes (e.g. K1 float, default-off) need **no payload migration** — only the golden gate proving identical output.
+
+Engine-side, this still costs almost nothing: keep the additive discipline above, freeze `Video.time`/defaults, and add an optional `version` to `Scene` as belt-and-suspenders. The migration *machinery* lives in Studio (`lib/composition.ts` adapter + the vendor-update render gate) — done in its own worktree when we touch Studio, never on its active branch.
+
+> **Build-model is frozen unless we deliberately decide otherwise (talk-first).** Redesigning *how templates are built* (the `CompositionPayload` authoring model, the per-frame `buildComposition` bake, or the scene-graph contract) is **out of scope for this roadmap** — every bet here is additive on top of it. Such a redesign is only ever on the table if it's a genuine win **for Studio and the agent** (the same lens as the moat call), and it is a separate, explicit conversation — never folded into a capability PR. Tripwires that would *start* that conversation: (1) the agent can't express/edit at the granularity it needs (e.g. the vision-loop nudging motion by number; per-glyph or per-clip editing the component+props model can't carry); (2) per-frame React baking becomes a real cost/perf bottleneck vs. engine-native declarative eval (ties to Studio unit economics + cheap self-correction renders); (3) real-footage NLE outgrows the additive clips-on-`Video` v1 and a full editorial timeline wants to be the agent's primary authoring surface. Until a tripwire bites: **additive-only.**
+
+---
+
+## 8. Capability isn't done until the agent can use it (exposure checklist)
+
+**The unit of work is *capability + its exposure path*, not capability alone.** A more powerful engine adds zero moat value if the Studio agent can't reach the new capability — that's exactly why "compositions were never premium": engine depth was walled off from the agent (and unknown props were stripped). So every engine capability we ship travels a fixed path, or it's orphaned:
+
+1. **Engine primitive** — the `scene-rs` node/field/effect + renderer support (this repo).
+2. **`CompositionPayload` schema** — the optional field/entry that carries it (Studio `lib/composition.ts`), additive.
+3. **Component + props** — the `@onda-engine/react`/cinema component (or `buildComposition` mapping) that emits it; the manifest the agent reads (`PropMeta`).
+4. **MCP tool** — the agent-facing verb to set it (Studio tool-specs), with gate/confirm where needed.
+5. **Director/planner + taste** — the treatment planner emits it where appropriate, and the agent knows *when* to use it (exemplars/playbooks). This is the closed, moat-bearing half.
+
+A capability that stops at step 1 is invisible to the product. Track each bet against this checklist; "engine PR merged" is not "shipped."
+
+### Where to point attention (priority framing)
+
+- **De-risk first — the golden gate.** Engine-side `renderer-rs/tests/golden` (the determinism oracle; already green) **+** a Studio-side render-the-seed-payloads-and-diff test wired at the **vendor-bundle seam** (the moment engine changes reach Studio). Protects every later change. Engine half is in-repo; Studio half lives in an `onda-studio` worktree.
+- **Headline capability — real-footage NLE.** The genuinely uncovered "video editing" scope; design in `nle-node-shape.md` (awaiting sign-off). Clear of the current `renderer-rs/lib.rs` WIP.
+- **Compounding moat — measurement / agent-vision primitives.** Bounds (`id_bounds`/`elementBounds`), overflow/collision/legibility, color scopes — the engine's unique gift to the agent is letting it *see and self-correct by number*. Hardest to fork (the value is the closed control loop that consumes it). Treat as first-class, not an afterthought.
+- **The seam — engine→Studio vendor pipeline.** Make the rebuild/refresh of `vendor/onda/` reliable and gated, or it bottlenecks the whole initiative.
+- **Sequenced/blocked.** Per-glyph text + per-layer motion blur both edit `renderer-rs/lib.rs` → do them *after* the in-flight `id_bounds` WIP merges to main, to avoid conflicts. Vello 0.7/velato stays Wave 4. Build-model redesign stays talk-first (§7).

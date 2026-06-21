@@ -11,6 +11,7 @@ USAGE:
     onda render <scene.json> <out.png>               Render one still
     onda export <movie.json> <out.gif|.mp4>          Render a scene + timeline
     onda export-frames <frames.json> <out.gif|.mp4>  Render pre-evaluated frames
+    onda scopes <frames.json> <out.json>             Colour scopes (luma/RGB, clipping)
 ```
 
 ## Commands
@@ -43,6 +44,18 @@ Encodes a JSON **array of scene graphs** (one per frame) to a video — exactly 
 pnpm --filter @onda-engine/react exec tsx examples/animated.tsx frames.json
 cargo run -p onda-cli -- export-frames frames.json out.mp4
 ```
+
+### `scopes`
+
+```bash
+onda scopes <frames.json> <out.json> [--frame N] [--backend ...]
+```
+
+Renders frame `N` (default 0) and writes **colour scopes** as JSON — a deterministic, no-vision-model read of the image: Rec.709 **luma** + per-channel **R/G/B histograms** (256 bins), a per-column **luma waveform**, channel means, luma min/max, and the fraction of pixels **crushed to black** (`clippedLowFrac`) or **blown to white** (`clippedHighFrac`). Transparent pixels are excluded. Pure measurement (like `lint`) — for judging exposure, contrast, and colour balance objectively (e.g. before grading a footage shot or an AI-generated plate). Works on a whole comp, or on any image/clip wrapped in a one-node scene.
+
+## Real footage (video clips)
+
+`<Video>` / `VideoClip` sources are decoded with **`ffmpeg`** as a per-frame pre-pass; the renderer then draws each frame like an image. This decode is **on by default** (build `--no-default-features` for a leaner binary without it). Combined with per-clip trim (`startFrom`/`endAt`), retime (`playbackRate`), and timeline placement, this is the engine's **NLE / video-editing** path — cut, trim, and speed real clips alongside motion graphics. The engine also has a declarative [`timeline` node](/api/scene-json) (`Clip`s on a lane) resolved to the active clip per frame.
 
 ## Options
 

@@ -144,6 +144,8 @@ USAGE:
                                                    (--frame N); --crop a region
     onda contact-sheet <frames.json> <out.png>     Tile N frames + overlay the
                                                    lint's numbered problem boxes
+    onda scopes <frames.json> <out.json>           Colour scopes — luma + RGB
+                                                   histograms, waveform, clipping
     onda speak <text|-> <out.wav>                  AI voiceover from a script
                                                    (--voice, --speed, --list-voices;
                                                    needs --features speak)
@@ -375,6 +377,7 @@ fn run(args: Vec<String>) -> Result<()> {
         "export" => export_command(&args[1..]),
         "export-frames" => export_frames_command(&args[1..]),
         "lint" => lint_command(&args[1..]),
+        "scopes" => scopes_command(&args[1..]),
         "segment" => segment_command(&args[1..]),
         "transcribe" => transcribe_command(&args[1..]),
         "speak" => speak_command(&args[1..]),
@@ -866,7 +869,10 @@ fn render_frame_command(args: &[String]) -> Result<()> {
 
     // Same pre-passes as `onda render`, so the zoomed frame is faithful.
     let base_dir = Path::new(input).parent().unwrap_or_else(|| Path::new(""));
-    let scene = onda_svg::expand_svg(scene, base_dir).context("expanding <svg> nodes")?;
+    // Flatten any NLE timeline to this frame's active clip before decode.
+    let fps = scene.composition.fps;
+    let scene = onda_scene::resolve_timeline(scene, frame as u32, fps);
+    let scene = onda_svg::expand_svg(&scene, base_dir).context("expanding <svg> nodes")?;
     #[cfg(feature = "video")]
     let scene = onda_video::load_video_frames(&scene).context("decoding video frames")?;
     let scene = onda_image::load_images(&scene, base_dir).context("loading images")?;
@@ -1072,10 +1078,13 @@ fn contact_sheet_command(args: &[String]) -> Result<()> {
 
     // Render the sampled frames (pre-passed like `onda render`) in one batch.
     let base_dir = Path::new(input).parent().unwrap_or_else(|| Path::new(""));
+    let fps = scenes.first().map(|s| s.composition.fps).unwrap_or(30.0);
     let prepped: Vec<Scene> = samples
         .iter()
         .map(|&s| {
-            let scene = onda_svg::expand_svg(&scenes[s], base_dir).context("expanding <svg>")?;
+            // Flatten any NLE timeline to the sampled frame's active clip first.
+            let resolved = onda_scene::resolve_timeline(&scenes[s], s as u32, fps);
+            let scene = onda_svg::expand_svg(&resolved, base_dir).context("expanding <svg>")?;
             #[cfg(feature = "video")]
             let scene = onda_video::load_video_frames(&scene).context("decoding video")?;
             onda_image::load_images(&scene, base_dir).context("loading images")
@@ -1188,6 +1197,171 @@ fn contact_sheet_command(args: &[String]) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// `onda scopes <frames.json> <out.json> [--frame N] [--backend auto|vello|cpu]`
+/// Render a frame and emit COLOR SCOPES as JSON — luma + per-channel histograms,
+/// a per-column luma waveform, means/min/max, and the fraction of pixels crushed
+/// to black or blown to white. Pure measurement (like `lint`): the agent's "eyes"
+/// for exposure, contrast, and colour balance — on a comp, or on any image
+/// wrapped in a one-node scene.
+fn scopes_command(args: &[String]) -> Result<()> {
+    let mut input: Option<&str> = None;
+    let mut output: Option<&str> = None;
+    let mut frame: usize = 0;
+    let mut font = FontMode::Bundled;
+    let mut backend = BackendChoice::Auto;
+    let mut font_paths: Vec<PathBuf> = Vec::new();
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--system-fonts" => font = FontMode::System,
+            "--frame" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--frame needs an index\n\n{USAGE}"))?;
+                frame = v
+                    .trim()
+                    .parse()
+                    .with_context(|| format!("--frame '{v}' is not a frame index"))?;
+            }
+            "--backend" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--backend needs a value\n\n{USAGE}"))?;
+                backend = match v.as_str() {
+                    "auto" => BackendChoice::Auto,
+                    "vello" | "gpu" => BackendChoice::Vello,
+                    "cpu" => BackendChoice::Cpu,
+                    other => {
+                        bail!("unknown backend '{other}' — use auto, vello, or cpu\n\n{USAGE}")
+                    }
+                };
+            }
+            "--font" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--font needs a path\n\n{USAGE}"))?;
+                font_paths.push(PathBuf::from(v));
+            }
+            other if other.starts_with("--") => bail!("unknown flag '{other}'\n\n{USAGE}"),
+            other if input.is_none() => input = Some(other),
+            other if output.is_none() => output = Some(other),
+            other => bail!("unexpected argument '{other}'\n\n{USAGE}"),
+        }
+    }
+    let input = input.with_context(|| format!("scopes needs a frames.json input\n\n{USAGE}"))?;
+    let output = output.with_context(|| format!("scopes needs an output .json path\n\n{USAGE}"))?;
+    let json =
+        std::fs::read_to_string(input).with_context(|| format!("reading frames file '{input}'"))?;
+    let mut scenes: Vec<Scene> =
+        serde_json::from_str(&json).context("frames JSON is not an array of scene graphs")?;
+    let total = scenes.len();
+    let scene = scenes
+        .get_mut(frame)
+        .with_context(|| format!("frame {frame} is out of range (0..{total})"))?;
+    materialize_scene_sources(scene);
+    let scene = &*scene;
+
+    // Same pre-passes as `onda render`, so the scopes read the real output.
+    let base_dir = Path::new(input).parent().unwrap_or_else(|| Path::new(""));
+    let fps = scene.composition.fps;
+    let scene = onda_scene::resolve_timeline(scene, frame as u32, fps);
+    let scene = onda_svg::expand_svg(&scene, base_dir).context("expanding <svg> nodes")?;
+    #[cfg(feature = "video")]
+    let scene = onda_video::load_video_frames(&scene).context("decoding video frames")?;
+    let scene = onda_image::load_images(&scene, base_dir).context("loading images")?;
+
+    let extra_fonts = load_font_bytes(&font_paths)?;
+    let (mut frames, _used) =
+        render_scenes(std::slice::from_ref(&scene), backend, font, &extra_fonts)
+            .with_context(|| format!("rendering frame {frame}"))?;
+    let fb = frames.remove(0);
+    let report = compute_scopes(&fb);
+    std::fs::write(output, serde_json::to_string_pretty(&report)?)
+        .with_context(|| format!("writing scopes '{output}'"))?;
+    println!(
+        "scopes {input} (frame {frame}) -> {output} ({}x{})",
+        fb.width(),
+        fb.height()
+    );
+    Ok(())
+}
+
+/// Color scopes for a rendered frame: luma + per-channel (R/G/B) 256-bin
+/// histograms, means, luma min/max, a per-column luma waveform, and the fraction
+/// of pixels crushed to black / blown to white. Transparent pixels (alpha 0) are
+/// excluded so a comp's empty regions don't skew the readout. Rec.709 luma.
+fn compute_scopes(fb: &Framebuffer) -> serde_json::Value {
+    let (w, h) = (fb.width(), fb.height());
+    let cols = (w as usize).clamp(1, 256);
+    let mut luma_hist = vec![0u32; 256];
+    let mut r_hist = vec![0u32; 256];
+    let mut g_hist = vec![0u32; 256];
+    let mut b_hist = vec![0u32; 256];
+    let (mut r_sum, mut g_sum, mut b_sum, mut luma_sum) = (0u64, 0u64, 0u64, 0u64);
+    let mut luma_min = 255u8;
+    let mut luma_max = 0u8;
+    let (mut clipped_low, mut clipped_high, mut counted) = (0u64, 0u64, 0u64);
+    let mut wf_sum = vec![0u64; cols];
+    let mut wf_cnt = vec![0u64; cols];
+    for (i, px) in fb.as_bytes().chunks_exact(4).enumerate() {
+        if px[3] == 0 {
+            continue; // transparent — not part of the picture
+        }
+        let (r, g, b) = (px[0], px[1], px[2]);
+        let luma = (0.2126 * r as f32 + 0.7152 * g as f32 + 0.0722 * b as f32)
+            .round()
+            .clamp(0.0, 255.0) as u8;
+        luma_hist[luma as usize] += 1;
+        r_hist[r as usize] += 1;
+        g_hist[g as usize] += 1;
+        b_hist[b as usize] += 1;
+        r_sum += r as u64;
+        g_sum += g as u64;
+        b_sum += b as u64;
+        luma_sum += luma as u64;
+        luma_min = luma_min.min(luma);
+        luma_max = luma_max.max(luma);
+        if luma == 0 {
+            clipped_low += 1;
+        }
+        if luma == 255 {
+            clipped_high += 1;
+        }
+        let col = (i % (w as usize)) * cols / (w as usize);
+        wf_sum[col] += luma as u64;
+        wf_cnt[col] += 1;
+        counted += 1;
+    }
+    let denom = counted.max(1) as f32;
+    let waveform: Vec<f32> = wf_sum
+        .iter()
+        .zip(&wf_cnt)
+        .map(|(&s, &c)| if c == 0 { 0.0 } else { s as f32 / c as f32 })
+        .collect();
+    if counted == 0 {
+        luma_min = 0;
+    }
+    serde_json::json!({
+        "width": w,
+        "height": h,
+        "countedPixels": counted,
+        "luma": {
+            "mean": luma_sum as f32 / denom,
+            "min": luma_min,
+            "max": luma_max,
+            "histogram": luma_hist,
+        },
+        "channels": {
+            "r": { "mean": r_sum as f32 / denom, "histogram": r_hist },
+            "g": { "mean": g_sum as f32 / denom, "histogram": g_hist },
+            "b": { "mean": b_sum as f32 / denom, "histogram": b_hist },
+        },
+        "waveform": waveform,
+        "clippedLowFrac": clipped_low as f32 / denom,
+        "clippedHighFrac": clipped_high as f32 / denom,
+    })
 }
 
 fn export_command(args: &[String]) -> Result<()> {
@@ -1775,7 +1949,8 @@ fn text_label(text: &Text) -> String {
 /// Collect the soundtrack from a pre-evaluated frame sequence: every
 /// `NodeKind::Audio` node in the first frame (audio nodes are static across
 /// frames). Skips non-file srcs (http/data URIs) — the native mux decodes from
-/// disk, so URL audio is a follow-up. `start_at` (source trim) isn't applied yet.
+/// disk, so URL audio is a follow-up. `start_at` (source-head trim) is carried
+/// through and applied by the mix.
 fn collect_audio_tracks(scenes: &[Scene], fps: f32) -> Vec<AudioTrack> {
     let mut tracks = Vec::new();
     let Some(first) = scenes.first() else {
@@ -1791,6 +1966,7 @@ fn collect_audio_tracks(scenes: &[Scene], fps: f32) -> Vec<AudioTrack> {
                 out.push(AudioTrack {
                     src: a.src.clone(),
                     start_frame: (a.start * fps).round().max(0.0) as u32,
+                    start_at: a.start_at,
                     volume: a.volume,
                 });
             } else {
@@ -1907,7 +2083,10 @@ fn build_audio_wav(audio: &AudioMux, fps: f32) -> Result<std::path::PathBuf> {
     let mix_tracks: Vec<onda_audio::MixTrack> = decoded
         .iter()
         .zip(audio.tracks)
-        .map(|(buf, t)| onda_audio::MixTrack::new(buf, t.start_frame as f32 / fps, t.volume))
+        .map(|(buf, t)| {
+            onda_audio::MixTrack::new(buf, t.start_frame as f32 / fps, t.volume)
+                .with_source_in(t.start_at)
+        })
         .collect();
     let mixed = onda_audio::mix(&mix_tracks, audio.duration_secs, RATE);
 
@@ -2109,8 +2288,12 @@ fn frames_scenes(json: &str, base_dir: &Path) -> Result<(Vec<Scene>, f32)> {
     // background plate) is decoded ONCE, not per frame (procedural grain + data URIs
     // are excluded — they differ per frame). Big win for image-heavy compositions.
     let mut img_cache = std::collections::HashMap::new();
-    for scene in &raw {
-        let expanded = onda_svg::expand_svg(scene, base_dir).context("expanding <svg> nodes")?;
+    for (i, scene) in raw.iter().enumerate() {
+        // Flatten any NLE timeline to the active clip's Video for THIS frame,
+        // before the decode pre-passes (mirrors <svg> expansion).
+        let resolved = onda_scene::resolve_timeline(scene, i as u32, fps);
+        let expanded =
+            onda_svg::expand_svg(&resolved, base_dir).context("expanding <svg> nodes")?;
         #[cfg(feature = "video")]
         let expanded = video
             .resolve_scene(&expanded)
@@ -2323,6 +2506,7 @@ fn render_stream(
     };
     let down = |fb: Framebuffer| if ss > 1 { fb.downscale_box(ss) } else { fb };
     let comp = &raw_scenes[0].composition;
+    let fps = comp.fps;
     // Adaptive chunk: target ~1 GiB of raw frames in flight, whatever the
     // resolution (1080p ≈ 128 frames, 4K ≈ 32), so memory stays flat + bounded.
     let frame_bytes = (comp.width as usize) * (comp.height as usize) * 4;
@@ -2336,11 +2520,13 @@ fn render_stream(
     // decoder). The chunk then renders in parallel (CPU) / sequentially (Vello).
     // `mut` is only needed when the video decoder is captured (the `video` feature).
     #[cfg_attr(not(feature = "video"), allow(unused_mut))]
-    let mut prepare = |slice: &[Scene]| -> Result<Vec<Scene>> {
+    let mut prepare = |slice: &[Scene], start: usize| -> Result<Vec<Scene>> {
         slice
             .iter()
-            .map(|raw| {
-                let mut owned = raw.clone();
+            .enumerate()
+            .map(|(i, raw)| {
+                // Flatten any NLE timeline to this frame's active clip first.
+                let mut owned = onda_scene::resolve_timeline(raw, (start + i) as u32, fps);
                 materialize_scene_sources(&mut owned);
                 let s = onda_svg::expand_svg(&owned, base_dir).context("expanding <svg> nodes")?;
                 #[cfg(feature = "video")]
@@ -2367,23 +2553,27 @@ fn render_stream(
     };
     if let Some(mut renderer) = vello {
         load_into_vello(&mut renderer, extra_fonts);
+        let mut start = 0usize;
         for slice in raw_scenes.chunks(chunk) {
-            for scene in &prepare(slice)? {
+            for scene in &prepare(slice, start)? {
                 let frame = renderer.render(scene);
                 let fb = Framebuffer::from_rgba(frame.width, frame.height, frame.pixels);
                 write(&down(fb))?;
             }
+            start += slice.len();
         }
         Ok("vello")
     } else {
         if matches!(backend, BackendChoice::Auto) {
             eprintln!("note: no GPU adapter found; falling back to the CPU backend");
         }
+        let mut start = 0usize;
         for slice in raw_scenes.chunks(chunk) {
-            let frames = render_scenes_cpu(&prepare(slice)?, font, extra_fonts);
+            let frames = render_scenes_cpu(&prepare(slice, start)?, font, extra_fonts);
             for fb in frames {
                 write(&down(fb))?;
             }
+            start += slice.len();
         }
         Ok("cpu")
     }
@@ -2535,6 +2725,8 @@ fn render_scene_file(
         serde_json::from_str(&json).context("scene JSON is not a valid scene graph")?;
     materialize_scene_sources(&mut parsed);
     let base_dir = input.parent().unwrap_or(Path::new(""));
+    // A still resolves any NLE timeline at frame 0.
+    let parsed = onda_scene::resolve_timeline(&parsed, 0, parsed.composition.fps);
     let scene = onda_svg::expand_svg(&parsed, base_dir).context("expanding <svg> nodes")?;
     // Decode video frames before images so `Video.data` is set and the image pass
     // skips it (a video container isn't an image). Native-only, opt-in feature.
@@ -2951,6 +3143,33 @@ mod tests {
         assert!(format!("{err:#}").contains("reading font"));
 
         let _ = std::fs::remove_file(&good);
+    }
+
+    #[test]
+    fn scopes_report_reads_pixels_and_skips_transparent() {
+        // 2×2: white, black, mid-grey, and a fully-transparent pixel (excluded).
+        let fb = Framebuffer::from_rgba(
+            2,
+            2,
+            vec![
+                255, 255, 255, 255, // white → luma 255 (clipped high)
+                0, 0, 0, 255, // black → luma 0 (clipped low)
+                128, 128, 128, 255, // grey → luma 128
+                9, 9, 9, 0, // transparent → skipped
+            ],
+        );
+        let r = compute_scopes(&fb);
+        assert_eq!(r["width"].as_u64().unwrap(), 2);
+        assert_eq!(
+            r["countedPixels"].as_u64().unwrap(),
+            3,
+            "transparent pixel excluded"
+        );
+        assert_eq!(r["luma"]["min"].as_u64().unwrap(), 0);
+        assert_eq!(r["luma"]["max"].as_u64().unwrap(), 255);
+        assert!((r["clippedLowFrac"].as_f64().unwrap() - 1.0 / 3.0).abs() < 1e-3);
+        assert!((r["clippedHighFrac"].as_f64().unwrap() - 1.0 / 3.0).abs() < 1e-3);
+        assert_eq!(r["luma"]["histogram"].as_array().unwrap().len(), 256);
     }
 
     #[test]

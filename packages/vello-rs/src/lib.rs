@@ -1157,6 +1157,9 @@ fn build(vscene: &mut VelloScene, ctx: &mut Ctx, node: &Node, parent: Affine, pa
         // SVG nodes are expanded to shapes before rendering (see onda-svg); an
         // unexpanded one draws nothing.
         NodeKind::Svg(_) => {}
+        // Timeline lanes are flattened to a Video by `resolve_timeline` before
+        // rendering (like Svg); an unresolved one draws nothing.
+        NodeKind::Timeline(_) => {}
     }
 
     for child in &node.children {
@@ -2530,7 +2533,7 @@ fn node_self_bounds(fonts: &mut FontContext, node: &Node) -> Option<Rect> {
         NodeKind::Video(video) => {
             image_local_bounds(video.data.as_ref(), video.width, video.height)
         }
-        NodeKind::Group | NodeKind::Audio(_) | NodeKind::Svg(_) => None,
+        NodeKind::Group | NodeKind::Audio(_) | NodeKind::Svg(_) | NodeKind::Timeline(_) => None,
     }
 }
 
