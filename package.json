@@ -30,7 +30,9 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "publish:npm": "pnpm -r build && pnpm --filter onda-engine publish --no-git-checks"
+    "publish:npm": "pnpm -r build && pnpm --filter onda-engine publish --no-git-checks",
+    "kit:check": "bash scripts/maybe-bump-embed-kit.sh --dry-run",
+    "kit:release": "bash scripts/maybe-bump-embed-kit.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

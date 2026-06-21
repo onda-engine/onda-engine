@@ -9,6 +9,9 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # Lets the embed-kit autobump fire this on a freshly-cut tag: a tag pushed with
+  # GITHUB_TOKEN won't re-trigger the push event above, but workflow_dispatch will.
+  workflow_dispatch:
 
 permissions:
   contents: write
