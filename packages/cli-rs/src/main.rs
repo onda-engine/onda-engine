@@ -1078,10 +1078,13 @@ fn contact_sheet_command(args: &[String]) -> Result<()> {
 
     // Render the sampled frames (pre-passed like `onda render`) in one batch.
     let base_dir = Path::new(input).parent().unwrap_or_else(|| Path::new(""));
+    let fps = scenes.first().map(|s| s.composition.fps).unwrap_or(30.0);
     let prepped: Vec<Scene> = samples
         .iter()
         .map(|&s| {
-            let scene = onda_svg::expand_svg(&scenes[s], base_dir).context("expanding <svg>")?;
+            // Flatten any NLE timeline to the sampled frame's active clip first.
+            let resolved = onda_scene::resolve_timeline(&scenes[s], s as u32, fps);
+            let scene = onda_svg::expand_svg(&resolved, base_dir).context("expanding <svg>")?;
             #[cfg(feature = "video")]
             let scene = onda_video::load_video_frames(&scene).context("decoding video")?;
             onda_image::load_images(&scene, base_dir).context("loading images")
@@ -2503,6 +2506,7 @@ fn render_stream(
     };
     let down = |fb: Framebuffer| if ss > 1 { fb.downscale_box(ss) } else { fb };
     let comp = &raw_scenes[0].composition;
+    let fps = comp.fps;
     // Adaptive chunk: target ~1 GiB of raw frames in flight, whatever the
     // resolution (1080p ≈ 128 frames, 4K ≈ 32), so memory stays flat + bounded.
     let frame_bytes = (comp.width as usize) * (comp.height as usize) * 4;
@@ -2516,11 +2520,13 @@ fn render_stream(
     // decoder). The chunk then renders in parallel (CPU) / sequentially (Vello).
     // `mut` is only needed when the video decoder is captured (the `video` feature).
     #[cfg_attr(not(feature = "video"), allow(unused_mut))]
-    let mut prepare = |slice: &[Scene]| -> Result<Vec<Scene>> {
+    let mut prepare = |slice: &[Scene], start: usize| -> Result<Vec<Scene>> {
         slice
             .iter()
-            .map(|raw| {
-                let mut owned = raw.clone();
+            .enumerate()
+            .map(|(i, raw)| {
+                // Flatten any NLE timeline to this frame's active clip first.
+                let mut owned = onda_scene::resolve_timeline(raw, (start + i) as u32, fps);
                 materialize_scene_sources(&mut owned);
                 let s = onda_svg::expand_svg(&owned, base_dir).context("expanding <svg> nodes")?;
                 #[cfg(feature = "video")]
@@ -2547,23 +2553,27 @@ fn render_stream(
     };
     if let Some(mut renderer) = vello {
         load_into_vello(&mut renderer, extra_fonts);
+        let mut start = 0usize;
         for slice in raw_scenes.chunks(chunk) {
-            for scene in &prepare(slice)? {
+            for scene in &prepare(slice, start)? {
                 let frame = renderer.render(scene);
                 let fb = Framebuffer::from_rgba(frame.width, frame.height, frame.pixels);
                 write(&down(fb))?;
             }
+            start += slice.len();
         }
         Ok("vello")
     } else {
         if matches!(backend, BackendChoice::Auto) {
             eprintln!("note: no GPU adapter found; falling back to the CPU backend");
         }
+        let mut start = 0usize;
         for slice in raw_scenes.chunks(chunk) {
-            let frames = render_scenes_cpu(&prepare(slice)?, font, extra_fonts);
+            let frames = render_scenes_cpu(&prepare(slice, start)?, font, extra_fonts);
             for fb in frames {
                 write(&down(fb))?;
             }
+            start += slice.len();
         }
         Ok("cpu")
     }
@@ -2715,6 +2725,8 @@ fn render_scene_file(
         serde_json::from_str(&json).context("scene JSON is not a valid scene graph")?;
     materialize_scene_sources(&mut parsed);
     let base_dir = input.parent().unwrap_or(Path::new(""));
+    // A still resolves any NLE timeline at frame 0.
+    let parsed = onda_scene::resolve_timeline(&parsed, 0, parsed.composition.fps);
     let scene = onda_svg::expand_svg(&parsed, base_dir).context("expanding <svg> nodes")?;
     // Decode video frames before images so `Video.data` is set and the image pass
     // skips it (a video container isn't an image). Native-only, opt-in feature.
