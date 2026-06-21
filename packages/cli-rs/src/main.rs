@@ -144,6 +144,8 @@ USAGE:
                                                    (--frame N); --crop a region
     onda contact-sheet <frames.json> <out.png>     Tile N frames + overlay the
                                                    lint's numbered problem boxes
+    onda scopes <frames.json> <out.json>           Colour scopes — luma + RGB
+                                                   histograms, waveform, clipping
     onda speak <text|-> <out.wav>                  AI voiceover from a script
                                                    (--voice, --speed, --list-voices;
                                                    needs --features speak)
@@ -375,6 +377,7 @@ fn run(args: Vec<String>) -> Result<()> {
         "export" => export_command(&args[1..]),
         "export-frames" => export_frames_command(&args[1..]),
         "lint" => lint_command(&args[1..]),
+        "scopes" => scopes_command(&args[1..]),
         "segment" => segment_command(&args[1..]),
         "transcribe" => transcribe_command(&args[1..]),
         "speak" => speak_command(&args[1..]),
@@ -1191,6 +1194,171 @@ fn contact_sheet_command(args: &[String]) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// `onda scopes <frames.json> <out.json> [--frame N] [--backend auto|vello|cpu]`
+/// Render a frame and emit COLOR SCOPES as JSON — luma + per-channel histograms,
+/// a per-column luma waveform, means/min/max, and the fraction of pixels crushed
+/// to black or blown to white. Pure measurement (like `lint`): the agent's "eyes"
+/// for exposure, contrast, and colour balance — on a comp, or on any image
+/// wrapped in a one-node scene.
+fn scopes_command(args: &[String]) -> Result<()> {
+    let mut input: Option<&str> = None;
+    let mut output: Option<&str> = None;
+    let mut frame: usize = 0;
+    let mut font = FontMode::Bundled;
+    let mut backend = BackendChoice::Auto;
+    let mut font_paths: Vec<PathBuf> = Vec::new();
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--system-fonts" => font = FontMode::System,
+            "--frame" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--frame needs an index\n\n{USAGE}"))?;
+                frame = v
+                    .trim()
+                    .parse()
+                    .with_context(|| format!("--frame '{v}' is not a frame index"))?;
+            }
+            "--backend" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--backend needs a value\n\n{USAGE}"))?;
+                backend = match v.as_str() {
+                    "auto" => BackendChoice::Auto,
+                    "vello" | "gpu" => BackendChoice::Vello,
+                    "cpu" => BackendChoice::Cpu,
+                    other => {
+                        bail!("unknown backend '{other}' — use auto, vello, or cpu\n\n{USAGE}")
+                    }
+                };
+            }
+            "--font" => {
+                let v = iter
+                    .next()
+                    .with_context(|| format!("--font needs a path\n\n{USAGE}"))?;
+                font_paths.push(PathBuf::from(v));
+            }
+            other if other.starts_with("--") => bail!("unknown flag '{other}'\n\n{USAGE}"),
+            other if input.is_none() => input = Some(other),
+            other if output.is_none() => output = Some(other),
+            other => bail!("unexpected argument '{other}'\n\n{USAGE}"),
+        }
+    }
+    let input = input.with_context(|| format!("scopes needs a frames.json input\n\n{USAGE}"))?;
+    let output = output.with_context(|| format!("scopes needs an output .json path\n\n{USAGE}"))?;
+    let json =
+        std::fs::read_to_string(input).with_context(|| format!("reading frames file '{input}'"))?;
+    let mut scenes: Vec<Scene> =
+        serde_json::from_str(&json).context("frames JSON is not an array of scene graphs")?;
+    let total = scenes.len();
+    let scene = scenes
+        .get_mut(frame)
+        .with_context(|| format!("frame {frame} is out of range (0..{total})"))?;
+    materialize_scene_sources(scene);
+    let scene = &*scene;
+
+    // Same pre-passes as `onda render`, so the scopes read the real output.
+    let base_dir = Path::new(input).parent().unwrap_or_else(|| Path::new(""));
+    let fps = scene.composition.fps;
+    let scene = onda_scene::resolve_timeline(scene, frame as u32, fps);
+    let scene = onda_svg::expand_svg(&scene, base_dir).context("expanding <svg> nodes")?;
+    #[cfg(feature = "video")]
+    let scene = onda_video::load_video_frames(&scene).context("decoding video frames")?;
+    let scene = onda_image::load_images(&scene, base_dir).context("loading images")?;
+
+    let extra_fonts = load_font_bytes(&font_paths)?;
+    let (mut frames, _used) =
+        render_scenes(std::slice::from_ref(&scene), backend, font, &extra_fonts)
+            .with_context(|| format!("rendering frame {frame}"))?;
+    let fb = frames.remove(0);
+    let report = compute_scopes(&fb);
+    std::fs::write(output, serde_json::to_string_pretty(&report)?)
+        .with_context(|| format!("writing scopes '{output}'"))?;
+    println!(
+        "scopes {input} (frame {frame}) -> {output} ({}x{})",
+        fb.width(),
+        fb.height()
+    );
+    Ok(())
+}
+
+/// Color scopes for a rendered frame: luma + per-channel (R/G/B) 256-bin
+/// histograms, means, luma min/max, a per-column luma waveform, and the fraction
+/// of pixels crushed to black / blown to white. Transparent pixels (alpha 0) are
+/// excluded so a comp's empty regions don't skew the readout. Rec.709 luma.
+fn compute_scopes(fb: &Framebuffer) -> serde_json::Value {
+    let (w, h) = (fb.width(), fb.height());
+    let cols = (w as usize).clamp(1, 256);
+    let mut luma_hist = vec![0u32; 256];
+    let mut r_hist = vec![0u32; 256];
+    let mut g_hist = vec![0u32; 256];
+    let mut b_hist = vec![0u32; 256];
+    let (mut r_sum, mut g_sum, mut b_sum, mut luma_sum) = (0u64, 0u64, 0u64, 0u64);
+    let mut luma_min = 255u8;
+    let mut luma_max = 0u8;
+    let (mut clipped_low, mut clipped_high, mut counted) = (0u64, 0u64, 0u64);
+    let mut wf_sum = vec![0u64; cols];
+    let mut wf_cnt = vec![0u64; cols];
+    for (i, px) in fb.as_bytes().chunks_exact(4).enumerate() {
+        if px[3] == 0 {
+            continue; // transparent — not part of the picture
+        }
+        let (r, g, b) = (px[0], px[1], px[2]);
+        let luma = (0.2126 * r as f32 + 0.7152 * g as f32 + 0.0722 * b as f32)
+            .round()
+            .clamp(0.0, 255.0) as u8;
+        luma_hist[luma as usize] += 1;
+        r_hist[r as usize] += 1;
+        g_hist[g as usize] += 1;
+        b_hist[b as usize] += 1;
+        r_sum += r as u64;
+        g_sum += g as u64;
+        b_sum += b as u64;
+        luma_sum += luma as u64;
+        luma_min = luma_min.min(luma);
+        luma_max = luma_max.max(luma);
+        if luma == 0 {
+            clipped_low += 1;
+        }
+        if luma == 255 {
+            clipped_high += 1;
+        }
+        let col = (i % (w as usize)) * cols / (w as usize);
+        wf_sum[col] += luma as u64;
+        wf_cnt[col] += 1;
+        counted += 1;
+    }
+    let denom = counted.max(1) as f32;
+    let waveform: Vec<f32> = wf_sum
+        .iter()
+        .zip(&wf_cnt)
+        .map(|(&s, &c)| if c == 0 { 0.0 } else { s as f32 / c as f32 })
+        .collect();
+    if counted == 0 {
+        luma_min = 0;
+    }
+    serde_json::json!({
+        "width": w,
+        "height": h,
+        "countedPixels": counted,
+        "luma": {
+            "mean": luma_sum as f32 / denom,
+            "min": luma_min,
+            "max": luma_max,
+            "histogram": luma_hist,
+        },
+        "channels": {
+            "r": { "mean": r_sum as f32 / denom, "histogram": r_hist },
+            "g": { "mean": g_sum as f32 / denom, "histogram": g_hist },
+            "b": { "mean": b_sum as f32 / denom, "histogram": b_hist },
+        },
+        "waveform": waveform,
+        "clippedLowFrac": clipped_low as f32 / denom,
+        "clippedHighFrac": clipped_high as f32 / denom,
+    })
 }
 
 fn export_command(args: &[String]) -> Result<()> {
@@ -2963,6 +3131,33 @@ mod tests {
         assert!(format!("{err:#}").contains("reading font"));
 
         let _ = std::fs::remove_file(&good);
+    }
+
+    #[test]
+    fn scopes_report_reads_pixels_and_skips_transparent() {
+        // 2×2: white, black, mid-grey, and a fully-transparent pixel (excluded).
+        let fb = Framebuffer::from_rgba(
+            2,
+            2,
+            vec![
+                255, 255, 255, 255, // white → luma 255 (clipped high)
+                0, 0, 0, 255, // black → luma 0 (clipped low)
+                128, 128, 128, 255, // grey → luma 128
+                9, 9, 9, 0, // transparent → skipped
+            ],
+        );
+        let r = compute_scopes(&fb);
+        assert_eq!(r["width"].as_u64().unwrap(), 2);
+        assert_eq!(
+            r["countedPixels"].as_u64().unwrap(),
+            3,
+            "transparent pixel excluded"
+        );
+        assert_eq!(r["luma"]["min"].as_u64().unwrap(), 0);
+        assert_eq!(r["luma"]["max"].as_u64().unwrap(), 255);
+        assert!((r["clippedLowFrac"].as_f64().unwrap() - 1.0 / 3.0).abs() < 1e-3);
+        assert!((r["clippedHighFrac"].as_f64().unwrap() - 1.0 / 3.0).abs() < 1e-3);
+        assert_eq!(r["luma"]["histogram"].as_array().unwrap().len(), 256);
     }
 
     #[test]
