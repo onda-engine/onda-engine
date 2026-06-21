@@ -2770,6 +2770,40 @@ mod tests {
         );
     }
 
+    #[test]
+    fn timeline_resolves_then_renders_the_active_clip_pixels() {
+        use onda_scene::{resolve_timeline, Clip, ImageData, ImageFit, Timeline};
+        use std::sync::Arc;
+        // A lane with one clip [0,2)s filling a 4×4 box.
+        let scene = Scene::new(comp(4, 4)).with_root(Node::group().with_child(Node::timeline(
+            Timeline::new([Clip::new("clip.mp4", 0.0, 2.0).with_box(4.0, 4.0, ImageFit::Cover)]),
+        )));
+        // Frame 0 → the Timeline flattens to a Video (decode not yet run).
+        let mut resolved = resolve_timeline(&scene, 0, scene.composition.fps);
+        // Stand in for the decode pre-pass: attach a solid-red 1×1 source.
+        let red = ImageData {
+            width: 1,
+            height: 1,
+            rgba: Arc::new(vec![255, 0, 0, 255]),
+        };
+        match &mut resolved.root.children[0].kind {
+            NodeKind::Video(v) => v.data = Some(red),
+            other => panic!("timeline should resolve to a Video, got {other:?}"),
+        }
+        // The resolved clip fills the 4×4 box with opaque red.
+        let fb = render(&resolved);
+        for y in 0..4 {
+            for x in 0..4 {
+                let p = fb.pixel(x, y);
+                assert_eq!(p[3], 255, "clip should fill ({x},{y})");
+                assert!(
+                    p[0] > 200 && p[1] < 60 && p[2] < 60,
+                    "clip pixel should be red at ({x},{y}): {p:?}"
+                );
+            }
+        }
+    }
+
     use onda_scene::Effect;
 
     fn blurred_scene() -> Scene {

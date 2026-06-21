@@ -158,4 +158,18 @@ impl VelloEngine {
             pixels: frame.pixels,
         })
     }
+
+    /// Flatten any NLE timeline to the active clip's plain Video at composition
+    /// `frame`, returning the resolved scene JSON — the same resolution `onda
+    /// export` runs natively. A preview host calls this BEFORE its video-decode
+    /// step (to learn which clip + source-time to seek), then decodes and renders.
+    /// No-op for scenes without a timeline.
+    #[wasm_bindgen(js_name = resolveTimeline)]
+    pub fn resolve_timeline(&self, scene_json: &str, frame: u32) -> Result<String, JsError> {
+        let scene: Scene =
+            serde_json::from_str(scene_json).map_err(|e| JsError::new(&e.to_string()))?;
+        let fps = scene.composition.fps;
+        let resolved = onda_scene::resolve_timeline(&scene, frame, fps);
+        serde_json::to_string(&resolved).map_err(|e| JsError::new(&e.to_string()))
+    }
 }
