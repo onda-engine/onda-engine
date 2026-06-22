@@ -258,6 +258,10 @@ export {
   type KineticTextPreset,
   type KineticTextProps,
 } from './components/KineticText.js'
+export {
+  KineticDotTitle,
+  type KineticDotTitleProps,
+} from './components/KineticDotTitle.js'
 export { LineChart, type LineChartProps } from './components/LineChart.js'
 export { LogoReveal, type LogoRevealPreset, type LogoRevealProps } from './components/LogoReveal.js'
 export { LogoSting, type LogoStingProps } from './components/LogoSting.js'
@@ -269,6 +273,12 @@ export {
 export { LowerThird, type LowerThirdProps } from './components/LowerThird.js'
 export { Marquee, type MarqueeProps } from './components/Marquee.js'
 export { MaskReveal, type MaskRevealProps } from './components/MaskReveal.js'
+export {
+  MatteReveal,
+  type MatteRevealProps,
+  type MatteShape,
+  type MatteBeat,
+} from './components/MatteReveal.js'
 export { MatrixDecode, type MatrixDecodeProps } from './components/MatrixDecode.js'
 export { MeshGradient, type MeshGradientProps } from './components/MeshGradient.js'
 export { Moodboard, type MoodboardProps } from './components/Moodboard.js'
