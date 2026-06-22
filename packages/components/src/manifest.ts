@@ -46,6 +46,7 @@ import { inputFieldSchema } from './components/InputField.schema.js'
 import { kanbanBoardSchema } from './components/KanbanBoard.schema.js'
 import { kenBurnsSchema } from './components/KenBurns.schema.js'
 import { keyframesSchema } from './components/Keyframes.schema.js'
+import { kineticDotTitleSchema } from './components/KineticDotTitle.schema.js'
 import { kineticTextSchema } from './components/KineticText.schema.js'
 import { lineChartSchema } from './components/LineChart.schema.js'
 import { logoRevealSchema } from './components/LogoReveal.schema.js'
@@ -5204,6 +5205,22 @@ const RAW: RawEntry[] = [
       },
     ],
     schema: kineticTextSchema,
+  },
+  {
+    slug: 'kinetic-dot-title',
+    name: 'KineticDotTitle',
+    category: 'Text',
+    title: 'Kinetic Dot Title',
+    description:
+      'An editable title line whose trailing circle resolves into the period: the type writes left-to-right while a large circle shrinks to a full stop that lands exactly at the end of the (any-length) text.',
+    pickWhen:
+      'Use for a single editable headline that should land with a circle becoming its period — the "dot" brand device. The text and the period re-place themselves for any copy length.',
+    composes: [],
+    sceneRole: 'block',
+    occlusion: 'centered',
+    example: { text: 'EVERY IDEA', fontSize: 120, dotScale: 0.34, circleFrom: 6 },
+    props: [],
+    schema: kineticDotTitleSchema,
   },
   {
     slug: 'line-chart',
