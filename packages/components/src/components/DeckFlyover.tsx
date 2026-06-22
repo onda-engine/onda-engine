@@ -16,7 +16,6 @@
 //! Backend: the liquid/feature gradients are GPU-only, so the host routes this to
 //! Vello; text + transforms degrade cleanly.
 
-import type { ReactElement } from 'react'
 import {
   Camera,
   Easing,
@@ -32,9 +31,10 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from '@onda-engine/react'
+import type { ReactElement } from 'react'
 import type { TextStyleProps } from '../text-style.js'
-import { type TimeInput, framesOf } from '../time.js'
 import { useTheme } from '../theme.js'
+import { type TimeInput, framesOf } from '../time.js'
 
 export type DeckSlideKind =
   | 'title'
@@ -465,7 +465,14 @@ export function DeckFlyover({
       y += 6
       wrap(slide.subtitle, cell.w - padding * 2, 19).forEach((line, i) => {
         nodes.push(
-          <Text key={`s${i}`} x={padding} y={y} fontSize={19} color={pal.dim} fontFamily={bodyFamily}>
+          <Text
+            key={`s${i}`}
+            x={padding}
+            y={y}
+            fontSize={19}
+            color={pal.dim}
+            fontFamily={bodyFamily}
+          >
             {line}
           </Text>,
         )
@@ -496,7 +503,15 @@ export function DeckFlyover({
               ],
             )}
           />
-          <Rect x={22} y={22} width={20} height={20} cornerRadius={6} fill="#ffffff" opacity={0.9} />
+          <Rect
+            x={22}
+            y={22}
+            width={20}
+            height={20}
+            cornerRadius={6}
+            fill="#ffffff"
+            opacity={0.9}
+          />
           <Text
             x={22}
             y={52}
@@ -610,10 +625,23 @@ export function DeckFlyover({
           >
             {String(i + 1).padStart(2, '0')}
           </Text>
-          <Text x={padding + 64} y={0} fontSize={22} color={pal.ink} fontFamily={bodyFamily} fontWeight={500}>
+          <Text
+            x={padding + 64}
+            y={0}
+            fontSize={22}
+            color={pal.ink}
+            fontFamily={bodyFamily}
+            fontWeight={500}
+          >
             {it}
           </Text>
-          <Rect x={padding} y={rowH2 - 12} width={cell.w - padding * 2} height={1} fill={pal.line} />
+          <Rect
+            x={padding}
+            y={rowH2 - 12}
+            width={cell.w - padding * 2}
+            height={1}
+            fill={pal.line}
+          />
         </Group>,
       )
       y += rowH2
@@ -696,11 +724,25 @@ export function DeckFlyover({
       const sx = padding + i * colW2
       nodes.push(
         <Group key={`s${i}`} x={sx} y={baseY}>
-          <Text x={0} y={0} fontSize={82} color={accent} fontFamily={headingFamily} fontWeight={800}>
+          <Text
+            x={0}
+            y={0}
+            fontSize={82}
+            color={accent}
+            fontFamily={headingFamily}
+            fontWeight={800}
+          >
             {s.value}
           </Text>
           {s.label ? (
-            <Text x={2} y={92} fontSize={19} color={pal.dim} fontFamily={bodyFamily} fontWeight={500}>
+            <Text
+              x={2}
+              y={92}
+              fontSize={19}
+              color={pal.dim}
+              fontFamily={bodyFamily}
+              fontWeight={500}
+            >
               {s.label}
             </Text>
           ) : null}
@@ -763,7 +805,14 @@ export function DeckFlyover({
       y += gapTitleBody
       bodyLines.forEach((line, i) => {
         nodes.push(
-          <Text key={`b${i}`} x={padding} y={y} fontSize={21} color="#cfc6ea" fontFamily={bodyFamily}>
+          <Text
+            key={`b${i}`}
+            x={padding}
+            y={y}
+            fontSize={21}
+            color="#cfc6ea"
+            fontFamily={bodyFamily}
+          >
             {line}
           </Text>,
         )
@@ -776,7 +825,14 @@ export function DeckFlyover({
       nodes.push(
         <Group key="cta" x={padding} y={y}>
           <Rect width={pillW} height={ctaH} cornerRadius={ctaH / 2} fill={accent} />
-          <Text x={28} y={13} fontSize={20} color="#ffffff" fontFamily={bodyFamily} fontWeight={600}>
+          <Text
+            x={28}
+            y={13}
+            fontSize={20}
+            color="#ffffff"
+            fontFamily={bodyFamily}
+            fontWeight={600}
+          >
             {slide.label}
           </Text>
         </Group>,
@@ -850,8 +906,7 @@ export function DeckFlyover({
     const slide = slides[slideIndex]
     if (!slide) return null
     const kind: DeckSlideKind = slide.kind ?? 'features'
-    const img =
-      typeof slide.image === 'string' && slide.image.length > 0 ? slide.image : null
+    const img = typeof slide.image === 'string' && slide.image.length > 0 ? slide.image : null
     // A photo background reads as a dark slide (light text over a scrim), regardless of `dark`.
     const isDark = img !== null || (slide.dark ?? (kind === 'title' || kind === 'contact'))
     const pal = isDark ? DARK : LIGHT
@@ -927,7 +982,11 @@ export function DeckFlyover({
         if (slideIndex >= slides.length) continue
         const x = j * step + mod + k * rowWidth
         if (x + colW < focusX - halfW || x > focusX + halfW) continue
-        const el = renderSlide({ x, y, w: colW, h: rowH, index: slideIndex }, slideIndex, `${r}-${j}-${k}`)
+        const el = renderSlide(
+          { x, y, w: colW, h: rowH, index: slideIndex },
+          slideIndex,
+          `${r}-${j}-${k}`,
+        )
         if (el) instances.push(el)
       }
     }

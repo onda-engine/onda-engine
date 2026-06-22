@@ -17,11 +17,16 @@ export const deckSlideSchema = z.object({
   dark: z
     .boolean()
     .optional()
-    .describe('Render this slide dark (navy) instead of light/white. Title + contact default dark.'),
+    .describe(
+      'Render this slide dark (navy) instead of light/white. Title + contact default dark.',
+    ),
   eyebrow: z.string().optional().describe('Small kicker above the slide title.'),
   title: z.string().optional().describe('Slide title / headline (supports \\n line breaks).'),
   subtitle: z.string().optional().describe('Sub-line under a title-slide or features headline.'),
-  tag: z.string().optional().describe('Small label on the right of a title slide (e.g. a partner mark).'),
+  tag: z
+    .string()
+    .optional()
+    .describe('Small label on the right of a title slide (e.g. a partner mark).'),
   body: z.string().optional().describe('Paragraph for a quote / contact slide (word-wrapped).'),
   label: z.string().optional().describe('Quote attribution, or the contact-slide CTA text.'),
   bullets: z.any().optional().describe('string[] — list rows for a bullets / agenda slide.'),
@@ -86,7 +91,10 @@ export const deckFlyoverSchema = z.object({
   moveFrames: timeSchema.default(28).describe('Frames of each fly-over between tour stops.'),
   pullFrames: timeSchema.default(34).describe('Frames of the pull-back to the whole board.'),
   panFrames: timeSchema.default(132).describe('Frames of the slow pan/drift across the board.'),
-  accentColor: z.string().optional().describe('Brand accent (logo mark, ticks, CTA). Default a corporate blue.'),
+  accentColor: z
+    .string()
+    .optional()
+    .describe('Brand accent (logo mark, ticks, CTA). Default a corporate blue.'),
 })
 
 export type DeckFlyoverSchemaProps = z.infer<typeof deckFlyoverSchema>
