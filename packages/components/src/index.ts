@@ -199,6 +199,12 @@ export {
 export { Confetti, type ConfettiProps } from './components/Confetti.js'
 export { CountUp, type CountUpProps } from './components/CountUp.js'
 export { Cursor, type CursorProps } from './components/Cursor.js'
+export {
+  DeckFlyover,
+  type DeckFlyoverProps,
+  type DeckSlide,
+  type DeckSlideKind,
+} from './components/DeckFlyover.js'
 export { DeviceFrame, type DeviceFrameProps } from './components/DeviceFrame.js'
 export { DrawOn, type DrawOnProps } from './components/DrawOn.js'
 export { DynamicGrid, type DynamicGridProps } from './components/DynamicGrid.js'
