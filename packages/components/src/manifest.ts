@@ -11177,6 +11177,16 @@ export const CAPABILITIES: Capability[] = [
     backend: 'both',
   },
   {
+    id: 'displace',
+    category: 'effect',
+    title: 'Displacement / warp (fBm + ripple)',
+    description:
+      "Warp a node + its subtree by a displacement field — the look transform/opacity/clip can't fake. `mode:'fbm'` (default) = organic noise (liquid-melt, ink-bleed, heat-haze, glass-refraction); `mode:'ripple'` = concentric rings from the centre (water-drop / shockwave / lens). `amount`=warp px, `scale`=field frequency (fbm churn / ripple ring count), `time`=animation phase (advance per frame to flow; for ripple, expands the rings). Powers the displace / liquidWipe / inkBleed / dissolve / glitchMelt / heatHaze / shockwave transitions.",
+    apply:
+      "effects={[{ effect: 'displace', amount: 30, scale: 3, time: frame * 0.05, mode: 'fbm' }]}",
+    backend: 'both',
+  },
+  {
     id: 'chromatic-aberration',
     category: 'effect',
     title: 'Chromatic aberration (RGB split)',

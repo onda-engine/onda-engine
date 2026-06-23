@@ -18,7 +18,7 @@ import { Children, type ReactElement, type ReactNode, createElement, isValidElem
 import { clipEllipse, clipPath, clipRect } from './clip.js'
 import { Group, Rect } from './components.js'
 import { useCurrentFrame, useVideoConfig } from './frame.js'
-import { linearGradient, radialGradient } from './gradient.js'
+import { fbmGradient, linearGradient, radialGradient } from './gradient.js'
 import { Sequence } from './sequence.js'
 import { type SpringConfig, spring } from './spring.js'
 
@@ -345,6 +345,243 @@ export function blur({ maxBlur = 24 }: { maxBlur?: number } = {}): TransitionPre
       { opacity: entering ? progress : 1 - progress },
       blurStack(children, (1 - sharp) * maxBlur),
     )
+  }
+}
+
+/** Displace melt: both scenes warp through a procedural fBm field toward the
+ *  midpoint and reform sharp at rest, with an opacity cross — a liquid
+ *  melt-and-reform that transform/opacity/clip physically can't fake. Driven by the
+ *  engine's real `displace` effect (GPU + CPU reference), so the warp is per-pixel,
+ *  not a copy-stack approximation. `maxAmount` is the peak warp in output px;
+ *  `scale` the ripple frequency over the frame (~3 broad, larger = finer churn). */
+export function displace({
+  maxAmount = 38,
+  scale = 3,
+}: { maxAmount?: number; scale?: number } = {}): TransitionPresentation {
+  return (children, { progress, entering }) => {
+    const sharp = entering ? progress : 1 - progress // 1 at rest
+    const amount = (1 - sharp) * maxAmount // 0 at rest, peak mid-transition
+    return createElement(
+      Group,
+      {
+        opacity: entering ? progress : 1 - progress,
+        // Advance `time` across the transition so the field flows while it melts.
+        effects: [{ effect: 'displace', amount, scale, time: progress * 1.5 }],
+      },
+      children,
+    )
+  }
+}
+
+/** Liquid wipe: the incoming scene floods in left→right through a RIPPLING reveal
+ *  edge. The edge is a white→black gradient swept across the frame and run through
+ *  the `displace` field, then used as a LUMINANCE matte on the incoming scene — so
+ *  the boundary undulates like a tide-line instead of the hard straight edge a clip
+ *  would give. The outgoing scene sits underneath and is uncovered as the matte
+ *  hides the incoming. `edge` is the soft band width (fraction of the frame),
+ *  `maxAmount` how far the edge ripples (px), `scale` the ripple frequency. */
+export function liquidWipe({
+  edge = 0.16,
+  maxAmount = 60,
+  scale = 3,
+}: { edge?: number; maxAmount?: number; scale?: number } = {}): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    // Outgoing sits underneath at full opacity; the incoming's matte uncovers it.
+    if (!entering) return createElement(Group, null, children)
+    const p = Math.min(1, Math.max(0, progress))
+    const band = width * edge
+    // The white→black band sweeps from off the left (all black ⇒ incoming hidden)
+    // to off the right (all white ⇒ incoming fully shown). Sliding the gradient
+    // GEOMETRY (not the stop offsets) keeps a clean clamp at both ends.
+    const center = p * (width + 2 * band) - band
+    const reveal = createElement(
+      Group,
+      // The displace makes the gradient's edge undulate — the whole trick.
+      { effects: [{ effect: 'displace', amount: maxAmount, scale, time: p }] },
+      createElement(Rect, {
+        width,
+        height,
+        gradient: linearGradient(
+          [center - band, 0],
+          [center + band, 0],
+          [
+            { offset: 0, color: '#ffffff' },
+            { offset: 1, color: '#000000' },
+          ],
+        ),
+      }),
+    )
+    // Luminance matte: white reveals the incoming, black lets the outgoing through.
+    return createElement(Group, { matte: reveal, matteMode: 'luminance' }, children)
+  }
+}
+
+/** Ink bleed: the incoming scene blooms outward from the centre through a RIPPLING
+ *  circular edge — like a drop of ink (or paint) spreading across the frame. The
+ *  radial cousin of {@link liquidWipe}: a growing white-disc luminance matte, run
+ *  through the displace field so its rim undulates instead of being a clean circle.
+ *  `maxAmount` is the rim ripple depth (px), `scale` the ripple frequency,
+ *  `softness` the feather on the disc edge. */
+export function inkBleed({
+  maxAmount = 50,
+  scale = 3,
+  softness = 0.3,
+}: { maxAmount?: number; scale?: number; softness?: number } = {}): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    if (!entering) return createElement(Group, null, children)
+    const p = Math.min(1, Math.max(0, progress))
+    // A white disc that grows to cover the corners; outside it clamps to black.
+    const r = Math.max(1, p * Math.hypot(width, height) * 0.5 * (1 + softness))
+    const reveal = createElement(
+      Group,
+      { effects: [{ effect: 'displace', amount: maxAmount, scale, time: p }] },
+      createElement(Rect, {
+        width,
+        height,
+        gradient: radialGradient([width / 2, height / 2], r, [
+          { offset: 0, color: '#ffffff' },
+          { offset: Math.max(0.001, 1 - softness), color: '#ffffff' },
+          { offset: 1, color: '#000000' },
+        ]),
+      }),
+    )
+    return createElement(Group, { matte: reveal, matteMode: 'luminance' }, children)
+  }
+}
+
+/** Dissolve: the classic organic film dissolve. An fBm NOISE field is used as a
+ *  luminance matte with a hard black→white step at a threshold that sweeps from 1→0
+ *  as the transition runs — so noise speckles cross the threshold and reveal the
+ *  incoming scene in a grainy, irregular bloom (not a flat cross-fade). `scale` is
+ *  the noise grain size over the frame (larger = finer speckle). */
+export function dissolve({ scale = 5 }: { scale?: number } = {}): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    if (!entering) return createElement(Group, null, children)
+    const p = Math.min(1, Math.max(0, progress))
+    const t = 1 - p // threshold: high (hide) → low (reveal)
+    const reveal = createElement(Rect, {
+      width,
+      height,
+      gradient: fbmGradient(
+        [
+          { offset: 0, color: '#000000' },
+          { offset: Math.max(0, t - 0.05), color: '#000000' },
+          { offset: Math.min(1, t + 0.05), color: '#ffffff' },
+          { offset: 1, color: '#ffffff' },
+        ],
+        { scale },
+      ),
+    })
+    return createElement(Group, { matte: reveal, matteMode: 'luminance' }, children)
+  }
+}
+
+/** Glitch melt: a high-energy DIGITAL cut — unlike {@link displace}'s smooth liquid
+ *  melt, the noise here is HIGH-FREQUENCY and its phase JUMPS in discrete steps, so
+ *  the scene twitches and breaks up like a corrupted signal, with a hard RGB split
+ *  (chromatic aberration) hardest at the midpoint. The displace + split are nested
+ *  (so the displace keeps a zero capture margin and never tears) and the whole thing
+ *  is OVERSCANNED a hair so the split's edge fringe falls off-frame — no border.
+ *  `scale` is the (high) breakup frequency; `maxShift` the RGB split (px). */
+export function glitchMelt({
+  maxAmount = 18,
+  maxShift = 22,
+  scale = 14,
+  overscan = 1.12,
+}: {
+  maxAmount?: number
+  maxShift?: number
+  scale?: number
+  overscan?: number
+} = {}): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    const sharp = entering ? progress : 1 - progress // 1 at rest
+    const e = 1 - sharp // 0 at rest, peak mid-transition
+    // Stepped phase → the field jumps frame-to-frame (digital twitch, not flow).
+    const jitter = Math.floor(progress * 10)
+    // INNER: high-frequency displace breakup. OUTER: the RGB split. Nesting keeps the
+    // displace at a zero margin (no tear); the split rides on its result.
+    const displaced = createElement(
+      Group,
+      { effects: [{ effect: 'displace', amount: e * maxAmount, scale, time: jitter }] },
+      children,
+    )
+    const split = createElement(
+      Group,
+      { effects: [{ effect: 'chromatic_aberration', amount: e * maxShift }] },
+      displaced,
+    )
+    // Overscan about centre so the split's edge fringe lands outside the frame.
+    return createElement(
+      Group,
+      { opacity: entering ? progress : 1 - progress },
+      scaleAbout(split, overscan, overscan, width / 2, height / 2),
+    )
+  }
+}
+
+/** Heat haze: a gentle shimmering MIRAGE cross-fade — a fine, fast displace shimmer
+ *  (subtle `amount`, high `scale`) over a straight opacity cross, like looking
+ *  through hot air or water. The quiet, atmospheric cousin of {@link displace}. */
+export function heatHaze({
+  amount = 9,
+  scale = 9,
+}: { amount?: number; scale?: number } = {}): TransitionPresentation {
+  return (children, { progress, entering }) => {
+    const e = Math.sin(Math.min(1, Math.max(0, progress)) * Math.PI) // 0 → 1 → 0
+    return createElement(
+      Group,
+      {
+        opacity: entering ? progress : 1 - progress,
+        effects: [{ effect: 'displace', amount: e * amount, scale, time: progress * 4 }],
+      },
+      children,
+    )
+  }
+}
+
+/** Shockwave: a concentric RIPPLE expands from the centre and warps the cut — a
+ *  water-drop / impact. The incoming scene is uncovered behind an expanding disc
+ *  (the wavefront), and both scenes are bent by the radial `ripple` displace mode
+ *  whose rings race outward as `time` advances. `maxAmount` is the ring depth (px),
+ *  `rings` how many concentric rings reach the edge. */
+export function shockwave({
+  maxAmount = 26,
+  rings = 6,
+}: { maxAmount?: number; rings?: number } = {}): TransitionPresentation {
+  return (children, { progress, entering, width, height }) => {
+    const p = Math.min(1, Math.max(0, progress))
+    const ripple = (amount: number) => ({
+      effect: 'displace' as const,
+      amount,
+      scale: rings,
+      time: p * rings,
+      mode: 'ripple' as const,
+    })
+    if (!entering) {
+      // Outgoing is struck by the expanding wave, then washes out.
+      return createElement(
+        Group,
+        { opacity: Math.max(0, 1 - p / 0.85), effects: [ripple(p * maxAmount)] },
+        children,
+      )
+    }
+    // Incoming revealed behind the expanding, rippling wavefront disc.
+    const r = Math.max(1, p * Math.hypot(width, height) * 0.5 * 1.15)
+    const reveal = createElement(
+      Group,
+      { effects: [ripple(maxAmount)] },
+      createElement(Rect, {
+        width,
+        height,
+        gradient: radialGradient([width / 2, height / 2], r, [
+          { offset: 0, color: '#ffffff' },
+          { offset: 0.82, color: '#ffffff' },
+          { offset: 1, color: '#000000' },
+        ]),
+      }),
+    )
+    return createElement(Group, { matte: reveal, matteMode: 'luminance' }, children)
   }
 }
 
