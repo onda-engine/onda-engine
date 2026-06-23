@@ -137,6 +137,14 @@ export default defineConfig({
     // the gitignored pkg/ is minted in CI), exactly like any npm consumer — so it
     // builds on Vercel with no Rust toolchain. Don't pre-bundle it: esbuild
     // dep-optimization can mangle its `new URL(..., import.meta.url)` wasm loading.
-    optimizeDeps: { exclude: ['onda-engine'] },
+    // BUT excluding it stops Vite crawling into it to discover its CJS sub-deps, so
+    // `flubber` (path-morph; its internal `svg.js` does `import svgpath`, a CJS
+    // module with no default export) gets served raw and fails to hydrate. Force it
+    // back onto the optimize list via the `parent > child` form so esbuild bundles
+    // flubber + svgpath into ESM with proper interop.
+    optimizeDeps: {
+      exclude: ['onda-engine'],
+      include: ['flubber'],
+    },
   },
 })
