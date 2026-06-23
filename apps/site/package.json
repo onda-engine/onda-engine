@@ -5,7 +5,8 @@
   "description": "ONDA marketing landing + documentation (Astro + Starlight, static).",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build:engine": "pnpm --filter @onda-engine/react --filter @onda-engine/components --filter @onda-engine/player --filter @onda-engine/cinema --filter @onda-engine/render --filter onda-engine build",
+    "build": "pnpm run build:engine && astro build",
     "preview": "astro preview",
     "astro": "astro"
   },

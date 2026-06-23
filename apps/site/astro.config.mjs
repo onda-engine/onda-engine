@@ -134,10 +134,11 @@ export default defineConfig({
   ],
   vite: {
     // The site links the in-repo `onda-engine` umbrella (`workspace:*`, like every
-    // other monorepo consumer) so it always renders the LATEST engine — the wasm
-    // cores + bundle are produced by the monorepo build before the site builds.
-    // (To deploy without a Rust toolchain, point the dep at a published
-    // `npm:onda-engine` version instead — that ships the wasm prebuilt.)
+    // other monorepo consumer) so it ALWAYS renders the latest engine — no waiting
+    // for an npm release. The site `build` runs `build:engine` first, which rebuilds
+    // the umbrella's JS (tsc/tsup) and copies the wasm cores from the COMMITTED
+    // `packages/*/pkg/` dirs — so local AND the deploy work with NO Rust toolchain
+    // (the wasm is vendored; rebuild + recommit `pkg/` when the Rust engine changes).
     // Don't pre-bundle the umbrella: esbuild dep-optimization can mangle its
     // `new URL(..., import.meta.url)` wasm loading. BUT excluding it stops Vite
     // crawling into it to discover its CJS sub-deps, so `flubber` (path-morph; its
