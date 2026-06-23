@@ -13,8 +13,9 @@ use std::collections::HashMap;
 
 use onda_core::{Color, Size, Transform};
 use onda_scene::{
-    BlendMode, BooleanOp, Camera3D, Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap,
-    LineJoin, Matte, MatteMode, Node, NodeKind, Scene, Shadow, ShapeGeometry, Text, TrimDash,
+    BlendMode, BooleanOp, Camera3D, DisplaceMode, Effect, Gradient, GradientStop, ImageData,
+    ImageFit, LineCap, LineJoin, Matte, MatteMode, Node, NodeKind, Scene, Shadow, ShapeGeometry,
+    Text, TrimDash,
 };
 use onda_typography::{FontContext, StyledRun};
 use vello::kurbo::{Affine, BezPath, Cap, Ellipse, Join, Rect, RoundedRect, Shape, Stroke};
@@ -26,8 +27,8 @@ use vello::{wgpu, AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scen
 
 mod effects;
 use effects::{
-    AlphaMatte, Bloom, ColorGrade, FbmGradient, FinishParams, GaussianBlur, Goo, Grain, LightWrap,
-    LinearFinish, PixelFx, PIXELFX_CHROMATIC, PIXELFX_CHROMA_KEY, PIXELFX_DUOTONE,
+    AlphaMatte, Bloom, ColorGrade, Displace, FbmGradient, FinishParams, GaussianBlur, Goo, Grain,
+    LightWrap, LinearFinish, PixelFx, PIXELFX_CHROMATIC, PIXELFX_CHROMA_KEY, PIXELFX_DUOTONE,
     PIXELFX_POSTERIZE, PIXELFX_VIGNETTE,
 };
 mod extrude;
@@ -96,6 +97,10 @@ pub struct VelloRenderer {
     /// Film-grain compute pipeline (a single per-pixel pass). Built lazily the first
     /// time a node carries a `Grain` effect, then reused.
     grain_pipeline: Option<Grain>,
+    /// Displacement/warp compute pipeline (a single per-pixel resample driven by
+    /// in-shader fBm). Built lazily the first time a node carries a `Displace`
+    /// effect, then reused.
+    displace_pipeline: Option<Displace>,
     /// Composition-level cinematic FINISH chain (decode→linear-HDR bloom→ACES). Built
     /// lazily the first time a comp carries a `Composition::finish`, then reused.
     linearfinish_pipeline: Option<LinearFinish>,
@@ -183,6 +188,7 @@ impl VelloRenderer {
             matte_pipeline: None,
             fbm_pipeline: None,
             grain_pipeline: None,
+            displace_pipeline: None,
             linearfinish_pipeline: None,
             scene3d_pipeline: None,
             web,
@@ -319,6 +325,7 @@ impl VelloRenderer {
                     matte_pipeline: &mut self.matte_pipeline,
                     fbm_pipeline: &mut self.fbm_pipeline,
                     grain_pipeline: &mut self.grain_pipeline,
+                    displace_pipeline: &mut self.displace_pipeline,
                     scene3d_pipeline: &mut self.scene3d_pipeline,
                     effect_overrides: &mut Vec::new(),
                     linear: false,
@@ -403,6 +410,7 @@ impl VelloRenderer {
                     matte_pipeline: &mut self.matte_pipeline,
                     fbm_pipeline: &mut self.fbm_pipeline,
                     grain_pipeline: &mut self.grain_pipeline,
+                    displace_pipeline: &mut self.displace_pipeline,
                     scene3d_pipeline: &mut self.scene3d_pipeline,
                     effect_overrides: &mut Vec::new(),
                     linear: false,
@@ -477,6 +485,7 @@ impl VelloRenderer {
                         matte_pipeline: &mut self.matte_pipeline,
                         fbm_pipeline: &mut self.fbm_pipeline,
                         grain_pipeline: &mut self.grain_pipeline,
+                        displace_pipeline: &mut self.displace_pipeline,
                         scene3d_pipeline: &mut self.scene3d_pipeline,
                         effect_overrides: &mut Vec::new(),
                         linear: false,
@@ -572,6 +581,7 @@ impl VelloRenderer {
                 matte_pipeline: &mut self.matte_pipeline,
                 fbm_pipeline: &mut self.fbm_pipeline,
                 grain_pipeline: &mut self.grain_pipeline,
+                displace_pipeline: &mut self.displace_pipeline,
                 scene3d_pipeline: &mut self.scene3d_pipeline,
                 effect_overrides: &mut effect_overrides,
                 linear: scene.composition.linear,
@@ -659,6 +669,7 @@ struct Ctx<'a> {
     matte_pipeline: &'a mut Option<AlphaMatte>,
     fbm_pipeline: &'a mut Option<FbmGradient>,
     grain_pipeline: &'a mut Option<Grain>,
+    displace_pipeline: &'a mut Option<Displace>,
     /// The perspective 3D pass — built lazily for a `camera3d` scene, reused after.
     scene3d_pipeline: &'a mut Option<Scene3D>,
     /// Native GPU-resident effect compositing: the placeholder `peniko::Image`s whose
@@ -1211,6 +1222,11 @@ fn effect_spread_margin(node: &Node) -> f64 {
             // LightWrap is likewise resolved in `build` (it samples the backdrop and
             // composites in screen space), not via this local-bounds capture.
             Effect::LightWrap { .. } => 0.0,
+            // Displace is a per-pixel resample that CLAMPS out-of-bounds samples to
+            // the edge — so it needs NO capture margin. Adding one would surround the
+            // content with a transparent border that the warp then samples INTO,
+            // tearing the frame edges to black. Zero, like the other per-pixel passes.
+            Effect::Displace { .. } => 0.0,
         })
         .fold(0.0_f32, f32::max);
     (3.0 * max_sigma).ceil().max(0.0) as f64
@@ -1495,6 +1511,25 @@ fn build_effect_texture(
             // Resolved in `build` (screen-space backdrop wrap) — never reached here,
             // since a light-wrap node is excluded from `has_subtree_effect`.
             Effect::LightWrap { .. } => {}
+            Effect::Displace {
+                amount,
+                scale,
+                time,
+                mode,
+            } if *amount > 0.0 => {
+                let disp = ctx
+                    .displace_pipeline
+                    .get_or_insert_with(|| Displace::new(ctx.device));
+                let mode = match mode {
+                    DisplaceMode::Fbm => 0u32,
+                    DisplaceMode::Ripple => 1u32,
+                };
+                texture = disp.run(
+                    ctx.device, ctx.queue, &texture, tw, th, *amount, *scale, *time, mode,
+                );
+            }
+            // Zero-amount displace is a no-op (identity warp).
+            Effect::Displace { .. } => {}
         }
     }
 
@@ -3226,6 +3261,62 @@ mod tests {
         // A full-canvas red fill: center pixel is opaque red.
         let center = ((32 * 64 + 32) * 4) as usize;
         assert_eq!(&frame.pixels[center..center + 4], &[255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn displace_warps_a_hard_edge() {
+        let Some(mut renderer) = VelloRenderer::new() else {
+            eprintln!("no GPU adapter; skipping");
+            return;
+        };
+        // A hard red|blue vertical split at x=32, with the whole split wrapped in a
+        // node we can warp. Rendering it with a strong Displace must differ from the
+        // un-warped render along the boundary (the fBm pulls red into blue and back).
+        let split = |amount: f32| {
+            let right = Node::shape(
+                Shape::rect(Size::new(32.0, 64.0)).with_fill(Color::rgb(0.0, 0.0, 1.0)),
+            )
+            .with_transform(onda_core::Transform {
+                translate: Vec2::new(32.0, 0.0),
+                ..onda_core::Transform::IDENTITY
+            });
+            Scene::new(Composition::new(64, 64, 30.0, 1)).with_root(
+                Node::group().with_child(
+                    Node::group()
+                        .with_children([
+                            Node::shape(
+                                Shape::rect(Size::new(32.0, 64.0))
+                                    .with_fill(Color::rgb(1.0, 0.0, 0.0)),
+                            ),
+                            right,
+                        ])
+                        .with_effect(onda_scene::Effect::Displace {
+                            amount,
+                            scale: 5.0,
+                            time: 0.0,
+                            mode: onda_scene::DisplaceMode::Fbm,
+                        }),
+                ),
+            )
+        };
+        let identity = renderer.render(&split(0.0)); // zero amount = no-op
+        let warped = renderer.render(&split(14.0));
+        // Count pixels in the boundary band whose RGB changed by >1 step.
+        let mut changed = 0;
+        for y in 0..64u32 {
+            for x in 18..46u32 {
+                let i = ((y * 64 + x) * 4) as usize;
+                let d = (identity.pixels[i] as i32 - warped.pixels[i] as i32).abs()
+                    + (identity.pixels[i + 2] as i32 - warped.pixels[i + 2] as i32).abs();
+                if d > 2 {
+                    changed += 1;
+                }
+            }
+        }
+        assert!(
+            changed > 80,
+            "displace should warp the boundary (changed={changed})"
+        );
     }
 
     #[test]
