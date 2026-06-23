@@ -15,10 +15,18 @@ export const kineticTextSchema = z.object({
     .default('kinetic')
     .describe('The line to choreograph; laid out as one row of absolutely-placed glyphs.'),
   fontSize: z.number().default(96).describe('Font size in px.'),
+  colors: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Optional per-glyph color palette. When set, glyph i is painted colors[i % colors.length] (cycling), overriding color — a multicolor wordmark from one editable string. Omit to paint the whole line one color.',
+    ),
   preset: z
-    .enum(['rise', 'fade', 'scale', 'blur', 'wave'])
+    .enum(['rise', 'fade', 'scale', 'blur', 'wave', 'scatter'])
     .default('rise')
-    .describe('Per-glyph entrance flavor.'),
+    .describe(
+      'Per-glyph entrance flavor. scatter = each glyph flies in from a random direction and tumbles upright (great for an editable kinetic wordmark).',
+    ),
   stagger: timeSchema
     .default(5)
     .describe('Frames between consecutive glyphs entering (STAGGER = 5).'),
@@ -26,6 +34,15 @@ export const kineticTextSchema = z.object({
     .default(22)
     .describe("Frames each glyph's entrance takes to settle (DURATION.base = 22)."),
   delay: timeSchema.default(0).describe('Frames before the first glyph starts.'),
+  exit: z
+    .boolean()
+    .optional()
+    .describe(
+      "scatter preset only: also scatter the glyphs back OUT (tumbling + fading) over the clip's final frames, so the line exits as kinetically as it entered. Default off (settle and hold).",
+    ),
+  exitDuration: timeSchema
+    .optional()
+    .describe("Length of the scatter-OUT when exit is on (frames or '0.5s'); default ~14f."),
   align: z
     .enum(['left', 'center', 'right'])
     .default('center')

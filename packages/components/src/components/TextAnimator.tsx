@@ -78,6 +78,10 @@ export interface TextAnimatorProps extends TextStyleProps {
   units?: TextAnimatorUnit
   /** Channels to animate per unit (default `{ opacity: [0, 1], y: [24, 0] }`). */
   animate?: TextAnimate
+  /** Optional per-unit color PALETTE — unit `i` is painted `colors[i % colors.length]`
+   *  (cycling), overriding the single `color`. A multicolor line from one string.
+   *  An animated `animate.color` channel, if also set, still wins (it's explicit). */
+  colors?: readonly string[]
   /** Time between consecutive units entering (default `STAGGER` = 5 frames). */
   stagger?: TimeInput
   /** Time each unit takes to settle (default `DURATION.base`). */
@@ -147,6 +151,7 @@ export function TextAnimator({
   text: textProp = 'Animate',
   units = 'glyph',
   animate,
+  colors,
   stagger: staggerIn = STAGGER,
   durationInFrames: durationIn = DURATION.base,
   delay: delayIn = 0,
@@ -299,9 +304,13 @@ export function TextAnimator({
         const scale = at(channels.scale, 1)
         const rot = at(channels.rotate, 0)
         const blur = at(channels.blur, 0)
+        // Per-unit base color from the palette (cycled by index) when given, else the
+        // single line color; an explicit animated `color` channel still takes priority.
+        const baseColor =
+          colors && colors.length > 0 ? (colors[i % colors.length] as string) : color
         const unitColor = channels.color
           ? interpolateColors(progress, [0, 1], channels.color, CLAMP)
-          : color
+          : baseColor
 
         // Pivot scale/rotate about the unit's own center so it transforms in place.
         const pivoted = scale !== 1 || rot !== 0

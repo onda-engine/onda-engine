@@ -5042,9 +5042,9 @@ const RAW: RawEntry[] = [
     category: 'Text',
     title: 'Kinetic Text',
     description:
-      'An opinionated per-glyph kinetic-type entrance: each glyph of a single line is placed absolutely by its real shaped advance and animates in on the house stagger with a chosen preset (rise, fade, scale, blur focus-pull, or a traveling wave).',
+      'An opinionated per-glyph kinetic-type entrance: each glyph of a single line is placed absolutely by its real shaped advance and animates in on the house stagger with a chosen preset (rise, fade, scale, blur focus-pull, a traveling wave, or a scatter where each letter flies in from a random direction and tumbles upright).',
     pickWhen:
-      'Use for a hero headline or single line of copy that should choreograph in letter-by-letter (the kinetic-type signature move) rather than as a block; reach for the blur preset for a per-glyph soft→sharp focus-pull, or wave for a rippling entrance.',
+      'Use for a hero headline or single line of copy that should choreograph in letter-by-letter (the kinetic-type signature move) rather than as a block; reach for the blur preset for a per-glyph soft→sharp focus-pull, wave for a rippling entrance, or scatter for an editable kinetic wordmark whose letters assemble from a random tumble.',
     composes: [],
     sceneRole: 'block',
     occlusion: 'centered',
@@ -5076,15 +5076,24 @@ const RAW: RawEntry[] = [
         description: 'Font size in px.',
       },
       {
+        name: 'colors',
+        type: 'stringArray',
+        role: 'array',
+        themeable: true,
+        required: false,
+        description:
+          'Optional per-glyph color palette: glyph i is painted colors[i % colors.length] (cycling), overriding color — a multicolor wordmark from one editable string. Omit to paint the whole line one color.',
+      },
+      {
         name: 'preset',
         type: 'enum',
         role: 'enum',
         themeable: false,
         required: false,
-        enumValues: ['rise', 'fade', 'scale', 'blur', 'wave'],
+        enumValues: ['rise', 'fade', 'scale', 'blur', 'wave', 'scatter'],
         default: "'rise'",
         description:
-          'Per-glyph entrance flavor: rise (translateY + fade), fade (opacity only), scale (grow from center + fade), blur (real soft→sharp focus-pull + fade), wave (rippling sine offset + fade).',
+          'Per-glyph entrance flavor: rise (translateY + fade), fade (opacity only), scale (grow from center + fade), blur (real soft→sharp focus-pull + fade), wave (rippling sine offset + fade), scatter (each glyph flies in from a random direction + tumbles upright, then settles to its kerned position — an editable kinetic wordmark).',
       },
       {
         name: 'stagger',
@@ -5114,6 +5123,24 @@ const RAW: RawEntry[] = [
         default: '0',
         description:
           "Frames before the first glyph starts. Accepts frames (number) or a time string ('0.5s', '500ms', '12f').",
+      },
+      {
+        name: 'exit',
+        type: 'boolean',
+        role: 'boolean',
+        themeable: false,
+        required: false,
+        description:
+          "scatter preset only: also scatter the glyphs back OUT (tumbling + fading) over the clip's final frames, so the line exits as kinetically as it entered. Default off (settle and hold).",
+      },
+      {
+        name: 'exitDuration',
+        type: 'int',
+        role: 'durationFrames',
+        themeable: false,
+        required: false,
+        description:
+          "Length of the scatter-OUT when exit is on. Accepts frames (number) or a time string ('0.5s'); default ~14f.",
       },
       {
         name: 'align',
