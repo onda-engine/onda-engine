@@ -182,6 +182,12 @@ export { BarChart, type BarChartDatum, type BarChartProps } from './components/B
 export { BentoGrid, type BentoGridProps, type BentoItem } from './components/BentoGrid.js'
 export { BlurReveal, type BlurRevealProps } from './components/BlurReveal.js'
 export { BoundingBox, type BoundingBoxProps } from './components/BoundingBox.js'
+export {
+  BrandFlow,
+  type BrandFlowProps,
+  type FlowBeat,
+  type FlowWordAt,
+} from './components/BrandFlow.js'
 export { BrowserFrame, type BrowserFrameProps } from './components/BrowserFrame.js'
 export { Button, type ButtonProps } from './components/Button.js'
 export { Callout, type CalloutProps, type CalloutDirection } from './components/Callout.js'
@@ -272,6 +278,13 @@ export {
 } from './components/LookbookShot.js'
 export { LowerThird, type LowerThirdProps } from './components/LowerThird.js'
 export { Marquee, type MarqueeProps } from './components/Marquee.js'
+export {
+  MagicGallery,
+  type MagicGalleryProps,
+  type MagicBeat,
+  type GalleryTile,
+  type GalleryLayout,
+} from './components/MagicGallery.js'
 export { MaskReveal, type MaskRevealProps } from './components/MaskReveal.js'
 export { MatrixDecode, type MatrixDecodeProps } from './components/MatrixDecode.js'
 export { MeshGradient, type MeshGradientProps } from './components/MeshGradient.js'
@@ -312,6 +325,12 @@ export {
   type TextAnimatorUnit,
 } from './components/TextAnimator.js'
 export { TextFadeReplace, type TextFadeReplaceProps } from './components/TextFadeReplace.js'
+export {
+  ThroughLine,
+  type ThroughLineProps,
+  type ThroughBeat,
+  type ThroughTextAt,
+} from './components/ThroughLine.js'
 export { Timeline, type TimelineEvent, type TimelineProps } from './components/Timeline.js'
 export { TitleCard, type TitleCardProps } from './components/TitleCard.js'
 export { TrackingIn, type TrackingInProps } from './components/TrackingIn.js'
