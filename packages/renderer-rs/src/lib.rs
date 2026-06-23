@@ -987,11 +987,22 @@ pub fn displace_framebuffer(
     if amount <= 0.0 || fb.width == 0 || fb.height == 0 {
         return;
     }
-    // Hash + value noise — `x - x.floor()` matches WGSL `fract` (incl. negatives),
-    // identical to `grain_framebuffer`'s noise.
+    // Integer bit-hash on the lattice point → fully PORTABLE noise (no `sin`/`fract`
+    // transcendentals, which differ across libm/arch). Displacement re-sampling
+    // amplifies a 1-ULP noise difference into a whole-pixel swap, so a `sin`-based
+    // hash (fine for grain) breaks the golden cross-platform; this integer hash is
+    // bit-identical everywhere. `as i64` recovers the integer lattice coord (callers
+    // pass `px.floor()`), incl. negatives.
     fn hash21(x: f32, y: f32) -> f32 {
-        let s = (x * 127.1 + y * 311.7).sin() * 43_758.547;
-        s - s.floor()
+        let xi = x as i64 as u64;
+        let yi = y as i64 as u64;
+        let mut h = xi
+            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+            .wrapping_add(yi.wrapping_mul(0xC2B2_AE3D_27D4_EB4F));
+        h ^= h >> 29;
+        h = h.wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        h ^= h >> 32;
+        (h >> 40) as f32 / (1u64 << 24) as f32 // top 24 bits → [0, 1)
     }
     fn vnoise(px: f32, py: f32) -> f32 {
         let (ix, iy) = (px.floor(), py.floor());
