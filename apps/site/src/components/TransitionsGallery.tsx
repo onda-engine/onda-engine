@@ -169,7 +169,11 @@ const TRANSITIONS: TransitionDef[] = [
  *  the displace / ripple / dissolve warps actually visible — on a flat colour card
  *  a per-pixel warp barely reads; on detailed content it's vivid. */
 function scene(src: string): ReactElement {
-  return createElement(Group, null, createElement(Image, { src, width: W, height: H, fit: 'cover' }))
+  return createElement(
+    Group,
+    null,
+    createElement(Image, { src, width: W, height: H, fit: 'cover' }),
+  )
 }
 
 function snippetFor(t: TransitionDef): string {
