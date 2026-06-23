@@ -870,6 +870,257 @@ impl ColorGrade {
     }
 }
 
+/// Displacement / warp: re-sample the captured subtree at coordinates offset by a
+/// PROCEDURAL fBm field — `out = src(p + (fbm·2-1)·amount)`. The same single-pass
+/// shape as `ColorGrade` (one input texture + a uniform), but it reads a *different*
+/// source pixel per output pixel instead of remapping in place. The noise is the
+/// same simplex/fBm used by `Gradient::Fbm`, generated in-shader, so the effect
+/// needs no map texture — it ships as `Copy` scalars. `amount` is the warp
+/// magnitude (px), `scale` the noise frequency over the frame, `time` an animation
+/// phase. Nearest-neighbor + clamp-to-edge, matching the CPU reference twin.
+const DISPLACE_WGSL: &str = r#"
+struct Params {
+    amount: f32,
+    scale: f32,
+    time: f32,
+    width: u32,
+    height: u32,
+    mode: u32,       // 0 = fbm noise, 1 = radial ripple
+    _pad1: u32,
+    _pad2: u32,
+};
+
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var<uniform> params: Params;
+
+fn mod289_2(x: vec2<f32>) -> vec2<f32> { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+fn mod289_3(x: vec3<f32>) -> vec3<f32> { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+fn permute3(x: vec3<f32>) -> vec3<f32> { return mod289_3(((x * 34.0) + 1.0) * x); }
+
+// 2D Simplex noise, range ~[-1, 1] (shared with the fBm gradient generator).
+fn snoise(v: vec2<f32>) -> f32 {
+    let C = vec4<f32>(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+    var i = floor(v + dot(v, C.yy));
+    let x0 = v - i + dot(i, C.xx);
+    var i1 = vec2<f32>(0.0, 1.0);
+    if (x0.x > x0.y) { i1 = vec2<f32>(1.0, 0.0); }
+    var x12 = x0.xyxy + C.xxzz;
+    x12 = vec4<f32>(x12.xy - i1, x12.zw);
+    i = mod289_2(i);
+    let p = permute3(permute3(i.y + vec3<f32>(0.0, i1.y, 1.0)) + i.x + vec3<f32>(0.0, i1.x, 1.0));
+    var m = max(0.5 - vec3<f32>(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), vec3<f32>(0.0));
+    m = m * m;
+    m = m * m;
+    let x = 2.0 * fract(p * C.www) - 1.0;
+    let h = abs(x) - 0.5;
+    let ox = floor(x + 0.5);
+    let a0 = x - ox;
+    m = m * (1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h));
+    var g: vec3<f32>;
+    g.x = a0.x * x0.x + h.x * x0.y;
+    let gyz = a0.yz * x12.xz + h.yz * x12.yw;
+    g.y = gyz.x;
+    g.z = gyz.y;
+    return 130.0 * dot(m, g);
+}
+
+// Five octaves of Simplex noise, range ~[-1, 1].
+fn fbm(p_in: vec2<f32>) -> f32 {
+    var p = p_in;
+    var sum = 0.0;
+    var amp = 0.5;
+    for (var i = 0; i < 5; i = i + 1) {
+        sum = sum + amp * snoise(p);
+        p = p * 2.0;
+        amp = amp * 0.5;
+    }
+    return sum;
+}
+
+// One clamped texel as PREMULTIPLIED rgba (so the bilinear lerp below doesn't
+// bleed color out of transparent neighbours — straight-alpha lerp fringes at edges).
+fn tap(p: vec2<i32>, maxx: i32, maxy: i32) -> vec4<f32> {
+    let c = textureLoad(src, vec2<i32>(clamp(p.x, 0, maxx), clamp(p.y, 0, maxy)), 0);
+    return vec4<f32>(c.rgb * c.a, c.a);
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let x = gid.x;
+    let y = gid.y;
+    if (x >= params.width || y >= params.height) {
+        return;
+    }
+    let dims = vec2<f32>(f32(params.width), f32(params.height));
+    let pos = vec2<f32>(f32(x), f32(y));
+    var srcp: vec2<f32>;
+    if (params.mode == 1u) {
+        // RIPPLE: concentric rings pushing radially from the frame centre; `time`
+        // expands the rings (a shockwave), `scale` = number of rings to the edge.
+        let d = pos + vec2<f32>(0.5) - dims * 0.5;
+        let dist = length(d);
+        let dist_n = dist / min(dims.x, dims.y);
+        let wave = sin(dist_n * params.scale * 6.2831853 - params.time * 6.2831853);
+        let k = select(0.0, params.amount * wave / dist, dist > 1e-3);
+        srcp = pos + d * k;
+    } else {
+        // FBM: organic simplex-noise warp. Normalize so `scale` is frequency-over-frame.
+        let uv = (pos + vec2<f32>(0.5)) / dims;
+        let np = uv * params.scale + vec2<f32>(params.time);
+        // Decorrelate the two displacement axes with an arbitrary offset.
+        let disp = vec2<f32>(fbm(np), fbm(np + vec2<f32>(5.2, 1.3))) * params.amount;
+        srcp = pos + disp;
+    }
+    // Alpha-aware BILINEAR resample (nearest-neighbour breaks thin features into
+    // jaggy dashes — bilinear keeps the warp smooth, the "premium glass" tell).
+    let maxx = i32(params.width) - 1;
+    let maxy = i32(params.height) - 1;
+    let fl = floor(srcp);
+    let fr = srcp - fl;
+    let base = vec2<i32>(i32(fl.x), i32(fl.y));
+    let p00 = tap(base, maxx, maxy);
+    let p10 = tap(base + vec2<i32>(1, 0), maxx, maxy);
+    let p01 = tap(base + vec2<i32>(0, 1), maxx, maxy);
+    let p11 = tap(base + vec2<i32>(1, 1), maxx, maxy);
+    let pm = mix(mix(p00, p10, fr.x), mix(p01, p11, fr.x), fr.y);
+    var texel = vec4<f32>(0.0);
+    if (pm.a > 0.0) {
+        texel = vec4<f32>(pm.rgb / pm.a, pm.a); // un-premultiply
+    }
+    textureStore(dst, vec2<i32>(i32(x), i32(y)), texel);
+}
+"#;
+
+/// Lazily-built displacement compute pipeline (a single per-pixel resample). Cached
+/// on the renderer; the per-call texture/uniform are allocated in [`Displace::run`].
+pub struct Displace {
+    pipeline: wgpu::ComputePipeline,
+    layout: wgpu::BindGroupLayout,
+}
+
+/// Byte size of the displace params uniform (3 × f32 + 5 × u32 = 32, std140-safe).
+const DISPLACE_PARAMS_SIZE: u64 = 32;
+
+impl Displace {
+    /// Build the compute pipeline + bind-group layout. Cache on the renderer.
+    pub fn new(device: &wgpu::Device) -> Self {
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("onda-displace-wgsl"),
+            source: wgpu::ShaderSource::Wgsl(DISPLACE_WGSL.into()),
+        });
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("onda-displace-bgl"),
+            entries: &[
+                sampled_texture_entry(0),
+                storage_texture_entry(1),
+                uniform_entry(2),
+            ],
+        });
+        let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("onda-displace-pl"),
+            bind_group_layouts: &[&layout],
+            push_constant_ranges: &[],
+        });
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("onda-displace-pipeline"),
+            layout: Some(&pl),
+            module: &module,
+            entry_point: "main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+        Displace { pipeline, layout }
+    }
+
+    /// Warp `source` (the captured subtree texture): one per-pixel resample →
+    /// a new `Rgba8Unorm` texture (`COPY_SRC`, ready for readback). Runs as its own
+    /// command encoder + submit — like the grade/grain, it never injects into
+    /// Vello's pass.
+    #[allow(clippy::too_many_arguments)]
+    pub fn run(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        source: &wgpu::Texture,
+        width: u32,
+        height: u32,
+        amount: f32,
+        scale: f32,
+        time: f32,
+        mode: u32,
+    ) -> wgpu::Texture {
+        let out = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("onda-displace-out"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let src_view = source.create_view(&wgpu::TextureViewDescriptor::default());
+        let out_view = out.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut bytes = Vec::with_capacity(DISPLACE_PARAMS_SIZE as usize);
+        bytes.extend_from_slice(&amount.to_le_bytes());
+        bytes.extend_from_slice(&scale.to_le_bytes());
+        bytes.extend_from_slice(&time.to_le_bytes());
+        bytes.extend_from_slice(&width.to_le_bytes());
+        bytes.extend_from_slice(&height.to_le_bytes());
+        bytes.extend_from_slice(&mode.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        let params = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("onda-displace-params"),
+            size: DISPLACE_PARAMS_SIZE,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(&params, 0, &bytes);
+
+        let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("onda-displace-bg"),
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&src_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&out_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: params.as_entire_binding(),
+                },
+            ],
+        });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("onda-displace-encoder"),
+        });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("onda-displace"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &bg, &[]);
+            pass.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
+        }
+        queue.submit(Some(encoder.finish()));
+        out
+    }
+}
+
 /// Compute shader: the **alpha matte** combine. Reads the content texture and the
 /// matte texture (rendered over the same window) and writes the content's RGB with
 /// its alpha multiplied by the matte's coverage — the matte's alpha (mode 0) or its

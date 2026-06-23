@@ -133,10 +133,21 @@ export default defineConfig({
     mdx(),
   ],
   vite: {
-    // The site consumes the published `onda-engine` umbrella (wasm cores bundled;
-    // the gitignored pkg/ is minted in CI), exactly like any npm consumer — so it
-    // builds on Vercel with no Rust toolchain. Don't pre-bundle it: esbuild
-    // dep-optimization can mangle its `new URL(..., import.meta.url)` wasm loading.
-    optimizeDeps: { exclude: ['onda-engine'] },
+    // The site links the in-repo `onda-engine` umbrella (`workspace:*`, like every
+    // other monorepo consumer) so it ALWAYS renders the latest engine — no waiting
+    // for an npm release. The site `build` runs `build:engine` first, which rebuilds
+    // the umbrella's JS (tsc/tsup) and copies the wasm cores from the COMMITTED
+    // `packages/*/pkg/` dirs — so local AND the deploy work with NO Rust toolchain
+    // (the wasm is vendored; rebuild + recommit `pkg/` when the Rust engine changes).
+    // Don't pre-bundle the umbrella: esbuild dep-optimization can mangle its
+    // `new URL(..., import.meta.url)` wasm loading. BUT excluding it stops Vite
+    // crawling into it to discover its CJS sub-deps, so `flubber` (path-morph; its
+    // internal `svg.js` does `import svgpath`, a CJS module with no default export)
+    // gets served raw and fails to hydrate. Force it back onto the optimize list so
+    // esbuild bundles flubber + svgpath into ESM with proper interop.
+    optimizeDeps: {
+      exclude: ['onda-engine'],
+      include: ['flubber'],
+    },
   },
 })

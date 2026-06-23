@@ -260,6 +260,23 @@ export type Effect =
    *  pure black/white. `intensity` ~0.04–0.1 is filmic, `size` is the grain scale in
    *  px (~1 = fine), `seed` an animation offset — pass the frame for living grain. */
   | { effect: 'grain'; intensity: number; size: number; seed: number }
+  /** Displacement / warp — re-sample the subtree at coordinates offset by a
+   *  procedural fBm field (`out = src(p + (fbm·2-1)·amount)`). The primitive behind
+   *  liquid-melt, ink-bleed, heat-haze, ripple and glass-refraction looks that
+   *  transform/opacity/clip cannot fake. `amount` is the warp magnitude in output
+   *  px (0 = identity), `scale` the noise frequency over the frame (~3 = broad
+   *  swells, larger = finer churn), `time` an animation phase — advance it per frame
+   *  (e.g. `frame * 0.05`) for flowing motion. Honored by Vello (GPU) and the CPU
+   *  reference. Ramp `amount` 0→N→0 across a transition for a melt-and-reform. */
+  | {
+      effect: 'displace'
+      amount: number
+      scale: number
+      time: number
+      /** Field driving the warp. `'fbm'` (default): organic noise (melt/ink/haze).
+       *  `'ripple'`: concentric rings from the frame centre (water-drop / shockwave). */
+      mode?: 'fbm' | 'ripple'
+    }
   /** Frosted glass (CSS `backdrop-filter`). The ODD ONE OUT: instead of capturing
    *  this node's OWN subtree, it samples the already-composited BACKDROP *behind*
    *  the node, blurs it by `sigma` (output px, like CSS `blur()`), scales its

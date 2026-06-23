@@ -116,8 +116,8 @@ importers:
         specifier: ^12.40.0
         version: 12.40.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       onda-engine:
-        specifier: npm:onda-engine@^0.1.1
-        version: 0.1.1(react@19.2.7)
+        specifier: workspace:*
+        version: link:../../packages/umbrella
       react:
         specifier: ^19.2.0
         version: 19.2.7
@@ -137,6 +137,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.0
         version: 19.2.3(@types/react@19.2.16)
+      flubber:
+        specifier: ^0.4.2
+        version: 0.4.2
       react-grab:
         specifier: ^0.1.44
         version: 0.1.44(react@19.2.7)

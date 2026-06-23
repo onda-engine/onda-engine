@@ -36,6 +36,10 @@
           "style": { "recommended": false }
         }
       }
+    },
+    {
+      "include": ["**/package.json"],
+      "formatter": { "enabled": false }
     }
   ],
   "javascript": {

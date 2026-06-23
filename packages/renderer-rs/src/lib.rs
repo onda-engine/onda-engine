@@ -21,8 +21,9 @@
 use kurbo::{BezPath, PathEl, Shape as _};
 use onda_core::{Color, Size, Transform, Vec2};
 use onda_scene::{
-    BooleanOp, Camera3D, Effect, Gradient, GradientStop, ImageData, ImageFit, LineCap, LineJoin,
-    Lut, Matte, MatteMode, Node, NodeKind, Scene, Shape, ShapeGeometry, Text, TrimDash,
+    BooleanOp, Camera3D, DisplaceMode, Effect, Gradient, GradientStop, ImageData, ImageFit,
+    LineCap, LineJoin, Lut, Matte, MatteMode, Node, NodeKind, Scene, Shape, ShapeGeometry, Text,
+    TrimDash,
 };
 pub use onda_typography::{FontContext, TextMetrics, TextRaster};
 use tiny_skia as tsk;
@@ -968,6 +969,141 @@ pub fn grain_framebuffer(fb: &mut Framebuffer, intensity: f32, size: f32, seed: 
     }
 }
 
+/// Displacement / warp (CPU reference): re-sample the captured subtree at
+/// coordinates offset by a procedural fBm field — `out = src(p + (fbm·2-1)·amount)`.
+/// Mirrors [`onda_scene::Effect::Displace`]: `amount` is the warp magnitude in px,
+/// `scale` the field frequency over the frame, `time` the animation phase, `mode` the
+/// driving field (`Fbm` organic noise, or `Ripple` concentric rings from the centre).
+/// The whole RGBA texel moves together (a coherent resample, not a per-channel split),
+/// with bilinear + clamp-to-edge. The Vello path uses simplex fBm; this value-noise
+/// twin is self-consistent and deterministic (so goldens lock).
+pub fn displace_framebuffer(
+    fb: &mut Framebuffer,
+    amount: f32,
+    scale: f32,
+    time: f32,
+    mode: DisplaceMode,
+) {
+    if amount <= 0.0 || fb.width == 0 || fb.height == 0 {
+        return;
+    }
+    // Integer bit-hash on the lattice point → fully PORTABLE noise (no `sin`/`fract`
+    // transcendentals, which differ across libm/arch). Displacement re-sampling
+    // amplifies a 1-ULP noise difference into a whole-pixel swap, so a `sin`-based
+    // hash (fine for grain) breaks the golden cross-platform; this integer hash is
+    // bit-identical everywhere. `as i64` recovers the integer lattice coord (callers
+    // pass `px.floor()`), incl. negatives.
+    fn hash21(x: f32, y: f32) -> f32 {
+        let xi = x as i64 as u64;
+        let yi = y as i64 as u64;
+        let mut h = xi
+            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+            .wrapping_add(yi.wrapping_mul(0xC2B2_AE3D_27D4_EB4F));
+        h ^= h >> 29;
+        h = h.wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        h ^= h >> 32;
+        (h >> 40) as f32 / (1u64 << 24) as f32 // top 24 bits → [0, 1)
+    }
+    fn vnoise(px: f32, py: f32) -> f32 {
+        let (ix, iy) = (px.floor(), py.floor());
+        let (fx, fy) = (px - ix, py - iy);
+        let (ux, uy) = (fx * fx * (3.0 - 2.0 * fx), fy * fy * (3.0 - 2.0 * fy));
+        let a = hash21(ix, iy);
+        let b = hash21(ix + 1.0, iy);
+        let c = hash21(ix, iy + 1.0);
+        let d = hash21(ix + 1.0, iy + 1.0);
+        let ab = a + (b - a) * ux;
+        let cd = c + (d - c) * ux;
+        ab + (cd - ab) * uy
+    }
+    // Four-octave fBm, remapped to roughly [-1, 1].
+    fn fbm(mut px: f32, mut py: f32) -> f32 {
+        let mut sum = 0.0;
+        let mut amp = 0.5;
+        for _ in 0..4 {
+            sum += amp * (vnoise(px, py) * 2.0 - 1.0);
+            px *= 2.0;
+            py *= 2.0;
+            amp *= 0.5;
+        }
+        sum
+    }
+    let w = fb.width as usize;
+    let h = fb.height as usize;
+    let src = fb.pixels.clone();
+    // One clamped texel as PREMULTIPLIED rgba in 0..1 (so the bilinear lerp doesn't
+    // bleed color out of transparent neighbours).
+    let tap = |sx: isize, sy: isize| -> [f32; 4] {
+        let sx = sx.clamp(0, w as isize - 1) as usize;
+        let sy = sy.clamp(0, h as isize - 1) as usize;
+        let o = (sy * w + sx) * 4;
+        let a = src[o + 3] as f32 / 255.0;
+        [
+            src[o] as f32 / 255.0 * a,
+            src[o + 1] as f32 / 255.0 * a,
+            src[o + 2] as f32 / 255.0 * a,
+            a,
+        ]
+    };
+    let (fw, fh) = (w as f32, h as f32);
+    for y in 0..h {
+        for x in 0..w {
+            let (px, py) = match mode {
+                DisplaceMode::Fbm => {
+                    // Normalize to the frame so `scale` is frequency-over-frame.
+                    let nx = (x as f32 + 0.5) / fw * scale + time;
+                    let ny = (y as f32 + 0.5) / fh * scale + time;
+                    // Decorrelate the two displacement axes with an arbitrary offset.
+                    let dx = fbm(nx, ny);
+                    let dy = fbm(nx + 5.2, ny + 1.3);
+                    (x as f32 + dx * amount, y as f32 + dy * amount)
+                }
+                DisplaceMode::Ripple => {
+                    // Concentric rings pushing radially from the frame centre; `time`
+                    // expands them (a shockwave), `scale` = rings to the edge.
+                    let (dxc, dyc) = (x as f32 + 0.5 - fw * 0.5, y as f32 + 0.5 - fh * 0.5);
+                    let dist = (dxc * dxc + dyc * dyc).sqrt();
+                    let dist_n = dist / fw.min(fh);
+                    let wave = (dist_n * scale * std::f32::consts::TAU
+                        - time * std::f32::consts::TAU)
+                        .sin();
+                    let k = if dist > 1e-3 {
+                        amount * wave / dist
+                    } else {
+                        0.0
+                    };
+                    (x as f32 + dxc * k, y as f32 + dyc * k)
+                }
+            };
+            // Alpha-aware BILINEAR resample — nearest-neighbour breaks thin features
+            // into jaggy dashes; bilinear keeps the warp smooth (matches the GPU twin).
+            let (fx, fy) = (px.floor(), py.floor());
+            let (tx, ty) = (px - fx, py - fy);
+            let (bx, by) = (fx as isize, fy as isize);
+            let p00 = tap(bx, by);
+            let p10 = tap(bx + 1, by);
+            let p01 = tap(bx, by + 1);
+            let p11 = tap(bx + 1, by + 1);
+            let o = (y * w + x) * 4;
+            let pm: [f32; 4] = std::array::from_fn(|c| {
+                let top = p00[c] + (p10[c] - p00[c]) * tx;
+                let bot = p01[c] + (p11[c] - p01[c]) * tx;
+                top + (bot - top) * ty
+            });
+            if pm[3] > 0.0 {
+                let inv = 1.0 / pm[3]; // un-premultiply
+                let enc = |v: f32| (v * 255.0).round().clamp(0.0, 255.0) as u8;
+                fb.pixels[o] = enc(pm[0] * inv);
+                fb.pixels[o + 1] = enc(pm[1] * inv);
+                fb.pixels[o + 2] = enc(pm[2] * inv);
+                fb.pixels[o + 3] = enc(pm[3]);
+            } else {
+                fb.pixels[o..o + 4].fill(0);
+            }
+        }
+    }
+}
+
 /// The first [`Effect::BackdropBlur`] in a node's chain (frosted glass), if any.
 /// Backdrop blur is handled separately from the subtree-capture effects because
 /// it samples the backdrop behind the node rather than the node's own subtree.
@@ -1571,6 +1707,11 @@ impl Renderer {
                 // backdrop); the CPU reference draws the node un-wrapped, so it
                 // contributes no capture margin and is a no-op in the chain below.
                 Effect::LightWrap { .. } => 0.0,
+                // Displace is a per-pixel resample that CLAMPS out-of-bounds samples
+                // to the edge — so it needs NO capture margin. A margin would wrap the
+                // content in a transparent border the warp samples INTO, tearing the
+                // frame edges to black. Zero, like the other per-pixel passes.
+                Effect::Displace { .. } => 0.0,
             })
             .fold(0.0f32, f32::max);
         let bounds = self.captured_local_bounds(node);
@@ -1654,6 +1795,12 @@ impl Renderer {
                 // Export/native-only (Vello); the CPU reference leaves the captured
                 // subtree un-wrapped, so light-wrap is a no-op here.
                 Effect::LightWrap { .. } => {}
+                Effect::Displace {
+                    amount,
+                    scale,
+                    time,
+                    mode,
+                } => displace_framebuffer(&mut temp, *amount, *scale, *time, *mode),
             }
         }
 

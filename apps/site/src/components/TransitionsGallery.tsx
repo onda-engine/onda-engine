@@ -1,20 +1,25 @@
 import { Player } from 'onda-engine/player'
 import {
-  AbsoluteFill,
   Composition,
   Group,
-  Rect,
-  Text,
+  Image,
   TransitionSeries,
   clockWipe,
   depthPush,
   dipToColor,
+  displace,
+  dissolve,
   fade,
   flip,
+  glitchMelt,
+  heatHaze,
+  inkBleed,
   iris,
   linearTiming,
+  liquidWipe,
   none,
   push,
+  shockwave,
   slide,
   wipe,
   zoom,
@@ -48,6 +53,55 @@ interface TransitionDef {
 }
 
 const TRANSITIONS: TransitionDef[] = [
+  {
+    name: 'displace',
+    make: () => displace(),
+    call: 'displace()',
+    blurb:
+      'Both scenes melt through a procedural fBm warp field and reform sharp — a real per-pixel displacement (GPU + CPU), the look transform/opacity can’t fake.',
+  },
+  {
+    name: 'liquidWipe',
+    make: () => liquidWipe(),
+    call: 'liquidWipe()',
+    blurb:
+      'The incoming scene floods in behind a growing edge, rippling through the displace field near the leading edge and settling sharp as it fills.',
+  },
+  {
+    name: 'shockwave',
+    make: () => shockwave(),
+    call: 'shockwave()',
+    blurb:
+      'A concentric ripple expands from the centre and warps the cut — a water-drop / impact. Uses the engine’s radial displace mode.',
+  },
+  {
+    name: 'inkBleed',
+    make: () => inkBleed(),
+    call: 'inkBleed()',
+    blurb:
+      'The incoming scene blooms outward from the centre through a rippling ink-blot edge — the radial cousin of liquidWipe.',
+  },
+  {
+    name: 'dissolve',
+    make: () => dissolve(),
+    call: 'dissolve()',
+    blurb:
+      'The classic organic film dissolve: the scene breaks up through an animated fBm noise threshold — speckled, grainy, timeless.',
+  },
+  {
+    name: 'glitchMelt',
+    make: () => glitchMelt(),
+    call: 'glitchMelt()',
+    blurb:
+      'High-energy cut: each scene melts through the displace field and RGB-splits at the midpoint — a datamosh feel from two stacked effects.',
+  },
+  {
+    name: 'heatHaze',
+    make: () => heatHaze(),
+    call: 'heatHaze()',
+    blurb:
+      'A gentle shimmering mirage cross-fade — a fine, fast displace shimmer, like looking through hot air or water.',
+  },
   { name: 'fade', make: () => fade(), call: 'fade()', blurb: 'Cross-fade via opacity.' },
   {
     name: 'slide',
@@ -111,17 +165,14 @@ const TRANSITIONS: TransitionDef[] = [
   },
 ]
 
-/** A labelled, full-canvas scene (a coloured card + a big letter). */
-function scene(label: string, fill: string): ReactElement {
+/** A full-canvas PHOTO scene (cover-fit). Real photographic content is what makes
+ *  the displace / ripple / dissolve warps actually visible — on a flat colour card
+ *  a per-pixel warp barely reads; on detailed content it's vivid. */
+function scene(src: string): ReactElement {
   return createElement(
     Group,
     null,
-    createElement(Rect, { width: W, height: H, fill }),
-    createElement(
-      AbsoluteFill,
-      { justify: 'center', align: 'center' },
-      createElement(Text, { fontSize: 240, color: '#ffffff', fontWeight: 700 }, label),
-    ),
+    createElement(Image, { src, width: W, height: H, fit: 'cover' }),
   )
 }
 
@@ -193,7 +244,7 @@ function useEngine() {
 
 export default function TransitionsGallery(): ReactElement {
   const { ref, gpu, cpu, ready } = useEngine()
-  const [name, setName] = useState('iris')
+  const [name, setName] = useState('shockwave')
   const selected = TRANSITIONS.find((t) => t.name === name) ?? TRANSITIONS[0]
 
   const composition = useMemo(
@@ -204,12 +255,20 @@ export default function TransitionsGallery(): ReactElement {
         createElement(
           TransitionSeries,
           null,
-          createElement(TransitionSeries.Sequence, { durationInFrames: 50 }, scene('A', '#d96b82')),
+          createElement(
+            TransitionSeries.Sequence,
+            { durationInFrames: 50 },
+            scene('/cinema/plate.jpg'),
+          ),
           createElement(TransitionSeries.Transition, {
             presentation: selected.make(),
             timing: linearTiming({ durationInFrames: 25 }),
           }),
-          createElement(TransitionSeries.Sequence, { durationInFrames: 50 }, scene('B', '#2974f2')),
+          createElement(
+            TransitionSeries.Sequence,
+            { durationInFrames: 50 },
+            scene('/aura/ember.jpg'),
+          ),
         ),
       ),
     [selected],

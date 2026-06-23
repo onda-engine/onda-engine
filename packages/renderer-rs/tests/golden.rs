@@ -22,8 +22,8 @@ use std::path::PathBuf;
 use onda_core::{Color, Size, Transform, Vec2};
 use onda_renderer::Renderer;
 use onda_scene::{
-    BooleanOp, BooleanOperand, Camera3D, Composition, Effect, Gradient, GradientStop, MatteMode,
-    Node, NodeKind, Scene, Shape, ShapeGeometry, Text, Transform3D, Trim,
+    BooleanOp, BooleanOperand, Camera3D, Composition, DisplaceMode, Effect, Gradient, GradientStop,
+    MatteMode, Node, NodeKind, Scene, Shape, ShapeGeometry, Text, Transform3D, Trim,
 };
 
 fn text_node(content: &str, size: f32, color: Color) -> Node {
@@ -511,6 +511,30 @@ fn fixtures() -> Vec<(&'static str, Scene)> {
                         // sigma-7 blur bridges it, so the threshold fuses a neck.
                         Node::shape(Shape::ellipse(Size::new(80.0, 80.0)).with_fill(rose))
                             .with_transform(translate(134.0, 35.0)),
+                    ]),
+            ),
+        ),
+        // RTT: displacement / warp — a group of hard-edged bars carrying `Displace`.
+        // The procedural fBm field re-samples the captured subtree at offset
+        // coordinates, so the straight bar edges turn into wavy ripples. Locks the
+        // deterministic value-noise fBm + nearest-neighbor resample of the CPU twin.
+        (
+            "displace_warp",
+            scene(
+                Node::group()
+                    .with_effect(Effect::Displace {
+                        amount: 9.0,
+                        scale: 4.0,
+                        time: 0.0,
+                        mode: DisplaceMode::Fbm,
+                    })
+                    .with_children([
+                        Node::shape(Shape::rect(Size::new(W as f32, 30.0)).with_fill(rose))
+                            .with_transform(translate(0.0, 25.0)),
+                        Node::shape(Shape::rect(Size::new(W as f32, 30.0)).with_fill(ink))
+                            .with_transform(translate(0.0, 65.0)),
+                        Node::shape(Shape::rect(Size::new(W as f32, 30.0)).with_fill(rose))
+                            .with_transform(translate(0.0, 105.0)),
                     ]),
             ),
         ),

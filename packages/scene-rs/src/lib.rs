@@ -438,6 +438,46 @@ pub enum Effect {
         #[serde(default = "Effect::default_unit")]
         strength: f32,
     },
+    /// Displacement / warp: re-sample the captured subtree at offset coordinates
+    /// driven by a PROCEDURAL fBm noise field — `out = src(uv + (fbm·2-1)·amount)`.
+    /// The single primitive behind a whole genre of looks that transform/opacity/clip
+    /// physically cannot fake: liquid-melt, ink-bleed, heat-haze, ripple, glass-refraction.
+    /// The noise field is generated in-shader (the same simplex/fBm as `Gradient::Fbm`),
+    /// so the effect carries no texture — only `Copy` scalars. `amount` is the warp
+    /// magnitude in OUTPUT px (`0` = identity, a visual no-op); `scale` the noise
+    /// frequency over the frame (~`2`–`4` = broad swells, larger = fine churn); `time`
+    /// an animation phase — advance it per frame (e.g. `frame · 0.05`) for *flowing*
+    /// displacement, hold it fixed for a frozen warp. Ramp `amount` 0→N→0 across a
+    /// transition for a melt-and-reform. Honored by Vello (GPU) and the CPU reference.
+    Displace {
+        /// Warp magnitude in OUTPUT px. `0` is the identity (no-op).
+        amount: f32,
+        /// Field frequency over the frame. For `fbm`: `~3` = broad swells, larger =
+        /// finer churn. For `ripple`: the number of concentric rings to the edge.
+        #[serde(default = "Effect::default_displace_scale")]
+        scale: f32,
+        /// Animation phase; advance per frame for flowing motion. Default `0` (frozen).
+        /// For `ripple`, advancing `time` expands the rings outward (a shockwave).
+        #[serde(default)]
+        time: f32,
+        /// Which field drives the displacement. `fbm` (default): organic simplex noise
+        /// (liquid-melt, ink-bleed). `ripple`: concentric rings pushing radially from
+        /// the frame centre (water-drop / shockwave / lens).
+        #[serde(default)]
+        mode: DisplaceMode,
+    },
+}
+
+/// The field that drives an [`Effect::Displace`] warp.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DisplaceMode {
+    /// Organic simplex/fBm noise — liquid-melt, ink-bleed, heat-haze (the default).
+    #[default]
+    Fbm,
+    /// Concentric rings pushing radially out from the frame centre — a water-drop
+    /// ripple / shockwave; advance `time` to expand the rings.
+    Ripple,
 }
 
 impl Effect {
@@ -455,6 +495,11 @@ impl Effect {
     /// Serde default for unit-gain effect fields (`brightness`/`saturation` = 1.0).
     fn default_unit() -> f32 {
         1.0
+    }
+
+    /// Serde default for [`Effect::Displace`]'s `scale` (broad-swell frequency).
+    fn default_displace_scale() -> f32 {
+        3.0
     }
 }
 
@@ -2235,6 +2280,33 @@ mod tests {
         assert!(json.contains(r#""effects":[{"effect":"goo","sigma":8.0,"threshold":0.5}]"#));
         let back: Node = serde_json::from_str(&json).unwrap();
         assert_eq!(goo, back);
+
+        // A displace effect serializes snake_case ("displace") with all its fields and
+        // round-trips; the scalars + the unit-only mode keep `Effect: Copy`.
+        let warp = Node::group().with_effect(Effect::Displace {
+            amount: 8.0,
+            scale: 2.5,
+            time: 1.5,
+            mode: DisplaceMode::Ripple,
+        });
+        let json = serde_json::to_string(&warp).unwrap();
+        assert!(json.contains(
+            r#""effects":[{"effect":"displace","amount":8.0,"scale":2.5,"time":1.5,"mode":"ripple"}]"#
+        ));
+        let back: Node = serde_json::from_str(&json).unwrap();
+        assert_eq!(warp, back);
+        // `scale` defaults to 3.0, `time` to 0.0, and `mode` to `fbm` when omitted.
+        let minimal: Effect =
+            serde_json::from_str(r#"{"effect":"displace","amount":4.0}"#).unwrap();
+        assert_eq!(
+            minimal,
+            Effect::Displace {
+                amount: 4.0,
+                scale: 3.0,
+                time: 0.0,
+                mode: DisplaceMode::Fbm,
+            }
+        );
 
         // The neutral grade is the documented identity.
         assert_eq!(

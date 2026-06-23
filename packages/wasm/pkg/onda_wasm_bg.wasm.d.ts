@@ -1,0 +1,36 @@
+/* tslint:disable */
+/* eslint-disable */
+export const memory: WebAssembly.Memory;
+export const __wbg_fontmetricsjs_free: (a: number, b: number) => void;
+export const __wbg_ondaengine_free: (a: number, b: number) => void;
+export const __wbg_renderedframe_free: (a: number, b: number) => void;
+export const __wbg_textmetricsjs_free: (a: number, b: number) => void;
+export const fontmetricsjs_ascent: (a: number) => number;
+export const fontmetricsjs_cap_height: (a: number) => number;
+export const fontmetricsjs_cap_top: (a: number) => number;
+export const fontmetricsjs_descent: (a: number) => number;
+export const fontmetricsjs_lineHeight: (a: number) => number;
+export const fontmetricsjs_x_height: (a: number) => number;
+export const fontmetricsjs_x_top: (a: number) => number;
+export const ondaengine_elementBounds: (a: number, b: number, c: number) => [number, number, number, number];
+export const ondaengine_fontMetrics: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
+export const ondaengine_glyphLayout: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number];
+export const ondaengine_loadFont: (a: number, b: number, c: number) => [number, number];
+export const ondaengine_measureText: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => number;
+export const ondaengine_new: () => number;
+export const ondaengine_render: (a: number, b: number, c: number) => [number, number, number];
+export const ondaengine_resolveTimeline: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+export const renderedframe_height: (a: number) => number;
+export const renderedframe_pixels: (a: number) => [number, number];
+export const renderedframe_width: (a: number) => number;
+export const textmetricsjs_ascent: (a: number) => number;
+export const textmetricsjs_descent: (a: number) => number;
+export const textmetricsjs_height: (a: number) => number;
+export const textmetricsjs_lineHeight: (a: number) => number;
+export const textmetricsjs_width: (a: number) => number;
+export const __wbindgen_free: (a: number, b: number, c: number) => void;
+export const __wbindgen_malloc: (a: number, b: number) => number;
+export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+export const __wbindgen_externrefs: WebAssembly.Table;
+export const __externref_table_dealloc: (a: number) => void;
+export const __wbindgen_start: () => void;

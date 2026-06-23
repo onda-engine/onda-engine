@@ -101,6 +101,13 @@ jobs:
       - name: pnpm install
         run: pnpm install --frozen-lockfile
 
+      # Lint the PRISTINE source before the build/publish steps below. `pnpm publish
+      # --dry-run` rewrites package.json (workspace deps → versions, arrays → multi-
+      # line), which would make biome flag the committed-clean file. biome only needs
+      # source, never build output.
+      - name: biome
+        run: pnpm exec biome ci .
+
       - name: Build wasm bindings (pkg/)
         run: |
           pnpm --filter @onda-engine/wasm build
@@ -118,9 +125,6 @@ jobs:
         run: |
           pnpm --filter onda-engine build
           pnpm --filter onda-engine publish --dry-run --no-git-checks
-
-      - name: biome
-        run: pnpm exec biome ci .
 
       - name: '@onda-engine/react tests'
         run: pnpm --filter @onda-engine/react test
