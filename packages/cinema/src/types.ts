@@ -166,6 +166,10 @@ export interface Scene {
    *    edge / center per axis, size scaled uniformly) so one master adapts to any
    *    aspect ratio without per-format variants. */
   fit?: 'contain' | 'cover' | 'responsive'
+  /** `responsive`-only: how much to scale content UP to fill the output (0 = FIT, never
+   *  crops; 1 = COVER, fills + crops edges). Default: a moderate fill on an orientation
+   *  FLIP (so a landscape→portrait reframe isn't tiny), 0 otherwise. */
+  fill?: number
 }
 
 /** A composition-level layer entry — absolute-timed, spans scene cuts. */

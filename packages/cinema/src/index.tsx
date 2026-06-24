@@ -508,6 +508,11 @@ function SceneTracks({
   /** `fit:"responsive"` re-frame context — re-anchor each entry to the output. */
   responsive?: { design: Components.Box; out: Components.Box }
 }): ReactElement {
+  // Scene-level fill (0 = FIT … 1 = COVER) — scales the per-element reframe up to fill a
+  // flipped frame. Resolved once (explicit `scene.fill`, else the orientation-flip default).
+  const fill = responsive
+    ? Components.responsiveFill(scene.fill, responsive.design, responsive.out)
+    : 0
   return createElement(
     Group,
     null,
@@ -534,6 +539,7 @@ function SceneTracks({
                 responsive.design,
                 responsive.out,
                 entry.responsive,
+                fill,
               )
           if (t.x === 0 && t.y === 0 && t.scale === 1) return cloneElement(slot, { key })
           return createElement(

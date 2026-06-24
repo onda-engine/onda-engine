@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   entryDesignAnchor,
+  isAspectFlip,
   isFullBleed,
   isHiddenForOutput,
   outputAspect,
   responsiveCoverTransform,
   responsiveEntryTransform,
+  responsiveFill,
 } from './responsive.js'
 
 const DESIGN = { width: 1600, height: 1200 }
@@ -184,5 +186,36 @@ describe('responsiveEntryTransform — per-entry behaviour', () => {
     const base = responsiveEntryTransform({ x: 800, y: 600 }, DESIGN, out)
     const withEmpty = responsiveEntryTransform({ x: 800, y: 600 }, DESIGN, out, {})
     expect(withEmpty).toEqual(base)
+  })
+
+  it('fill scales the base toward COVER (bigger on a flip)', () => {
+    // 4:3 → 9:16: fit = 0.675, cover = 1.6. fill=0.5 → halfway = 1.1375.
+    const out = { width: 1080, height: 1920 }
+    const fit = Math.min(1080 / 1600, 1920 / 1200)
+    const cover = Math.max(1080 / 1600, 1920 / 1200)
+    const t = responsiveEntryTransform({ x: 800, y: 600 }, DESIGN, out, undefined, 0.5)
+    expect(t.scale).toBeCloseTo(fit + 0.5 * (cover - fit), 5)
+    // fill=0 is exactly the fit baseline.
+    expect(responsiveEntryTransform({ x: 800, y: 600 }, DESIGN, out, undefined, 0).scale).toBeCloseTo(fit, 5)
+  })
+})
+
+describe('isAspectFlip / responsiveFill', () => {
+  const land = { width: 1920, height: 1080 }
+  const port = { width: 1080, height: 1920 }
+
+  it('detects orientation flips only', () => {
+    expect(isAspectFlip(land, port)).toBe(true)
+    expect(isAspectFlip(port, land)).toBe(true)
+    expect(isAspectFlip(land, { width: 1440, height: 1080 })).toBe(false) // both landscape
+    expect(isAspectFlip(land, { width: 1080, height: 1080 })).toBe(false) // → square
+  })
+
+  it('defaults to a fill on a flip, 0 on same-orientation, and honours an explicit value', () => {
+    expect(responsiveFill(undefined, land, port)).toBeGreaterThan(0) // flip → auto-fill
+    expect(responsiveFill(undefined, land, { width: 1440, height: 1080 })).toBe(0) // no flip
+    expect(responsiveFill(0, land, port)).toBe(0) // explicit 0 overrides the flip default
+    expect(responsiveFill(1, land, { width: 1440, height: 1080 })).toBe(1) // explicit wins
+    expect(responsiveFill(5, land, port)).toBe(1) // clamped to [0,1]
   })
 })

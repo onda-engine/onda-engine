@@ -133,6 +133,27 @@ export function isHiddenForOutput(behavior: ResponsiveBehavior | undefined, out:
   return !!behavior?.hideOn?.includes(outputAspect(out))
 }
 
+/** Default fill for an UNSPECIFIED responsive scene whose output FLIPS orientation
+ *  (landscape↔portrait): a 90° flip always leaves fit-scaled content tiny in a band, so
+ *  nudge it up toward cover by default. Same-orientation reframes stay at pure fit. */
+const DEFAULT_FLIP_FILL = 0.4
+
+/** Whether the output flips orientation vs the design canvas (landscape↔portrait). */
+export function isAspectFlip(design: Box, out: Box): boolean {
+  return (
+    (design.width > design.height && out.height > out.width) ||
+    (design.height > design.width && out.width > out.height)
+  )
+}
+
+/** Resolve a scene's effective fill (0 = pure FIT … 1 = COVER): an explicit `fill` wins;
+ *  otherwise default to a moderate fill on an orientation FLIP (where fit looks tiny) and 0
+ *  elsewhere. Shared by export + preview so the default can't drift between them. */
+export function responsiveFill(fill: number | undefined, design: Box, out: Box): number {
+  if (typeof fill === 'number') return clamp(fill, 0, 1)
+  return isAspectFlip(design, out) ? DEFAULT_FLIP_FILL : 0
+}
+
 /** Clamp a fit scale to a behaviour's min/max bounds (no-op when neither is set). */
 function clampScale(s: number, behavior: ResponsiveBehavior): number {
   let v = s
@@ -144,19 +165,25 @@ function clampScale(s: number, behavior: ResponsiveBehavior): number {
 /** The per-element Magic-Resize transform: anchor pinned per-axis, size scaled
  *  uniformly by the smaller axis ratio so the element always fits the frame and never
  *  distorts. A `null` anchor or a matching canvas ⇒ identity (the element self-places).
- *  An optional `behavior` clamps the scale (legibility) and/or keeps the anchor inside
- *  the safe area; `hideOn` is handled by the caller via {@link isHiddenForOutput}. */
+ *  `fill` (0 = FIT … 1 = COVER) scales content UP to fill more of a flipped frame
+ *  (cropping the edges) instead of leaving it small in a band. An optional `behavior`
+ *  clamps the scale (legibility) and/or keeps the anchor inside the safe area; `hideOn`
+ *  is handled by the caller via {@link isHiddenForOutput}. */
 export function responsiveEntryTransform(
   anchor: { x: number; y: number } | null,
   design: Box,
   out: Box,
   behavior?: ResponsiveBehavior,
+  fill = 0,
 ): ResponsiveTransform {
   if (!anchor || (design.width === out.width && design.height === out.height)) {
     return { x: 0, y: 0, scale: 1 }
   }
-  // Uniform fit scale, optionally clamped so the element stays legible on extreme flips.
-  let s = Math.min(out.width / design.width, out.height / design.height)
+  // Base scale: FIT (smaller axis ratio) blended toward COVER (larger ratio) by `fill`,
+  // then optionally clamped by the entry's behaviour so it stays legible / bounded.
+  const fitS = Math.min(out.width / design.width, out.height / design.height)
+  const coverS = Math.max(out.width / design.width, out.height / design.height)
+  let s = fill > 0 ? fitS + clamp(fill, 0, 1) * (coverS - fitS) : fitS
   if (behavior) s = clampScale(s, behavior)
   let ax = pinAxis(anchor.x, design.width, out.width, s)
   let ay = pinAxis(anchor.y, design.height, out.height, s)

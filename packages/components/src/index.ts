@@ -257,11 +257,13 @@ export {
   type ResponsiveBehavior,
   type ResponsiveTransform,
   entryDesignAnchor,
+  isAspectFlip,
   isFullBleed,
   isHiddenForOutput,
   outputAspect,
   responsiveCoverTransform,
   responsiveEntryTransform,
+  responsiveFill,
 } from './responsive.js'
 export {
   KineticText,
