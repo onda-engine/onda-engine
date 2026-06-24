@@ -253,6 +253,14 @@ describe('gridReflowPlacements (deterministic grid reflow)', () => {
     expect(gridReflowPlacements(entries, port, { width: 1080, height: 1350 })).toEqual([null, null])
   })
 
+  it('bails on a heterogeneous set (hero + icon + pill) — not a real grid', () => {
+    const big = { role: 'support', props: { position: [{ at: 0, x: 200, y: 300 }], content: { kind: 'image', width: 620, height: 620 } } }
+    const mid = { role: 'support', props: { position: [{ at: 0, x: 500, y: 700 }], content: { kind: 'image', width: 410, height: 410 } } }
+    const pill = { role: 'support', props: { position: [{ at: 0, x: 300, y: 1100 }], content: { kind: 'image', width: 360, height: 108 } } }
+    const out = gridReflowPlacements([big, mid, pill], port, land)
+    expect(out).toEqual([null, null, null]) // too varied → fall back to per-element reframe
+  })
+
   it('excludes a stack of entries sharing one anchor (e.g. a spotlight sequence)', () => {
     const entries = [tile(283, 270), tile(797, 936), tile(540, 860), tile(540, 860), tile(540, 860)]
     const out = gridReflowPlacements(entries, port, land)

@@ -209,6 +209,11 @@ export function gridReflowPlacements(
   for (const t of eligible) counts.set(key(t.anchor), (counts.get(key(t.anchor)) ?? 0) + 1)
   const tiles = eligible.filter((t) => counts.get(key(t.anchor)) === 1)
   if (tiles.length < 2) return result
+  // Only grid a GENUINE tile set — uniform-ish in size. A heterogeneous mix (a hero image
+  // + a small icon + a button pill) isn't a grid; bail so it falls back to the per-element
+  // reframe instead of being force-packed into cells.
+  const areas = tiles.map((t) => Math.max(1, t.cw * t.ch))
+  if (Math.max(...areas) / Math.min(...areas) > 6) return result
   // Reading order (top→bottom, then left→right), then fill a grid sized to the output.
   tiles.sort((a, b) => a.anchor.y - b.anchor.y || a.anchor.x - b.anchor.x)
   const n = tiles.length
