@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/onda-engine/onda-engine/compare/onda-engine-v0.4.0...onda-engine-v0.5.0) (2026-06-24)
+
+
+### Features
+
+* **responsive:** multi-format Magic-Resize — per-entry behaviours (hideOn / safeArea / scale clamp), scene `fill`, `byAspect` placement overrides, and deterministic `reflow` (grid / scroll) so one master composition adapts to off-native aspect ratios without per-format variants ([#32](https://github.com/onda-engine/onda-engine/pull/32))
+
 ## [0.4.0](https://github.com/onda-engine/onda-engine/compare/onda-engine-v0.3.0...onda-engine-v0.4.0) (2026-06-22)
 
 
