@@ -69,6 +69,17 @@ export interface EntryClip {
  *  ASSIGN roles; nothing infers them. */
 export type EntryRole = 'focal' | 'support' | 'ambient'
 
+/** Per-entry Magic-Resize behaviour for `fit:"responsive"` scenes — refines how THIS
+ *  element re-frames onto an off-design output canvas (hide on an aspect, stay inside
+ *  the safe area, clamp the fit scale). Structural mirror of `@onda-engine/components`'
+ *  `ResponsiveBehavior` (the math source of truth) and Studio's Zod `responsiveSchema`. */
+export interface ResponsiveBehavior {
+  hideOn?: ('portrait' | 'landscape' | 'square')[]
+  safeArea?: boolean | number
+  minScale?: number
+  maxScale?: number
+}
+
 /** One element on a track: a component placed at `at` for `for`, with optional motion. */
 export interface Entry {
   at: TimeSpec
@@ -92,6 +103,9 @@ export interface Entry {
   matte?: EntryMatte
   /** Clip to a rect/ellipse/path region. */
   clip?: EntryClip
+  /** Magic-Resize behaviour on `fit:"responsive"` scenes (hide-on-aspect / safe-area /
+   *  scale clamp). Only affects positioned entries when output ≠ design canvas. */
+  responsive?: ResponsiveBehavior
   /** Magic-move continuity key. When the SAME `morphKey` appears on an entry in
    *  two ADJACENT scenes, the element MORPHS its position/scale across the cut
    *  (one continuous move) instead of cross-fading — Keynote Magic Move / a

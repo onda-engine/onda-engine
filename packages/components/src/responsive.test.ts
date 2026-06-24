@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   entryDesignAnchor,
   isFullBleed,
+  isHiddenForOutput,
+  outputAspect,
   responsiveCoverTransform,
   responsiveEntryTransform,
 } from './responsive.js'
@@ -128,5 +130,59 @@ describe('responsiveCoverTransform', () => {
     // The design canvas centre lands on the output centre.
     expect(t.x + (DESIGN.width / 2) * t.scale).toBeCloseTo(out.width / 2, 4)
     expect(t.y + (DESIGN.height / 2) * t.scale).toBeCloseTo(out.height / 2, 4)
+  })
+})
+
+describe('outputAspect', () => {
+  it('buckets the output canvas by aspect', () => {
+    expect(outputAspect({ width: 1920, height: 1080 })).toBe('landscape')
+    expect(outputAspect({ width: 1080, height: 1920 })).toBe('portrait')
+    expect(outputAspect({ width: 1080, height: 1080 })).toBe('square')
+  })
+})
+
+describe('isHiddenForOutput (per-entry hideOn)', () => {
+  const portrait = { width: 1080, height: 1920 }
+  const landscape = { width: 1920, height: 1080 }
+
+  it('drops the entry only on a listed output aspect', () => {
+    expect(isHiddenForOutput({ hideOn: ['portrait'] }, portrait)).toBe(true)
+    expect(isHiddenForOutput({ hideOn: ['portrait'] }, landscape)).toBe(false)
+  })
+
+  it('is false with no behaviour / no hideOn', () => {
+    expect(isHiddenForOutput(undefined, portrait)).toBe(false)
+    expect(isHiddenForOutput({ safeArea: true }, portrait)).toBe(false)
+  })
+})
+
+describe('responsiveEntryTransform — per-entry behaviour', () => {
+  it('clamps the fit scale to minScale (keep a caption legible in a tall frame)', () => {
+    // 4:3 → 9:16 natural fit is 0.675; minScale 0.9 raises it.
+    const out = { width: 1080, height: 1920 }
+    const t = responsiveEntryTransform({ x: 800, y: 600 }, DESIGN, out, { minScale: 0.9 })
+    expect(t.scale).toBeCloseTo(0.9, 5)
+  })
+
+  it('clamps the fit scale to maxScale (cap how big an element grows)', () => {
+    // 1600×1200 → 3200×2400: natural fit = 2; maxScale 1.5 caps it.
+    const out = { width: 3200, height: 2400 }
+    const t = responsiveEntryTransform({ x: 800, y: 600 }, DESIGN, out, { maxScale: 1.5 })
+    expect(t.scale).toBeCloseTo(1.5, 5)
+  })
+
+  it('keeps a corner-pinned anchor inside the safe area when safeArea is on', () => {
+    // A (0,0) anchor pins flush to the corner (gap 0); safeArea pulls it to the 10% inset.
+    const out = { width: 1080, height: 1920 }
+    const t = responsiveEntryTransform({ x: 0, y: 0 }, DESIGN, out, { safeArea: true })
+    expect(t.x).toBeCloseTo(0.1 * out.width, 4) // 108
+    expect(t.y).toBeCloseTo(0.1 * out.height, 4) // 192
+  })
+
+  it('is unchanged from the default when no behaviour is passed', () => {
+    const out = { width: 1080, height: 1920 }
+    const base = responsiveEntryTransform({ x: 800, y: 600 }, DESIGN, out)
+    const withEmpty = responsiveEntryTransform({ x: 800, y: 600 }, DESIGN, out, {})
+    expect(withEmpty).toEqual(base)
   })
 })

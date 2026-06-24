@@ -517,16 +517,23 @@ function SceneTracks({
         { key: track.id ?? `track-${ti}` },
         ...track.entries.map((entry, ei) => {
           const key = entry.id ?? `entry-${ei}`
+          // Magic Resize: an entry can opt out of an output aspect entirely (e.g. a wide
+          // element hidden on portrait). Cull before building the slot.
+          if (responsive && Components.isHiddenForOutput(entry.responsive, responsive.out)) {
+            return null
+          }
           const slot = createElement(EntrySlot, { entry, registry, suppress: suppress?.get(entry) })
           if (!responsive) return cloneElement(slot, { key })
           // Magic Resize: full-bleed plates COVER the output; everything else pins its design
-          // anchor per-axis and fits — so a background never letterboxes into dead space.
+          // anchor per-axis and fits — so a background never letterboxes into dead space. The
+          // per-entry `responsive` behaviour clamps the fit scale / keeps it in the safe area.
           const t = Components.isFullBleed(entry.props, responsive.design)
             ? Components.responsiveCoverTransform(responsive.design, responsive.out)
             : Components.responsiveEntryTransform(
                 Components.entryDesignAnchor(entry.props),
                 responsive.design,
                 responsive.out,
+                entry.responsive,
               )
           if (t.x === 0 && t.y === 0 && t.scale === 1) return cloneElement(slot, { key })
           return createElement(

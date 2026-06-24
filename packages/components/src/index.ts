@@ -253,9 +253,13 @@ export {
 // one master adapts to any aspect ratio. Shared by the cinema export + Studio preview.
 export {
   type Box,
+  type OutputAspect,
+  type ResponsiveBehavior,
   type ResponsiveTransform,
   entryDesignAnchor,
   isFullBleed,
+  isHiddenForOutput,
+  outputAspect,
   responsiveCoverTransform,
   responsiveEntryTransform,
 } from './responsive.js'
