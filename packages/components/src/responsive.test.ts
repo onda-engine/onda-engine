@@ -219,7 +219,9 @@ describe('responsiveEntryTransform — per-entry behaviour', () => {
     const t = responsiveEntryTransform({ x: 800, y: 600 }, DESIGN, out, undefined, 0.5)
     expect(t.scale).toBeCloseTo(fit + 0.5 * (cover - fit), 5)
     // fill=0 is exactly the fit baseline.
-    expect(responsiveEntryTransform({ x: 800, y: 600 }, DESIGN, out, undefined, 0).scale).toBeCloseTo(fit, 5)
+    expect(
+      responsiveEntryTransform({ x: 800, y: 600 }, DESIGN, out, undefined, 0).scale,
+    ).toBeCloseTo(fit, 5)
   })
 })
 
@@ -234,7 +236,13 @@ describe('gridReflowPlacements (deterministic grid reflow)', () => {
 
   it('re-columns content tiles into a grid on a flip', () => {
     const entries = [
-      { role: 'ambient', props: { position: [{ at: 0, x: 540, y: 960 }], content: { kind: 'image', width: 1080, height: 1920 } } }, // full-bleed bg
+      {
+        role: 'ambient',
+        props: {
+          position: [{ at: 0, x: 540, y: 960 }],
+          content: { kind: 'image', width: 1080, height: 1920 },
+        },
+      }, // full-bleed bg
       tile(283, 270),
       tile(283, 722),
       tile(797, 336),
@@ -255,9 +263,27 @@ describe('gridReflowPlacements (deterministic grid reflow)', () => {
   })
 
   it('bails on a heterogeneous set (hero + icon + pill) — not a real grid', () => {
-    const big = { role: 'support', props: { position: [{ at: 0, x: 200, y: 300 }], content: { kind: 'image', width: 620, height: 620 } } }
-    const mid = { role: 'support', props: { position: [{ at: 0, x: 500, y: 700 }], content: { kind: 'image', width: 410, height: 410 } } }
-    const pill = { role: 'support', props: { position: [{ at: 0, x: 300, y: 1100 }], content: { kind: 'image', width: 360, height: 108 } } }
+    const big = {
+      role: 'support',
+      props: {
+        position: [{ at: 0, x: 200, y: 300 }],
+        content: { kind: 'image', width: 620, height: 620 },
+      },
+    }
+    const mid = {
+      role: 'support',
+      props: {
+        position: [{ at: 0, x: 500, y: 700 }],
+        content: { kind: 'image', width: 410, height: 410 },
+      },
+    }
+    const pill = {
+      role: 'support',
+      props: {
+        position: [{ at: 0, x: 300, y: 1100 }],
+        content: { kind: 'image', width: 360, height: 108 },
+      },
+    }
     const out = gridReflowPlacements([big, mid, pill], port, land)
     expect(out).toEqual([null, null, null]) // too varied → fall back to per-element reframe
   })
@@ -278,15 +304,21 @@ describe('scrollReflowPlacements (uniform scroll re-centre)', () => {
   const out = { width: 1080, height: 1920 } // 9:16
   // A vertical word that sweeps the full frame (a scroller), anchored left.
   const word = (y0: number, y1: number) => ({
-    role: "support",
-    props: { position: [{ at: 0, x: 60, y: y0 }, { at: 30, x: 60, y: y1 }], content: { kind: "text", text: "WORD", fontSize: 215 } },
+    role: 'support',
+    props: {
+      position: [
+        { at: 0, x: 60, y: y0 },
+        { at: 30, x: 60, y: y1 },
+      ],
+      content: { kind: 'text', text: 'WORD', fontSize: 215 },
+    },
   })
 
   it('shifts every scroller word by the SAME amount (keeps spacing, re-centres)', () => {
-    const a = word(905, -565); // mean ~170
-    const b = word(1115, -355); // mean ~380  (210 below a)
+    const a = word(905, -565) // mean ~170
+    const b = word(1115, -355) // mean ~380  (210 below a)
     const out2 = scrollReflowPlacements([a, b], design, out)
-    const shift = out.height / 2 - design.height / 2; // 285
+    const shift = out.height / 2 - design.height / 2 // 285
     expect(out2[0]?.y).toBeCloseTo((170 + shift) / out.height, 5)
     expect(out2[1]?.y).toBeCloseTo((380 + shift) / out.height, 5)
     // The 210px design gap is preserved in output px → spacing intact.
@@ -294,8 +326,17 @@ describe('scrollReflowPlacements (uniform scroll re-centre)', () => {
   })
 
   it('leaves static / full-bleed / ambient entries alone', () => {
-    const staticText = { role: "support", props: { position: [{ at: 0, x: 540, y: 675 }], content: { kind: "text", text: "Hi" } } }
-    const bg = { role: "ambient", props: { position: [{ at: 0, x: 540, y: 675 }], content: { kind: "image", width: 1080, height: 1350 } } }
+    const staticText = {
+      role: 'support',
+      props: { position: [{ at: 0, x: 540, y: 675 }], content: { kind: 'text', text: 'Hi' } },
+    }
+    const bg = {
+      role: 'ambient',
+      props: {
+        position: [{ at: 0, x: 540, y: 675 }],
+        content: { kind: 'image', width: 1080, height: 1350 },
+      },
+    }
     const out2 = scrollReflowPlacements([staticText, bg, word(905, -565)], design, out)
     expect(out2[0]).toBeNull() // static (no sweep)
     expect(out2[1]).toBeNull() // ambient full-bleed bg
