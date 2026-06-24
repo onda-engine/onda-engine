@@ -176,8 +176,9 @@ export interface Scene {
   fill?: number
   /** `responsive`-only: opt into deterministic REFLOW. `'grid'` re-columns the scene's
    *  content tiles into a grid sized to the output on an orientation flip (a portrait
-   *  mosaic → a landscape grid) instead of pin/fit. No-op on same-orientation reframes. */
-  reflow?: 'grid'
+   *  mosaic → a landscape grid); `'scroll'` re-centres a uniform vertical word-stack as one
+   *  unit (so a scroller's spacing/highlight survive a taller frame) instead of pin/fit. */
+  reflow?: 'grid' | 'scroll'
 }
 
 /** A composition-level layer entry — absolute-timed, spans scene cuts. */

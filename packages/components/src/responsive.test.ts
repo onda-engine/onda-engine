@@ -9,6 +9,7 @@ import {
   responsiveCoverTransform,
   responsiveEntryTransform,
   responsiveFill,
+  scrollReflowPlacements,
 } from './responsive.js'
 
 const DESIGN = { width: 1600, height: 1200 }
@@ -269,6 +270,36 @@ describe('gridReflowPlacements (deterministic grid reflow)', () => {
     expect(out[2]).toBeNull() // the 3 co-located tiles are a stack, not grid cells
     expect(out[3]).toBeNull()
     expect(out[4]).toBeNull()
+  })
+})
+
+describe('scrollReflowPlacements (uniform scroll re-centre)', () => {
+  const design = { width: 1080, height: 1350 } // 4:5
+  const out = { width: 1080, height: 1920 } // 9:16
+  // A vertical word that sweeps the full frame (a scroller), anchored left.
+  const word = (y0: number, y1: number) => ({
+    role: "support",
+    props: { position: [{ at: 0, x: 60, y: y0 }, { at: 30, x: 60, y: y1 }], content: { kind: "text", text: "WORD", fontSize: 215 } },
+  })
+
+  it('shifts every scroller word by the SAME amount (keeps spacing, re-centres)', () => {
+    const a = word(905, -565); // mean ~170
+    const b = word(1115, -355); // mean ~380  (210 below a)
+    const out2 = scrollReflowPlacements([a, b], design, out)
+    const shift = out.height / 2 - design.height / 2; // 285
+    expect(out2[0]?.y).toBeCloseTo((170 + shift) / out.height, 5)
+    expect(out2[1]?.y).toBeCloseTo((380 + shift) / out.height, 5)
+    // The 210px design gap is preserved in output px → spacing intact.
+    expect((out2[1]!.y - out2[0]!.y) * out.height).toBeCloseTo(210, 4)
+  })
+
+  it('leaves static / full-bleed / ambient entries alone', () => {
+    const staticText = { role: "support", props: { position: [{ at: 0, x: 540, y: 675 }], content: { kind: "text", text: "Hi" } } }
+    const bg = { role: "ambient", props: { position: [{ at: 0, x: 540, y: 675 }], content: { kind: "image", width: 1080, height: 1350 } } }
+    const out2 = scrollReflowPlacements([staticText, bg, word(905, -565)], design, out)
+    expect(out2[0]).toBeNull() // static (no sweep)
+    expect(out2[1]).toBeNull() // ambient full-bleed bg
+    expect(out2[2]).not.toBeNull() // the scroller word
   })
 })
 

@@ -514,16 +514,19 @@ function SceneTracks({
     ? Components.responsiveFill(scene.fill, responsive.design, responsive.out)
     : 0
   const aspect = responsive ? Components.outputAspect(responsive.out) : null
-  // Deterministic GRID reflow (Tier 2): compute per-tile placements ONCE for the whole
-  // scene (it needs every tile to lay out the grid), keyed back to each entry.
-  let gridMap: Map<Entry, Components.AspectPlacement> | null = null
-  if (responsive && scene.reflow === 'grid') {
+  // Deterministic REFLOW (Tier 2): compute per-entry placements ONCE for the whole scene
+  // (grid needs every tile; scroll re-centres the whole stack), keyed back to each entry.
+  let reflowMap: Map<Entry, Components.AspectPlacement> | null = null
+  if (responsive && (scene.reflow === 'grid' || scene.reflow === 'scroll')) {
     const all = scene.tracks.flatMap((t) => t.entries)
-    const placed = Components.gridReflowPlacements(all, responsive.design, responsive.out)
-    gridMap = new Map()
+    const placed =
+      scene.reflow === 'grid'
+        ? Components.gridReflowPlacements(all, responsive.design, responsive.out)
+        : Components.scrollReflowPlacements(all, responsive.design, responsive.out)
+    reflowMap = new Map()
     all.forEach((e, i) => {
       const p = placed[i]
-      if (p) gridMap?.set(e, p)
+      if (p) reflowMap?.set(e, p)
     })
   }
   return createElement(
@@ -545,9 +548,9 @@ function SceneTracks({
           // Magic Resize: full-bleed plates COVER the output; everything else pins its design
           // anchor per-axis and fits — so a background never letterboxes into dead space. The
           // per-entry `responsive` behaviour clamps the fit scale / keeps it in the safe area.
-          // A computed grid placement rides in as a per-aspect override (an explicit
-          // author override still wins). Reuses the same byAspect path as Tier-2a.
-          const gp = aspect ? gridMap?.get(entry) : undefined
+          // A computed reflow placement (grid cell / scroll shift) rides in as a per-aspect
+          // override (an explicit author override still wins). Reuses the Tier-2a byAspect path.
+          const gp = aspect ? reflowMap?.get(entry) : undefined
           const behavior =
             gp && aspect
               ? {

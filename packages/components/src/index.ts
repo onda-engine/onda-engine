@@ -266,6 +266,7 @@ export {
   responsiveCoverTransform,
   responsiveEntryTransform,
   responsiveFill,
+  scrollReflowPlacements,
 } from './responsive.js'
 export {
   KineticText,

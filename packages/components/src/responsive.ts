@@ -234,6 +234,38 @@ export function gridReflowPlacements(
   return result
 }
 
+/** Deterministic SCROLL reflow (Tier 2): re-centre a uniform vertical word-stack as ONE
+ *  unit on an off-design output, so its even spacing + centred highlight survive. The
+ *  per-element pin would drop each word into a different edge/centre band and shatter the
+ *  rhythm (a gap opens that reads as a "missing word"); a single shared shift keeps the
+ *  stack intact. Returns, per entry, a uniform-shift placement for the SCROLLER words
+ *  (positioned, non-ambient, non-full-bleed, with a large vertical sweep) — or null for the
+ *  background / static elements (they keep the normal reframe). Opt-in via scene.reflow='scroll'. */
+export function scrollReflowPlacements(
+  entries: { props?: Record<string, unknown>; role?: string }[],
+  design: Box,
+  out: Box,
+): (AspectPlacement | null)[] {
+  const result: (AspectPlacement | null)[] = entries.map(() => null)
+  if (design.height === out.height) return result // no vertical reframe → nothing to recentre
+  // Shift the design's vertical centre (the highlight zone) onto the output's centre, applied
+  // uniformly to every scroller word so the inter-word spacing is preserved.
+  const shift = out.height / 2 - design.height / 2
+  for (let i = 0; i < entries.length; i++) {
+    const props = entries[i]?.props
+    if (entries[i]?.role === 'ambient') continue
+    const anchor = entryDesignAnchor(props)
+    if (!anchor) continue
+    if (isFullBleed(props, design)) continue
+    const pos = props?.position as { y: number }[] | undefined
+    if (!Array.isArray(pos) || pos.length < 2) continue
+    const yRange = Math.max(...pos.map((k) => k.y)) - Math.min(...pos.map((k) => k.y))
+    if (yRange < 0.5 * design.height) continue // not a scroll sweep (a static element)
+    result[i] = { y: (anchor.y + shift) / out.height }
+  }
+  return result
+}
+
 /** Clamp a fit scale to a behaviour's min/max bounds (no-op when neither is set). */
 function clampScale(s: number, behavior: ResponsiveBehavior): number {
   let v = s
