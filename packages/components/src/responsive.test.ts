@@ -188,6 +188,27 @@ describe('responsiveEntryTransform — per-entry behaviour', () => {
     expect(withEmpty).toEqual(base)
   })
 
+  it('byAspect override re-places the element for a matching output aspect (reflow)', () => {
+    // Portrait output: place this tile's anchor at 25%/30% of the frame, scale 0.4 —
+    // overriding the computed pin (the re-column primitive).
+    const out = { width: 1080, height: 1920 }
+    const behavior = { byAspect: { portrait: { x: 0.25, y: 0.3, scale: 0.4 } } }
+    const t = responsiveEntryTransform({ x: 800, y: 600 }, DESIGN, out, behavior)
+    expect(t.scale).toBeCloseTo(0.4, 5)
+    // The design anchor (800,600) lands at (0.25*1080, 0.3*1920) = (270, 576).
+    expect(t.x + 800 * t.scale).toBeCloseTo(270, 4)
+    expect(t.y + 600 * t.scale).toBeCloseTo(576, 4)
+  })
+
+  it('byAspect override only fires for the matching aspect', () => {
+    const land = { width: 1920, height: 1080 }
+    const behavior = { byAspect: { portrait: { x: 0.5, y: 0.5, scale: 0.4 } } }
+    // Landscape output: no portrait override → falls back to the normal reframe.
+    const t = responsiveEntryTransform({ x: 800, y: 600 }, DESIGN, land, behavior)
+    const base = responsiveEntryTransform({ x: 800, y: 600 }, DESIGN, land)
+    expect(t).toEqual(base)
+  })
+
   it('fill scales the base toward COVER (bigger on a flip)', () => {
     // 4:3 → 9:16: fit = 0.675, cover = 1.6. fill=0.5 → halfway = 1.1375.
     const out = { width: 1080, height: 1920 }

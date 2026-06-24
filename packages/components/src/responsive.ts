@@ -27,6 +27,18 @@ export interface ResponsiveTransform {
 /** The aspect bucket of an output canvas — landscape (w>h) / portrait (h>w) / square. */
 export type OutputAspect = 'portrait' | 'landscape' | 'square'
 
+/** A per-aspect placement OVERRIDE — re-place THIS element for one output aspect instead
+ *  of letting the pin/fit reframe decide. The shared vocabulary for reflow (Tier 2) and
+ *  AI author-time variants (Tier 3): a deterministic grid policy or a model both emit this.
+ *  Coords are NORMALIZED to the output (0..1) so they're resolution-independent. */
+export interface AspectPlacement {
+  /** Target CENTER for the element's design anchor, as a fraction of output width/height. */
+  x?: number
+  y?: number
+  /** Scale relative to design size (replaces the fit/fill scale for this aspect). */
+  scale?: number
+}
+
 /** Per-entry Magic-Resize BEHAVIOUR — refines how `fit:"responsive"` re-frames THIS
  *  element onto an off-design output canvas. Every field is optional; absent = today's
  *  default (pin its design anchor + uniform fit). Only meaningful for positioned
@@ -44,6 +56,10 @@ export interface ResponsiveBehavior {
    *  multiples of its design size (e.g. keep a caption legible in a tall frame). */
   minScale?: number
   maxScale?: number
+  /** REFLOW (Tier 2/3): per-output-aspect placement overrides. When the output matches
+   *  one of these aspects, the element is placed by the override (re-column a grid, stack
+   *  a row) instead of the pin/fit reframe. Authored by the grid policy or AI per format. */
+  byAspect?: Partial<Record<OutputAspect, AspectPlacement>>
 }
 
 /** How close (as a fraction of the canvas) an element's anchor must sit to an edge
@@ -192,6 +208,15 @@ export function responsiveEntryTransform(
     const m = typeof behavior.safeArea === 'number' ? behavior.safeArea : SAFE_AREA
     ax = clamp(ax, m * out.width, (1 - m) * out.width)
     ay = clamp(ay, m * out.height, (1 - m) * out.height)
+  }
+  // REFLOW override: if this aspect has an authored placement, re-place the element there
+  // (re-column / stack) instead of the computed pin — the pieces the pin reframe can't do.
+  const over = behavior?.byAspect?.[outputAspect(out)]
+  if (over && (over.x !== undefined || over.y !== undefined || over.scale !== undefined)) {
+    const os = over.scale ?? s
+    const tx = over.x !== undefined ? over.x * out.width : ax
+    const ty = over.y !== undefined ? over.y * out.height : ay
+    return { x: tx - anchor.x * os, y: ty - anchor.y * os, scale: os }
   }
   // Place the element's design anchor at (ax, ay) with its content scaled by s.
   return { x: ax - anchor.x * s, y: ay - anchor.y * s, scale: s }

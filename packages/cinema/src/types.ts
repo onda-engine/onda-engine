@@ -78,6 +78,10 @@ export interface ResponsiveBehavior {
   safeArea?: boolean | number
   minScale?: number
   maxScale?: number
+  /** REFLOW: per-output-aspect placement override `{x,y,scale}` (normalized output coords). */
+  byAspect?: Partial<
+    Record<'portrait' | 'landscape' | 'square', { x?: number; y?: number; scale?: number }>
+  >
 }
 
 /** One element on a track: a component placed at `at` for `for`, with optional motion. */
