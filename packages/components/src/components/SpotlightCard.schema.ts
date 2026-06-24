@@ -52,6 +52,12 @@ export const spotlightCardSchema = z.object({
     .optional()
     .describe('Card border (stroke) color (default: theme border).'),
   cornerRadius: z.number().optional().describe('Corner radius in px (default: theme radius).'),
+  glass: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Render the card as frosted GLASS — a real backdrop-blur of what is behind it (tinted by background) instead of a flat translucent fill.',
+    ),
 })
 
 export type SpotlightCardSchemaProps = z.infer<typeof spotlightCardSchema>

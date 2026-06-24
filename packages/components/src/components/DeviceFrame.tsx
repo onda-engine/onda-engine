@@ -71,8 +71,37 @@ export interface DeviceFrameProps {
   width?: number
   /** Bezel color (hex `#rrggbb` / `#rrggbbaa`) (default: theme `surface`). */
   color?: string
+  /** Render the device as frosted GLASS — a real backdrop-blur translucent bezel +
+   *  screen (blurring what's behind it), instead of an opaque bezel fill. */
+  glass?: boolean
+  /** Frosted tint (hex `#rrggbbaa`) when `glass` (default: a translucent surface). */
+  glassTint?: string
   /** Content to wrap (scene nodes). Takes precedence over `src`. */
   children?: ReactNode
+}
+
+/** A glass-or-solid surface for the bezel/screen rects: when `glass`, a real
+ *  backdrop-blur (transparent fill) + a lit hairline; otherwise an opaque fill. */
+type GlassCfg = { glass: boolean; glassTint: string }
+function bezelSurface(cfg: GlassCfg, color: string) {
+  return cfg.glass
+    ? ({
+        fill: '#00000000',
+        backdropBlur: { sigma: 22, tint: cfg.glassTint, brightness: 0.97, saturation: 1.12 },
+        stroke: '#ffffff59',
+        strokeWidth: 1.5,
+      } as const)
+    : ({ fill: color, stroke: BEZEL_EDGE, strokeWidth: 1.5 } as const)
+}
+function screenSurface(cfg: GlassCfg, screenBg: string) {
+  return cfg.glass
+    ? ({
+        fill: '#00000000',
+        backdropBlur: { sigma: 14, tint: cfg.glassTint, brightness: 0.95, saturation: 1.08 },
+        stroke: '#ffffff26',
+        strokeWidth: 1,
+      } as const)
+    : ({ fill: screenBg } as const)
 }
 
 export function DeviceFrame({
@@ -82,12 +111,15 @@ export function DeviceFrame({
   animate = true,
   width = 420,
   color: colorProp,
+  glass = false,
+  glassTint: glassTintProp,
   children,
 }: DeviceFrameProps) {
   const frame = useCurrentFrame()
   const { fps, width: compWidth, height: compHeight } = useVideoConfig()
   const theme = useTheme()
   const color = colorProp ?? theme.surface
+  const glassCfg: GlassCfg = { glass, glassTint: glassTintProp ?? '#ffffff33' }
   const screenBg = theme.background ?? SCREEN_BG
   const notch = theme.background ?? NOTCH
   const bezelLit = theme.border ?? BEZEL_LIT
@@ -114,8 +146,8 @@ export function DeviceFrame({
     <Group x={centerX} y={centerY} scaleX={scale} scaleY={scale} opacity={opacity}>
       <Group x={-box.width / 2} y={-box.height / 2}>
         {device === 'phone'
-          ? renderPhone(fitWidth, color, src, children, { screenBg, notch, shadow })
-          : renderLaptop(fitWidth, color, src, children, { screenBg, bezelLit, shadow })}
+          ? renderPhone(fitWidth, color, src, children, { screenBg, notch, shadow, glassCfg })
+          : renderLaptop(fitWidth, color, src, children, { screenBg, bezelLit, shadow, glassCfg })}
       </Group>
     </Group>
   )
@@ -149,9 +181,9 @@ function renderPhone(
   color: string,
   src: string | undefined,
   children: ReactNode,
-  colors: { screenBg: string; notch: string; shadow: string },
+  colors: { screenBg: string; notch: string; shadow: string; glassCfg: GlassCfg },
 ) {
-  const { screenBg, notch, shadow } = colors
+  const { screenBg, notch, shadow, glassCfg } = colors
   const height = width * 2.05
   const radius = width * 0.15
   const bezel = Math.max(12, width * 0.035)
@@ -165,16 +197,17 @@ function renderPhone(
 
   return (
     <Group>
-      {/* Drop-shadow approximation (no engine box-shadow): offset, soft alpha. */}
-      <Rect x={6} y={18} width={width} height={height} cornerRadius={radius} fill={shadow} />
-      {/* Bezel body, with a subtly lighter edge so it reads on a dark canvas. */}
+      {/* Drop-shadow approximation (no engine box-shadow): offset, soft alpha. A
+          frosted-glass device skips it — the backdrop-blur reads its own depth. */}
+      {!glassCfg.glass && (
+        <Rect x={6} y={18} width={width} height={height} cornerRadius={radius} fill={shadow} />
+      )}
+      {/* Bezel body — frosted glass (backdrop blur) or an opaque bezel. */}
       <Rect
         width={width}
         height={height}
         cornerRadius={radius}
-        fill={color}
-        stroke={BEZEL_EDGE}
-        strokeWidth={1.5}
+        {...bezelSurface(glassCfg, color)}
       />
       {/* Screen background (rounded), inset by the bezel padding. */}
       <Rect
@@ -183,7 +216,7 @@ function renderPhone(
         width={screenW}
         height={screenH}
         cornerRadius={screenRadius}
-        fill={screenBg}
+        {...screenSurface(glassCfg, screenBg)}
       />
       {/* Content, masked to the rounded screen box. */}
       <Group x={bezel} y={bezel} clip={clipRect(screenW, screenH, screenRadius)}>
@@ -196,7 +229,7 @@ function renderPhone(
         width={notchW}
         height={notchH}
         cornerRadius={notchH / 2}
-        fill={notch}
+        fill={glassCfg.glass ? '#ffffff40' : notch}
       />
     </Group>
   )
@@ -208,9 +241,9 @@ function renderLaptop(
   color: string,
   src: string | undefined,
   children: ReactNode,
-  colors: { screenBg: string; bezelLit: string; shadow: string },
+  colors: { screenBg: string; bezelLit: string; shadow: string; glassCfg: GlassCfg },
 ) {
-  const { screenBg, bezelLit, shadow } = colors
+  const { screenBg, bezelLit, shadow, glassCfg } = colors
   const screenH = width * 0.62
   const bezel = Math.max(10, width * 0.02)
   const radius = 16
@@ -233,25 +266,25 @@ function renderLaptop(
 
   return (
     <Group>
-      {/* Drop-shadow approximation under the screen body. */}
-      <Rect
-        x={bodyX + 6}
-        y={18}
-        width={width}
-        height={screenH}
-        cornerRadius={radius}
-        fill={shadow}
-      />
-      {/* Screen body bezel, with a lighter edge so it reads on a dark canvas. */}
+      {/* Drop-shadow approximation under the screen body (skipped for glass). */}
+      {!glassCfg.glass && (
+        <Rect
+          x={bodyX + 6}
+          y={18}
+          width={width}
+          height={screenH}
+          cornerRadius={radius}
+          fill={shadow}
+        />
+      )}
+      {/* Screen body bezel — frosted glass (backdrop blur) or an opaque bezel. */}
       <Rect
         x={bodyX}
         y={0}
         width={width}
         height={screenH}
         cornerRadius={radius}
-        fill={color}
-        stroke={BEZEL_EDGE}
-        strokeWidth={1.5}
+        {...bezelSurface(glassCfg, color)}
       />
       {/* Screen background (rounded), inset by the bezel padding. */}
       <Rect
@@ -260,7 +293,7 @@ function renderLaptop(
         width={screenW}
         height={screenInnerH}
         cornerRadius={screenRadius}
-        fill={screenBg}
+        {...screenSurface(glassCfg, screenBg)}
       />
       {/* Content, masked to the rounded screen box. */}
       <Group x={bodyX + bezel} y={bezel} clip={clipRect(screenW, screenInnerH, screenRadius)}>

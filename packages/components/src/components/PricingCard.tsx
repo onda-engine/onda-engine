@@ -87,6 +87,9 @@ export interface PricingCardProps extends TextStyleProps {
   /** @deprecated Legacy alias — y of the card's top-left in px. Prefer
    *  `placement`. */
   y?: number
+  /** Render the panel as frosted GLASS — a real backdrop-blur of what's behind it
+   *  (tinted by `background`), instead of a flat translucent fill. */
+  glass?: boolean
 }
 
 const DEFAULT_FEATURES = [
@@ -107,6 +110,7 @@ export function PricingCard({
   delay: delayIn = 0,
   width = 380,
   priceSize = 64,
+  glass = false,
   background: backgroundProp,
   borderColor: borderColorProp,
   color: colorProp,
@@ -230,15 +234,28 @@ export function PricingCard({
           />
         ) : null}
 
-        {/* Glass panel. */}
-        <Rect
-          width={width}
-          height={cardHeight}
-          cornerRadius={theme.radius}
-          fill={background}
-          stroke={panelBorder}
-          strokeWidth={recommended ? 2 : 1}
-        />
+        {/* Panel — real frosted GLASS (backdrop blur of what's behind, tinted by
+            `background`) when `glass`, else a flat translucent fill. */}
+        {glass ? (
+          <Rect
+            width={width}
+            height={cardHeight}
+            cornerRadius={theme.radius}
+            fill="#00000000"
+            backdropBlur={{ sigma: 20, tint: background, brightness: 0.97, saturation: 1.1 }}
+            stroke={panelBorder}
+            strokeWidth={recommended ? 2 : 1}
+          />
+        ) : (
+          <Rect
+            width={width}
+            height={cardHeight}
+            cornerRadius={theme.radius}
+            fill={background}
+            stroke={panelBorder}
+            strokeWidth={recommended ? 2 : 1}
+          />
+        )}
 
         {/* --- Card body, inset by `padding`. --- */}
         <Group x={padding} y={0}>
