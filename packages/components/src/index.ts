@@ -252,12 +252,21 @@ export {
 // "Magic Resize" — per-element responsive re-framing (Canva/Figma constraints), so
 // one master adapts to any aspect ratio. Shared by the cinema export + Studio preview.
 export {
+  type AspectPlacement,
   type Box,
+  type OutputAspect,
+  type ResponsiveBehavior,
   type ResponsiveTransform,
   entryDesignAnchor,
+  gridReflowPlacements,
+  isAspectFlip,
   isFullBleed,
+  isHiddenForOutput,
+  outputAspect,
   responsiveCoverTransform,
   responsiveEntryTransform,
+  responsiveFill,
+  scrollReflowPlacements,
 } from './responsive.js'
 export {
   KineticText,

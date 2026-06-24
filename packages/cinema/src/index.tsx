@@ -508,6 +508,27 @@ function SceneTracks({
   /** `fit:"responsive"` re-frame context — re-anchor each entry to the output. */
   responsive?: { design: Components.Box; out: Components.Box }
 }): ReactElement {
+  // Scene-level fill (0 = FIT … 1 = COVER) — scales the per-element reframe up to fill a
+  // flipped frame. Resolved once (explicit `scene.fill`, else the orientation-flip default).
+  const fill = responsive
+    ? Components.responsiveFill(scene.fill, responsive.design, responsive.out)
+    : 0
+  const aspect = responsive ? Components.outputAspect(responsive.out) : null
+  // Deterministic REFLOW (Tier 2): compute per-entry placements ONCE for the whole scene
+  // (grid needs every tile; scroll re-centres the whole stack), keyed back to each entry.
+  let reflowMap: Map<Entry, Components.AspectPlacement> | null = null
+  if (responsive && (scene.reflow === 'grid' || scene.reflow === 'scroll')) {
+    const all = scene.tracks.flatMap((t) => t.entries)
+    const placed =
+      scene.reflow === 'grid'
+        ? Components.gridReflowPlacements(all, responsive.design, responsive.out)
+        : Components.scrollReflowPlacements(all, responsive.design, responsive.out)
+    reflowMap = new Map()
+    all.forEach((e, i) => {
+      const p = placed[i]
+      if (p) reflowMap?.set(e, p)
+    })
+  }
   return createElement(
     Group,
     null,
@@ -517,16 +538,37 @@ function SceneTracks({
         { key: track.id ?? `track-${ti}` },
         ...track.entries.map((entry, ei) => {
           const key = entry.id ?? `entry-${ei}`
+          // Magic Resize: an entry can opt out of an output aspect entirely (e.g. a wide
+          // element hidden on portrait). Cull before building the slot.
+          if (responsive && Components.isHiddenForOutput(entry.responsive, responsive.out)) {
+            return null
+          }
           const slot = createElement(EntrySlot, { entry, registry, suppress: suppress?.get(entry) })
           if (!responsive) return cloneElement(slot, { key })
           // Magic Resize: full-bleed plates COVER the output; everything else pins its design
-          // anchor per-axis and fits — so a background never letterboxes into dead space.
+          // anchor per-axis and fits — so a background never letterboxes into dead space. The
+          // per-entry `responsive` behaviour clamps the fit scale / keeps it in the safe area.
+          // A computed reflow placement (grid cell / scroll shift) rides in as a per-aspect
+          // override (an explicit author override still wins). Reuses the Tier-2a byAspect path.
+          const gp = aspect ? reflowMap?.get(entry) : undefined
+          const behavior =
+            gp && aspect
+              ? {
+                  ...entry.responsive,
+                  byAspect: {
+                    ...entry.responsive?.byAspect,
+                    [aspect]: entry.responsive?.byAspect?.[aspect] ?? gp,
+                  },
+                }
+              : entry.responsive
           const t = Components.isFullBleed(entry.props, responsive.design)
             ? Components.responsiveCoverTransform(responsive.design, responsive.out)
             : Components.responsiveEntryTransform(
                 Components.entryDesignAnchor(entry.props),
                 responsive.design,
                 responsive.out,
+                behavior,
+                fill,
               )
           if (t.x === 0 && t.y === 0 && t.scale === 1) return cloneElement(slot, { key })
           return createElement(
