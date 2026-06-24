@@ -86,6 +86,9 @@ export interface SpotlightCardProps extends TextStyleProps {
   borderColor?: string
   /** Corner radius in px (default: theme `radius`). */
   cornerRadius?: number
+  /** Render the card as frosted GLASS — a real backdrop-blur of what's behind it
+   *  (tinted by `background`), instead of a flat translucent fill. */
+  glass?: boolean
 }
 
 export function SpotlightCard({
@@ -111,6 +114,7 @@ export function SpotlightCard({
   background: backgroundProp,
   borderColor: borderColorProp,
   cornerRadius: cornerRadiusProp,
+  glass = false,
 }: SpotlightCardProps) {
   const frame = useCurrentFrame()
   const { width: compWidth, height: compHeight, fps } = useVideoConfig()
@@ -187,17 +191,29 @@ export function SpotlightCard({
       {/* Rise translate nested inside the layout-positioned group (translate-safe:
           this group is positioned by explicit x/y above, not by a Flex). */}
       <Group y={riseY}>
-        {/* Glass surface: translucent fill + 1px border + a soft drop-shadow for
-            elevation (ondajs's box-shadow; backdrop-blur stays a non-goal). */}
-        <Rect
-          width={cardWidth}
-          height={cardHeight}
-          cornerRadius={cornerRadius}
-          fill={background}
-          stroke={borderColor}
-          strokeWidth={1}
-          shadow={{ color: '#00000059', blur: 28, offsetY: 12 }}
-        />
+        {/* Surface: real frosted GLASS (backdrop blur of what's behind, tinted by
+            `background`) when `glass`, else a flat translucent fill + drop-shadow. */}
+        {glass ? (
+          <Rect
+            width={cardWidth}
+            height={cardHeight}
+            cornerRadius={cornerRadius}
+            fill="#00000000"
+            backdropBlur={{ sigma: 20, tint: background, brightness: 0.97, saturation: 1.1 }}
+            stroke={borderColor}
+            strokeWidth={1}
+          />
+        ) : (
+          <Rect
+            width={cardWidth}
+            height={cardHeight}
+            cornerRadius={cornerRadius}
+            fill={background}
+            stroke={borderColor}
+            strokeWidth={1}
+            shadow={{ color: '#00000059', blur: 28, offsetY: 12 }}
+          />
+        )}
 
         {/* Drifting spotlight behind the content, clipped to the card's rounded
             rect. The spotlight renders at composition scale (its Rect + gradient

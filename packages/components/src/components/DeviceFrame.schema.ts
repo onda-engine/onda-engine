@@ -26,6 +26,16 @@ export const deviceFrameSchema = z.object({
     .string()
     .optional()
     .describe('Bezel color (hex #rrggbb / #rrggbbaa); defaults to theme surface.'),
+  glass: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Render the device as frosted GLASS — a real backdrop-blur translucent bezel + screen (blurring what is behind it) instead of an opaque bezel fill.',
+    ),
+  glassTint: z
+    .string()
+    .optional()
+    .describe('Frosted tint (hex #rrggbbaa) when glass; defaults to a translucent surface.'),
 })
 
 export type DeviceFrameSchemaProps = z.infer<typeof deviceFrameSchema>

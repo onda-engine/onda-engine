@@ -72,6 +72,12 @@ export const pricingCardSchema = z.object({
     .describe(
       "Where the element sits: a region keyword ('center', 'lower-third', 'upper-third', 'top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right') or normalized {x,y} (0-1 canvas fractions, element-center anchored). Default 'center'.",
     ),
+  glass: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Render the panel as frosted GLASS — a real backdrop-blur of what is behind it (tinted by background) instead of a flat translucent fill.',
+    ),
 })
 
 export type PricingCardSchemaProps = z.infer<typeof pricingCardSchema>

@@ -75,8 +75,11 @@ const clamp = (v: number, lo: number, hi: number): number => Math.min(Math.max(v
 
 /** An element whose rendered size reaches at least this fraction of BOTH design axes is
  *  treated as a full-bleed plate (a background) — re-framed by COVER, not the per-element FIT,
- *  so it keeps filling the frame on an aspect flip instead of letterboxing into dead space. */
-const FULL_BLEED = 0.9
+ *  so it keeps filling the frame on an aspect flip instead of letterboxing into dead space.
+ *  Loosened from 0.9 → 0.8 so a slightly-inset backdrop (a plate with a small margin, very
+ *  common) still covers rather than fitting into a band. Stays well above any banner/band
+ *  element (those reach <0.5 on one axis), so they correctly keep the per-element FIT. */
+const FULL_BLEED = 0.8
 
 const mean = (ns: number[]): number => (ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : 0)
 

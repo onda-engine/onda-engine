@@ -285,6 +285,7 @@ export {
   type LookbookLayout,
   type LookbookShotProps,
 } from './components/LookbookShot.js'
+export { LiquidLogo, type LiquidLogoProps } from './components/LiquidLogo.js'
 export { LowerThird, type LowerThirdProps } from './components/LowerThird.js'
 export { Marquee, type MarqueeProps } from './components/Marquee.js'
 export {
@@ -298,6 +299,7 @@ export { MaskReveal, type MaskRevealProps } from './components/MaskReveal.js'
 export { MatrixDecode, type MatrixDecodeProps } from './components/MatrixDecode.js'
 export { MeshGradient, type MeshGradientProps } from './components/MeshGradient.js'
 export { Moodboard, type MoodboardProps } from './components/Moodboard.js'
+export { Notification, type NotificationProps } from './components/Notification.js'
 export { NodeGraph, type NodeGraphProps, type Satellite } from './components/NodeGraph.js'
 export { Parallax, type ParallaxProps, type ParallaxLayer } from './components/Parallax.js'
 export { PathMorph, type PathMorphProps } from './components/PathMorph.js'
