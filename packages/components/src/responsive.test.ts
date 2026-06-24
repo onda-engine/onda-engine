@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   entryDesignAnchor,
+  gridReflowPlacements,
   isAspectFlip,
   isFullBleed,
   isHiddenForOutput,
@@ -218,6 +219,48 @@ describe('responsiveEntryTransform — per-entry behaviour', () => {
     expect(t.scale).toBeCloseTo(fit + 0.5 * (cover - fit), 5)
     // fill=0 is exactly the fit baseline.
     expect(responsiveEntryTransform({ x: 800, y: 600 }, DESIGN, out, undefined, 0).scale).toBeCloseTo(fit, 5)
+  })
+})
+
+describe('gridReflowPlacements (deterministic grid reflow)', () => {
+  // A 2-column portrait mosaic of 4 image tiles, plus an ambient background + a stack.
+  const tile = (x: number, y: number) => ({
+    role: 'support',
+    props: { position: [{ at: 0, x, y }], content: { kind: 'image', width: 400, height: 400 } },
+  })
+  const port = { width: 1080, height: 1920 }
+  const land = { width: 1920, height: 1080 }
+
+  it('re-columns content tiles into a grid on a flip', () => {
+    const entries = [
+      { role: 'ambient', props: { position: [{ at: 0, x: 540, y: 960 }], content: { kind: 'image', width: 1080, height: 1920 } } }, // full-bleed bg
+      tile(283, 270),
+      tile(283, 722),
+      tile(797, 336),
+      tile(797, 936),
+    ]
+    const out = gridReflowPlacements(entries, port, land)
+    expect(out[0]).toBeNull() // ambient full-bleed bg is not a tile
+    const placed = out.slice(1)
+    expect(placed.every((p) => p !== null)).toBe(true)
+    // 4 tiles into a landscape grid → 2 cols; distinct x centres across the width.
+    const xs = new Set(placed.map((p) => p?.x))
+    expect(xs.size).toBeGreaterThan(1)
+  })
+
+  it('is a no-op on a same-orientation reframe (preserves the authored layout)', () => {
+    const entries = [tile(283, 270), tile(797, 936)]
+    expect(gridReflowPlacements(entries, port, { width: 1080, height: 1350 })).toEqual([null, null])
+  })
+
+  it('excludes a stack of entries sharing one anchor (e.g. a spotlight sequence)', () => {
+    const entries = [tile(283, 270), tile(797, 936), tile(540, 860), tile(540, 860), tile(540, 860)]
+    const out = gridReflowPlacements(entries, port, land)
+    expect(out[0]).not.toBeNull()
+    expect(out[1]).not.toBeNull()
+    expect(out[2]).toBeNull() // the 3 co-located tiles are a stack, not grid cells
+    expect(out[3]).toBeNull()
+    expect(out[4]).toBeNull()
   })
 })
 

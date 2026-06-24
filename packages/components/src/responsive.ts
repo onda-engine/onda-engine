@@ -170,6 +170,65 @@ export function responsiveFill(fill: number | undefined, design: Box, out: Box):
   return isAspectFlip(design, out) ? DEFAULT_FLIP_FILL : 0
 }
 
+/** Deterministic GRID reflow (Tier 2): on an orientation FLIP, re-place a scene's content
+ *  TILES into a grid sized to the OUTPUT aspect — so a portrait mosaic becomes a landscape
+ *  grid (and vice-versa) using the whole frame instead of pillarboxing. Returns, per input
+ *  entry, its computed {@link AspectPlacement} (a grid tile) or `null` (not a tile / no
+ *  reflow → keep the normal pin/fit reframe). Tiles = positioned image/video, non-ambient,
+ *  non-full-bleed, at a UNIQUE anchor (a stack of entries sharing one spot — e.g. a
+ *  spotlight sequence — is left out, not gridded). Only fires on a flip; same-orientation
+ *  reframes return all `null` so the authored layout is preserved. */
+export function gridReflowPlacements(
+  entries: { props?: Record<string, unknown>; role?: string }[],
+  design: Box,
+  out: Box,
+  opts: { gutter?: number } = {},
+): (AspectPlacement | null)[] {
+  const result: (AspectPlacement | null)[] = entries.map(() => null)
+  if (!isAspectFlip(design, out)) return result
+  const eligible: { i: number; anchor: { x: number; y: number }; cw: number; ch: number }[] = []
+  for (let i = 0; i < entries.length; i++) {
+    const props = entries[i]?.props
+    if (entries[i]?.role === 'ambient') continue
+    const anchor = entryDesignAnchor(props)
+    if (!anchor) continue
+    const content = props?.content as { kind?: string; width?: number; height?: number } | undefined
+    if (!content || (content.kind !== 'image' && content.kind !== 'video')) continue
+    if (isFullBleed(props, design)) continue
+    const s = meanScale(props)
+    eligible.push({
+      i,
+      anchor,
+      cw: (content.width ?? design.width) * s,
+      ch: (content.height ?? design.height) * s,
+    })
+  }
+  // Drop entries sharing an anchor (overlapping stacks aren't grid cells).
+  const key = (a: { x: number; y: number }) => `${Math.round(a.x / 8)},${Math.round(a.y / 8)}`
+  const counts = new Map<string, number>()
+  for (const t of eligible) counts.set(key(t.anchor), (counts.get(key(t.anchor)) ?? 0) + 1)
+  const tiles = eligible.filter((t) => counts.get(key(t.anchor)) === 1)
+  if (tiles.length < 2) return result
+  // Reading order (top→bottom, then left→right), then fill a grid sized to the output.
+  tiles.sort((a, b) => a.anchor.y - b.anchor.y || a.anchor.x - b.anchor.x)
+  const n = tiles.length
+  const cols = clamp(Math.round(Math.sqrt(n * (out.width / out.height))), 1, n)
+  const rows = Math.ceil(n / cols)
+  const g = opts.gutter ?? 0.12
+  const cellW = out.width / cols
+  const cellH = out.height / rows
+  tiles.forEach((t, k) => {
+    const col = k % cols
+    const row = Math.floor(k / cols)
+    result[t.i] = {
+      x: (col + 0.5) / cols,
+      y: (row + 0.5) / rows,
+      scale: Math.min((cellW * (1 - g)) / t.cw, (cellH * (1 - g)) / t.ch),
+    }
+  })
+  return result
+}
+
 /** Clamp a fit scale to a behaviour's min/max bounds (no-op when neither is set). */
 function clampScale(s: number, behavior: ResponsiveBehavior): number {
   let v = s

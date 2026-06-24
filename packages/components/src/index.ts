@@ -258,6 +258,7 @@ export {
   type ResponsiveBehavior,
   type ResponsiveTransform,
   entryDesignAnchor,
+  gridReflowPlacements,
   isAspectFlip,
   isFullBleed,
   isHiddenForOutput,

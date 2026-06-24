@@ -174,6 +174,10 @@ export interface Scene {
    *  crops; 1 = COVER, fills + crops edges). Default: a moderate fill on an orientation
    *  FLIP (so a landscape→portrait reframe isn't tiny), 0 otherwise. */
   fill?: number
+  /** `responsive`-only: opt into deterministic REFLOW. `'grid'` re-columns the scene's
+   *  content tiles into a grid sized to the output on an orientation flip (a portrait
+   *  mosaic → a landscape grid) instead of pin/fit. No-op on same-orientation reframes. */
+  reflow?: 'grid'
 }
 
 /** A composition-level layer entry — absolute-timed, spans scene cuts. */
