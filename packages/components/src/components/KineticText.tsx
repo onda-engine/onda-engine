@@ -22,6 +22,16 @@
 //!             length, instead of hand-placing each scattered letter. Set `exit` to
 //!             also scatter the glyphs back OUT over the clip's final frames (a full
 //!             enter→hold→leave wordmark sting).
+//! - `stretch` — each glyph APPEARS at the baseline as a flat sliver, STRETCHES UP
+//!             to near the top of the frame (a dramatic tall, thin needle — the
+//!             scaleY grows from a baseline pivot while scaleX pinches narrower so
+//!             it reads as a rubber-band PULL, not a plain scale), then retracts and
+//!             snap-settles to 100% with its bottom on the baseline. Staggered
+//!             left→right, smooth. The peak height is PLACEMENT-AWARE (it reaches
+//!             toward the top of the frame from wherever the line sits — place it
+//!             `lower-third` for the full-height drama). `exit` blooms each glyph
+//!             tall once more then collapses it into the baseline (the matching
+//!             enter→hold→leave loop). Editable any-word kinetic-type stretch.
 
 import {
   Group,
@@ -33,7 +43,7 @@ import {
 } from '@onda-engine/react'
 import { useFittedFontSize } from '../bounds.js'
 import { LINE_RATIO, layoutGlyphLine, lineStartX, lineTopY } from '../glyph-line.js'
-import { DURATION, SPRING_SMOOTH, STAGGER, staggerFrames } from '../motion.js'
+import { DURATION, SPRING_SMOOTH, SPRING_SNAPPY, STAGGER, staggerFrames } from '../motion.js'
 import { type Placement, usePlacement } from '../placement.js'
 import { useTextMetricsReady } from '../text-metrics.js'
 import { type TextStyleProps, applyTextCase } from '../text-style.js'
@@ -43,7 +53,7 @@ import { staggeredSettle, useTimeScale } from '../timing.js'
 import { type TextAnimate, TextAnimator } from './TextAnimator.js'
 
 /** The per-glyph entrance presets. */
-export type KineticTextPreset = 'rise' | 'fade' | 'scale' | 'blur' | 'wave' | 'scatter'
+export type KineticTextPreset = 'rise' | 'fade' | 'scale' | 'blur' | 'wave' | 'scatter' | 'stretch'
 
 export interface KineticTextProps extends TextStyleProps {
   /** The line to choreograph. Laid out as one row of absolutely-placed glyphs. */
@@ -117,9 +127,12 @@ const scatterHash = (i: number, salt: number): number => {
 }
 
 /** The from→to presets as TextAnimator channel maps — the single source of truth
- *  for what each preset animates. `wave` and `scatter` are procedural (per-glyph
+ *  for what each preset animates. `wave`, `scatter` and `stretch` are procedural (per-glyph
  *  randomized / index-keyed) and handled by their own dedicated paths. */
-const PRESET_ANIMATE: Record<Exclude<KineticTextPreset, 'wave' | 'scatter'>, TextAnimate> = {
+const PRESET_ANIMATE: Record<
+  Exclude<KineticTextPreset, 'wave' | 'scatter' | 'stretch'>,
+  TextAnimate
+> = {
   rise: { y: [RISE_PX, 0], opacity: [0, 1] },
   fade: { opacity: [0, 1] },
   scale: { scale: [SCALE_FROM, 1], opacity: [0, 1] },
@@ -163,8 +176,9 @@ export function KineticText({
   // `wave` is a decaying sine ripple (a function of progress AND index), not a
   // from→to channel — it keeps its own small path. Everything else is the general
   // engine with a preset channel map.
-  if (preset === 'wave' || preset === 'scatter') {
-    const Procedural = preset === 'wave' ? KineticWave : KineticScatter
+  if (preset === 'wave' || preset === 'scatter' || preset === 'stretch') {
+    const Procedural =
+      preset === 'wave' ? KineticWave : preset === 'scatter' ? KineticScatter : KineticStretch
     return (
       <Procedural
         text={text}
@@ -454,6 +468,184 @@ function KineticScatter({
             originX={width / 2}
             originY={fontSize / 2}
             rotation={rot}
+            opacity={opacity}
+            fontSize={fontSize}
+            color={glyphColor(colors, i, color)}
+            fontFamily={fontFamily}
+            fontWeight={fontWeight}
+            italic={italic}
+            letterSpacing={letterSpacing}
+          >
+            {ch}
+          </Text>
+        )
+      })}
+    </Group>
+  )
+}
+
+// ── `stretch` preset tuning ──────────────────────────────────────────────────
+/** Collapsed scaleY of the flat sliver each glyph starts (and exits) at. */
+const STRETCH_SLIVER = 0.05
+/** How far below the line's box-top the baseline pivot sits (≈ ascent). The
+ *  scaleY grows the glyph UP from here, so its bottom stays put. */
+const STRETCH_BASELINE = 0.78
+/** Approx cap-top below the box-top — with the baseline gives the cap height the
+ *  peak stretch is solved against, so the top reaches the frame top consistently. */
+const STRETCH_CAP_TOP = 0.1
+/** Fraction of the frame height the peak stretch's cap-top reaches toward (a
+ *  small top margin). */
+const STRETCH_TOP_MARGIN = 0.05
+/** Peak scaleY is clamped to this band — always a clear stretch, never absurd. */
+const STRETCH_PEAK_MIN = 2.6
+const STRETCH_PEAK_MAX = 16
+/** Max horizontal pinch at full stretch — the needle/rubber-band PULL. */
+const STRETCH_PINCH = 0.18
+/** Frames each glyph fades in over (hidden under the sliver — no hard pop). */
+const STRETCH_FADE = 4
+/** Default exit length (per glyph) when `exit` is on, at 30fps (scaled by fps). */
+const STRETCH_EXIT_BASE = 26
+
+const clamp01 = (v: number): number => Math.min(1, Math.max(0, v))
+
+/** The `stretch` preset: each glyph appears at the baseline as a flat sliver,
+ *  stretches UP to near the top of the frame (tall thin needle — scaleY from a
+ *  baseline pivot + a scaleX pinch so it reads as a real PULL), then retracts and
+ *  snap-settles to rest with its bottom on the baseline. Staggered, smooth, and
+ *  placement-aware (the peak reaches toward the frame top from wherever the line
+ *  sits). `exit` blooms each glyph tall once more then collapses it away — the
+ *  matching enter→hold→leave loop. Layout is the shared kerning-accurate
+ *  `glyphLayout` path, so it's EDITABLE any-word kinetic type. */
+function KineticStretch({
+  text,
+  fontSize: fontSizeProp,
+  fit,
+  maxWidth,
+  stagger: staggerIn,
+  durationInFrames: durationIn,
+  delay: delayIn,
+  fitToClip,
+  maxSettle,
+  hold,
+  align,
+  color: colorProp,
+  fontFamily: fontFamilyProp,
+  fontWeight,
+  italic = false,
+  letterSpacing,
+  placement,
+  colors,
+  exit,
+  exitDuration,
+}: ProceduralPresetProps) {
+  const frame = useCurrentFrame()
+  const { fps, durationInFrames: clipFrames, height } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
+
+  useTextMetricsReady()
+  const measureOpts = { fontFamily, fontWeight }
+
+  // Opt-in auto-fit (same contract as the other presets).
+  const fontSize = useFittedFontSize(text, fontSizeProp, { ...measureOpts, fit, maxWidth })
+
+  // Kerning-accurate resting positions via the SHARED glyph-line primitive.
+  const laid = layoutGlyphLine(text, fontSize, measureOpts)
+  const placed = laid.rendered
+  const lineWidth = laid.width
+
+  // Timing: parse + clip-fit (same contract as the other presets).
+  const staggerBase = framesOf(staggerIn, fps, STAGGER)
+  const durationBase = framesOf(durationIn, fps, DURATION.base)
+  const delayBase = framesOf(delayIn, fps)
+  const naturalSettle = staggeredSettle(placed.length, staggerBase, durationBase, delayBase)
+  const timeScale = useTimeScale(naturalSettle, { fitToClip, maxSettle, hold })
+  const stagger = staggerBase * timeScale
+  const duration = Math.max(2, durationBase * timeScale)
+  const delay = delayBase * timeScale
+  // Split the per-glyph entrance into a decisive GROW and a gentle SETTLE.
+  const growDur = Math.max(1, Math.round(duration * 0.42))
+  const settleDur = Math.max(1, Math.round(duration - growDur))
+
+  // Shared placement contract (matches the other presets' anchoring exactly).
+  const resolved = usePlacement(placement, { width: lineWidth, height: fontSize * LINE_RATIO })
+  const anchorX = Math.round(resolved.x)
+  const startX = lineStartX(align, anchorX, lineWidth)
+  const baseY = lineTopY(resolved.y, fontSize)
+
+  // Peak scaleY so the cap-top reaches a small margin from the frame top, from
+  // wherever the baseline sits — placement drives the drama. Pivot = baseline.
+  const pivotLocal = fontSize * STRETCH_BASELINE
+  const capHeight = fontSize * (STRETCH_BASELINE - STRETCH_CAP_TOP)
+  const pivotAbs = baseY + pivotLocal
+  const peak = Math.min(
+    STRETCH_PEAK_MAX,
+    Math.max(STRETCH_PEAK_MIN, (pivotAbs - height * STRETCH_TOP_MARGIN) / capHeight),
+  )
+
+  // Matching exit (staggered L→R), sized so the LAST glyph finishes at the cut.
+  const exitOn = exit === true
+  const exitDur = framesOf(exitDuration, fps, Math.round((STRETCH_EXIT_BASE * fps) / 30))
+  const exitBloom = Math.max(1, Math.round(exitDur * 0.45))
+  const exitSpan = exitDur + Math.max(0, placed.length - 1) * stagger
+  const exitStart0 = clipFrames - exitSpan
+
+  return (
+    <Group>
+      {placed.map(({ ch, x, width, renderIndex: i }) => {
+        const local = frame - delay - staggerFrames(i, stagger)
+        // ENTRANCE: sliver → peak (decisive grow) → 1 (gentle settle).
+        const pGrow =
+          local <= 0
+            ? 0
+            : spring({ frame: local, fps, config: SPRING_SNAPPY, durationInFrames: growDur })
+        const pSettle =
+          local <= growDur
+            ? 0
+            : spring({
+                frame: local - growDur,
+                fps,
+                config: SPRING_SMOOTH,
+                durationInFrames: settleDur,
+              })
+        const grown = STRETCH_SLIVER + (peak - STRETCH_SLIVER) * pGrow
+        let scaleY = local <= growDur ? grown : peak + (1 - peak) * pSettle
+        let opacity = interpolate(local, [0, STRETCH_FADE], [0, 1], CLAMP)
+
+        // EXIT: bloom tall once more, then collapse into the baseline sliver + fade.
+        if (exitOn) {
+          const eStart = exitStart0 + staggerFrames(i, stagger)
+          if (frame >= eStart) {
+            const bloom = interpolate(frame, [eStart, eStart + exitBloom], [0, 1], CLAMP)
+            const collapse = interpolate(
+              frame,
+              [eStart + exitBloom, eStart + exitDur],
+              [0, 1],
+              CLAMP,
+            )
+            scaleY =
+              frame <= eStart + exitBloom
+                ? 1 + (peak - 1) * bloom
+                : peak + (STRETCH_SLIVER - peak) * collapse
+            opacity *= 1 - collapse
+          }
+        }
+
+        // The pinch follows the stretch: narrowest at the peak, 1 at rest — so it
+        // reads as a PULL on both the entrance and the exit, automatically.
+        const stretchFrac = clamp01((scaleY - 1) / (peak - 1))
+        const scaleX = 1 - STRETCH_PINCH * stretchFrac
+
+        return (
+          <Text
+            key={`${i}-${ch}`}
+            x={startX + x}
+            y={baseY}
+            scaleX={scaleX}
+            scaleY={scaleY}
+            originX={width / 2}
+            originY={pivotLocal}
             opacity={opacity}
             fontSize={fontSize}
             color={glyphColor(colors, i, color)}
