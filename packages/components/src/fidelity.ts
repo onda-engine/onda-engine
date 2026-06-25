@@ -31,6 +31,11 @@ export interface ComponentFidelity {
 }
 
 export const COMPONENT_FIDELITY: Record<string, ComponentFidelity> = {
+  // Full-frame composed pieces — video + shape-morph + radial-glow atmosphere → need Vello.
+  BrandFlow: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'gpu_only' },
+  MagicGallery: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'gpu_only' },
+  MatteReveal: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'gpu_only' },
+  DeckFlyover: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'gpu_only' },
   AudioClip: { fidelity: 'first_class', engineNative: true, needsFeature: null, backend: 'both' },
   AudioVisualizer: {
     fidelity: 'first_class',

@@ -18,6 +18,10 @@ import { barChartSchema } from './components/BarChart.schema.js'
 import { bentoGridSchema } from './components/BentoGrid.schema.js'
 import { blurRevealSchema } from './components/BlurReveal.schema.js'
 import { boundingBoxSchema } from './components/BoundingBox.schema.js'
+import { brandFlowSchema } from './components/BrandFlow.schema.js'
+import { deckFlyoverSchema } from './components/DeckFlyover.schema.js'
+import { magicGallerySchema } from './components/MagicGallery.schema.js'
+import { matteRevealSchema } from './components/MatteReveal.schema.js'
 import { browserFrameSchema } from './components/BrowserFrame.schema.js'
 import { buttonSchema } from './components/Button.schema.js'
 import { calloutSchema } from './components/Callout.schema.js'
@@ -5243,10 +5247,10 @@ const RAW: RawEntry[] = [
         role: 'enum',
         themeable: false,
         required: false,
-        enumValues: ['rise', 'fade', 'scale', 'blur', 'wave', 'scatter'],
+        enumValues: ['rise', 'fade', 'scale', 'blur', 'wave', 'scatter', 'stretch'],
         default: "'rise'",
         description:
-          'Per-glyph entrance flavor: rise (translateY + fade), fade (opacity only), scale (grow from center + fade), blur (real soft→sharp focus-pull + fade), wave (rippling sine offset + fade), scatter (each glyph flies in from a random direction + tumbles upright, then settles to its kerned position — an editable kinetic wordmark).',
+          'Per-glyph entrance flavor: rise (translateY + fade), fade (opacity only), scale (grow from center + fade), blur (real soft→sharp focus-pull + fade), wave (rippling sine offset + fade), scatter (each glyph flies in from a random direction + tumbles upright, then settles to its kerned position — an editable kinetic wordmark), stretch (each glyph appears at the baseline and stretches UP to near the top of the frame — a tall thin needle that pinches narrower, a rubber-band pull — then snap-settles to rest; placement-aware peak height, so place lower-third for full-height drama; an editable kinetic wordmark).',
       },
       {
         name: 'stagger',
@@ -5284,7 +5288,7 @@ const RAW: RawEntry[] = [
         themeable: false,
         required: false,
         description:
-          "scatter preset only: also scatter the glyphs back OUT (tumbling + fading) over the clip's final frames, so the line exits as kinetically as it entered. Default off (settle and hold).",
+          "scatter/stretch presets: also animate the glyphs back OUT over the clip's final frames, so the line exits as kinetically as it entered (scatter = tumble + fade; stretch = bloom tall once more, then collapse into the baseline). Default off (settle and hold).",
       },
       {
         name: 'exitDuration',
@@ -11046,6 +11050,101 @@ const RAW: RawEntry[] = [
     },
     props: [],
     schema: keyframesSchema,
+  },
+  {
+    slug: 'brand-flow',
+    name: 'BrandFlow',
+    category: 'Brand',
+    title: 'Brand Flow',
+    description:
+      'A single video window flows and reshapes through editorial word-beats, then dissolves into the logo wordmark — a premium one-take brand intro.',
+    pickWhen:
+      'A kinetic brand intro / sting where footage morphs between big-word beats and resolves to a logo. Needs a video clip + a wordmark.',
+    composes: [],
+    sceneRole: 'background',
+    occlusion: 'full_frame',
+    example: {
+      videoSrc: 'asset:hero',
+      accent: '#7c3aed',
+      logoWordmark: 'ONDA',
+      beats: [
+        { x: 0.5, y: 0.5, w: 0.62, h: 0.42, word: 'MOTION' },
+        { x: 0.34, y: 0.42, w: 0.42, h: 0.54, word: 'MADE EASY' },
+      ],
+    },
+    props: [],
+    schema: brandFlowSchema,
+  },
+  {
+    slug: 'magic-gallery',
+    name: 'MagicGallery',
+    category: 'Media',
+    title: 'Magic Gallery',
+    description:
+      'A grid of media tiles magic-moves between arrangements — a hero tile + caption each beat. A Keynote Magic-Move lookbook.',
+    pickWhen:
+      'A dynamic media gallery / lookbook / portfolio where tiles rearrange (magic move) between beats and one tile is the hero. Needs several images/clips.',
+    composes: [],
+    sceneRole: 'background',
+    occlusion: 'full_frame',
+    example: {
+      accent: '#7c3aed',
+      media: [{ src: 'asset:a' }, { src: 'asset:b' }, { src: 'asset:c' }],
+      beats: [
+        { hero: 0, caption: 'New Season' },
+        { hero: 1, caption: 'Bold Moves' },
+      ],
+    },
+    props: [],
+    schema: magicGallerySchema,
+  },
+  {
+    slug: 'matte-reveal',
+    name: 'MatteReveal',
+    category: 'Media',
+    title: 'Matte Reveal',
+    description:
+      'Footage revealed THROUGH morphing shapes (media-through-type matte) with bold titles over each shape — a cinematic matte sequence.',
+    pickWhen:
+      'Media-through-type / matte reveal where a video shows through morphing shape masks behind big titles. Needs a video clip.',
+    composes: [],
+    sceneRole: 'background',
+    occlusion: 'full_frame',
+    example: {
+      src: 'asset:hero',
+      titleColor: '#ffffff',
+      beats: [
+        { shape: 'circle', title: 'BOLD' },
+        { shape: 'wide', title: 'CLEAR' },
+      ],
+    },
+    props: [],
+    schema: matteRevealSchema,
+  },
+  {
+    slug: 'deck-flyover',
+    name: 'DeckFlyover',
+    category: 'Layout',
+    title: 'Deck Flyover',
+    description:
+      'A camera flies over a board of pitch-deck slides and punches into a hero slide — a cinematic deck flyover with a brand lockup.',
+    pickWhen:
+      'A pitch-deck / sales-deck flyover where a camera tours a grid of slides (title, bullets, stats, quote) and punches into a hero. Copy-heavy.',
+    composes: [],
+    sceneRole: 'background',
+    occlusion: 'full_frame',
+    example: {
+      columns: 3,
+      brandName: 'ONDA',
+      heroIndex: 0,
+      slides: [
+        { title: 'The Long Game', subtitle: 'A startup podcast' },
+        { title: 'Why now', bullets: ['Timing', 'Team', 'Traction'] },
+        { stats: [{ value: '10K', label: 'users' }] },
+      ],
+    },
+    props: [],
+    schema: deckFlyoverSchema,
   },
 ]
 
