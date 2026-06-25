@@ -5247,10 +5247,21 @@ const RAW: RawEntry[] = [
         role: 'enum',
         themeable: false,
         required: false,
-        enumValues: ['rise', 'fade', 'scale', 'blur', 'wave', 'scatter', 'stretch'],
+        enumValues: [
+          'rise',
+          'fade',
+          'scale',
+          'blur',
+          'wave',
+          'scatter',
+          'stretch',
+          'squeeze',
+          'slice',
+          'flip',
+        ],
         default: "'rise'",
         description:
-          'Per-glyph entrance flavor: rise (translateY + fade), fade (opacity only), scale (grow from center + fade), blur (real soft→sharp focus-pull + fade), wave (rippling sine offset + fade), scatter (each glyph flies in from a random direction + tumbles upright, then settles to its kerned position — an editable kinetic wordmark), stretch (each glyph appears at the baseline and stretches UP to near the top of the frame — a tall thin needle that pinches narrower, a rubber-band pull — then snap-settles to rest; placement-aware peak height, so place lower-third for full-height drama; an editable kinetic wordmark).',
+          'Per-glyph entrance flavor: rise (translateY + fade), fade (opacity only), scale (grow from center + fade), blur (real soft→sharp focus-pull + fade), wave (rippling sine offset + fade), scatter (each glyph flies in from a random direction + tumbles upright), stretch (each glyph stretches UP from the baseline into a tall thin needle, then snap-settles), squeeze (each glyph starts squashed flat-and-wide then springs UP and settles — a bouncy pop, the inverse of stretch), slice (each glyph is cut across its middle and the two halves slide together to assemble it), flip (each glyph drops open from its top edge like a split-flap board). scatter/stretch/squeeze/slice/flip are editable any-word kinetic wordmarks and support exit.',
       },
       {
         name: 'stagger',
