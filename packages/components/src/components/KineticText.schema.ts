@@ -22,10 +22,10 @@ export const kineticTextSchema = z.object({
       'Optional per-glyph color palette. When set, glyph i is painted colors[i % colors.length] (cycling), overriding color — a multicolor wordmark from one editable string. Omit to paint the whole line one color.',
     ),
   preset: z
-    .enum(['rise', 'fade', 'scale', 'blur', 'wave', 'scatter'])
+    .enum(['rise', 'fade', 'scale', 'blur', 'wave', 'scatter', 'stretch'])
     .default('rise')
     .describe(
-      'Per-glyph entrance flavor. scatter = each glyph flies in from a random direction and tumbles upright (great for an editable kinetic wordmark).',
+      'Per-glyph entrance flavor. scatter = each glyph flies in from a random direction and tumbles upright. stretch = each glyph appears at the baseline and stretches UP to near the top of the frame (a tall thin needle that pinches narrower — a rubber-band pull) then snap-settles to rest; placement-aware peak height (place lower-third for full-height drama). Both are great for an editable kinetic wordmark.',
     ),
   stagger: timeSchema
     .default(5)
@@ -38,11 +38,13 @@ export const kineticTextSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      "scatter preset only: also scatter the glyphs back OUT (tumbling + fading) over the clip's final frames, so the line exits as kinetically as it entered. Default off (settle and hold).",
+      "scatter/stretch presets: also animate the glyphs back OUT over the clip's final frames, so the line exits as kinetically as it entered (scatter = tumble + fade; stretch = bloom tall once more, then collapse into the baseline). Default off (settle and hold).",
     ),
   exitDuration: timeSchema
     .optional()
-    .describe("Length of the scatter-OUT when exit is on (frames or '0.5s'); default ~14f."),
+    .describe(
+      "Length of the exit-OUT when exit is on (frames or '0.5s'); default ~14f (scatter) / ~26f (stretch).",
+    ),
   align: z
     .enum(['left', 'center', 'right'])
     .default('center')
