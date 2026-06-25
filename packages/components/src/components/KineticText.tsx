@@ -36,6 +36,7 @@
 import {
   Group,
   Text,
+  clipRect,
   interpolate,
   spring,
   useCurrentFrame,
@@ -53,7 +54,17 @@ import { staggeredSettle, useTimeScale } from '../timing.js'
 import { type TextAnimate, TextAnimator } from './TextAnimator.js'
 
 /** The per-glyph entrance presets. */
-export type KineticTextPreset = 'rise' | 'fade' | 'scale' | 'blur' | 'wave' | 'scatter' | 'stretch'
+export type KineticTextPreset =
+  | 'rise'
+  | 'fade'
+  | 'scale'
+  | 'blur'
+  | 'wave'
+  | 'scatter'
+  | 'stretch'
+  | 'squeeze'
+  | 'slice'
+  | 'flip'
 
 export interface KineticTextProps extends TextStyleProps {
   /** The line to choreograph. Laid out as one row of absolutely-placed glyphs. */
@@ -130,7 +141,7 @@ const scatterHash = (i: number, salt: number): number => {
  *  for what each preset animates. `wave`, `scatter` and `stretch` are procedural (per-glyph
  *  randomized / index-keyed) and handled by their own dedicated paths. */
 const PRESET_ANIMATE: Record<
-  Exclude<KineticTextPreset, 'wave' | 'scatter' | 'stretch'>,
+  Exclude<KineticTextPreset, 'wave' | 'scatter' | 'stretch' | 'squeeze' | 'slice' | 'flip'>,
   TextAnimate
 > = {
   rise: { y: [RISE_PX, 0], opacity: [0, 1] },
@@ -176,9 +187,26 @@ export function KineticText({
   // `wave` is a decaying sine ripple (a function of progress AND index), not a
   // from→to channel — it keeps its own small path. Everything else is the general
   // engine with a preset channel map.
-  if (preset === 'wave' || preset === 'scatter' || preset === 'stretch') {
+  if (
+    preset === 'wave' ||
+    preset === 'scatter' ||
+    preset === 'stretch' ||
+    preset === 'squeeze' ||
+    preset === 'slice' ||
+    preset === 'flip'
+  ) {
     const Procedural =
-      preset === 'wave' ? KineticWave : preset === 'scatter' ? KineticScatter : KineticStretch
+      preset === 'wave'
+        ? KineticWave
+        : preset === 'scatter'
+          ? KineticScatter
+          : preset === 'stretch'
+            ? KineticStretch
+            : preset === 'squeeze'
+              ? KineticSqueeze
+              : preset === 'slice'
+                ? KineticSlice
+                : KineticFlip
     return (
       <Procedural
         text={text}
@@ -656,6 +684,335 @@ function KineticStretch({
           >
             {ch}
           </Text>
+        )
+      })}
+    </Group>
+  )
+}
+
+// ── `squeeze` preset tuning ──────────────────────────────────────────────────
+const SQUEEZE_FLAT_Y = 0.34 // squashed scaleY at the start (a flat pancake)
+const SQUEEZE_WIDE_X = 1.42 // widened scaleX at the start (volume-preserving squash)
+const SQUEEZE_POP = 1.14 // scaleY overshoot at the top of the pop
+const SQUEEZE_FADE = 4
+const SQUEEZE_EXIT_BASE = 16
+
+/** `squeeze` preset: each glyph starts squashed flat-and-wide on the baseline, then
+ *  springs UP — scaleY overshoots tall while scaleX narrows back — and settles (a
+ *  squash-and-stretch pop). `exit` squashes them back down + fades. The inverse
+ *  energy of `stretch`: a bouncy ground-up pop instead of a tall needle. */
+function KineticSqueeze({
+  text,
+  fontSize: fontSizeProp,
+  fit,
+  maxWidth,
+  stagger: staggerIn,
+  durationInFrames: durationIn,
+  delay: delayIn,
+  fitToClip,
+  maxSettle,
+  hold,
+  align,
+  color: colorProp,
+  fontFamily: fontFamilyProp,
+  fontWeight,
+  italic = false,
+  letterSpacing,
+  placement,
+  colors,
+  exit,
+  exitDuration,
+}: ProceduralPresetProps) {
+  const frame = useCurrentFrame()
+  const { fps, durationInFrames: clipFrames } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
+  useTextMetricsReady()
+  const measureOpts = { fontFamily, fontWeight }
+  const fontSize = useFittedFontSize(text, fontSizeProp, { ...measureOpts, fit, maxWidth })
+  const laid = layoutGlyphLine(text, fontSize, measureOpts)
+  const placed = laid.rendered
+  const lineWidth = laid.width
+  const staggerBase = framesOf(staggerIn, fps, STAGGER)
+  const durationBase = framesOf(durationIn, fps, DURATION.base)
+  const delayBase = framesOf(delayIn, fps)
+  const naturalSettle = staggeredSettle(placed.length, staggerBase, durationBase, delayBase)
+  const timeScale = useTimeScale(naturalSettle, { fitToClip, maxSettle, hold })
+  const stagger = staggerBase * timeScale
+  const duration = Math.max(2, durationBase * timeScale)
+  const delay = delayBase * timeScale
+  const resolved = usePlacement(placement, { width: lineWidth, height: fontSize * LINE_RATIO })
+  const anchorX = Math.round(resolved.x)
+  const startX = lineStartX(align, anchorX, lineWidth)
+  const baseY = lineTopY(resolved.y, fontSize)
+  const pivotLocal = fontSize * STRETCH_BASELINE // pivot at the baseline (squashes/pops from the ground)
+
+  const exitOn = exit === true
+  const exitDur = framesOf(exitDuration, fps, Math.round((SQUEEZE_EXIT_BASE * fps) / 30))
+  const exitSpan = exitDur + Math.max(0, placed.length - 1) * stagger
+  const exitStart0 = clipFrames - exitSpan
+
+  return (
+    <Group>
+      {placed.map(({ ch, x, width, renderIndex: i }) => {
+        const local = frame - delay - staggerFrames(i, stagger)
+        const p =
+          local <= 0
+            ? 0
+            : spring({ frame: local, fps, config: SPRING_SNAPPY, durationInFrames: duration })
+        let scaleY = interpolate(p, [0, 0.6, 1], [SQUEEZE_FLAT_Y, SQUEEZE_POP, 1], CLAMP)
+        let scaleX = interpolate(p, [0, 0.6, 1], [SQUEEZE_WIDE_X, 0.96, 1], CLAMP)
+        let opacity = interpolate(local, [0, SQUEEZE_FADE], [0, 1], CLAMP)
+        if (exitOn) {
+          const eStart = exitStart0 + staggerFrames(i, stagger)
+          if (frame >= eStart) {
+            const e = interpolate(frame, [eStart, eStart + exitDur], [0, 1], CLAMP)
+            scaleY = 1 + (SQUEEZE_FLAT_Y - 1) * e
+            scaleX = 1 + (SQUEEZE_WIDE_X - 1) * e
+            opacity *= 1 - e
+          }
+        }
+        return (
+          <Text
+            key={`${i}-${ch}`}
+            x={startX + x}
+            y={baseY}
+            scaleX={scaleX}
+            scaleY={scaleY}
+            originX={width / 2}
+            originY={pivotLocal}
+            opacity={opacity}
+            fontSize={fontSize}
+            color={glyphColor(colors, i, color)}
+            fontFamily={fontFamily}
+            fontWeight={fontWeight}
+            italic={italic}
+            letterSpacing={letterSpacing}
+          >
+            {ch}
+          </Text>
+        )
+      })}
+    </Group>
+  )
+}
+
+// ── `flip` preset tuning ─────────────────────────────────────────────────────
+const FLIP_HINGE = 0.16 // hinge height below the box-top (the flap pivots near the cap top)
+const FLIP_FADE = 3
+const FLIP_EXIT_BASE = 12
+
+/** `flip` preset: each glyph drops open from its top edge like a split-flap board —
+ *  scaleY 0 → 1 about the top hinge, snappy, with a small clack overshoot — staggered
+ *  left→right. `exit` flips them closed + fades. */
+function KineticFlip({
+  text,
+  fontSize: fontSizeProp,
+  fit,
+  maxWidth,
+  stagger: staggerIn,
+  durationInFrames: durationIn,
+  delay: delayIn,
+  fitToClip,
+  maxSettle,
+  hold,
+  align,
+  color: colorProp,
+  fontFamily: fontFamilyProp,
+  fontWeight,
+  italic = false,
+  letterSpacing,
+  placement,
+  colors,
+  exit,
+  exitDuration,
+}: ProceduralPresetProps) {
+  const frame = useCurrentFrame()
+  const { fps, durationInFrames: clipFrames } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
+  useTextMetricsReady()
+  const measureOpts = { fontFamily, fontWeight }
+  const fontSize = useFittedFontSize(text, fontSizeProp, { ...measureOpts, fit, maxWidth })
+  const laid = layoutGlyphLine(text, fontSize, measureOpts)
+  const placed = laid.rendered
+  const lineWidth = laid.width
+  const staggerBase = framesOf(staggerIn, fps, STAGGER)
+  const durationBase = framesOf(durationIn, fps, DURATION.base)
+  const delayBase = framesOf(delayIn, fps)
+  const naturalSettle = staggeredSettle(placed.length, staggerBase, durationBase, delayBase)
+  const timeScale = useTimeScale(naturalSettle, { fitToClip, maxSettle, hold })
+  const stagger = staggerBase * timeScale
+  const duration = Math.max(2, durationBase * timeScale)
+  const delay = delayBase * timeScale
+  const resolved = usePlacement(placement, { width: lineWidth, height: fontSize * LINE_RATIO })
+  const anchorX = Math.round(resolved.x)
+  const startX = lineStartX(align, anchorX, lineWidth)
+  const baseY = lineTopY(resolved.y, fontSize)
+  const hinge = fontSize * FLIP_HINGE
+
+  const exitOn = exit === true
+  const exitDur = framesOf(exitDuration, fps, Math.round((FLIP_EXIT_BASE * fps) / 30))
+  const exitSpan = exitDur + Math.max(0, placed.length - 1) * stagger
+  const exitStart0 = clipFrames - exitSpan
+
+  return (
+    <Group>
+      {placed.map(({ ch, x, width, renderIndex: i }) => {
+        const local = frame - delay - staggerFrames(i, stagger)
+        const p =
+          local <= 0
+            ? 0
+            : spring({ frame: local, fps, config: SPRING_SNAPPY, durationInFrames: duration })
+        let scaleY = interpolate(p, [0, 0.8, 1], [0, 1.08, 1], CLAMP)
+        let opacity = interpolate(local, [0, FLIP_FADE], [0, 1], CLAMP)
+        if (exitOn) {
+          const eStart = exitStart0 + staggerFrames(i, stagger)
+          if (frame >= eStart) {
+            const e = interpolate(frame, [eStart, eStart + exitDur], [0, 1], CLAMP)
+            scaleY = 1 - e
+            opacity *= 1 - e
+          }
+        }
+        return (
+          <Text
+            key={`${i}-${ch}`}
+            x={startX + x}
+            y={baseY}
+            scaleY={scaleY}
+            originX={width / 2}
+            originY={hinge}
+            opacity={opacity}
+            fontSize={fontSize}
+            color={glyphColor(colors, i, color)}
+            fontFamily={fontFamily}
+            fontWeight={fontWeight}
+            italic={italic}
+            letterSpacing={letterSpacing}
+          >
+            {ch}
+          </Text>
+        )
+      })}
+    </Group>
+  )
+}
+
+// ── `slice` preset tuning ────────────────────────────────────────────────────
+const SLICE_DIST = 0.55 // start horizontal offset of each half, as a fraction of fontSize
+const SLICE_MID = 0.46 // the slice line within the box (fraction of fontSize from the top)
+const SLICE_FADE = 3
+const SLICE_EXIT_BASE = 16
+
+/** `slice` preset: each glyph is cut across its middle; the top half slides in from
+ *  the right and the bottom half from the left, meeting to assemble the letter. Built
+ *  from two per-glyph clip bands. `exit` slides the halves apart + fades. */
+function KineticSlice({
+  text,
+  fontSize: fontSizeProp,
+  fit,
+  maxWidth,
+  stagger: staggerIn,
+  durationInFrames: durationIn,
+  delay: delayIn,
+  fitToClip,
+  maxSettle,
+  hold,
+  align,
+  color: colorProp,
+  fontFamily: fontFamilyProp,
+  fontWeight,
+  italic = false,
+  letterSpacing,
+  placement,
+  colors,
+  exit,
+  exitDuration,
+}: ProceduralPresetProps) {
+  const frame = useCurrentFrame()
+  const { fps, durationInFrames: clipFrames } = useVideoConfig()
+  const theme = useTheme()
+  const color = colorProp ?? theme.text
+  const fontFamily = fontFamilyProp ?? theme.fontFamily
+  useTextMetricsReady()
+  const measureOpts = { fontFamily, fontWeight }
+  const fontSize = useFittedFontSize(text, fontSizeProp, { ...measureOpts, fit, maxWidth })
+  const laid = layoutGlyphLine(text, fontSize, measureOpts)
+  const placed = laid.rendered
+  const lineWidth = laid.width
+  const staggerBase = framesOf(staggerIn, fps, STAGGER)
+  const durationBase = framesOf(durationIn, fps, DURATION.base)
+  const delayBase = framesOf(delayIn, fps)
+  const naturalSettle = staggeredSettle(placed.length, staggerBase, durationBase, delayBase)
+  const timeScale = useTimeScale(naturalSettle, { fitToClip, maxSettle, hold })
+  const stagger = staggerBase * timeScale
+  const duration = Math.max(2, durationBase * timeScale)
+  const delay = delayBase * timeScale
+  const resolved = usePlacement(placement, { width: lineWidth, height: fontSize * LINE_RATIO })
+  const anchorX = Math.round(resolved.x)
+  const startX = lineStartX(align, anchorX, lineWidth)
+  const baseY = lineTopY(resolved.y, fontSize)
+  const boxH = fontSize * LINE_RATIO
+  const midLocal = fontSize * SLICE_MID
+  const dist = fontSize * SLICE_DIST
+
+  const exitOn = exit === true
+  const exitDur = framesOf(exitDuration, fps, Math.round((SLICE_EXIT_BASE * fps) / 30))
+  const exitSpan = exitDur + Math.max(0, placed.length - 1) * stagger
+  const exitStart0 = clipFrames - exitSpan
+
+  return (
+    <Group>
+      {placed.map(({ ch, x, width, renderIndex: i }) => {
+        const local = frame - delay - staggerFrames(i, stagger)
+        const p =
+          local <= 0
+            ? 0
+            : spring({ frame: local, fps, config: SPRING_SMOOTH, durationInFrames: duration })
+        let off = (1 - p) * dist // halves start `dist` apart, slide to 0
+        let opacity = interpolate(local, [0, SLICE_FADE], [0, 1], CLAMP)
+        if (exitOn) {
+          const eStart = exitStart0 + staggerFrames(i, stagger)
+          if (frame >= eStart) {
+            const e = interpolate(frame, [eStart, eStart + exitDur], [0, 1], CLAMP)
+            off = e * dist
+            opacity *= 1 - e
+          }
+        }
+        const gx = startX + x
+        const clipW = width + 2 * dist
+        // A clipped horizontal band of the glyph, slid by `dx` — the glyph is drawn
+        // at its true canvas spot and only the band shows through the clip.
+        const band = (clipY0: number, clipH: number, dx: number, key: string) => (
+          <Group
+            key={key}
+            x={gx - dist}
+            y={baseY + clipY0}
+            clip={clipRect(clipW, clipH)}
+            opacity={opacity}
+          >
+            <Text
+              x={dist + dx}
+              y={-clipY0}
+              fontSize={fontSize}
+              color={glyphColor(colors, i, color)}
+              fontFamily={fontFamily}
+              fontWeight={fontWeight}
+              italic={italic}
+              letterSpacing={letterSpacing}
+            >
+              {ch}
+            </Text>
+          </Group>
+        )
+        return (
+          <Group key={`${i}-${ch}`}>
+            {/* top band overlaps the slice line by 1px so the two halves leave no seam at rest */}
+            {band(0, midLocal + 1, off, `t${i}`)}
+            {band(midLocal, boxH - midLocal, -off, `b${i}`)}
+          </Group>
         )
       })}
     </Group>
