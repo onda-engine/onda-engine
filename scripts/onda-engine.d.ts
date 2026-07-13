@@ -162,6 +162,22 @@ export function loadFont(data: Uint8Array): Promise<string[]>
  *  instead of the glyph-count estimate. Idempotent. */
 export function preloadTextMetrics(): Promise<void>
 
+/** A canvas size in px — the design (authoring) or output (render) frame. */
+export interface Box {
+  width: number
+  height: number
+}
+
+/** BAKE the per-element "Magic Resize" reframe for the output canvas `out` INTO every
+ *  `fit:"responsive"` scene of a composition payload — rewriting each entry's
+ *  position/scale, culling `hideOn` entries, and clearing the scene's design canvas.
+ *  The native `onda` binary has no per-element reframe of its own, so call this BEFORE
+ *  {@link buildComposition} on the EXPORT path and a `fit:"responsive"` master will
+ *  render reframed exactly like the React preview (same math as SceneTracks). Returns
+ *  a deep copy — the input payload is untouched. A no-op for scenes without
+ *  `fit:"responsive"` or whose design canvas already equals `out`. */
+export function flattenResponsive<T>(payload: T, out: Box): T
+
 /** A `placement` value — a region keyword (e.g. 'center', 'top-left',
  *  'lower-third') or a normalized 0..1 canvas point anchored at the element center. */
 export type Placement = string | { x?: number; y?: number }

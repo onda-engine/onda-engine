@@ -155,7 +155,7 @@ export function isHiddenForOutput(behavior: ResponsiveBehavior | undefined, out:
 /** Default fill for an UNSPECIFIED responsive scene whose output FLIPS orientation
  *  (landscape↔portrait): a 90° flip always leaves fit-scaled content tiny in a band, so
  *  nudge it up toward cover by default. Same-orientation reframes stay at pure fit. */
-const DEFAULT_FLIP_FILL = 0.4
+const DEFAULT_FLIP_FILL = 0.6
 
 /** Whether the output flips orientation vs the design canvas (landscape↔portrait). */
 export function isAspectFlip(design: Box, out: Box): boolean {
@@ -195,16 +195,30 @@ export function gridReflowPlacements(
     if (entries[i]?.role === 'ambient') continue
     const anchor = entryDesignAnchor(props)
     if (!anchor) continue
-    const content = props?.content as { kind?: string; width?: number; height?: number } | undefined
-    if (!content || (content.kind !== 'image' && content.kind !== 'video')) continue
+    const content = props?.content as
+      | { kind?: string; width?: number; height?: number; text?: string; fontSize?: number }
+      | undefined
+    if (!content) continue
     if (isFullBleed(props, design)) continue
     const s = meanScale(props)
-    eligible.push({
-      i,
-      anchor,
-      cw: (content.width ?? design.width) * s,
-      ch: (content.height ?? design.height) * s,
-    })
+    let cw: number
+    let ch: number
+    if (content.kind === 'image' || content.kind === 'video') {
+      cw = (content.width ?? design.width) * s
+      ch = (content.height ?? design.height) * s
+    } else if (content.kind === 'text') {
+      // Text tiles re-grid too: a 16:9 word-WALL (e.g. a kinetic-type barrage) becomes a
+      // portrait grid filling the frame, instead of overflowing (cover) or pillarboxing (fit).
+      // This module is pure (no measureText), so estimate the glyph box from char count × size.
+      const text = String(content.text ?? '')
+      if (!text.trim()) continue
+      const fs = typeof content.fontSize === 'number' ? content.fontSize : 48
+      cw = text.trim().length * fs * 0.62 * s
+      ch = fs * 1.2 * s
+    } else {
+      continue
+    }
+    eligible.push({ i, anchor, cw, ch })
   }
   // Drop entries sharing an anchor (overlapping stacks aren't grid cells).
   const key = (a: { x: number; y: number }) => `${Math.round(a.x / 8)},${Math.round(a.y / 8)}`
@@ -336,4 +350,104 @@ export function responsiveCoverTransform(design: Box, out: Box): ResponsiveTrans
     y: (out.height - design.height * s) / 2,
     scale: s,
   }
+}
+
+// ── Flatten (Tier 0): bake the reframe INTO the payload ──────────────────────
+// For a renderer with NO per-element reframe (the native export binary, which only
+// applies element transforms — not the React <Group> SceneTracks wraps), pre-apply
+// the SAME math the preview uses so EXPORT matches PREVIEW. The embedding app calls
+// flattenResponsive(payload, {output canvas}) before handing the comp to the binary.
+
+/** Minimal structural shapes flattenResponsive walks — kept local so this pure-math
+ *  module keeps zero composition-type dependency. */
+interface FlattenEntry {
+  role?: string
+  props?: Record<string, unknown>
+  responsive?: ResponsiveBehavior
+}
+interface FlattenComposition {
+  scenes?: {
+    fit?: string
+    fill?: number
+    reflow?: string
+    designWidth?: number
+    designHeight?: number
+    tracks?: { entries?: FlattenEntry[] }[]
+  }[]
+}
+
+/** Fold a would-be `<Group x,y,scale>` reframe into ONE entry's own tracks, in place:
+ *  position (x,y)→(t.x+t.scale·x, t.y+t.scale·y), scale v→t.scale·v. An element-
+ *  transform-only renderer then reproduces the wrapped-Group result. */
+function bakeEntryTransform(props: Record<string, unknown>, t: ResponsiveTransform): void {
+  if (t.x === 0 && t.y === 0 && t.scale === 1) return
+  const pos = props.position as PosKey[] | undefined
+  if (Array.isArray(pos) && pos.length) {
+    props.position = pos.map((k) => ({ ...k, x: t.x + t.scale * k.x, y: t.y + t.scale * k.y }))
+  }
+  if (t.scale !== 1) {
+    const sc = props.scale as ValKey[] | undefined
+    props.scale =
+      Array.isArray(sc) && sc.length
+        ? sc.map((k) => ({ ...k, v: k.v * t.scale }))
+        : [{ v: t.scale, at: 0 }]
+  }
+}
+
+/** BAKE the per-element responsive reframe for output canvas `out` INTO every
+ *  `fit:"responsive"` scene, so a renderer with NO reframe (the native binary) yields
+ *  the same layout as the React preview ({@link responsiveEntryTransform}). Rewrites
+ *  each positioned entry's position/scale by its computed transform, culls `hideOn`
+ *  entries, honours grid/scroll reflow, then clears the scene's fit/design canvas so
+ *  the renderer treats it as already authored in `out` space. Returns a structuredClone
+ *  — the input is untouched. Same math as the preview ⇒ export & preview can't drift. */
+export function flattenResponsive<T extends FlattenComposition>(payload: T, out: Box): T {
+  const result = structuredClone(payload)
+  for (const scene of result.scenes ?? []) {
+    if (scene.fit !== 'responsive') continue
+    const dw = scene.designWidth
+    const dh = scene.designHeight
+    if (!dw || !dh || (dw === out.width && dh === out.height)) continue
+    const design: Box = { width: dw, height: dh }
+    const fill = responsiveFill(scene.fill, design, out)
+    const flat = (scene.tracks ?? []).flatMap((tr) => tr.entries ?? [])
+    const reflow =
+      scene.reflow === 'grid'
+        ? gridReflowPlacements(flat, design, out)
+        : scene.reflow === 'scroll'
+          ? scrollReflowPlacements(flat, design, out)
+          : null
+    const aspect = outputAspect(out)
+    let gi = 0
+    for (const track of scene.tracks ?? []) {
+      const kept: FlattenEntry[] = []
+      for (const entry of track.entries ?? []) {
+        const place = reflow ? reflow[gi] : null
+        gi += 1
+        if (isHiddenForOutput(entry.responsive, out)) continue
+        const props = entry.props as Record<string, unknown> | undefined
+        if (props) {
+          const behavior: ResponsiveBehavior | undefined = place
+            ? {
+                ...entry.responsive,
+                byAspect: {
+                  ...entry.responsive?.byAspect,
+                  [aspect]: entry.responsive?.byAspect?.[aspect] ?? place,
+                },
+              }
+            : entry.responsive
+          const t = isFullBleed(props, design)
+            ? responsiveCoverTransform(design, out)
+            : responsiveEntryTransform(entryDesignAnchor(props), design, out, behavior, fill)
+          bakeEntryTransform(props, t)
+        }
+        kept.push(entry)
+      }
+      track.entries = kept
+    }
+    scene.designWidth = undefined
+    scene.designHeight = undefined
+    scene.fit = undefined
+  }
+  return result
 }

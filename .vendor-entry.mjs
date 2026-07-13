@@ -8,6 +8,10 @@ export { registerFont, renderFrameRangeJSON } from './packages/react/dist/index.
 // font for centering) AND registers the bytes for the renderer — registerFont
 // alone only does the latter, leaving measureText on the fallback font.
 export { loadFont, preloadTextMetrics } from './packages/components/dist/index.js'
+// flattenResponsive: BAKE the per-element magic-reframe into the payload before the
+// native binary renders it — so EXPORT matches the React PREVIEW (the binary has no
+// per-element reframe of its own). The embedding app calls it with the output canvas.
+export { flattenResponsive } from './packages/components/dist/index.js'
 // Author-time layout primitives (text measurement + placement) and the component
 // MANIFEST — consumed by embedding apps (ONDA Studio's occlusion gate + the agent
 // vocabulary) so they don't need the source packages at runtime.
